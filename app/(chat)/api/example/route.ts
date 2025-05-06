@@ -1,4 +1,4 @@
-import { StreamingTextResponse } from 'ai';
+import { StreamingText } from 'ai';
 import { xai } from '@ai-sdk/xai';
 
 export const runtime = 'edge';
@@ -10,5 +10,5 @@ export async function GET() {
   });
 
   // Return a streaming response
-  return new StreamingTextResponse(response);
+  return new StreamingText({ text: response });
 } 
