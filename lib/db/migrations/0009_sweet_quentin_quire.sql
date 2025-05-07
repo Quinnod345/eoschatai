@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS "UserSettings" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "User" ADD COLUMN "providerId" varchar(64);--> statement-breakpoint
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "providerId" varchar(64);--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "UserSettings" ADD CONSTRAINT "UserSettings_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION

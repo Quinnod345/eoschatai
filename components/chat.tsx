@@ -55,7 +55,7 @@ export function Chat({
 
       // Show a toast to indicate provider change
       toast({
-        type: 'default',
+        type: 'success',
         title: 'Provider Changed',
         description: `Using ${initialProvider === 'xai' ? 'Grok' : 'OpenAI'} for chat`,
       });

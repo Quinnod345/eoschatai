@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS "Embeddings" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "Message_v2" ADD COLUMN "provider" varchar;--> statement-breakpoint
+ALTER TABLE "Message_v2" ADD COLUMN IF NOT EXISTS "provider" varchar;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "Embeddings" ADD CONSTRAINT "Embeddings_documentId_Document_id_fk" FOREIGN KEY ("documentId") REFERENCES "public"."Document"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
