@@ -2,7 +2,7 @@ import type { ArtifactKind } from '@/components/artifact';
 import type { Geo } from '@vercel/functions';
 
 // Define RequestHints interface
-interface RequestHints {
+export interface RequestHints {
   latitude?: string | number;
   longitude?: string | number;
   city?: string;
