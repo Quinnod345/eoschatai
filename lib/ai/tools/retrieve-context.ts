@@ -40,8 +40,8 @@ export const retrieveContextTool = ({ dataStream }: RetrieveContextProps) =>
           found: true,
           message: `Found ${relevantContent.length} relevant pieces of information.`,
           context: relevantContent.map((item) => ({
-            content: item.chunk,
-            relevance: item.similarity,
+            content: item.content,
+            relevance: item.relevance,
           })),
         };
       } catch (error) {
