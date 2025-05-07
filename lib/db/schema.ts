@@ -106,26 +106,18 @@ export const vote = pgTable(
 
 export type Vote = InferSelectModel<typeof vote>;
 
-export const document = pgTable(
-  'Document',
-  {
-    id: uuid('id').notNull().defaultRandom(),
-    createdAt: timestamp('createdAt').notNull(),
-    title: text('title').notNull(),
-    content: text('content'),
-    kind: varchar('text', { enum: ['text', 'code', 'image', 'sheet'] })
-      .notNull()
-      .default('text'),
-    userId: uuid('userId')
-      .notNull()
-      .references(() => user.id),
-  },
-  (table) => {
-    return {
-      pk: primaryKey({ columns: [table.id, table.createdAt] }),
-    };
-  },
-);
+export const document = pgTable('Document', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  createdAt: timestamp('createdAt').notNull(),
+  title: text('title').notNull(),
+  content: text('content'),
+  kind: varchar('text', { enum: ['text', 'code', 'image', 'sheet'] })
+    .notNull()
+    .default('text'),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id),
+});
 
 export type Document = InferSelectModel<typeof document>;
 

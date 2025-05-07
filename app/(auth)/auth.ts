@@ -8,7 +8,7 @@ import {
   getUser,
 } from '@/lib/db/queries';
 import { authConfig } from './auth.config';
-import { DUMMY_PASSWORD } from '@/lib/constants';
+import { DUMMY_PASSWORD } from '@/lib/server-constants';
 import type { DefaultJWT } from 'next-auth/jwt';
 
 export type UserType = 'guest' | 'regular';
