@@ -238,7 +238,7 @@ export function SidebarHistory({
       <SidebarGroup>
         <SidebarGroupContent>
           <div className="px-2 text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2 py-4">
-            No chats found for "{searchQuery}"
+            No chats found for &quot;{searchQuery}&quot;
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
