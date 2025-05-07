@@ -5,6 +5,7 @@ import Image from 'next/image';
 import type { User } from 'next-auth';
 import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
+import { useState } from 'react';
 
 import {
   DropdownMenu,
@@ -20,13 +21,15 @@ import {
 } from '@/components/ui/sidebar';
 import { useRouter } from 'next/navigation';
 import { toast } from './toast';
-import { LoaderIcon } from './icons';
+import { LoaderIcon, SettingsIcon } from './icons';
 import { guestRegex } from '@/lib/constants';
+import { SettingsModal } from './settings-modal';
 
 export function SidebarUserNav({ user }: { user: User }) {
   const router = useRouter();
   const { data, status } = useSession();
   const { setTheme, theme } = useTheme();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const isGuest = guestRegex.test(data?.user?.email ?? '');
 
@@ -72,6 +75,14 @@ export function SidebarUserNav({ user }: { user: User }) {
             className="w-[--radix-popper-anchor-width]"
           >
             <DropdownMenuItem
+              data-testid="user-nav-item-settings"
+              className="cursor-pointer"
+              onSelect={() => setIsSettingsOpen(true)}
+            >
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
               data-testid="user-nav-item-theme"
               className="cursor-pointer"
               onSelect={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -109,6 +120,12 @@ export function SidebarUserNav({ user }: { user: User }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </SidebarMenu>
   );
 }

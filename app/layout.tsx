@@ -70,14 +70,37 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased">
+      <body className="antialiased bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-zinc-900 dark:via-zinc-950 dark:to-slate-900">
+        <div className="fixed inset-0 z-[-1] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:20px_20px] opacity-40" />
+        <div className="fixed inset-0 z-[-2] bg-animate-pattern bg-[linear-gradient(45deg,rgba(125,211,252,0.1)_25%,transparent_25%,transparent_50%,rgba(125,211,252,0.1)_50%,rgba(125,211,252,0.1)_75%,transparent_75%,transparent)] dark:bg-[linear-gradient(45deg,rgba(31,41,55,0.3)_25%,transparent_25%,transparent_50%,rgba(31,41,55,0.3)_50%,rgba(31,41,55,0.3)_75%,transparent_75%,transparent)] [background-size:64px_64px]" />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <Toaster position="top-center" />
+          <Toaster
+            position="top-center"
+            expand={true}
+            duration={4000}
+            gap={8}
+            visibleToasts={3}
+            closeButton={true}
+            toastOptions={{
+              style: {
+                padding: '16px',
+                borderRadius: '12px',
+                background: 'var(--background)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)',
+                fontSize: '14px',
+                boxShadow:
+                  '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              },
+              className: 'spring-transition',
+              descriptionClassName: 'text-sm',
+            }}
+          />
           <SessionProvider>{children}</SessionProvider>
         </ThemeProvider>
       </body>

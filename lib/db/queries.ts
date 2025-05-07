@@ -27,11 +27,13 @@ import {
   type DBMessage,
   type Chat,
   stream,
+  userSettings,
 } from './schema';
 import type { ArtifactKind } from '@/components/artifact';
 import { generateUUID } from '../utils';
 import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
+import { processDocument } from '../ai/embeddings';
 
 // Optionally, if not using email/pass login, you can
 // use the Drizzle adapter for Auth.js / NextAuth
@@ -46,6 +48,27 @@ export async function getUser(email: string): Promise<Array<User>> {
     return await db.select().from(user).where(eq(user.email, email));
   } catch (error) {
     console.error('Failed to get user from database');
+    throw error;
+  }
+}
+
+export async function getOrCreateGoogleUser(email: string): Promise<User> {
+  try {
+    const users = await db.select().from(user).where(eq(user.email, email));
+
+    if (users.length > 0) {
+      return users[0];
+    }
+
+    // Create a new user for Google sign in
+    const [newUser] = await db
+      .insert(user)
+      .values({ email, providerId: 'google' })
+      .returning();
+
+    return newUser;
+  } catch (error) {
+    console.error('Failed to get or create Google user');
     throw error;
   }
 }
@@ -277,7 +300,7 @@ export async function saveDocument({
   userId: string;
 }) {
   try {
-    return await db
+    const documents = await db
       .insert(document)
       .values({
         id,
@@ -288,6 +311,13 @@ export async function saveDocument({
         createdAt: new Date(),
       })
       .returning();
+
+    // Process the document for embeddings (only for text kind)
+    if (kind === 'text' && content) {
+      await processDocument(id, content);
+    }
+
+    return documents;
   } catch (error) {
     console.error('Failed to save document in database');
     throw error;
@@ -506,6 +536,88 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     return streamIds.map(({ id }) => id);
   } catch (error) {
     console.error('Failed to get stream ids by chat id from database');
+    throw error;
+  }
+}
+
+export async function getUserSettings({ userId }: { userId: string }) {
+  try {
+    const settings = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId));
+
+    if (settings.length === 0) {
+      // Create default settings if none exist
+      const [newSettings] = await db
+        .insert(userSettings)
+        .values({
+          userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return newSettings;
+    }
+
+    return settings[0];
+  } catch (error) {
+    console.error('Failed to get user settings from database', error);
+    throw error;
+  }
+}
+
+export async function updateUserSettings({
+  userId,
+  settings,
+}: {
+  userId: string;
+  settings: {
+    notificationsEnabled?: boolean;
+    language?: string;
+    fontSize?: string;
+    displayName?: string;
+    companyName?: string;
+    companyType?: string;
+    companyDescription?: string;
+  };
+}) {
+  try {
+    // Check if settings exist for this user
+    const existingSettings = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId));
+
+    if (existingSettings.length === 0) {
+      // Create new settings
+      const [newSettings] = await db
+        .insert(userSettings)
+        .values({
+          userId,
+          ...settings,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return newSettings;
+    } else {
+      // Update existing settings
+      const [updatedSettings] = await db
+        .update(userSettings)
+        .set({
+          ...settings,
+          updatedAt: new Date(),
+        })
+        .where(eq(userSettings.userId, userId))
+        .returning();
+
+      return updatedSettings;
+    }
+  } catch (error) {
+    console.error('Failed to update user settings in database', error);
     throw error;
   }
 }

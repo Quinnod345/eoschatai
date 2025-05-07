@@ -2,7 +2,7 @@
 
 import type { Attachment, UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -16,13 +16,16 @@ import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
 import { toast } from './toast';
 import type { Session } from 'next-auth';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
+import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
+import { DebugInfo } from './debug-info';
 
 export function Chat({
   id,
   initialMessages,
   initialChatModel,
+  initialProvider = DEFAULT_PROVIDER,
   initialVisibilityType,
   isReadonly,
   session,
@@ -31,12 +34,54 @@ export function Chat({
   id: string;
   initialMessages: Array<UIMessage>;
   initialChatModel: string;
+  initialProvider?: string;
   initialVisibilityType: VisibilityType;
   isReadonly: boolean;
   session: Session;
   autoResume: boolean;
 }) {
   const { mutate } = useSWRConfig();
+  const router = useRouter();
+  const previousProviderRef = useRef(initialProvider);
+
+  // Log provider for debugging
+  useEffect(() => {
+    console.log('Chat component - Current provider:', initialProvider);
+
+    // If provider changed, reload the page to apply the new provider
+    if (previousProviderRef.current !== initialProvider) {
+      console.log('Provider changed, reloading chat...');
+      previousProviderRef.current = initialProvider;
+
+      // Show a toast to indicate provider change
+      toast({
+        type: 'default',
+        title: 'Provider Changed',
+        description: `Using ${initialProvider === 'xai' ? 'Grok' : 'OpenAI'} for chat`,
+      });
+
+      // Check if this is an initial load or a refresh triggered by provider-selector
+      // If there's a cookie change timestamp that's recent, don't reload again
+      const recentProviderChange = sessionStorage.getItem(
+        'provider_change_timestamp',
+      );
+      const now = Date.now();
+
+      if (
+        recentProviderChange &&
+        now - Number.parseInt(recentProviderChange) < 2000
+      ) {
+        console.log(
+          'Recent provider change detected, avoiding duplicate reload',
+        );
+        // Clear the timestamp since we've handled it
+        sessionStorage.removeItem('provider_change_timestamp');
+      } else {
+        // Force a refresh of the page to ensure we're using the new provider
+        router.refresh();
+      }
+    }
+  }, [initialProvider, router]);
 
   const { visibilityType } = useChatVisibility({
     chatId: id,
@@ -64,6 +109,7 @@ export function Chat({
       id,
       message: body.messages.at(-1),
       selectedChatModel: initialChatModel,
+      selectedProvider: initialProvider,
       selectedVisibilityType: visibilityType,
     }),
     onFinish: () => {
@@ -113,10 +159,11 @@ export function Chat({
 
   return (
     <>
-      <div className="flex flex-col min-w-0 h-dvh bg-background">
+      <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
         <ChatHeader
           chatId={id}
           selectedModelId={initialChatModel}
+          selectedProviderId={initialProvider}
           selectedVisibilityType={initialVisibilityType}
           isReadonly={isReadonly}
           session={session}
@@ -133,7 +180,7 @@ export function Chat({
           isArtifactVisible={isArtifactVisible}
         />
 
-        <form className="flex mx-auto px-4 bg-background pb-4 md:pb-6 gap-2 w-full md:max-w-3xl">
+        <form className="absolute bottom-0 left-0 right-0 flex mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
           {!isReadonly && (
             <MultimodalInput
               chatId={id}
@@ -170,6 +217,8 @@ export function Chat({
         isReadonly={isReadonly}
         selectedVisibilityType={visibilityType}
       />
+
+      <DebugInfo provider={initialProvider} model={initialChatModel} />
     </>
   );
 }

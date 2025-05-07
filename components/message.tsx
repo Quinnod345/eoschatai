@@ -1,12 +1,10 @@
-'use client';
-
 import type { UIMessage } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
-import { PencilEditIcon, SparklesIcon } from './icons';
+import { PencilEditIcon, AILoaderIcon } from './icons';
 import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
@@ -19,6 +17,57 @@ import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
 import type { UseChatHelpers } from '@ai-sdk/react';
+import { PDFPreview } from './pdf-preview';
+
+// Extend UIMessage type to include provider
+interface ExtendedUIMessage extends UIMessage {
+  provider?: string;
+}
+
+interface PDFContent {
+  name: string;
+  pageCount: number;
+}
+
+// Regular expression to extract PDF metadata from message text
+const PDF_CONTENT_REGEX =
+  /===\s+PDF\s+Content\s+from\s+([^\(]+)\s+\((\d+)\s+pages\)\s+===/gi;
+
+// Function to extract PDF content markers from text and return both PDFs and cleaned text
+function extractPDFContent(text: string): {
+  pdfs: PDFContent[];
+  cleanedText: string;
+} {
+  const pdfs: PDFContent[] = [];
+
+  // Find all PDF content markers in the text
+  let match: RegExpExecArray | null = PDF_CONTENT_REGEX.exec(text);
+
+  while (match !== null) {
+    // Extract name and page count from regex match
+    const name = match[1].trim();
+    const pageCount = Number.parseInt(match[2], 10);
+
+    pdfs.push({ name, pageCount });
+
+    // Get the next match
+    match = PDF_CONTENT_REGEX.exec(text);
+  }
+
+  // Remove the PDF content sections from the text
+  let cleanedText = text;
+  if (pdfs.length > 0) {
+    // Remove PDF content sections (from marker to the next marker or end)
+    cleanedText = text.replace(
+      /===\s+PDF\s+Content\s+from.+?(?=(===\s+PDF\s+Content\s+from|$))/gs,
+      '',
+    );
+    // Clean up any leftover whitespace
+    cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  return { pdfs, cleanedText };
+}
 
 const PurePreviewMessage = ({
   chatId,
@@ -31,7 +80,7 @@ const PurePreviewMessage = ({
   requiresScrollPadding,
 }: {
   chatId: string;
-  message: UIMessage;
+  message: ExtendedUIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: UseChatHelpers['setMessages'];
@@ -40,6 +89,29 @@ const PurePreviewMessage = ({
   requiresScrollPadding: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+
+  // Process text parts to extract PDF content
+  const processedParts = useMemo(() => {
+    if (!message.parts) return { parts: message.parts, pdfContents: [] };
+
+    const pdfContents: PDFContent[] = [];
+
+    // Process each text part to extract PDF contents
+    const parts = message.parts.map((part) => {
+      if (part.type === 'text') {
+        const { pdfs, cleanedText } = extractPDFContent(part.text);
+        pdfContents.push(...pdfs);
+
+        // Create a new part with the cleaned text
+        return { ...part, text: cleanedText };
+      }
+      return part;
+    });
+
+    return { parts, pdfContents };
+  }, [message.parts]);
+
+  const { parts, pdfContents } = processedParts;
 
   return (
     <AnimatePresence>
@@ -52,7 +124,7 @@ const PurePreviewMessage = ({
       >
         <div
           className={cn(
-            'flex gap-4 w-full group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl',
+            'flex gap-4 w-full group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-[calc(100%-24px)]',
             {
               'w-full': mode === 'edit',
               'group-data-[role=user]/message:w-fit': mode !== 'edit',
@@ -62,7 +134,7 @@ const PurePreviewMessage = ({
           {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
-                <SparklesIcon size={14} />
+                <AILoaderIcon size={14} />
               </div>
             </div>
           )}
@@ -72,6 +144,21 @@ const PurePreviewMessage = ({
               'min-h-96': message.role === 'assistant' && requiresScrollPadding,
             })}
           >
+            {/* Show PDF previews above message content for user messages */}
+            {message.role === 'user' && pdfContents.length > 0 && (
+              <div className="flex flex-row justify-end gap-2 flex-wrap">
+                {pdfContents.map((pdf, index) => (
+                  <PDFPreview
+                    key={`pdf-${index}-${pdf.name}`}
+                    name={pdf.name}
+                    pageCount={pdf.pageCount}
+                    alignRight={true}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Show regular attachments */}
             {message.experimental_attachments &&
               message.experimental_attachments.length > 0 && (
                 <div
@@ -87,7 +174,20 @@ const PurePreviewMessage = ({
                 </div>
               )}
 
-            {message.parts?.map((part, index) => {
+            {/* Show PDF previews for assistant messages */}
+            {message.role === 'assistant' && pdfContents.length > 0 && (
+              <div className="flex flex-row gap-2 flex-wrap">
+                {pdfContents.map((pdf, index) => (
+                  <PDFPreview
+                    key={`pdf-${index}-${pdf.name}`}
+                    name={pdf.name}
+                    pageCount={pdf.pageCount}
+                  />
+                ))}
+              </div>
+            )}
+
+            {parts?.map((part, index) => {
               const { type } = part;
               const key = `message-${message.id}-part-${index}`;
 
@@ -97,6 +197,7 @@ const PurePreviewMessage = ({
                     key={key}
                     isLoading={isLoading}
                     reasoning={part.reasoning}
+                    provider={(message as any).provider || 'xai'}
                   />
                 );
               }
@@ -111,7 +212,7 @@ const PurePreviewMessage = ({
                             <Button
                               data-testid="message-edit-button"
                               variant="ghost"
-                              className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
+                              className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 transition-opacity"
                               onClick={() => {
                                 setMode('edit');
                               }}
@@ -126,7 +227,7 @@ const PurePreviewMessage = ({
                       <div
                         data-testid="message-content"
                         className={cn('flex flex-col gap-4', {
-                          'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
+                          'bg-primary text-primary-foreground px-3 py-2 rounded-xl shadow-lg shadow-primary/50':
                             message.role === 'user',
                         })}
                       >
@@ -271,7 +372,7 @@ export const ThinkingMessage = () => {
         )}
       >
         <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
-          <SparklesIcon size={14} />
+          <AILoaderIcon size={14} />
         </div>
 
         <div className="flex flex-col gap-2 w-full">

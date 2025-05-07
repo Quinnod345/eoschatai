@@ -6,6 +6,14 @@
     --foreground-rgb: 0, 0, 0;
     --background-start-rgb: 214, 219, 220;
     --background-end-rgb: 255, 255, 255;
+
+    /* Spring animation variables */
+    --spring-duration: 0.3s;
+    --spring-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --hover-scale: 1.03;
+    --hover-translate-y: -2px;
+    --hover-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    --spacing-unit: 0.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -13,94 +21,257 @@
         --foreground-rgb: 255, 255, 255;
         --background-start-rgb: 0, 0, 0;
         --background-end-rgb: 0, 0, 0;
+        --hover-shadow: 0 10px 25px -5px rgba(255, 166, 0, 0.15), 0 8px 10px -6px rgba(255, 166, 0, 0.1);
     }
+}
+
+/* Animation for background patterns */
+@keyframes subtleShift {
+    0% {
+        background-position: 0% 0%;
+    }
+    50% {
+        background-position: 100% 100%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
+}
+
+.bg-animate-pattern {
+    animation: subtleShift 30s ease-in-out infinite;
+    background-size: 200% 200%;
 }
 
 @layer utilities {
     .text-balance {
         text-wrap: balance;
     }
+
+    /* Enhanced spacing utilities */
+    .spacing-sm {
+        margin: calc(var(--spacing-unit) * 1);
+    }
+
+    .spacing-md {
+        margin: calc(var(--spacing-unit) * 2);
+    }
+
+    .spacing-lg {
+        margin: calc(var(--spacing-unit) * 4);
+    }
+
+    .spacing-xl {
+        margin: calc(var(--spacing-unit) * 8);
+    }
+
+    .padding-sm {
+        padding: calc(var(--spacing-unit) * 1);
+    }
+
+    .padding-md {
+        padding: calc(var(--spacing-unit) * 2);
+    }
+
+    .padding-lg {
+        padding: calc(var(--spacing-unit) * 4);
+    }
+
+    .padding-xl {
+        padding: calc(var(--spacing-unit) * 8);
+    }
+
+    /* Animation utilities */
+    .spring-transition {
+        transition-duration: var(--spring-duration);
+        transition-timing-function: var(--spring-easing);
+    }
+
+    /* Custom spring transition for the sidebar */
+    .ease-spring {
+        transition-timing-function: var(--spring-easing);
+        transition-duration: 0.4s;
+    }
+
+    .hover-scale {
+        transition: transform var(--spring-duration) var(--spring-easing),
+            box-shadow var(--spring-duration) var(--spring-easing);
+    }
+
+    .hover-scale:hover {
+        transform: scale(var(--hover-scale));
+        box-shadow: var(--hover-shadow);
+    }
+
+    .hover-lift {
+        transition: transform var(--spring-duration) var(--spring-easing),
+            box-shadow var(--spring-duration) var(--spring-easing);
+    }
+
+    .hover-lift:hover {
+        transform: translateY(var(--hover-translate-y));
+        box-shadow: var(--hover-shadow);
+    }
+
+    .hover-glow {
+        transition: box-shadow var(--spring-duration) var(--spring-easing),
+            filter var(--spring-duration) var(--spring-easing);
+    }
+
+    .hover-glow:hover {
+        box-shadow: 0 0 15px 2px hsl(var(--primary) / 0.5);
+        filter: brightness(1.05);
+    }
+
+    /* Enhanced shadow for inputs and prominent elements */
+    .shadow-enhanced {
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2),
+                    0 8px 12px -4px rgba(0, 0, 0, 0.15),
+                    0 2px 6px -1px rgba(0, 0, 0, 0.1),
+                    inset 0px 1px 0px rgba(255, 255, 255, 0.15);
+    }
+    
+    .dark .shadow-enhanced {
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3),
+                    0 8px 12px -4px rgba(0, 0, 0, 0.25),
+                    0 2px 6px -1px rgba(0, 0, 0, 0.2),
+                    inset 0px 1px 0px rgba(255, 255, 255, 0.05);
+    }
 }
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 240 10% 3.9%;
+        --background: 30 20% 98%;
+        --foreground: 220 60% 10%;
         --card: 0 0% 100%;
-        --card-foreground: 240 10% 3.9%;
+        --card-foreground: 220 60% 10%;
         --popover: 0 0% 100%;
-        --popover-foreground: 240 10% 3.9%;
-        --primary: 240 5.9% 10%;
+        --popover-foreground: 220 60% 10%;
+        --primary: 30 100% 50%;
         --primary-foreground: 0 0% 98%;
-        --secondary: 240 4.8% 95.9%;
-        --secondary-foreground: 240 5.9% 10%;
-        --muted: 240 4.8% 95.9%;
-        --muted-foreground: 240 3.8% 46.1%;
-        --accent: 240 4.8% 95.9%;
-        --accent-foreground: 240 5.9% 10%;
+        --secondary: 220 60% 40%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 30 20% 90%;
+        --muted-foreground: 220 20% 40%;
+        --accent: 220 50% 50%;
+        --accent-foreground: 0 0% 98%;
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 98%;
-        --border: 240 5.9% 90%;
-        --input: 240 5.9% 90%;
-        --ring: 240 10% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
+        --border: 30 30% 85%;
+        --input: 30 30% 85%;
+        --ring: 30 100% 50%;
+        --chart-1: 30 100% 50%;
+        --chart-2: 220 60% 40%;
         --chart-3: 197 37% 24%;
         --chart-4: 43 74% 66%;
         --chart-5: 27 87% 67%;
         --radius: 0.5rem;
-        --sidebar-background: 0 0% 98%;
-        --sidebar-foreground: 240 5.3% 26.1%;
-        --sidebar-primary: 240 5.9% 10%;
+        --sidebar-background: 30 30% 95%;
+        --sidebar-foreground: 220 40% 30%;
+        --sidebar-primary: 30 100% 50%;
         --sidebar-primary-foreground: 0 0% 98%;
-        --sidebar-accent: 240 4.8% 95.9%;
-        --sidebar-accent-foreground: 240 5.9% 10%;
-        --sidebar-border: 220 13% 91%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
+        --sidebar-accent: 220 60% 40%;
+        --sidebar-accent-foreground: 0 0% 98%;
+        --sidebar-border: 30 30% 85%;
+        --sidebar-ring: 30 100% 50%;
     }
+
     .dark {
-        --background: 240 10% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 240 10% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 240 10% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 240 5.9% 10%;
-        --secondary: 240 3.7% 15.9%;
+        --background: 220 30% 8%;
+        --foreground: 30 30% 90%;
+        --card: 220 30% 10%;
+        --card-foreground: 30 30% 90%;
+        --popover: 220 30% 10%;
+        --popover-foreground: 30 30% 90%;
+        --primary: 30 100% 50%;
+        --primary-foreground: 220 60% 10%;
+        --secondary: 220 60% 40%;
         --secondary-foreground: 0 0% 98%;
-        --muted: 240 3.7% 15.9%;
-        --muted-foreground: 240 5% 64.9%;
-        --accent: 240 3.7% 15.9%;
-        --accent-foreground: 0 0% 98%;
+        --muted: 220 20% 20%;
+        --muted-foreground: 30 20% 70%;
+        --accent: 220 40% 30%;
+        --accent-foreground: 30 30% 90%;
         --destructive: 0 62.8% 30.6%;
         --destructive-foreground: 0 0% 98%;
-        --border: 240 3.7% 15.9%;
-        --input: 240 3.7% 15.9%;
-        --ring: 240 4.9% 83.9%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
+        --border: 220 30% 20%;
+        --input: 220 30% 20%;
+        --ring: 30 100% 50%;
+        --chart-1: 30 100% 50%;
+        --chart-2: 220 60% 40%;
         --chart-3: 30 80% 55%;
         --chart-4: 280 65% 60%;
         --chart-5: 340 75% 55%;
-        --sidebar-background: 240 5.9% 10%;
-        --sidebar-foreground: 240 4.8% 95.9%;
-        --sidebar-primary: 224.3 76.3% 48%;
+        --sidebar-background: 220 30% 10%;
+        --sidebar-foreground: 30 30% 90%;
+        --sidebar-primary: 30 100% 50%;
         --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 240 3.7% 15.9%;
-        --sidebar-accent-foreground: 240 4.8% 95.9%;
-        --sidebar-border: 240 3.7% 15.9%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
+        --sidebar-accent: 220 40% 30%;
+        --sidebar-accent-foreground: 30 30% 90%;
+        --sidebar-border: 220 30% 20%;
+        --sidebar-ring: 30 100% 50%;
     }
-}
 
-@layer base {
     * {
         @apply border-border;
     }
 
     body {
         @apply bg-background text-foreground;
+    }
+
+    /* Make all textareas transparent by default */
+    textarea {
+        background: transparent !important;
+        background-color: transparent !important;
+    }
+
+    /* Special styling for chat input with tint */
+    .input-tint {
+        position: relative;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .input-tint::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: rgba(255, 200, 150, 0.3) !important;
+        border-radius: inherit;
+        pointer-events: none;
+    }
+
+    /* Enhanced interactive elements with animations */
+    button,
+    a,
+    select,
+    input[type="button"],
+    input[type="submit"] {
+        @apply spring-transition;
+    }
+
+    button:not([disabled]),
+    input[type="button"]:not([disabled]),
+    input[type="submit"]:not([disabled]) {
+        @apply hover-lift active:translate-y-0 active:scale-95;
+    }
+
+    a:not([aria-disabled="true"]) {
+        @apply hover-lift;
+    }
+
+    /* Card animations */
+    .card {
+        @apply spring-transition hover-scale;
+    }
+
+    /* Input focus animations */
+    input:not([type="checkbox"]):not([type="radio"]),
+    textarea,
+    select {
+        @apply spring-transition;
+        @apply focus:ring-2 focus:ring-primary/50 focus:ring-offset-1;
     }
 }
 
@@ -125,22 +296,26 @@
 
 .ProseMirror {
     outline: none;
+    @apply spring-transition;
 }
 
 .cm-editor,
 .cm-gutters {
     @apply bg-background dark:bg-zinc-800 outline-none selection:bg-zinc-900 !important;
+    @apply spring-transition;
 }
 
-.ͼo.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.ͼo.cm-focused>.cm-scroller>.cm-selectionLayer .cm-selectionBackground,
 .ͼo.cm-selectionBackground,
 .ͼo.cm-content::selection {
     @apply bg-zinc-200 dark:bg-zinc-900 !important;
+    @apply spring-transition;
 }
 
 .cm-activeLine,
 .cm-activeLineGutter {
     @apply bg-transparent !important;
+    @apply spring-transition;
 }
 
 .cm-activeLine {
@@ -160,5 +335,91 @@
 }
 
 .suggestion-highlight {
-    @apply bg-blue-200 hover:bg-blue-300 dark:hover:bg-blue-400/50 dark:text-blue-50 dark:bg-blue-500/40;
+    @apply bg-blue-200 hover:bg-blue-300 hover:text-blue-900 dark:hover:bg-blue-400/50 dark:text-blue-50 dark:bg-blue-500/40 dark:hover:text-white;
+    @apply spring-transition;
+}
+
+/* Enhanced animation for UI elements */
+.dropdown-content {
+    animation: spring-in 0.3s var(--spring-easing);
+}
+
+@keyframes spring-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.9) translateY(-10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Enhanced hover for navigation items */
+.nav-item {
+    @apply spring-transition hover:bg-primary/10 hover:text-primary;
+}
+
+/* Force text color change on dropdown hover */
+[data-radix-popper-content-wrapper] [role="menuitem"]:hover .text-muted-foreground,
+[role="menuitem"]:hover .text-xs.text-muted-foreground,
+button[role="menuitem"]:hover .text-muted-foreground,
+[data-radix-collection-item]:hover .text-muted-foreground {
+    @apply !text-white dark:!text-white;
+}
+
+/* Specific override for model selector dropdown */
+.min-w-\[300px\] button[role="menuitem"]:hover .text-xs.text-muted-foreground {
+    color: white !important;
+}
+
+/* Global hover text improvement for all menu items */
+button[type="button"]:hover .text-muted-foreground,
+*[role="menuitem"]:hover .text-muted-foreground,
+*:hover > .text-muted-foreground {
+    color: white !important;
+}
+
+/* Nuclear option for dropdown menu text color */
+[role="menuitem"] button:hover div.text-muted-foreground,
+[role="menuitem"]:hover div.text-muted-foreground,
+[role="menu"] *:hover .text-muted-foreground,
+.text-muted-foreground:hover,
+button:hover .text-xs.text-muted-foreground,
+[role="menuitem"]:hover .text-xs,
+[data-testid*="selector-item"]:hover .text-xs {
+    color: white !important;
+    --tw-text-opacity: 1 !important;
+    -webkit-text-fill-color: white !important;
+}
+
+/* Direct fixes for specific dropdowns */
+[data-testid^="model-selector-item-"]:hover .text-xs.text-muted-foreground,
+[data-testid^="provider-selector-item-"]:hover .text-xs.text-muted-foreground {
+    color: white !important;
+}
+
+/* Pulse animation for notifications and indicators */
+.pulse {
+    @apply relative overflow-visible;
+}
+
+.pulse::after {
+    content: '';
+    @apply absolute inset-0 rounded-full;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.3;
+        transform: scale(1.5);
+    }
 }

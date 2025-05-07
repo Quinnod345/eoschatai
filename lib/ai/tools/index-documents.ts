@@ -1,0 +1,111 @@
+import { db } from '@/lib/db';
+import { document, embeddings } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { processDocument } from '../embeddings';
+import { tool } from 'ai';
+import { z } from 'zod';
+import type { DataStreamWriter } from 'ai';
+
+interface IndexDocumentsProps {
+  dataStream: DataStreamWriter;
+}
+
+export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
+  tool({
+    name: 'index_documents',
+    description:
+      'Index existing documents to make them searchable through the EOS knowledge base',
+    parameters: z.object({
+      documentId: z
+        .string()
+        .optional()
+        .describe(
+          'Specific document ID to index, leave empty to index all text documents',
+        ),
+      reindex: z
+        .boolean()
+        .default(false)
+        .describe('Whether to reindex documents that already have embeddings'),
+    }),
+    execute: async ({ documentId, reindex = false }) => {
+      try {
+        dataStream.write({
+          type: 'thinking',
+          content: 'Indexing documents...',
+        });
+
+        // Build query
+        const query = documentId
+          ? db.select().from(document).where(eq(document.id, documentId))
+          : db.select().from(document).where(eq(document.kind, 'text'));
+
+        // Fetch documents
+        const docs = await query;
+
+        if (docs.length === 0) {
+          return {
+            success: false,
+            message: documentId
+              ? `No document found with ID: ${documentId}`
+              : 'No text documents found to index',
+          };
+        }
+
+        // Process each document
+        let indexed = 0;
+        let skipped = 0;
+
+        for (const doc of docs) {
+          // Skip documents with no content
+          if (!doc.content) {
+            skipped++;
+            continue;
+          }
+
+          // Check if document already has embeddings
+          if (!reindex) {
+            const existingEmbeddings = await db
+              .select()
+              .from(embeddings)
+              .where(eq(embeddings.documentId, doc.id))
+              .limit(1);
+
+            if (existingEmbeddings.length > 0) {
+              skipped++;
+              continue;
+            }
+          } else {
+            // If reindexing, delete existing embeddings
+            await db
+              .delete(embeddings)
+              .where(eq(embeddings.documentId, doc.id));
+          }
+
+          // Process the document
+          await processDocument(doc.id, doc.content);
+          indexed++;
+
+          // Provide progress updates
+          if (docs.length > 1) {
+            dataStream.write({
+              type: 'thinking',
+              content: `Indexed ${indexed} of ${docs.length} documents...`,
+            });
+          }
+        }
+
+        return {
+          success: true,
+          message: `Successfully indexed ${indexed} documents. ${skipped} documents were skipped.`,
+          indexed,
+          skipped,
+        };
+      } catch (error) {
+        console.error('Error indexing documents:', error);
+        return {
+          success: false,
+          message: 'Error indexing documents.',
+        };
+      }
+    },
+  });

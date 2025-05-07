@@ -7,7 +7,31 @@ import { CodeBlock } from './code-block';
 const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
-  pre: ({ children }) => <>{children}</>,
+  pre: ({ node, children, ...props }) => {
+    // Render pre without wrapping in paragraphs
+    return <pre {...props}>{children}</pre>;
+  },
+  p: ({ node, children }) => {
+    // Check if children contains a pre, div, or other block element
+    const hasBlockChild = React.Children.toArray(children).some(
+      (child) =>
+        React.isValidElement(child) &&
+        (child.type === 'pre' ||
+          child.type === 'div' ||
+          child.type === 'ol' ||
+          child.type === 'ul' ||
+          (typeof child.type === 'function' &&
+            child.type.name === 'CodeBlock')),
+    );
+
+    // If it has any block children, render without wrapping in a paragraph
+    if (hasBlockChild) {
+      return <>{children}</>;
+    }
+
+    // Otherwise render as normal paragraph
+    return <p>{children}</p>;
+  },
   ol: ({ node, children, ...props }) => {
     return (
       <ol className="list-decimal list-outside ml-4" {...props}>

@@ -24,7 +24,11 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { isProductionEnvironment } from '@/lib/constants';
-import { myProvider } from '@/lib/ai/providers';
+import {
+  myProvider,
+  DEFAULT_PROVIDER,
+  createCustomProvider,
+} from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
 import { postRequestBodySchema, type PostRequestBody } from './schema';
 import { geolocation } from '@vercel/functions';
@@ -70,8 +74,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { id, message, selectedChatModel, selectedVisibilityType } =
-      requestBody;
+    const {
+      id,
+      message,
+      selectedChatModel,
+      selectedVisibilityType,
+      selectedProvider = DEFAULT_PROVIDER,
+    } = requestBody;
 
     const session = await auth();
 
@@ -147,16 +156,23 @@ export async function POST(request: Request) {
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
+    // Create a provider based on selected provider
+    const provider = createCustomProvider(selectedProvider);
+
     const stream = createDataStream({
-      execute: (dataStream) => {
+      execute: async (dataStream) => {
         const result = streamText({
-          model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
+          model: provider.languageModel(selectedChatModel),
+          system: await systemPrompt({
+            selectedChatModel,
+            requestHints,
+            userId: session.user.id,
+          }),
           messages,
           maxSteps: 5,
           experimental_activeTools:
             selectedChatModel === 'chat-model-reasoning'
-              ? []
+              ? ['createDocument', 'updateDocument']
               : [
                   'getWeather',
                   'createDocument',
@@ -202,6 +218,7 @@ export async function POST(request: Request) {
                       attachments:
                         assistantMessage.experimental_attachments ?? [],
                       createdAt: new Date(),
+                      provider: selectedProvider,
                     },
                   ],
                 });

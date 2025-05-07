@@ -8,11 +8,13 @@ import { Markdown } from './markdown';
 interface MessageReasoningProps {
   isLoading: boolean;
   reasoning: string;
+  provider?: string;
 }
 
 export function MessageReasoning({
   isLoading,
   reasoning,
+  provider = 'xai',
 }: MessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -31,18 +33,22 @@ export function MessageReasoning({
     },
   };
 
+  const modelName = provider === 'xai' ? 'Grok' : 'OpenAI';
+
   return (
     <div className="flex flex-col">
       {isLoading ? (
         <div className="flex flex-row gap-2 items-center">
-          <div className="font-medium">Reasoning</div>
+          <div className="font-medium">{modelName} Reasoning</div>
           <div className="animate-spin">
             <LoaderIcon />
           </div>
         </div>
       ) : (
         <div className="flex flex-row gap-2 items-center">
-          <div className="font-medium">Reasoned for a few seconds</div>
+          <div className="font-medium">
+            {modelName} reasoned for a few seconds
+          </div>
           <button
             data-testid="message-reasoning-toggle"
             type="button"

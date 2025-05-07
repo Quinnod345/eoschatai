@@ -1,7 +1,12 @@
 import { compare } from 'bcrypt-ts';
 import NextAuth, { type DefaultSession } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { createGuestUser, getUser } from '@/lib/db/queries';
+import Google from 'next-auth/providers/google';
+import {
+  createGuestUser,
+  getOrCreateGoogleUser,
+  getUser,
+} from '@/lib/db/queries';
 import { authConfig } from './auth.config';
 import { DUMMY_PASSWORD } from '@/lib/constants';
 import type { DefaultJWT } from 'next-auth/jwt';
@@ -38,6 +43,10 @@ export const {
 } = NextAuth({
   ...authConfig,
   providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    }),
     Credentials({
       credentials: {},
       async authorize({ email, password }: any) {
@@ -72,10 +81,18 @@ export const {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id as string;
         token.type = user.type;
+      }
+
+      // If the user signed in with Google, let's check if they exist in our database
+      // If not, we'll create a new user
+      if (account && account.provider === 'google' && token.email) {
+        const user = await getOrCreateGoogleUser(token.email);
+        token.id = user.id;
+        token.type = 'regular';
       }
 
       return token;

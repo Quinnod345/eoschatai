@@ -27,6 +27,22 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import type { VisibilityType } from './visibility-selector';
+import { XIcon } from 'lucide-react';
+
+interface ExtendedAttachment extends Attachment {
+  pdfText?: string;
+  pdfInfo?: {
+    numPages: number;
+    info: any;
+  };
+}
+
+// Add a new interface for PDF content tracking
+interface PDFContent {
+  name: string;
+  text: string;
+  numPages: number;
+}
 
 function PureMultimodalInput({
   chatId,
@@ -109,34 +125,81 @@ function PureMultimodalInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
-  const submitForm = useCallback(() => {
-    window.history.replaceState({}, '', `/chat/${chatId}`);
-
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
-
-    setAttachments([]);
-    setLocalStorageInput('');
-    resetHeight();
-
-    if (width && width > 768) {
-      textareaRef.current?.focus();
-    }
-  }, [
-    attachments,
-    handleSubmit,
-    setAttachments,
-    setLocalStorageInput,
-    width,
-    chatId,
-  ]);
+  // Use separate state for PDF content
+  const [pdfContents, setPdfContents] = useState<PDFContent[]>([]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
 
     try {
+      // Handle PDFs completely separately
+      if (file.type === 'application/pdf') {
+        console.log(`Processing PDF: ${file.name} (${file.size} bytes)`);
+
+        // Create a loading toast with an ID so we can dismiss it later
+        const toastId = toast.loading(`Processing PDF: ${file.name}...`);
+
+        try {
+          const response = await fetch('/api/files/pdf', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(
+              `PDF processed: ${data.text.length} characters extracted`,
+            );
+
+            // Dismiss the loading toast
+            toast.dismiss(toastId);
+
+            // Show a success toast
+            toast.success(
+              `PDF processed: ${data.filename} (${data.numPages} pages)`,
+            );
+
+            // Add to our separate PDF content state
+            setPdfContents((prev) => [
+              ...prev,
+              {
+                name: data.filename,
+                text: data.text,
+                numPages: data.numPages,
+              },
+            ]);
+
+            // Return null - we're not using the attachment system for PDFs
+            return null;
+          } else {
+            const errorData = await response.json();
+            const errorMessage =
+              errorData.error || 'Unknown error processing PDF';
+            console.error(`PDF processing error: ${errorMessage}`);
+
+            // Dismiss the loading toast
+            toast.dismiss(toastId);
+
+            // Show an error toast
+            toast.error(`PDF processing error: ${errorMessage}`);
+            return undefined;
+          }
+        } catch (error) {
+          console.error('Error during PDF processing:', error);
+
+          // Dismiss the loading toast
+          toast.dismiss(toastId);
+
+          // Show an error toast
+          toast.error(
+            'Failed to process PDF. Please try a different file or format.',
+          );
+          return undefined;
+        }
+      }
+
+      // Regular attachment handling for non-PDFs
       const response = await fetch('/api/files/upload', {
         method: 'POST',
         body: formData,
@@ -154,8 +217,11 @@ function PureMultimodalInput({
       }
       const { error } = await response.json();
       toast.error(error);
+      return undefined;
     } catch (error) {
+      console.error('Failed to upload file:', error);
       toast.error('Failed to upload file, please try again!');
+      return undefined;
     }
   };
 
@@ -168,8 +234,10 @@ function PureMultimodalInput({
       try {
         const uploadPromises = files.map((file) => uploadFile(file));
         const uploadedAttachments = await Promise.all(uploadPromises);
+
+        // Filter out null results (PDFs) and undefined results (errors)
         const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) => attachment !== undefined,
+          (attachment) => attachment !== undefined && attachment !== null,
         );
 
         setAttachments((currentAttachments) => [
@@ -185,6 +253,85 @@ function PureMultimodalInput({
     [setAttachments],
   );
 
+  const submitForm = useCallback(() => {
+    window.history.replaceState({}, '', `/chat/${chatId}`);
+
+    let finalInputContent = input; // Start with current text input
+    let hasPdfContent = false;
+
+    if (pdfContents.length > 0) {
+      hasPdfContent = true;
+      const pdfTextContent = pdfContents
+        .map((pdf) => {
+          let pdfText = pdf.text || '';
+          if (pdfText.length > 15000) {
+            // Character limit per PDF
+            pdfText = `${pdfText.substring(0, 15000)}... [PDF content truncated due to size]`;
+          }
+          // Format the PDF content with a consistent delimiter that our message component can extract
+          return `\n\n=== PDF Content from ${pdf.name} (${pdf.numPages} pages) ===\n\n${pdfText}\n\n`;
+        })
+        .join('');
+
+      finalInputContent = `${input}${pdfTextContent}`; // Combine original input with PDF text
+      console.log(
+        `Preparing message with ${pdfContents.length} PDFs included in text content. Total length: ${finalInputContent.length}`,
+      );
+    }
+
+    if (hasPdfContent) {
+      // Use append for messages with PDF content
+      append(
+        {
+          role: 'user',
+          content: finalInputContent, // Send the combined content
+        },
+        {
+          experimental_attachments:
+            attachments.length > 0 ? attachments : undefined,
+        },
+      );
+      setInput(''); // Clear the input field as append doesn't do it automatically.
+    } else {
+      // No PDF content, use standard handleSubmit
+      // Ensure there's something to send (text or attachments)
+      if (input.trim().length > 0 || attachments.length > 0) {
+        handleSubmit(undefined, {
+          experimental_attachments:
+            attachments.length > 0 ? attachments : undefined,
+        });
+        // `handleSubmit` from `useChat` should clear the input state itself.
+      } else {
+        // Nothing to send, might be good to log or handle, though button should be disabled
+        console.log('Submit called with nothing to send.');
+        return; // Early exit if there is truly nothing to send
+      }
+    }
+
+    // Common cleanup operations
+    setAttachments([]); // Clear regular attachments
+    setPdfContents([]); // Clear PDF contents
+    // `setLocalStorageInput` will be triggered by `setInput('')` or by `useChat` clearing input.
+    resetHeight();
+
+    if (width && width > 768) {
+      textareaRef.current?.focus();
+    }
+  }, [
+    input,
+    attachments,
+    pdfContents,
+    chatId,
+    append,
+    handleSubmit,
+    setInput,
+    setAttachments,
+    setPdfContents,
+    width,
+    // Removed: setLocalStorageInput (handled by input/setInput side effect)
+    // textareaRef is a ref, not needed in dep array unless its .current is used and changes behavior
+  ]);
+
   const { isAtBottom, scrollToBottom } = useScrollToBottom();
 
   useEffect(() => {
@@ -192,6 +339,10 @@ function PureMultimodalInput({
       scrollToBottom();
     }
   }, [status, scrollToBottom]);
+
+  // Pass counts to SendButton
+  const attachmentsCount = attachments.length;
+  const pdfCount = pdfContents.length;
 
   return (
     <div className="relative w-full flex flex-col gap-4">
@@ -222,7 +373,8 @@ function PureMultimodalInput({
 
       {messages.length === 0 &&
         attachments.length === 0 &&
-        uploadQueue.length === 0 && (
+        uploadQueue.length === 0 &&
+        pdfContents.length === 0 && (
           <SuggestedActions
             append={append}
             chatId={chatId}
@@ -239,13 +391,67 @@ function PureMultimodalInput({
         tabIndex={-1}
       />
 
-      {(attachments.length > 0 || uploadQueue.length > 0) && (
+      {(attachments.length > 0 ||
+        pdfContents.length > 0 ||
+        uploadQueue.length > 0) && (
         <div
           data-testid="attachments-preview"
-          className="flex flex-row gap-2 overflow-x-scroll items-end"
+          className="flex flex-row gap-2 overflow-x-scroll items-end p-2"
         >
           {attachments.map((attachment) => (
-            <PreviewAttachment key={attachment.url} attachment={attachment} />
+            <PreviewAttachment
+              key={attachment.url}
+              attachment={attachment}
+              onRemove={() => {
+                setAttachments((currentAttachments) =>
+                  currentAttachments.filter((a) => a.url !== attachment.url),
+                );
+              }}
+            />
+          ))}
+
+          {pdfContents.map((pdf, index) => (
+            <div
+              key={`pdf-${pdf.name}-${index}`}
+              className="flex flex-col gap-2 relative"
+            >
+              <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+                <svg
+                  className="size-8 text-zinc-500"
+                  fill="none"
+                  height="24"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  width="24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h6" />
+                  <path d="M9 9h1" />
+                </svg>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => {
+                    setPdfContents((current) =>
+                      current.filter((_, i) => i !== index),
+                    );
+                  }}
+                >
+                  <XIcon size={12} />
+                </Button>
+              </div>
+              <div className="text-xs text-zinc-500 max-w-16 truncate">
+                {pdf.name}
+              </div>
+            </div>
           ))}
 
           {uploadQueue.map((filename) => (
@@ -269,9 +475,18 @@ function PureMultimodalInput({
         value={input}
         onChange={handleInput}
         className={cx(
-          'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base bg-muted pb-10 dark:border-zinc-700',
+          'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base',
+          'backdrop-filter backdrop-blur-[16px]',
+          'border border-white/30 dark:border-zinc-700/30',
+          'pb-10',
+          'input-tint shadow-enhanced',
           className,
         )}
+        style={{
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow:
+            'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+        }}
         rows={2}
         autoFocus
         onKeyDown={(event) => {
@@ -303,6 +518,8 @@ function PureMultimodalInput({
             input={input}
             submitForm={submitForm}
             uploadQueue={uploadQueue}
+            attachmentsCount={attachmentsCount}
+            pdfCount={pdfCount}
           />
         )}
       </div>
@@ -376,11 +593,19 @@ function PureSendButton({
   submitForm,
   input,
   uploadQueue,
+  attachmentsCount,
+  pdfCount,
 }: {
   submitForm: () => void;
   input: string;
   uploadQueue: Array<string>;
+  attachmentsCount: number;
+  pdfCount: number;
 }) {
+  const nothingToSend =
+    input.trim().length === 0 && attachmentsCount === 0 && pdfCount === 0;
+  const isDisabled = nothingToSend || uploadQueue.length > 0;
+
   return (
     <Button
       data-testid="send-button"
@@ -389,7 +614,7 @@ function PureSendButton({
         event.preventDefault();
         submitForm();
       }}
-      disabled={input.length === 0 || uploadQueue.length > 0}
+      disabled={isDisabled}
     >
       <ArrowUpIcon size={14} />
     </Button>
@@ -400,5 +625,7 @@ const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length)
     return false;
   if (prevProps.input !== nextProps.input) return false;
+  if (prevProps.attachmentsCount !== nextProps.attachmentsCount) return false;
+  if (prevProps.pdfCount !== nextProps.pdfCount) return false;
   return true;
 });

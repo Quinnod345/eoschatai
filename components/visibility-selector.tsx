@@ -48,6 +48,7 @@ export function VisibilitySelector({
   selectedVisibilityType: VisibilityType;
 } & React.ComponentProps<typeof Button>) {
   const [open, setOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<VisibilityType | null>(null);
 
   const { visibilityType, setVisibilityType } = useChatVisibility({
     chatId,
@@ -80,30 +81,39 @@ export function VisibilitySelector({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" className="min-w-[300px]">
-        {visibilities.map((visibility) => (
-          <DropdownMenuItem
-            data-testid={`visibility-selector-item-${visibility.id}`}
-            key={visibility.id}
-            onSelect={() => {
-              setVisibilityType(visibility.id);
-              setOpen(false);
-            }}
-            className="gap-4 group/item flex flex-row justify-between items-center"
-            data-active={visibility.id === visibilityType}
-          >
-            <div className="flex flex-col gap-1 items-start">
-              {visibility.label}
-              {visibility.description && (
-                <div className="text-xs text-muted-foreground">
-                  {visibility.description}
-                </div>
-              )}
-            </div>
-            <div className="text-foreground dark:text-foreground opacity-0 group-data-[active=true]/item:opacity-100">
-              <CheckCircleFillIcon />
-            </div>
-          </DropdownMenuItem>
-        ))}
+        {visibilities.map((visibility) => {
+          const isHovered = hoveredId === visibility.id;
+
+          return (
+            <DropdownMenuItem
+              data-testid={`visibility-selector-item-${visibility.id}`}
+              key={visibility.id}
+              onSelect={() => {
+                setVisibilityType(visibility.id);
+                setOpen(false);
+              }}
+              className="gap-4 group/item flex flex-row justify-between items-center"
+              data-active={visibility.id === visibilityType}
+              onMouseEnter={() => setHoveredId(visibility.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              <div className="flex flex-col gap-1 items-start">
+                {visibility.label}
+                {visibility.description && (
+                  <div
+                    className={`text-xs ${isHovered ? 'text-white' : 'text-muted-foreground'}`}
+                    style={isHovered ? { color: 'white' } : undefined}
+                  >
+                    {visibility.description}
+                  </div>
+                )}
+              </div>
+              <div className="text-foreground dark:text-foreground opacity-0 group-data-[active=true]/item:opacity-100">
+                <CheckCircleFillIcon />
+              </div>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

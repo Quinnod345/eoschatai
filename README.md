@@ -54,9 +54,26 @@ You will need to use the environment variables [defined in `.env.example`](.env.
 2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
 3. Download your environment variables: `vercel env pull`
 
+# Google OAuth Setup
+
+To enable Google authentication:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Navigate to "APIs & Services" > "Credentials"
+4. Click "Create Credentials" > "OAuth client ID"
+5. Set the application type to "Web application"
+6. Add authorized redirect URIs:
+   - For development: `http://localhost:3000/api/auth/callback/google`
+   - For production: `https://your-domain.com/api/auth/callback/google`
+7. Create the client ID and secret
+8. Add the credentials to your `.env.local` file:
+   ```
+   GOOGLE_CLIENT_ID="your-google-client-id"
+   GOOGLE_CLIENT_SECRET="your-google-client-secret"
+   ```
+
 ```bash
 pnpm install
 pnpm dev
 ```
-
-Your app template should now be running on [localhost:3000](http://localhost:3000).

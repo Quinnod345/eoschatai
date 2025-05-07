@@ -6,6 +6,7 @@ import { Chat } from '@/components/chat';
 import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
+import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import type { DBMessage } from '@/lib/db/schema';
 import type { Attachment, UIMessage } from 'ai';
 
@@ -48,19 +49,24 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       createdAt: message.createdAt,
       experimental_attachments:
         (message.attachments as Array<Attachment>) ?? [],
+      // Add provider information if available
+      provider:
+        message.provider || providerFromCookie?.value || DEFAULT_PROVIDER,
     }));
   }
 
   const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get('chat-model');
+  const providerFromCookie = cookieStore.get('ai-provider');
 
-  if (!chatModelFromCookie) {
+  if (!chatModelFromCookie || !providerFromCookie) {
     return (
       <>
         <Chat
           id={chat.id}
           initialMessages={convertToUIMessages(messagesFromDb)}
           initialChatModel={DEFAULT_CHAT_MODEL}
+          initialProvider={DEFAULT_PROVIDER}
           initialVisibilityType={chat.visibility}
           isReadonly={session?.user?.id !== chat.userId}
           session={session}
@@ -77,6 +83,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         id={chat.id}
         initialMessages={convertToUIMessages(messagesFromDb)}
         initialChatModel={chatModelFromCookie.value}
+        initialProvider={providerFromCookie.value}
         initialVisibilityType={chat.visibility}
         isReadonly={session?.user?.id !== chat.userId}
         session={session}

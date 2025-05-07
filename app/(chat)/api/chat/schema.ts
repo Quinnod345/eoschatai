@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { PROVIDERS } from '@/lib/ai/providers';
 
 const textPartSchema = z.object({
-  text: z.string().min(1).max(2000),
+  text: z.string().min(1).max(100000),
   type: z.enum(['text']),
 });
 
@@ -11,19 +12,26 @@ export const postRequestBodySchema = z.object({
     id: z.string().uuid(),
     createdAt: z.coerce.date(),
     role: z.enum(['user']),
-    content: z.string().min(1).max(2000),
+    content: z.string().min(1).max(100000),
     parts: z.array(textPartSchema),
     experimental_attachments: z
       .array(
         z.object({
           url: z.string().url(),
           name: z.string().min(1).max(2000),
-          contentType: z.enum(['image/png', 'image/jpg', 'image/jpeg']),
+          contentType: z.enum([
+            'image/png',
+            'image/jpg',
+            'image/jpeg',
+            'application/pdf',
+            'text/plain', // For the extracted PDF text
+          ]),
         }),
       )
       .optional(),
   }),
   selectedChatModel: z.enum(['chat-model', 'chat-model-reasoning']),
+  selectedProvider: z.enum([PROVIDERS.XAI, PROVIDERS.OPENAI]),
   selectedVisibilityType: z.enum(['public', 'private']),
 });
 

@@ -26,6 +26,7 @@ export function ModelSelector({
   selectedModelId: string;
 } & React.ComponentProps<typeof Button>) {
   const [open, setOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [optimisticModelId, setOptimisticModelId] =
     useOptimistic(selectedModelId);
 
@@ -65,6 +66,7 @@ export function ModelSelector({
       <DropdownMenuContent align="start" className="min-w-[300px]">
         {availableChatModels.map((chatModel) => {
           const { id } = chatModel;
+          const isHovered = hoveredId === id;
 
           return (
             <DropdownMenuItem
@@ -76,6 +78,11 @@ export function ModelSelector({
                 startTransition(() => {
                   setOptimisticModelId(id);
                   saveChatModelAsCookie(id);
+
+                  // Clear any pending provider change timestamp
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.removeItem('provider_change_timestamp');
+                  }
                 });
               }}
               data-active={id === optimisticModelId}
@@ -84,10 +91,15 @@ export function ModelSelector({
               <button
                 type="button"
                 className="gap-4 group/item flex flex-row justify-between items-center w-full"
+                onMouseEnter={() => setHoveredId(id)}
+                onMouseLeave={() => setHoveredId(null)}
               >
                 <div className="flex flex-col gap-1 items-start">
                   <div>{chatModel.name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div
+                    className={`text-xs ${isHovered ? 'text-white' : 'text-muted-foreground'}`}
+                    style={isHovered ? { color: 'white' } : undefined}
+                  >
                     {chatModel.description}
                   </div>
                 </div>
