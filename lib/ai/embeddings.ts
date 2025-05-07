@@ -95,7 +95,7 @@ export const findRelevantContent = async (
   query: string,
   similarityThreshold = 0.7,
   limit = 5,
-): Promise<{ chunk: string; similarity: number }[]> => {
+): Promise<{ content: string; relevance: number }[]> => {
   const queryEmbedding = await generateEmbedding(query);
 
   const similarity = sql<number>`1 - (${cosineDistance(
@@ -113,5 +113,9 @@ export const findRelevantContent = async (
     .orderBy(desc(similarity))
     .limit(limit);
 
-  return results;
+  // Transform the results to match the expected format for ragContextPrompt
+  return results.map((result) => ({
+    content: result.chunk,
+    relevance: result.similarity,
+  }));
 };
