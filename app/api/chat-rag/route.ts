@@ -33,7 +33,7 @@ function createDataStreamWriterAdapter(
       return Promise.resolve();
     },
     merge: () => {},
-    onError: () => {},
+    onError: (error: unknown) => `Error in data stream: ${String(error)}`,
   };
 }
 
