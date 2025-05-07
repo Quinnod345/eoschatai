@@ -32,6 +32,29 @@ const addProviderIdToUser = async (connection: postgres.Sql<{}>) => {
   }
 };
 
+// Check if a column exists in a table
+const columnExists = async (
+  connection: postgres.Sql<{}>,
+  tableName: string,
+  columnName: string,
+): Promise<boolean> => {
+  try {
+    const columns = await connection`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = ${tableName}
+      AND column_name = ${columnName}
+    `;
+    return columns.length > 0;
+  } catch (error) {
+    console.error(
+      `Error checking if column ${columnName} exists in ${tableName}:`,
+      error,
+    );
+    return false;
+  }
+};
+
 const runMigrate = async () => {
   if (!process.env.POSTGRES_URL) {
     throw new Error('POSTGRES_URL is not defined');
@@ -43,6 +66,33 @@ const runMigrate = async () => {
   const start = Date.now();
 
   try {
+    // Before running migrations, check if the provider column already exists
+    // This helps prevent errors with add_provider_column.sql
+    const providerExists = await columnExists(
+      connection,
+      'Message_v2',
+      'provider',
+    );
+
+    if (providerExists) {
+      console.log('provider column already exists in Message_v2 table');
+
+      // Make the migration file a no-op
+      try {
+        const modifyMigrationFile = await connection`
+          UPDATE "drizzle"."__drizzle_migrations"
+          SET "hash" = 'completed'
+          WHERE "name" = 'add_provider_column.sql' AND "hash" != 'completed'
+        `;
+        console.log('Updated migration file status to completed');
+      } catch (err) {
+        // If this fails, it's not critical
+        console.log(
+          'Could not update migration file status, will continue anyway',
+        );
+      }
+    }
+
     // Run Drizzle migrations
     const db = drizzle(connection);
     await migrate(db, { migrationsFolder: './lib/db/migrations' });

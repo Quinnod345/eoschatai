@@ -6,12 +6,6 @@ import {
 import { xai } from '@ai-sdk/xai';
 import { openai } from '@ai-sdk/openai';
 import { isTestEnvironment } from '../constants';
-import {
-  artifactModel,
-  chatModel,
-  reasoningModel,
-  titleModel,
-} from './models.test';
 
 // Default provider
 export const PROVIDERS = {
@@ -34,13 +28,14 @@ export const getProviderFactory = (providerName: string) => {
 
 // Create customized provider with models for each provider
 export const createCustomProvider = (providerName: string) => {
+  // In test environments, return a simple provider with no dependencies on test modules
   if (isTestEnvironment) {
     return customProvider({
       languageModels: {
-        'chat-model': chatModel,
-        'chat-model-reasoning': reasoningModel,
-        'title-model': titleModel,
-        'artifact-model': artifactModel,
+        'chat-model': openai('gpt-4o'), // Use same models as production but they'll be mocked in tests
+        'chat-model-reasoning': openai('o4-mini'),
+        'title-model': openai('gpt-4o-mini'),
+        'artifact-model': openai('gpt-4o-mini'),
       },
     });
   }

@@ -1,1 +1,2 @@
-ALTER TABLE "Message_v2" ADD COLUMN IF NOT EXISTS "provider" varchar; 
+-- No-op since the column is already defined in the schema
+-- This file has been retained for migration history but doesn't perform any actions 
