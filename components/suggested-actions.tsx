@@ -239,17 +239,17 @@ function PureSuggestedActions({
     >
       {/* Header section */}
       <div className="flex flex-col items-center justify-center mb-6 md:mb-12 pt-4 md:pt-8">
-        <h2 className="text-xl md:text-3xl font-semibold text-center text-indigo-700 mb-6 md:mb-12 animate-slideDown">
+        <h2 className="text-xl md:text-3xl font-semibold text-center text-indigo-700 dark:text-indigo-400 mb-6 md:mb-12 animate-slideDown">
           {greeting}
         </h2>
 
         {/* Visual separator */}
         <div className="w-full max-w-md mx-auto mb-6 md:mb-12">
           <hr
-            className="border-none h-[3px] bg-gray-300 opacity-70"
+            className="border-none h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
             style={{
               backgroundImage:
-                'linear-gradient(to right, #d1d5db 50%, transparent 50%)',
+                'linear-gradient(to right, rgba(209, 213, 219, 0.5) 50%, transparent 50%)',
               backgroundSize: '15px 3px',
             }}
           />
@@ -261,14 +261,14 @@ function PureSuggestedActions({
             <button
               type="button"
               onClick={toggleDropdown}
-              className="w-full flex items-center justify-between px-4 py-2 rounded-modern bg-white border border-gray-200 shadow-sm"
+              className="w-full flex items-center justify-between px-4 py-2 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
             >
               <span>
                 {randomizedStarters[activeCategory]?.category ||
                   'Select a category'}
               </span>
               <svg
-                className={`ml-2 h-5 w-5 text-gray-400 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
+                className={`ml-2 h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -282,7 +282,7 @@ function PureSuggestedActions({
             </button>
 
             {dropdownOpen && (
-              <div className="absolute z-50 w-full mt-1 bg-white rounded-modern shadow-lg border border-gray-200 animate-fadeIn max-h-60 overflow-auto">
+              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 rounded-modern shadow-lg dark:shadow-modern-dark border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-60 overflow-auto">
                 {randomizedStarters.map((category, index) => (
                   <button
                     key={`category-${category.category}-${index}`}
@@ -290,8 +290,8 @@ function PureSuggestedActions({
                     onClick={() => handleCategoryChange(index)}
                     className={`w-full text-left px-4 py-2 text-sm ${
                       activeCategory === index
-                        ? 'bg-orange-50 text-orange-500 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-medium'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     {category.category}
@@ -311,8 +311,8 @@ function PureSuggestedActions({
               onClick={() => handleCategoryChange(index)}
               className={`px-4 py-2 rounded-modern text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
                 activeCategory === index
-                  ? 'bg-orange-500 text-white shadow-modern shadow-orange-500/50 shadow-[0_0_30px_rgba(249,115,22,0.5)]'
-                  : 'bg-white text-gray-700 hover:bg-orange-50 hover:text-orange-500 border border-gray-100'
+                  ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-modern shadow-indigo-500/50 dark:shadow-indigo-600/30'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-500 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700'
               }`}
             >
               {category.category}
@@ -333,30 +333,40 @@ function PureSuggestedActions({
       >
         {randomizedStarters[displayedCategory]?.randomStarters?.map(
           (starter, index) => (
-            <button
+            <motion.button
               key={`starter-${index}-${starter.substring(0, 10)}`}
               type="button"
               onClick={() => handleStarterClick(starter)}
-              className="bg-white hover:bg-orange-50 px-3 py-2 md:p-4 rounded-modern shadow-sm md:shadow-modern hover:shadow-card border border-gray-100 text-left transition-all duration-300 transform hover:scale-102 hover:border-orange-200"
+              className={`bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-2 md:p-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-indigo-200 dark:hover:border-indigo-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{
+                delay: index * 0.1,
+                type: 'spring',
+                stiffness: 260,
+                damping: 20,
+              }}
               style={{
                 willChange: 'transform',
                 height: '100%',
               }}
             >
-              <p className="text-gray-800 text-sm md:text-base">{starter}</p>
-            </button>
+              <p className="text-gray-800 dark:text-gray-200 text-sm md:text-base">
+                {starter}
+              </p>
+            </motion.button>
           ),
         )}
       </div>
 
       {/* Custom Prompt Section */}
       <div className="mt-4 md:mt-8 text-center animate-fadeIn relative z-10">
-        <p className="text-gray-500 text-sm mb-2">
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">
           Or type your own question below
         </p>
         <div className="flex items-center justify-center">
           <svg
-            className="h-4 w-4 md:h-5 md:w-5 text-indigo-500 mr-2 animate-bounce-slow"
+            className="h-4 w-4 md:h-5 md:w-5 text-indigo-500 dark:text-indigo-400 mr-2 animate-bounce-slow"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

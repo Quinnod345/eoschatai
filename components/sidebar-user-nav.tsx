@@ -1,11 +1,11 @@
 'use client';
 
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, User } from 'lucide-react';
 import Image from 'next/image';
-import type { User } from 'next-auth';
+import type { User as NextAuthUser } from 'next-auth';
 import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import {
   DropdownMenu,
@@ -25,13 +25,38 @@ import { LoaderIcon, SettingsIcon } from './icons';
 import { guestRegex } from '@/lib/constants';
 import { SettingsModal } from './settings-modal';
 
-export function SidebarUserNav({ user }: { user: User }) {
+export function SidebarUserNav({ user }: { user: NextAuthUser }) {
   const router = useRouter();
   const { data, status } = useSession();
   const { setTheme, theme } = useTheme();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   const isGuest = guestRegex.test(data?.user?.email ?? '');
+
+  // Fetch user settings to get profile picture
+  useEffect(() => {
+    async function fetchUserSettings() {
+      if (status === 'loading') return;
+
+      try {
+        setIsLoadingProfile(true);
+        const response = await fetch('/api/user-settings');
+
+        if (response.ok) {
+          const data = await response.json();
+          setProfilePicture(data.profilePicture || null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user settings', error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    }
+
+    fetchUserSettings();
+  }, [status]);
 
   return (
     <SidebarMenu>
@@ -55,13 +80,26 @@ export function SidebarUserNav({ user }: { user: User }) {
                 data-testid="user-nav-button"
                 className="data-[state=open]:bg-sidebar-accent bg-background data-[state=open]:text-sidebar-accent-foreground h-10"
               >
-                <Image
-                  src={`https://avatar.vercel.sh/${user.email}`}
-                  alt={user.email ?? 'User Avatar'}
-                  width={24}
-                  height={24}
-                  className="rounded-full"
-                />
+                <div
+                  className="relative size-6 rounded-full overflow-hidden border border-muted/30 bg-muted/20"
+                  style={{ borderRadius: '50%' }}
+                >
+                  {isLoadingProfile ? (
+                    <div className="size-full animate-pulse bg-muted/40" />
+                  ) : profilePicture ? (
+                    <Image
+                      src={profilePicture}
+                      alt={user.email ?? 'User Avatar'}
+                      fill
+                      className="object-cover rounded-full"
+                      onError={() => setProfilePicture(null)}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center size-full">
+                      <User size={22} className="text-muted-foreground/60" />
+                    </div>
+                  )}
+                </div>
                 <span data-testid="user-email" className="truncate">
                   {isGuest ? 'Guest' : user?.email}
                 </span>
@@ -80,7 +118,7 @@ export function SidebarUserNav({ user }: { user: User }) {
               onSelect={() => setIsSettingsOpen(true)}
             >
               <SettingsIcon size={16} />
-              Settings
+              Account Settings
             </DropdownMenuItem>
             <DropdownMenuItem
               data-testid="user-nav-item-theme"
@@ -124,7 +162,18 @@ export function SidebarUserNav({ user }: { user: User }) {
       {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          // Refresh profile picture when settings modal is closed
+          if (status !== 'loading') {
+            fetch('/api/user-settings')
+              .then((response) => response.ok && response.json())
+              .then((data) => setProfilePicture(data.profilePicture || null))
+              .catch((error) =>
+                console.error('Failed to refresh profile picture', error),
+              );
+          }
+        }}
       />
     </SidebarMenu>
   );

@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       companyName,
       companyType,
       companyDescription,
+      profilePicture,
     } = body;
 
     const settings = await updateUserSettings({
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
         companyName,
         companyType,
         companyDescription,
+        profilePicture,
       },
     });
 

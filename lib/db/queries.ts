@@ -581,6 +581,7 @@ export async function updateUserSettings({
     companyName?: string;
     companyType?: string;
     companyDescription?: string;
+    profilePicture?: string;
   };
 }) {
   try {

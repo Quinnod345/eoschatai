@@ -366,19 +366,19 @@
 [role="menuitem"]:hover .text-xs.text-muted-foreground,
 button[role="menuitem"]:hover .text-muted-foreground,
 [data-radix-collection-item]:hover .text-muted-foreground {
-    @apply !text-white dark:!text-white;
+    @apply !text-foreground dark:!text-foreground;
 }
 
 /* Specific override for model selector dropdown */
 .min-w-\[300px\] button[role="menuitem"]:hover .text-xs.text-muted-foreground {
-    color: white !important;
+    @apply text-foreground dark:text-foreground;
 }
 
 /* Global hover text improvement for all menu items */
 button[type="button"]:hover .text-muted-foreground,
 *[role="menuitem"]:hover .text-muted-foreground,
 *:hover > .text-muted-foreground {
-    color: white !important;
+    @apply text-foreground dark:text-foreground;
 }
 
 /* Nuclear option for dropdown menu text color */
@@ -389,15 +389,15 @@ button[type="button"]:hover .text-muted-foreground,
 button:hover .text-xs.text-muted-foreground,
 [role="menuitem"]:hover .text-xs,
 [data-testid*="selector-item"]:hover .text-xs {
-    color: white !important;
+    @apply text-foreground dark:text-foreground !important;
     --tw-text-opacity: 1 !important;
-    -webkit-text-fill-color: white !important;
+    -webkit-text-fill-color: inherit !important;
 }
 
 /* Direct fixes for specific dropdowns */
 [data-testid^="model-selector-item-"]:hover .text-xs.text-muted-foreground,
 [data-testid^="provider-selector-item-"]:hover .text-xs.text-muted-foreground {
-    color: white !important;
+    @apply text-foreground dark:text-foreground !important;
 }
 
 /* Pulse animation for notifications and indicators */

@@ -60,6 +60,29 @@
   }
 }
 
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
 /* Utility classes for animations */
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-in-out;
@@ -75,6 +98,31 @@
 
 .animate-bounce-slow {
   animation: bounce 2s ease-in-out infinite;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-ripple {
+  animation: ripple 2s infinite;
+}
+
+/* Staggered animations for suggestion cards */
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+
+.stagger-3 {
+  animation-delay: 0.3s;
+}
+
+.stagger-4 {
+  animation-delay: 0.4s;
 }
 
 /* Improved transition classes for category switching */
@@ -95,8 +143,16 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
+.shadow-modern-dark {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
 .shadow-card {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.shadow-card-dark {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .hover\:scale-102:hover {
@@ -109,4 +165,8 @@
 
 .shadow-orange-500\/50 {
   box-shadow: 0 0 15px rgba(249, 115, 22, 0.5);
+}
+
+.shadow-indigo-500\/50 {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
 } 

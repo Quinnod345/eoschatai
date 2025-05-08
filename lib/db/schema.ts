@@ -202,6 +202,8 @@ export const userSettings = pgTable('UserSettings', {
   companyName: varchar('companyName', { length: 128 }),
   companyType: varchar('companyType', { length: 64 }),
   companyDescription: text('companyDescription'),
+  // Profile picture URL from Vercel Blob
+  profilePicture: text('profilePicture'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 });
