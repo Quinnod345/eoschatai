@@ -49,35 +49,35 @@ const PureChatItem = ({
     type: 'spring',
     stiffness: 500,
     damping: 30,
-    mass: 1
+    mass: 1,
   };
 
   return (
     <SidebarMenuItem className="py-0.5 px-2">
       <motion.div
-        whileHover={{ 
-          scale: 1.01, 
+        whileHover={{
+          scale: 1.01,
           translateX: 2,
-          transition: springTransition
+          transition: springTransition,
         }}
-        whileTap={{ 
+        whileTap={{
           scale: 0.98,
-          transition: springTransition 
+          transition: springTransition,
         }}
         className="w-full"
       >
-        <SidebarMenuButton 
-          asChild 
+        <SidebarMenuButton
+          asChild
           isActive={isActive}
           className={cn(
-            "rounded-md py-2 px-3 font-medium transition-all mr-5",
-            isActive 
-              ? "bg-primary/15 text-primary shadow-sm" 
-              : "hover:bg-sidebar-accent/50"
+            'rounded-md py-2 px-3 font-medium transition-all mr-5',
+            isActive
+              ? 'bg-primary/15 text-primary shadow-sm'
+              : 'hover:bg-sidebar-accent/50',
           )}
         >
-          <Link 
-            href={`/chat/${chat.id}`} 
+          <Link
+            href={`/chat/${chat.id}`}
             onClick={() => setOpenMobile(false)}
             className="truncate"
           >
@@ -90,8 +90,8 @@ const PureChatItem = ({
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction
             className={cn(
-              "data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mr-1.5 ml-0.5",
-              isActive && "text-primary"
+              'data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mr-1.5 ml-0.5',
+              isActive && 'text-primary',
             )}
             showOnHover={!isActive}
           >
@@ -103,7 +103,7 @@ const PureChatItem = ({
         <DropdownMenuContent side="bottom" align="end" className="w-48">
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="cursor-pointer">
-              <ShareIcon className="mr-2 h-4 w-4" />
+              <ShareIcon size={16} />
               <span>Share</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
@@ -142,7 +142,7 @@ const PureChatItem = ({
             className="cursor-pointer text-destructive focus:bg-destructive/15 focus:text-destructive dark:text-red-500"
             onSelect={() => onDelete(chat.id)}
           >
-            <TrashIcon className="mr-2 h-4 w-4" />
+            <TrashIcon size={16} />
             <span>Delete</span>
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -12,7 +12,6 @@ interface IndexDocumentsProps {
 
 export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
   tool({
-    name: 'index_documents',
     description:
       'Index existing documents to make them searchable through the EOS knowledge base',
     parameters: z.object({
@@ -29,10 +28,8 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
     }),
     execute: async ({ documentId, reindex = false }) => {
       try {
-        dataStream.write({
-          type: 'thinking',
-          content: 'Indexing documents...',
-        });
+        // Log that we're indexing documents
+        dataStream.writeData('Indexing documents...');
 
         // Build query
         const query = documentId
@@ -87,10 +84,9 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
 
           // Provide progress updates
           if (docs.length > 1) {
-            dataStream.write({
-              type: 'thinking',
-              content: `Indexed ${indexed} of ${docs.length} documents...`,
-            });
+            dataStream.writeData(
+              `Indexed ${indexed} of ${docs.length} documents...`,
+            );
           }
         }
 

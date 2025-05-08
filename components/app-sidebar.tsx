@@ -132,8 +132,6 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                             setOpenMobile(false);
                             setIsSearchOpen(true);
                           }}
-                          animate={true}
-                          hoverEffect="glow"
                         >
                           <Search size={18} />
                         </Button>
@@ -151,8 +149,6 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                             router.push('/');
                             router.refresh();
                           }}
-                          animate={true}
-                          hoverEffect="glow"
                         >
                           <PlusIcon />
                         </Button>

@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { motion } from 'framer-motion';
 
 import { cn } from '@/lib/utils';
 
@@ -38,76 +37,16 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
-  /**
-   * Animation options for the button
-   */
-  animate?: boolean;
-  /**
-   * Animation style - lift: raises button on hover, scale: grows button on hover, none: no hover animation
-   */
-  hoverEffect?: 'lift' | 'scale' | 'glow' | 'none';
 }
 
-const MotionButton = motion.button;
-const MotionSlot = motion(Slot);
-
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ 
-    className, 
-    variant, 
-    size, 
-    asChild = false, 
-    animate = true,
-    hoverEffect = 'lift',
-    ...props 
-  }, ref) => {
-    const Comp = asChild ? MotionSlot : MotionButton;
-    
-    // Animation properties
-    const springTransition = {
-      type: 'spring',
-      damping: 15,
-      stiffness: 300
-    };
-    
-    // Hover animations
-    const hoverAnimations = {
-      lift: {
-        whileHover: { y: -3, boxShadow: "0 10px 15px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -6px rgba(0, 0, 0, 0.1)" },
-        whileTap: { y: 0, scale: 0.97 },
-      },
-      scale: {
-        whileHover: { scale: 1.03 },
-        whileTap: { scale: 0.97 },
-      },
-      glow: {
-        whileHover: { 
-          boxShadow: variant === 'default' 
-            ? "0 0 10px 2px hsl(var(--primary) / 0.5)" 
-            : "0 0 10px 2px rgba(0, 0, 0, 0.1)",
-          filter: "brightness(1.05)",
-        },
-        whileTap: { 
-          boxShadow: "none", 
-          filter: "brightness(1)", 
-          scale: 0.97 
-        },
-      },
-      none: {},
-    };
-    
-    const animationProps = animate && hoverEffect !== 'none' 
-      ? {
-          transition: springTransition,
-          ...hoverAnimations[hoverEffect]
-        }
-      : {};
-    
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        {...animationProps}
         {...props}
       />
     );

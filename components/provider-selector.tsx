@@ -94,7 +94,6 @@ export function ProviderSelector({
         const data = await response.json();
         toast({
           type: 'error',
-          title: 'API Key Missing',
           description:
             data.message ||
             `${providerId === PROVIDERS.OPENAI ? 'OpenAI' : 'Grok'} API key is not configured. Please add it to your environment variables.`,
@@ -117,8 +116,7 @@ export function ProviderSelector({
     try {
       // Add visual feedback
       toast({
-        type: 'default',
-        title: 'Changing Provider',
+        type: 'success',
         description: `Switching to ${providerId === PROVIDERS.XAI ? 'Grok' : 'OpenAI'}...`,
       });
 
@@ -129,7 +127,6 @@ export function ProviderSelector({
         // If API key is not configured, show error and return early
         toast({
           type: 'error',
-          title: 'API Key Not Configured',
           description: `${providerId === PROVIDERS.XAI ? 'Grok' : 'OpenAI'} API key is not configured. Please set the environment variable.`,
         });
         return;
@@ -145,7 +142,6 @@ export function ProviderSelector({
       // Show success message
       toast({
         type: 'success',
-        title: 'Provider Changed',
         description: `Switched to ${providerId === PROVIDERS.XAI ? 'Grok' : 'OpenAI'}`,
       });
 

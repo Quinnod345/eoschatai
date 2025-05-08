@@ -76,12 +76,11 @@ export const processDocument = async (
 
   // Store chunks and embeddings in database
   await Promise.all(
-    embeddingsData.map(({ chunk, embedding }) =>
+    embeddingsData.map(({ chunk }) =>
       db.insert(embeddings).values({
         id: generateUUID(),
         documentId,
         chunk,
-        embedding,
         createdAt: new Date(),
       }),
     ),
@@ -93,29 +92,19 @@ export const processDocument = async (
  */
 export const findRelevantContent = async (
   query: string,
-  similarityThreshold = 0.7,
   limit = 5,
 ): Promise<{ content: string; relevance: number }[]> => {
-  const queryEmbedding = await generateEmbedding(query);
-
-  const similarity = sql<number>`1 - (${cosineDistance(
-    embeddings.embedding,
-    queryEmbedding,
-  )})`;
-
+  // Since embeddings are temporarily disabled, just return the most recent chunks with a default relevance score
   const results = await db
     .select({
       chunk: embeddings.chunk,
-      similarity,
     })
     .from(embeddings)
-    .where(gt(similarity, similarityThreshold))
-    .orderBy(desc(similarity))
     .limit(limit);
 
-  // Transform the results to match the expected format for ragContextPrompt
+  // Transform the results to match the expected format with a default relevance score
   return results.map((result) => ({
     content: result.chunk,
-    relevance: result.similarity,
+    relevance: 1.0, // Default high relevance since we can't calculate it without embeddings
   }));
 };

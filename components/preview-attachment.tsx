@@ -52,7 +52,7 @@ export const PreviewAttachment = ({
           )
         ) : (
           // Loading icon for when there's no content type yet
-          <LoaderIcon className="size-4 text-zinc-500 animate-spin" />
+          <LoaderIcon size={16} />
         )}
 
         {onRemove && !isUploading && (
@@ -68,7 +68,7 @@ export const PreviewAttachment = ({
 
         {isUploading && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-md">
-            <LoaderIcon className="size-4 text-zinc-500 animate-spin" />
+            <LoaderIcon size={16} />
           </div>
         )}
       </div>

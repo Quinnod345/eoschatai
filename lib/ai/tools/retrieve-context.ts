@@ -9,7 +9,6 @@ interface RetrieveContextProps {
 
 export const retrieveContextTool = ({ dataStream }: RetrieveContextProps) =>
   tool({
-    name: 'retrieve_context',
     description:
       'Retrieve relevant EOS knowledge from the knowledge base to help answer a question',
     parameters: z.object({
@@ -20,10 +19,7 @@ export const retrieveContextTool = ({ dataStream }: RetrieveContextProps) =>
     execute: async ({ query }) => {
       try {
         // Log that we're searching
-        dataStream.write({
-          type: 'thinking',
-          content: `Searching knowledge base for: ${query}`,
-        });
+        dataStream.writeData(`Searching knowledge base for: ${query}`);
 
         // Retrieve relevant context
         const relevantContent = await findRelevantContent(query);

@@ -79,7 +79,7 @@ export function SidebarUserNav({ user }: { user: User }) {
               className="cursor-pointer"
               onSelect={() => setIsSettingsOpen(true)}
             >
-              <SettingsIcon className="mr-2 h-4 w-4" />
+              <SettingsIcon size={16} />
               Settings
             </DropdownMenuItem>
             <DropdownMenuItem
