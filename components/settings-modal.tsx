@@ -446,15 +446,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     };
   }, [isOpen, onClose, isCropperOpen, blockOutsideClicks]);
 
-  // Fetch user settings when the modal opens
-  React.useEffect(() => {
-    if (isOpen && session?.user) {
-      fetchUserSettings();
-      setEmail(session.user.email || '');
-    }
-  }, [isOpen, session]);
-
-  const fetchUserSettings = async () => {
+  // Wrap fetchUserSettings in useCallback
+  const fetchUserSettings = React.useCallback(async () => {
     if (!session?.user) return;
 
     try {
@@ -483,7 +476,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.user]);
+
+  React.useEffect(() => {
+    if (isOpen && session?.user) {
+      fetchUserSettings();
+      setEmail(session.user.email || '');
+    }
+  }, [isOpen, session, fetchUserSettings]);
 
   const handleSaveChanges = async () => {
     if (!session?.user) {
@@ -927,9 +927,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               Limited Guest Account
                             </h4>
                             <p className={cn('text-sm mt-1', styles.mutedText)}>
-                              You're using a temporary guest account. To save
-                              your data permanently and access all features,
-                              please register for a full account.
+                              You&apos;re using a temporary guest account. To
+                              save your data permanently and access all
+                              features, please register for a full account.
                             </p>
                           </div>
                         </div>

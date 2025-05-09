@@ -35,17 +35,16 @@ import { AnimatedModal } from '@/components/ui/animated-modal';
 // Custom styling to match the settings modal styling
 const styles = {
   wrapper: 'document-modal-wrapper',
-  tabList: 'document-tabs-list',
-  tabTrigger: 'document-tab-trigger',
-  tabActive: 'document-tab-active',
-  tabContent: 'document-tab-content',
-  headerText: 'document-header-text',
-  normalText: 'document-text',
-  mutedText: 'document-muted-text',
-  formLabel: 'document-form-label',
-  cancelButton: 'document-cancel-button',
-  fixedHeight: 'document-fixed-height',
-  enhancedModal: 'document-enhanced-modal',
+  enhancedModal: 'document-modal-enhanced',
+  tabList: 'document-modal-tablist',
+  tabTrigger: 'document-modal-tabtrigger',
+  tabActive: 'document-modal-tabactive',
+  headerText: 'document-modal-headertext',
+  normalText: 'document-modal-normaltext',
+  mutedText: 'document-modal-mutedtext',
+  formLabel: 'document-modal-formlabel',
+  cancelButton: 'document-modal-cancelbutton',
+  fixedHeight: 'document-modal-fixedheight',
 };
 
 // Animation variants for staggered animations
@@ -115,6 +114,36 @@ export function DocumentContextModal({
   const [documents, setDocuments] = React.useState<DocumentItem[]>([]);
   const [uploading, setUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const fetchUserDocuments = React.useCallback(async () => {
+    if (!session?.user) return;
+
+    try {
+      setLoading(true);
+      // Fetch documents for the user and the current active category
+      const response = await fetch(`/api/documents?category=${activeTab}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data.documents);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user documents:', error);
+      toast({
+        type: 'error',
+        description: 'Failed to load documents',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, session?.user]);
+
+  // Fetch documents when the modal opens or category changes
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchUserDocuments();
+    }
+  }, [isOpen, fetchUserDocuments]);
 
   // Add document modal specific styling to the document
   React.useEffect(() => {
@@ -264,36 +293,6 @@ export function DocumentContextModal({
     };
   }, []);
 
-  // Fetch user documents when the modal opens
-  React.useEffect(() => {
-    if (isOpen && session?.user) {
-      fetchUserDocuments();
-    }
-  }, [isOpen, session, activeTab]);
-
-  const fetchUserDocuments = async () => {
-    if (!session?.user) return;
-
-    try {
-      setLoading(true);
-      // Fetch documents for the user and the current active category
-      const response = await fetch(`/api/documents?category=${activeTab}`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.documents);
-      }
-    } catch (error) {
-      console.error('Failed to fetch user documents:', error);
-      toast({
-        type: 'error',
-        description: 'Failed to load documents',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -397,7 +396,7 @@ export function DocumentContextModal({
           ) {
             // Special handling for PDFs with AI processing
             toast({
-              type: 'info',
+              type: 'success',
               description: `${file.name} uploaded. AI analysis in progress...`,
             });
 
@@ -587,10 +586,10 @@ export function DocumentContextModal({
             Upload your EOS documents to provide context for AI responses.
             <span className="block mt-2 text-sm font-medium text-foreground">
               After uploading, you can ask the AI about your documents by saying
-              things like "What's in my Core Process document?" or "Tell me
-              about my Scorecard."
+              things like &ldquo;What&apos;s in my Core Process document?&rdquo;
+              or &ldquo;Tell me about my Scorecard.&rdquo;
             </span>
-            <span className="block mt-2 text-sm font-medium text-foreground text-blue-600 dark:text-blue-400">
+            <span className="block mt-2 text-sm font-medium text-blue-600">
               NEW: PDF documents are now processed with advanced AI that can
               analyze images, charts, and scanned text!
             </span>

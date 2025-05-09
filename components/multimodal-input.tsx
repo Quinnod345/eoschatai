@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
+import { ArrowDown, ArrowUp, Paperclip, X, Square } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -24,14 +24,13 @@ import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import type { VisibilityType } from './visibility-selector';
-import { XIcon } from 'lucide-react';
-import { ModelSelector } from './model-selector';
-import { ProviderSelector } from './provider-selector';
 import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
+import { ModelSelector } from './model-selector';
+import { ProviderSelector } from './provider-selector';
 
 interface ExtendedAttachment extends Attachment {
   pdfText?: string;
@@ -1022,7 +1021,7 @@ function PureMultimodalInput({
         >
           <div className="bg-background/90 dark:bg-background/80 rounded-lg p-6 shadow-lg flex flex-col items-center">
             <div className="drag-icon-bounce">
-              <PaperclipIcon size={36} className="mx-auto mb-3 text-primary" />
+              <Paperclip size={36} className="mx-auto mb-3 text-primary" />
             </div>
             <p className="text-base font-medium">Drop files to upload</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -1058,7 +1057,7 @@ function PureMultimodalInput({
                 scrollToBottom();
               }}
             >
-              <ArrowDown />
+              <ArrowDownLucide />
             </Button>
           </motion.div>
         )}
@@ -1161,7 +1160,7 @@ function PureMultimodalInput({
                     );
                   }}
                 >
-                  <XIcon size={12} />
+                  <X size={12} />
                 </Button>
               </div>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
@@ -1216,7 +1215,7 @@ function PureMultimodalInput({
                     );
                   }}
                 >
-                  <XIcon size={12} />
+                  <X size={12} />
                 </Button>
               </div>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
@@ -1361,7 +1360,7 @@ function PureAttachmentsButton({
       disabled={status !== 'ready'}
       variant="ghost"
     >
-      <PaperclipIcon size={14} />
+      <Paperclip size={14} />
     </Button>
   );
 }
@@ -1385,7 +1384,7 @@ function PureStopButton({
         setMessages((messages) => messages);
       }}
     >
-      <StopIcon size={14} />
+      <Square size={14} />
     </Button>
   );
 }
@@ -1427,7 +1426,7 @@ function PureSendButton({
       }}
       disabled={isDisabled}
     >
-      <ArrowUpIcon size={14} />
+      <ArrowUp size={14} />
     </Button>
   );
 }

@@ -45,8 +45,10 @@ export const addResourceTool = {
       // Process the content to ensure it's a string
       let contentText = content;
       if (typeof content === 'object' && content !== null) {
-        if (content.text && typeof content.text === 'string') {
-          contentText = content.text;
+        // Add a type assertion to avoid the 'never' type error
+        const contentObj = content as { text?: string };
+        if (contentObj.text && typeof contentObj.text === 'string') {
+          contentText = contentObj.text;
         } else {
           // Try to convert to string if it's a complex object
           contentText = JSON.stringify(content);

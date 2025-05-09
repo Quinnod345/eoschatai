@@ -41,8 +41,24 @@ import type {
   Suggestion as SuggestionType,
 } from '@/artifacts/suggestions/types';
 
-// biome-ignore lint: Forbidden non-null assertion.
-const client = postgres(process.env.POSTGRES_URL!);
+// Get the database URL from either POSTGRES_URL or DATABASE_URL
+const getDatabaseUrl = () => {
+  const postgresUrl = process.env.POSTGRES_URL;
+  const databaseUrl = process.env.DATABASE_URL;
+
+  // Return the first available URL
+  const url = postgresUrl || databaseUrl;
+
+  if (!url) {
+    throw new Error(
+      'Neither POSTGRES_URL nor DATABASE_URL environment variable is defined',
+    );
+  }
+
+  return url;
+};
+
+const client = postgres(getDatabaseUrl());
 export const db = drizzle(client);
 
 export async function getUser(email: string): Promise<Array<User>> {
@@ -336,7 +352,8 @@ export async function saveDocument({
           WHERE id = ${id}
           RETURNING *
         `);
-        documents = result.rows;
+        // Handle the return value safely with type assertion
+        documents = Array.isArray(result) ? result : (result as any).rows;
       } else {
         // Not a duplicate key error, rethrow
         throw insertError;

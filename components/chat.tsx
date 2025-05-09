@@ -2,7 +2,7 @@
 
 import type { Attachment, UIMessage } from 'ai';
 import { useChat } from '@ai-sdk/react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -176,7 +176,7 @@ export function Chat({
     responseTimeoutRef.current = setTimeout(() => {
       console.error('Response timeout detected on client side');
       // If we're still in loading state after timeout, show error and force stop
-      if (status === 'in_progress') {
+      if (status === 'streaming') {
         toast({
           type: 'error',
           description:
@@ -188,6 +188,35 @@ export function Chat({
     // Call the original submit handler
     handleSubmit(e);
   };
+
+  // Create an adapter function for the multimodal input component
+  const handleSubmitAdapter = useCallback(
+    (
+      event?: { preventDefault?: () => void } | undefined,
+      chatRequestOptions?: any,
+    ) => {
+      if (event?.preventDefault) {
+        event.preventDefault();
+      }
+      // Call our custom handler if the event exists
+      if (event) {
+        handleSubmit(event, chatRequestOptions);
+
+        // Set the timeout
+        responseTimeoutRef.current = setTimeout(() => {
+          console.error('Response timeout detected on client side');
+          if (status === 'streaming') {
+            toast({
+              type: 'error',
+              description:
+                'The response is taking too long. You may need to stop and try again.',
+            });
+          }
+        }, 25000);
+      }
+    },
+    [handleSubmit, status],
+  );
 
   return (
     <>
@@ -218,7 +247,7 @@ export function Chat({
               chatId={id}
               input={input}
               setInput={setInput}
-              handleSubmit={handleSubmitWithTimeout}
+              handleSubmit={handleSubmitAdapter}
               status={status}
               stop={stop}
               attachments={attachments}

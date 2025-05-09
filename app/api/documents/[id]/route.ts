@@ -5,14 +5,22 @@ import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function DELETE(request: Request) {
   const session = await auth();
+
+  // Extract the id from the URL
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
 
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Document ID is required' },
+      { status: 400 },
+    );
   }
 
   try {
@@ -22,7 +30,7 @@ export async function DELETE(
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, params.id),
+          eq(userDocuments.id, id),
           eq(userDocuments.userId, session.user.id),
         ),
       )
@@ -46,7 +54,7 @@ export async function DELETE(
     }
 
     // Delete document from database
-    await db.delete(userDocuments).where(eq(userDocuments.id, params.id));
+    await db.delete(userDocuments).where(eq(userDocuments.id, id));
 
     return NextResponse.json({ message: 'Document deleted successfully' });
   } catch (error) {

@@ -133,15 +133,21 @@ async function testRagSearch(query: string): Promise<void> {
 
         // Now fetch the document by ID to get full metadata
         const document = await upstashVectorClient.fetch({
-          ids: [result.id],
-          includeMetadata: true,
-          includeVectors: false,
+          ids: [String(result.id)],
         });
 
-        if (document && document.length > 0 && document[0].metadata?.chunk) {
-          console.log(
-            `  Content: ${document[0].metadata.chunk.substring(0, 200)}...`,
-          );
+        if (
+          document &&
+          Array.isArray(document) &&
+          document.length > 0 &&
+          document[0]?.metadata?.chunk
+        ) {
+          const chunk = document[0].metadata.chunk;
+          const chunkText =
+            typeof chunk === 'string'
+              ? chunk.substring(0, 200)
+              : JSON.stringify(chunk).substring(0, 200);
+          console.log(`  Content: ${chunkText}...`);
         } else {
           console.log('  Content: [No metadata available]');
         }
@@ -176,17 +182,15 @@ async function fetchDocumentById(id: string): Promise<void> {
     // Fetch document by ID (using ids array)
     const document = await upstashVectorClient.fetch({
       ids: [`${id}-0`], // Assuming the first chunk uses -0 suffix
-      includeMetadata: true,
-      includeVector: false,
     });
 
     console.log('Document fetch result:');
     console.log(JSON.stringify(document, null, 2));
 
-    if (document && document.length > 0) {
+    if (document && Array.isArray(document) && document.length > 0) {
       console.log('\nDocument data:');
-      console.log('ID:', document[0].id);
-      console.log('Metadata:', document[0].metadata);
+      console.log('ID:', document[0]?.id);
+      console.log('Metadata:', document[0]?.metadata);
     } else {
       console.log('No document found with that ID');
     }

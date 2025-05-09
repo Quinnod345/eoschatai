@@ -63,9 +63,15 @@ async function deleteContentByKeyword(
 
     // Display the first few results
     results.slice(0, 5).forEach((result, i) => {
+      const metadataChunk = result.metadata?.chunk;
+      const chunkPreview =
+        typeof metadataChunk === 'string'
+          ? metadataChunk.substring(0, 100)
+          : '[No text content]';
+
       console.log(
         `Result ${i + 1}:`,
-        result.metadata?.chunk?.substring(0, 100),
+        chunkPreview,
         `... (score: ${result.score?.toFixed(2)})`,
       );
     });
@@ -78,7 +84,7 @@ async function deleteContentByKeyword(
           typeof result.metadata.chunk === 'string' &&
           result.metadata.chunk.toLowerCase().includes(keyword.toLowerCase()),
       )
-      .map((result) => result.id);
+      .map((result) => String(result.id));
 
     if (matchingIds.length === 0) {
       console.log(`No content found containing "${keyword}"`);

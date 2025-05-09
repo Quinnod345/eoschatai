@@ -4,6 +4,16 @@ import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
+// Define the valid document categories
+type DocumentCategory = 'Scorecard' | 'VTO' | 'Rocks' | 'A/C' | 'Core Process';
+const validCategories: DocumentCategory[] = [
+  'Scorecard',
+  'VTO',
+  'Rocks',
+  'A/C',
+  'Core Process',
+];
+
 export async function GET(request: Request) {
   const session = await auth();
 
@@ -13,14 +23,22 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
+    const categoryParam = searchParams.get('category');
 
-    if (!category) {
+    if (!categoryParam) {
       return NextResponse.json(
         { error: 'Category is required' },
         { status: 400 },
       );
     }
+
+    // Validate that the category is one of the allowed values
+    if (!validCategories.includes(categoryParam as DocumentCategory)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    }
+
+    // Use the validated category
+    const category = categoryParam as DocumentCategory;
 
     const documents = await db
       .select()

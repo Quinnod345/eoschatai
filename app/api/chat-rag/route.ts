@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
     // Get system prompt with RAG context
     const baseSystemPrompt = await systemPrompt({
-      selectedChatModel: modelId,
+      selectedProvider: modelId,
       requestHints,
       ragContext: relevantContent,
       userId: session.user.id,
@@ -97,10 +97,9 @@ export async function POST(req: Request) {
     // Add RAG usage indicator for debugging
     // Make RAG tools more likely to be used by the model
     const result = streamText({
-      model:
-        myProvider.languageModels[
-          modelId as 'chat-model' | 'chat-model-reasoning'
-        ],
+      model: myProvider.languageModel(
+        modelId as 'chat-model' | 'chat-model-reasoning',
+      ),
       messages,
       system: `${baseSystemPrompt}\n\nALWAYS use the getInformation tool when you don't have enough context from the retrieved information above!\n\nIMPORTANT RAG RESPONSE INSTRUCTIONS:\n1. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses\n2. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points\n3. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting\n4. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base`,
       maxTokens: 1500,

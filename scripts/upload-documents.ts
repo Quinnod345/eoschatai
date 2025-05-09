@@ -38,7 +38,15 @@ const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.csv'];
 /**
  * Process a single file and store its embeddings in Upstash Vector
  */
-async function processFile(filePath: string): Promise<void> {
+async function processFile(filePath: string): Promise<
+  | {
+      id: string;
+      fileName: string;
+      path: string;
+      timestamp: string;
+    }
+  | undefined
+> {
   try {
     const fileName = path.basename(filePath);
     const fileExt = path.extname(filePath).toLowerCase();
@@ -46,7 +54,7 @@ async function processFile(filePath: string): Promise<void> {
     // Check if file type is supported
     if (!SUPPORTED_EXTENSIONS.includes(fileExt)) {
       console.log(`Skipping unsupported file type: ${fileName}`);
-      return;
+      return undefined;
     }
 
     console.log(`Processing file: ${fileName}`);

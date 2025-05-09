@@ -67,7 +67,7 @@ export function ProviderSelector({
         saveProviderAsCookie(DEFAULT_PROVIDER);
       });
     }
-  }, [selectedProviderId]);
+  }, [selectedProviderId, setOptimisticProviderId]);
 
   const userType = session.user.type;
   // Assuming all users have access to all providers

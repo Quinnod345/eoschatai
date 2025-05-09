@@ -10,10 +10,12 @@ const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'profile-pictures');
 
 export async function GET(
   request: Request,
-  { params }: { params: { filename: string } },
 ) {
   try {
-    const filename = params.filename;
+    // Extract filename from the URL path
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split('/');
+    const filename = pathParts[pathParts.length - 1];
 
     // Validate filename to prevent directory traversal attacks
     if (!filename.match(/^[a-zA-Z0-9-_]+\.(jpg|jpeg|png|gif|webp)$/)) {

@@ -8,16 +8,22 @@ import { Pool } from 'pg';
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 async function createUserDocumentsTable() {
-  // Get the database URL
-  const databaseUrl = process.env.POSTGRES_URL;
+  // Get the database URL from either POSTGRES_URL or DATABASE_URL
+  const postgresUrl = process.env.POSTGRES_URL;
+  const databaseUrl = process.env.DATABASE_URL;
 
-  if (!databaseUrl) {
-    throw new Error('POSTGRES_URL environment variable is missing');
+  // Use the first available URL
+  const connectionUrl = postgresUrl || databaseUrl;
+
+  if (!connectionUrl) {
+    throw new Error(
+      'Neither POSTGRES_URL nor DATABASE_URL environment variable is defined',
+    );
   }
 
   console.log('Connecting to database...');
   const client = new Pool({
-    connectionString: databaseUrl,
+    connectionString: connectionUrl,
     ssl: true,
   });
 
@@ -60,7 +66,9 @@ async function createUserDocumentsTable() {
     } catch (constraintError) {
       console.warn(
         'Could not add foreign key constraint, continuing without it:',
-        constraintError.message,
+        constraintError instanceof Error
+          ? constraintError.message
+          : String(constraintError),
       );
     }
 
