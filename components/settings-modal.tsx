@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { UserCircle } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
+import { AnimatedModal } from '@/components/ui/animated-modal';
 
 // Custom styling to isolate the settings modal from global hover effects
 const styles = {
@@ -133,6 +134,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // Add these state variables near the other state declarations
   const [cropperImage, setCropperImage] = React.useState<string | null>(null);
   const [isCropperOpen, setIsCropperOpen] = React.useState(false);
+  const [blockOutsideClicks, setBlockOutsideClicks] = React.useState(false);
 
   // Add settings modal specific styling to the document
   React.useEffect(() => {
@@ -253,19 +255,181 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     };
   }, []);
 
-  // Add event listener for clicks outside the modal
+  // Modify the handleProfilePictureChange function to block outside clicks
+  const handleProfilePictureChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        type: 'error',
+        description:
+          'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        type: 'error',
+        description: 'File too large. Maximum size is 5MB.',
+      });
+      return;
+    }
+
+    // Block outside clicks when cropper opens
+    setBlockOutsideClicks(true);
+
+    // Create a URL for the image to show in the cropper
+    const imageUrl = URL.createObjectURL(file);
+    setCropperImage(imageUrl);
+    setIsCropperOpen(true);
+
+    // Reset the file input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Add a new function to handle the cropper close and restore outside click behavior
+  const handleCropperClose = () => {
+    setIsCropperOpen(false);
+    setBlockOutsideClicks(false);
+    if (cropperImage) {
+      URL.revokeObjectURL(cropperImage);
+      setCropperImage(null);
+    }
+  };
+
+  // Modify the handleCroppedImageUpload function to restore outside click behavior
+  const handleCroppedImageUpload = async (
+    croppedAreaPixels: any,
+    croppedBlob: Blob,
+  ) => {
+    try {
+      setUploadingImage(true);
+      setIsCropperOpen(false);
+      setBlockOutsideClicks(false);
+
+      // Validate the cropped blob
+      if (!croppedBlob || croppedBlob.size === 0) {
+        throw new Error('The cropped image is empty. Please try again.');
+      }
+
+      const formData = new FormData();
+      formData.append('file', croppedBlob, 'profile.jpg');
+
+      // Log upload size for debugging
+      console.log(`Uploading profile picture: ${croppedBlob.size} bytes`);
+
+      const response = await fetch('/api/user/profile-picture', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (!data.url) {
+          throw new Error('No URL returned from server');
+        }
+
+        // Update state with the new profile picture URL
+        updateSetting('profilePicture', data.url);
+
+        // Also update settings in the database immediately
+        await fetch('/api/user-settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...settings,
+            profilePicture: data.url,
+          }),
+        });
+
+        toast({
+          type: 'success',
+          description: 'Profile picture updated',
+        });
+
+        // Update session to reflect new profile picture
+        await updateSession({ profilePicture: data.url });
+      } else {
+        let errorMessage = 'Failed to upload profile picture';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If the response isn't JSON, use status text
+          errorMessage = `Server error: ${response.statusText || response.status}`;
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      toast({
+        type: 'error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to upload profile picture. Please try again.',
+      });
+    } finally {
+      setUploadingImage(false);
+      // Clean up the object URL
+      if (cropperImage) {
+        URL.revokeObjectURL(cropperImage);
+        setCropperImage(null);
+      }
+    }
+  };
+
+  // Create helper functions to update specific settings
+  const updateSetting = (key: keyof UserSettings, value: any) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Modify the event listener for clicks outside the modal
   React.useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      // If we are explicitly blocking outside clicks (during cropper operation), do nothing
+      if (blockOutsideClicks) return;
+
       // Check if the click was outside the modal content
       const modalContent = document.querySelector('.settings-modal-wrapper');
       const selectContent = document.querySelector('[role="listbox"]');
+      const cropperUI = document.querySelector(
+        '.reactEasyCrop_Container, .cropper-container',
+      );
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      const modalDialogs = document.querySelectorAll('[role="dialog"]');
 
-      // Don't close if clicking within modal or on select dropdown content
+      // Check if target is a file input or inside one
+      const isFileInputTarget = Array.from(fileInputs).some(
+        (input) => input === e.target || input.contains(e.target as Node),
+      );
+
+      // Don't close if clicking within interactive elements
       if (
         modalContent?.contains(e.target as Node) ||
-        selectContent?.contains(e.target as Node)
+        selectContent?.contains(e.target as Node) ||
+        cropperUI?.contains(e.target as Node) ||
+        isFileInputTarget ||
+        // Check if click target is within any dialog
+        Array.from(modalDialogs).some((dialog) =>
+          dialog.contains(e.target as Node),
+        ) ||
+        // Don't close when cropper is open
+        isCropperOpen
       ) {
         return;
       }
@@ -280,7 +444,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isCropperOpen, blockOutsideClicks]);
 
   // Fetch user settings when the modal opens
   React.useEffect(() => {
@@ -465,136 +629,44 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  // Modify the handleProfilePictureChange function to show the cropper
-  const handleProfilePictureChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Add a wrapped onClose handler that checks if we're in the middle of a profile picture edit
+  const handleCloseRequest = () => {
+    // If cropper is open or upload is in progress, ask for confirmation
+    if (isCropperOpen || uploadingImage) {
+      const confirmClose = window.confirm(
+        'You are in the middle of editing your profile picture. Are you sure you want to close?',
+      );
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      toast({
-        type: 'error',
-        description:
-          'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        type: 'error',
-        description: 'File too large. Maximum size is 5MB.',
-      });
-      return;
-    }
-
-    // Create a URL for the image to show in the cropper
-    const imageUrl = URL.createObjectURL(file);
-    setCropperImage(imageUrl);
-    setIsCropperOpen(true);
-
-    // Reset the file input so the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  // Add a new function to handle the cropped image upload
-  const handleCroppedImageUpload = async (
-    croppedAreaPixels: any,
-    croppedBlob: Blob,
-  ) => {
-    try {
-      setUploadingImage(true);
-      setIsCropperOpen(false);
-
-      const formData = new FormData();
-      formData.append('file', croppedBlob, 'profile.jpg');
-
-      const response = await fetch('/api/user/profile-picture', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        if (!data.url) {
-          throw new Error('No URL returned from server');
-        }
-
-        // Update state with the new profile picture URL
-        updateSetting('profilePicture', data.url);
-
-        // Also update settings in the database immediately
-        await fetch('/api/user-settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...settings,
-            profilePicture: data.url,
-          }),
-        });
-
-        toast({
-          type: 'success',
-          description: 'Profile picture updated',
-        });
-
-        // Update session to reflect new profile picture
-        await updateSession({ profilePicture: data.url });
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload profile picture');
+      if (!confirmClose) {
+        return; // Don't close if user cancels
       }
-    } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      toast({
-        type: 'error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to upload profile picture',
-      });
-    } finally {
-      setUploadingImage(false);
-      // Clean up the object URL
+
+      // Clean up resources if user confirms
       if (cropperImage) {
         URL.revokeObjectURL(cropperImage);
         setCropperImage(null);
       }
+      setIsCropperOpen(false);
     }
-  };
 
-  // Create helper functions to update specific settings
-  const updateSetting = (key: keyof UserSettings, value: any) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    // Proceed with normal close
+    onClose();
   };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AnimatedModal
+      isOpen={isOpen}
+      onClose={handleCloseRequest}
+      preventAutoClose={blockOutsideClicks || isCropperOpen}
+    >
       {cropperImage && isCropperOpen && (
         <ImageCropper
           image={cropperImage}
           onCropComplete={handleCroppedImageUpload}
-          onCancel={() => {
-            setIsCropperOpen(false);
-            if (cropperImage) {
-              URL.revokeObjectURL(cropperImage);
-              setCropperImage(null);
-            }
-          }}
+          onCancel={handleCropperClose}
         />
       )}
-      <AlertDialogContent
-        className={cn('max-w-xl', styles.wrapper, styles.enhancedModal)}
-      >
+      <div className={cn('p-6 max-w-xl', styles.wrapper, styles.enhancedModal)}>
         <AlertDialogHeader>
           <AlertDialogTitle className={cn('text-xl', styles.headerText)}>
             Account Settings
@@ -1275,18 +1347,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </Tabs>
 
         <AlertDialogFooter>
-          <AlertDialogCancel
-            onClick={onClose}
+          <Button
+            variant="outline"
+            onClick={handleCloseRequest}
             disabled={loading}
             className={cn(styles.cancelButton)}
           >
             Cancel
-          </AlertDialogCancel>
+          </Button>
           <Button onClick={handleSaveChanges} disabled={loading}>
             {loading ? 'Saving...' : 'Save Changes'}
           </Button>
         </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      </div>
+    </AnimatedModal>
   );
 }

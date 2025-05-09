@@ -59,7 +59,8 @@ export function ModelSelector({
           variant="outline"
           className="md:px-2 md:h-[34px]"
         >
-          {selectedChatModel?.name}
+          <span className="hidden md:inline">{selectedChatModel?.name}</span>
+          <span className="md:hidden">Model</span>
           <ChevronDownIcon />
         </Button>
       </DropdownMenuTrigger>

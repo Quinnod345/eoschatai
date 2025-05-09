@@ -239,7 +239,10 @@ function PureSuggestedActions({
     >
       {/* Header section */}
       <div className="flex flex-col items-center justify-center mb-6 md:mb-12 pt-4 md:pt-8">
-        <h2 className="text-xl md:text-3xl font-semibold text-center text-indigo-700 dark:text-indigo-400 mb-6 md:mb-12 animate-slideDown">
+        <h2
+          className="text-xl md:text-3xl font-semibold text-center text-orange-500 dark:text-orange-400 mb-6 md:mb-12 animate-slideDown"
+          style={{ textShadow: '0 0 10px rgba(249, 115, 22, 0.4)' }}
+        >
           {greeting}
         </h2>
 
@@ -311,8 +314,8 @@ function PureSuggestedActions({
               onClick={() => handleCategoryChange(index)}
               className={`px-4 py-2 rounded-modern text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
                 activeCategory === index
-                  ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-modern shadow-indigo-500/50 dark:shadow-indigo-600/30'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-500 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700'
+                  ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700'
               }`}
             >
               {category.category}
@@ -337,7 +340,7 @@ function PureSuggestedActions({
               key={`starter-${index}-${starter.substring(0, 10)}`}
               type="button"
               onClick={() => handleStarterClick(starter)}
-              className={`bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-2 md:p-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-indigo-200 dark:hover:border-indigo-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
+              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-3 py-2 md:p-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
@@ -366,7 +369,7 @@ function PureSuggestedActions({
         </p>
         <div className="flex items-center justify-center">
           <svg
-            className="h-4 w-4 md:h-5 md:w-5 text-indigo-500 dark:text-indigo-400 mr-2 animate-bounce-slow"
+            className="h-4 w-4 md:h-5 md:w-5 text-orange-500 dark:text-orange-400 mr-2 animate-bounce-slow"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

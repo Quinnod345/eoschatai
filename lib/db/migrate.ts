@@ -2,6 +2,7 @@ import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+import { migrateUserDocuments } from './migrations/user-documents';
 
 config({
   path: '.env.local',
@@ -106,6 +107,13 @@ const runMigrate = async () => {
     await addProviderIdToUser(connection);
   } catch (error) {
     console.error('Error adding provider ID column:', error);
+  }
+
+  try {
+    // Run UserDocuments migration
+    await migrateUserDocuments();
+  } catch (error) {
+    console.error('Error running UserDocuments migration:', error);
   }
 
   const end = Date.now();

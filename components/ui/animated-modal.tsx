@@ -1,0 +1,116 @@
+'use client';
+
+import * as React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
+// Animation variants for the modal
+const modalVariants = {
+  hidden: {
+    opacity: 0,
+    scale: 0.98,
+    transition: {
+      duration: 0.15,
+      ease: 'easeOut',
+    },
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: 0.2,
+      ease: 'easeOut',
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.98,
+    transition: {
+      duration: 0.15,
+      ease: 'easeIn',
+    },
+  },
+};
+
+interface AnimatedModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  className?: string;
+  preventAutoClose?: boolean;
+}
+
+export function AnimatedModal({
+  isOpen,
+  onClose,
+  children,
+  className,
+  preventAutoClose = false,
+}: AnimatedModalProps) {
+  const [isVisible, setIsVisible] = React.useState(false);
+  const [isClosing, setIsClosing] = React.useState(false);
+
+  // When isOpen changes, update our internal state
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true);
+      setIsClosing(false);
+    }
+  }, [isOpen]);
+
+  // When the exit animation completes, tell parent we're fully closed
+  const handleAnimationComplete = (definition: string) => {
+    if (definition === 'exit') {
+      setIsVisible(false);
+      if (onClose) onClose();
+    }
+  };
+
+  // Handle request to close from AlertDialog
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isClosing && !preventAutoClose) {
+      setIsClosing(true);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {(isVisible || isOpen) && (
+        <AlertDialog
+          open={!isClosing && isOpen}
+          onOpenChange={handleOpenChange}
+        >
+          <AlertDialogContent
+            className={cn(
+              'p-0 border-none bg-transparent shadow-none',
+              className,
+            )}
+            forceMount
+          >
+            <motion.div
+              className="w-full max-w-xl bg-background rounded-lg border shadow-md overflow-hidden"
+              initial="hidden"
+              animate={isClosing ? 'exit' : 'visible'}
+              exit="exit"
+              variants={modalVariants}
+              onAnimationComplete={handleAnimationComplete}
+            >
+              {children}
+            </motion.div>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </AnimatePresence>
+  );
+}

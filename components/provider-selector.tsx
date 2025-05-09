@@ -34,7 +34,7 @@ const providers = [
   {
     id: PROVIDERS.OPENAI,
     name: 'OpenAI',
-    description: "Experimental, Use if you're feeling adventurous",
+    description: 'More intelligent, but experimental',
   },
 ];
 
@@ -184,10 +184,17 @@ export function ProviderSelector({
           className="md:px-2 md:h-[34px]"
           disabled={isLoading}
         >
-          {isLoading
-            ? 'Switching...'
-            : selectedProvider?.name || 'Select Provider'}
-          {!isLoading && <ChevronDownIcon />}
+          {isLoading ? (
+            'Switching...'
+          ) : (
+            <>
+              <span className="hidden md:inline">
+                {selectedProvider?.name || 'Select Provider'}
+              </span>
+              <span className="md:hidden">AI</span>
+              {!isLoading && <ChevronDownIcon />}
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[300px]">

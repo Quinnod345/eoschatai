@@ -112,8 +112,20 @@ export function Chat({
     }),
     onFinish: () => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
+      // Clear any timeout we might have set
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+        responseTimeoutRef.current = null;
+      }
     },
     onError: (error) => {
+      // Clear any timeout we might have set
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+        responseTimeoutRef.current = null;
+      }
+
+      console.error('Chat error:', error);
       toast({
         type: 'error',
         description: error.message,
@@ -155,6 +167,28 @@ export function Chat({
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
+  // Reference to store the timeout ID
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Custom submit handler with timeout
+  const handleSubmitWithTimeout = (e: React.FormEvent<HTMLFormElement>) => {
+    // Set a timeout to detect hanging responses
+    responseTimeoutRef.current = setTimeout(() => {
+      console.error('Response timeout detected on client side');
+      // If we're still in loading state after timeout, show error and force stop
+      if (status === 'in_progress') {
+        toast({
+          type: 'error',
+          description:
+            'The response is taking too long. You may need to stop and try again.',
+        });
+      }
+    }, 25000); // 25 second timeout
+
+    // Call the original submit handler
+    handleSubmit(e);
+  };
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
@@ -184,7 +218,7 @@ export function Chat({
               chatId={id}
               input={input}
               setInput={setInput}
-              handleSubmit={handleSubmit}
+              handleSubmit={handleSubmitWithTimeout}
               status={status}
               stop={stop}
               attachments={attachments}
@@ -193,6 +227,10 @@ export function Chat({
               setMessages={setMessages}
               append={append}
               selectedVisibilityType={visibilityType}
+              selectedModelId={initialChatModel}
+              selectedProviderId={initialProvider}
+              session={session}
+              isReadonly={isReadonly}
             />
           )}
         </form>

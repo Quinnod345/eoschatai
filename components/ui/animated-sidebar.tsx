@@ -13,33 +13,33 @@ const springTransition = {
   type: 'spring',
   damping: 22,
   stiffness: 250,
-  mass: 0.8
+  mass: 0.8,
 };
 
 // This component adds spring animations to the sidebar transitions
 export function AnimatedSidebarWrapper({
   children,
-  className
+  className,
 }: AnimatedSidebarWrapperProps) {
   const { state } = useSidebar();
-  
+
   // Animation variants based on sidebar state
   const variants = {
-    expanded: { 
+    expanded: {
       x: 0,
       opacity: 1,
-      transition: springTransition
+      transition: springTransition,
     },
-    collapsed: { 
+    collapsed: {
       x: -40,
       opacity: 0,
-      transition: springTransition
-    }
+      transition: springTransition,
+    },
   };
 
   return (
     <motion.div
-      className={cn("overflow-hidden", className)}
+      className={cn(className)}
       initial={state === 'expanded' ? 'expanded' : 'collapsed'}
       animate={state === 'expanded' ? 'expanded' : 'collapsed'}
       variants={variants}
@@ -59,29 +59,29 @@ interface AnimatedSidebarItemProps {
 export function AnimatedSidebarItem({
   children,
   index = 0,
-  className
+  className,
 }: AnimatedSidebarItemProps) {
   const { state } = useSidebar();
-  
+
   const itemVariants = {
-    expanded: { 
+    expanded: {
       x: 0,
       opacity: 1,
       transition: {
         ...springTransition,
-        delay: index * 0.03
-      }
+        delay: index * 0.03,
+      },
     },
-    collapsed: { 
+    collapsed: {
       x: -20,
       opacity: 0,
-      transition: springTransition
-    }
+      transition: springTransition,
+    },
   };
 
   return (
     <motion.div
-      className={cn("overflow-hidden", className)}
+      className={cn(className)}
       initial={state === 'expanded' ? 'expanded' : 'collapsed'}
       animate={state === 'expanded' ? 'expanded' : 'collapsed'}
       variants={itemVariants}
@@ -94,29 +94,29 @@ export function AnimatedSidebarItem({
 // For animating groups in the sidebar
 export function AnimatedSidebarGroup({
   children,
-  className
+  className,
 }: AnimatedSidebarWrapperProps) {
   const { state } = useSidebar();
-  
+
   const groupVariants = {
-    expanded: { 
+    expanded: {
       y: 0,
       opacity: 1,
       transition: {
         ...springTransition,
-        staggerChildren: 0.05
-      }
+        staggerChildren: 0.05,
+      },
     },
-    collapsed: { 
+    collapsed: {
       y: 10,
       opacity: 0,
-      transition: springTransition
-    }
+      transition: springTransition,
+    },
   };
 
   return (
     <motion.div
-      className={cn("overflow-hidden", className)}
+      className={cn(className)}
       initial={state === 'expanded' ? 'expanded' : 'collapsed'}
       animate={state === 'expanded' ? 'expanded' : 'collapsed'}
       variants={groupVariants}
@@ -126,4 +126,4 @@ export function AnimatedSidebarGroup({
   );
 }
 
-export default AnimatedSidebarWrapper; 
+export default AnimatedSidebarWrapper;

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { VariantProps, cva } from 'class-variance-authority';
+import { type VariantProps, cva } from 'class-variance-authority';
 import { PanelLeft } from 'lucide-react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 
@@ -29,10 +29,10 @@ const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
 // Spring animation transitions - Note: We now use CSS spring transitions instead
 const springTransition = {
-  type: 'spring', 
+  type: 'spring',
   damping: 20,
   stiffness: 300,
-  mass: 0.8
+  mass: 0.8,
 };
 
 type SidebarContext = {
@@ -263,8 +263,8 @@ const Sidebar = React.forwardRef<
             variant === 'floating'
               ? 'bg-sidebar rounded-xl'
               : variant === 'inset'
-              ? ''
-              : 'bg-sidebar',
+                ? ''
+                : 'bg-sidebar',
             className,
           )}
           {...props}
@@ -427,7 +427,7 @@ const SidebarContent = React.forwardRef<
       ref={ref}
       data-sidebar="content"
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden',
+        'flex min-h-0 flex-1 flex-col gap-2 overflow-auto overscroll-contain group-data-[collapsible=icon]:overflow-hidden',
         className,
       )}
       {...props}

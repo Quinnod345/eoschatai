@@ -46,10 +46,10 @@ export const createCustomProvider = (providerName: string) => {
   if (providerName === PROVIDERS.OPENAI) {
     return customProvider({
       languageModels: {
-        'chat-model': openai('gpt-4o'), // OpenAI models fully support RAG tools
+        'chat-model': openai('gpt-4.1'), // OpenAI models fully support RAG tools
         'chat-model-reasoning': openai('o4-mini'),
-        'title-model': openai('gpt-4o-mini'),
-        'artifact-model': openai('gpt-4o-mini'),
+        'title-model': openai('gpt-4.1-nano'),
+        'artifact-model': openai('gpt-4.1-mini'),
       },
       imageModels: {
         'small-model': openai.image('dall-e-3'),
@@ -61,12 +61,13 @@ export const createCustomProvider = (providerName: string) => {
     console.log('Using XAI (Grok) provider - RAG tool support may be limited');
     return customProvider({
       languageModels: {
-        'chat-model': xai('grok-2-vision-1212'), // May have limited tools support
+        'chat-model': xai('grok-3-fast-beta'), // May have limited tools support
         'chat-model-reasoning': wrapLanguageModel({
           model: xai('grok-3-mini-beta'),
           middleware: extractReasoningMiddleware({
             tagName: 'think',
             startWithReasoning: true,
+            separator: '\n\n===== FINAL ANSWER =====\n\n', // More distinctive separator
           }),
         }),
         'title-model': xai('grok-2-1212'),

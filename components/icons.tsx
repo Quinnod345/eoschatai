@@ -1364,3 +1364,21 @@ export const SettingsIcon = ({ size = 16 }: { size?: number }) => {
     </svg>
   );
 };
+export const ChevronRightIcon = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      width={size}
+      viewBox="0 0 16 16"
+      strokeLinejoin="round"
+      style={{ color: 'currentcolor' }}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M5.93934 3.93934L6.46967 3.40899L10.0607 6.99999C10.4512 7.39052 10.4512 8.02368 10.0607 8.41421L6.46967 12.0052L5.93934 11.4749L9.41355 7.99999L5.93934 4.52578V3.93934Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+};

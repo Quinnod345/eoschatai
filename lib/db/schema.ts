@@ -12,6 +12,7 @@ import {
   vector,
   index,
   unique,
+  integer,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -191,3 +192,22 @@ export const userSettings = pgTable('UserSettings', {
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 });
+
+export const userDocuments = pgTable('UserDocuments', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  fileName: varchar('fileName', { length: 255 }).notNull(),
+  fileUrl: text('fileUrl').notNull(),
+  fileSize: integer('fileSize').notNull(),
+  fileType: varchar('fileType', { length: 255 }).notNull(),
+  category: varchar('category', {
+    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process'],
+  }).notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export type UserDocument = InferSelectModel<typeof userDocuments>;

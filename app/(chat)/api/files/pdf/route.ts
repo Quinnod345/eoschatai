@@ -21,7 +21,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    if (file.type !== 'application/pdf') {
+    // Check file extension as well as mime type
+    const filename = (file as File).name || '';
+    const fileExt = filename.split('.').pop()?.toLowerCase();
+
+    if (file.type !== 'application/pdf' && fileExt !== 'pdf') {
       console.error(`PDF processing: Invalid file type ${file.type}`);
       return NextResponse.json(
         { error: 'File must be a PDF' },

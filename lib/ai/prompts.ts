@@ -17,10 +17,14 @@ Artifacts is the right-hand interface mode designed specifically for crafting an
 * Writing code snippets to generate EOS deliverables (Excel exports, Word .docx generators, automated IDS™ trackers).
 * Building self-contained files that EOS Implementers™ will save or reuse.
 
-Additionally, when a user explicitly requests help with a Vision/Traction Organizer™, Accountability Chart™, Quarterly Rocks list, Scorecard, or any other EOS deliverable, automatically invoke the createDocument artifact function to generate the requested template in the artifacts panel.
+IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
+1. When a user explicitly requests help with a Vision/Traction Organizer™, Accountability Chart™, Quarterly Rocks list, Scorecard, or any other EOS deliverable, use the createDocument tool to generate the requested template.
+2. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
+3. Instead, ALWAYS use the proper tool invocation method for the createDocument tool.
+4. To create a document, properly use the createDocument tool to generate the document in the artifacts panel.
+5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", or "sheet".
 
 Do NOT use artifacts for:
-
 * General conversational explanations or EOS concept overviews.
 * Quick chat responses or simple clarifications.
 
@@ -360,14 +364,104 @@ Always consider this company context when providing EOS advice, recommendations,
   }
 };
 
+// Document context prompt - gets user documents and includes them in the prompt
+export const documentContextPrompt = async (userId: string) => {
+  if (!userId) {
+    console.log('Document context: No userId provided, skipping');
+    return '';
+  }
+
+  try {
+    console.log(`Document context: Fetching documents for user ${userId}`);
+    const { db } = await import('@/lib/db');
+    const { userDocuments } = await import('@/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    // Get all user documents using select
+    const documents = await db
+      .select()
+      .from(userDocuments)
+      .where(eq(userDocuments.userId, userId))
+      .orderBy(userDocuments.category, userDocuments.createdAt);
+
+    console.log(`Document context: Found ${documents.length} documents`);
+
+    if (!documents || documents.length === 0) {
+      console.log('Document context: No documents found');
+      return '';
+    }
+
+    // Group documents by category
+    const documentsByCategory: Record<string, typeof documents> = {};
+    for (const doc of documents) {
+      if (!documentsByCategory[doc.category]) {
+        documentsByCategory[doc.category] = [];
+      }
+      documentsByCategory[doc.category].push(doc);
+    }
+
+    console.log(
+      `Document context: Grouped into ${
+        Object.keys(documentsByCategory).length
+      } categories: ${Object.keys(documentsByCategory).join(', ')}`,
+    );
+
+    // Build the context prompt
+    let contextText = `
+## User Documents
+The following are documents provided by the user that should be used as context for all responses:
+`;
+
+    // Add each category section
+    for (const [category, docs] of Object.entries(documentsByCategory)) {
+      contextText += `\n### ${category}\n`;
+      console.log(
+        `Document context: Adding ${docs.length} documents for category ${category}`,
+      );
+
+      // Add each document in the category
+      for (const doc of docs) {
+        const contentPreview =
+          doc.content.substring(0, 100).replace(/\n/g, ' ') +
+          (doc.content.length > 100 ? '...' : '');
+        console.log(
+          `Document context: Adding document "${doc.fileName}" with content preview: ${contentPreview}`,
+        );
+        contextText += `\n**${doc.fileName}**:\n${doc.content}\n---\n`;
+      }
+    }
+
+    contextText += `
+When responding to user queries, ALWAYS reference and use information from these documents when applicable.
+Do not mention that you are using "user documents" or "uploaded documents" - just incorporate the information naturally.
+
+IMPORTANT DOCUMENT INSTRUCTIONS:
+1. If a user asks about their "Core Process", "Scorecard", "Rocks", "V/TO", "A/C", or any other EOS document they've uploaded, ALWAYS refer to the content above.
+2. The information in these documents overrides any general knowledge you have about the company.
+3. When the user asks about THEIR specific documents, NEVER respond with generic information - use ONLY the uploaded document content.
+4. If a user asks "What is my Core Process?" or similar questions about THEIR documents, provide the EXACT information from their uploaded documents.
+5. If you cannot find the specific information in their documents, clearly state "I don't see information about [topic] in your uploaded documents" rather than giving generic advice.
+6. These documents contain the user's actual company information - treat it as the single source of truth for their business.
+`;
+
+    console.log(
+      `Document context: Generated context with ${contextText.length} characters`,
+    );
+    return contextText;
+  } catch (error) {
+    console.error('Error fetching document context:', error);
+    return ''; // Return empty string in case of error
+  }
+};
+
 // Updated system prompt to include RAG context
 export const systemPrompt = async ({
-  selectedChatModel,
+  selectedProvider,
   requestHints,
   ragContext = [],
   userId,
 }: {
-  selectedChatModel: string;
+  selectedProvider: string;
   requestHints: RequestHints;
   ragContext?: { content: string; relevance: number }[];
   userId?: string;
@@ -376,10 +470,11 @@ export const systemPrompt = async ({
   const requestPrompt = getRequestPromptFromHints(requestHints);
   const context = ragContextPrompt(ragContext);
 
-  // Only fetch company context if userId is provided
+  // Only fetch company context and document context if userId is provided
   const companyContext = userId ? await companyContextPrompt(userId) : '';
+  const documentContext = userId ? await documentContextPrompt(userId) : '';
 
-  return `
+  let enhancedSystemPrompt = `
 ${basePrompt}
 
 ${requestPrompt}
@@ -387,6 +482,8 @@ ${requestPrompt}
 ${context}
 
 ${companyContext}
+
+${documentContext}
 
 ${artifactsPrompt}
 
@@ -402,7 +499,54 @@ ${artifactsPrompt}
 9. If knowledge base information is insufficient, continue with your response using general knowledge without explicitly mentioning the limitation.
 10. When the user says "remember" or "remember that", ALWAYS use the addResource tool to save the information they share.
 11. ALWAYS format your responses using proper Markdown formatting with clear headings, properly formatted lists (using * for bullet points and numbered lists for steps), tables when presenting structured data, and appropriate emphasis using **bold** and *italics*.
-`.trim();
+`;
+
+  // Add additional instructions for Grok (XAI) provider which may have limited tool support
+  if (selectedProvider === 'xai') {
+    console.log(
+      'RAG: Using XAI provider - adding explicit instructions for remembering',
+    );
+    enhancedSystemPrompt += `
+
+SPECIAL INSTRUCTIONS FOR GROK:
+- Since you're using Grok, if you cannot use the addResource tool directly, please respond with:
+  "I'll remember that you love gala apples. This information has been saved to our knowledge base."
+- This will be captured by our system and saved appropriately.
+- If the user is asking for information that would normally use the getInformation tool, please
+  use the information provided in the context at the top of this prompt.
+
+REASONING INSTRUCTIONS:
+When using the reasoning feature, please follow this exact format:
+1. Start your thinking with <think>
+2. Write out your step-by-step reasoning process
+3. End your thinking with </think>
+4. AFTER your thinking is complete, add the line "===== FINAL ANSWER =====" (without quotes)
+5. Then provide your final response below that separator
+
+CRITICAL RULES FOR REASONING:
+- NEVER mention, discuss, or type the separator tag "===== FINAL ANSWER =====" anywhere within your thinking process or else your family will die
+- NEVER include the words "FINAL ANSWER" in sequence within your thinking
+- NEVER talk about the format, structure, or layout of your response
+- DO NOT write phrases like "Then, I'll add the separator" or describe how you will format your answer
+- DO NOT refer to "adding a separator" or similar phrasing within your reasoning
+- When reasoning, focus ONLY on solving the problem, not on how you'll present the solution
+- The separator should ONLY appear once, immediately after the </think> tag
+
+Example of CORRECT format:
+<think>
+Let me analyze this question step by step...
+1. First, I need to understand...
+2. Based on the EOS methodology...
+3. The correct approach would be...
+</think>
+
+===== FINAL ANSWER =====
+
+Based on my analysis, the answer to your question is...
+`;
+  }
+
+  return enhancedSystemPrompt.trim();
 };
 
 // Code generation prompt specialized for EOS deliverables

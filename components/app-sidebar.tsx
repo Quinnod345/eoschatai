@@ -11,7 +11,6 @@ import { useState } from 'react';
 
 import { PlusIcon } from '@/components/icons';
 import { SidebarHistory } from '@/components/sidebar-history';
-import { SidebarUserNav } from '@/components/sidebar-user-nav';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -184,26 +183,16 @@ export function AppSidebar({ user }: { user: User | undefined }) {
         </SidebarHeader>
       </motion.div>
 
-      <motion.div
-        initial={false}
-        animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-        variants={contentVariants}
-        className="flex-1 overflow-hidden"
-      >
-        <SidebarContent className="pt-2">
+      <SidebarContent className="pt-2 flex-1">
+        <motion.div
+          initial={false}
+          animate={state === 'expanded' ? 'expanded' : 'collapsed'}
+          variants={contentVariants}
+          className="h-full"
+        >
           <SidebarHistory user={user} searchQuery={searchQuery} />
-        </SidebarContent>
-      </motion.div>
-
-      <motion.div
-        initial={false}
-        animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-        variants={footerVariants}
-      >
-        <SidebarFooter className="py-4">
-          {user && <SidebarUserNav user={user} />}
-        </SidebarFooter>
-      </motion.div>
+        </motion.div>
+      </SidebarContent>
     </Sidebar>
   );
 }

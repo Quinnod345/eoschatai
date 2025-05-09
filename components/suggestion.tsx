@@ -27,7 +27,7 @@ export const Suggestion = ({
     <AnimatePresence>
       {!isExpanded ? (
         <motion.div
-          className={cn('cursor-pointer text-primary p-1', {
+          className={cn('cursor-pointer text-orange-500 p-1', {
             'absolute -right-8': artifactKind === 'text',
             'sticky top-0 right-4': artifactKind === 'code',
           })}
@@ -55,7 +55,7 @@ export const Suggestion = ({
         >
           <div className="flex flex-row items-center justify-between">
             <div className="flex flex-row items-center gap-2">
-              <div className="size-4 bg-primary/25 rounded-full" />
+              <div className="size-4 bg-orange-500/25 rounded-full" />
               <div className="font-medium dark:text-gray-100">Assistant</div>
             </div>
             <button
@@ -71,7 +71,7 @@ export const Suggestion = ({
           <div className="dark:text-gray-300">{suggestion.description}</div>
           <Button
             variant="outline"
-            className="w-fit py-1.5 px-3 rounded-full bg-background dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700 hover:bg-primary/5 transition-all duration-200"
+            className="w-fit py-1.5 px-3 rounded-full bg-background dark:bg-gray-800 text-orange-500 dark:text-orange-400 border-orange-200 dark:border-orange-700/50 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all duration-200"
             onClick={onApply}
           >
             Apply
