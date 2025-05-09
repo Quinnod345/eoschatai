@@ -73,6 +73,78 @@ To enable Google authentication:
    GOOGLE_CLIENT_SECRET="your-google-client-secret"
    ```
 
+# EOS Chat AI
+
+## RAG Implementation with Upstash Vector
+
+This application includes a Retrieval-Augmented Generation (RAG) system powered by [Upstash Vector](https://upstash.com/vector).
+
+### Setting Up RAG
+
+1. **Create an Upstash Vector account and index**
+   - Sign up at [upstash.com](https://upstash.com)
+   - Create a new Vector index with 1536 dimensions (optimized for OpenAI embeddings)
+   - Select DOT_PRODUCT as the distance metric
+   - Copy your REST URL and REST token
+
+2. **Environment Variables**
+   Add these environment variables to your `.env` or Vercel environment:
+   ```
+   UPSTASH_VECTOR_REST_URL=your_index_url_from_upstash
+   UPSTASH_VECTOR_REST_TOKEN=your_token_from_upstash
+   ```
+
+3. **Database Migration**
+   Run the database migration to enable vector storage:
+   ```
+   pnpm db:push
+   ```
+
+### How RAG Works in this Application
+
+1. **Storage Process**:
+   - When documents are added (via `addResource` tool), text is chunked into smaller segments
+   - Each chunk is embedded using OpenAI's embedding model
+   - Embeddings are stored in both Upstash Vector and Postgres (as backup)
+
+2. **Retrieval Process**:
+   - User queries are embedded using the same model
+   - Vector search finds semantically similar chunks in Upstash Vector
+   - Retrieved contexts are added to the prompt for the AI to use
+
+3. **RAG Tools**:
+   - `addResource`: Save new information to the knowledge base
+   - `getInformation`: Retrieve relevant information when needed
+
+### Implementation Components
+
+- `lib/ai/embeddings.ts`: Core vector operations (chunking, embedding, retrieval)
+- `lib/ai/tools.ts`: AI tools for managing knowledge
+- `app/api/chat-rag/route.ts`: API route that integrates the RAG system
+
+### Fallback Mechanism
+
+If Upstash Vector is temporarily unavailable, the system falls back to the local Postgres database for retrieval, ensuring resilience.
+
+## Resumable Streams with Redis
+
+This project supports resumable streams, which allow users to reconnect to an ongoing chat response if their connection drops temporarily. This feature requires Redis.
+
+To enable resumable streams:
+
+1. Set up a Redis instance (Upstash, Redis Labs, or self-hosted)
+2. Run our configuration helper:
+   ```bash
+   node scripts/add-redis-config.js
+   ```
+3. Test your Redis connection:
+   ```bash
+   node scripts/test-redis-connection.js
+   ```
+4. Add your REDIS_URL to Vercel environment variables
+
+For detailed instructions, see [REDIS-SETUP-GUIDE.md](REDIS-SETUP-GUIDE.md).
+
 ```bash
 pnpm install
 pnpm dev

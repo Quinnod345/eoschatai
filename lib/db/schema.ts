@@ -11,6 +11,7 @@ import {
   boolean,
   vector,
   index,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -121,47 +122,32 @@ export const document = pgTable('Document', {
 
 export type Document = InferSelectModel<typeof document>;
 
-export const suggestion = pgTable(
-  'Suggestion',
-  {
-    id: uuid('id').notNull().defaultRandom(),
-    documentId: uuid('documentId').notNull(),
-    documentCreatedAt: timestamp('documentCreatedAt').notNull(),
-    originalText: text('originalText').notNull(),
-    suggestedText: text('suggestedText').notNull(),
-    description: text('description'),
-    isResolved: boolean('isResolved').notNull().default(false),
-    userId: uuid('userId')
-      .notNull()
-      .references(() => user.id),
-    createdAt: timestamp('createdAt').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.id] }),
-    documentRef: foreignKey({
-      columns: [table.documentId, table.documentCreatedAt],
-      foreignColumns: [document.id, document.createdAt],
-    }),
-  }),
-);
+export const suggestion = pgTable('Suggestion', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  documentId: uuid('documentId')
+    .notNull()
+    .references(() => document.id),
+  documentCreatedAt: timestamp('documentCreatedAt').notNull(),
+  originalText: text('originalText').notNull(),
+  suggestedText: text('suggestedText').notNull(),
+  description: text('description'),
+  isResolved: boolean('isResolved').notNull().default(false),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp('createdAt').notNull(),
+});
 
 export type Suggestion = InferSelectModel<typeof suggestion>;
 
-export const stream = pgTable(
-  'Stream',
-  {
-    id: uuid('id').notNull().defaultRandom(),
-    chatId: uuid('chatId').notNull(),
-    createdAt: timestamp('createdAt').notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.id] }),
-    chatRef: foreignKey({
-      columns: [table.chatId],
-      foreignColumns: [chat.id],
-    }),
-  }),
-);
+// Fixed Stream table - removed duplicate primary key definition
+export const stream = pgTable('Stream', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  chatId: uuid('chatId')
+    .notNull()
+    .references(() => chat.id),
+  createdAt: timestamp('createdAt').notNull(),
+});
 
 export type Stream = InferSelectModel<typeof stream>;
 
@@ -173,16 +159,14 @@ export const embeddings = pgTable(
       .notNull()
       .references(() => document.id, { onDelete: 'cascade' }),
     chunk: text('chunk').notNull(),
-    // Temporarily comment out the vector field for migration
-    // embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
     createdAt: timestamp('createdAt').notNull().defaultNow(),
   },
   (table) => ({
-    // Temporarily comment out the index for migration
-    // embeddingIdx: index('embedding_idx').using(
-    //   'hnsw',
-    //   table.embedding.op('vector_cosine_ops'),
-    // ),
+    embeddingIdx: index('embedding_idx').using(
+      'hnsw',
+      table.embedding.op('vector_cosine_ops'),
+    ),
   }),
 );
 

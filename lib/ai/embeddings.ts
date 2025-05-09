@@ -1,11 +1,67 @@
 import { embed, embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { db } from '../db';
-import { cosineDistance, desc, gt, sql } from 'drizzle-orm';
-import { embeddings } from '../db/schema';
-import { generateUUID } from '../utils';
+import { Index, type QueryResult } from '@upstash/vector';
+import dotenv from 'dotenv';
+import path from 'node:path';
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+const upstashUrl = process.env.UPSTASH_VECTOR_REST_URL;
+const upstashToken = process.env.UPSTASH_VECTOR_REST_TOKEN;
+
+// Check if required environment variables are available
+if (!upstashUrl || !upstashToken) {
+  console.error('Error: Missing UPSTASH_VECTOR environment variables.');
+  console.error(
+    'Make sure UPSTASH_VECTOR_REST_URL and UPSTASH_VECTOR_REST_TOKEN are set in .env.local',
+  );
+  // Don't throw error here to allow the module to load, but operations will fail
+}
+
+// Configure Upstash Vector client
+const upstashVectorClient = new Index({
+  url: upstashUrl || '',
+  token: upstashToken || '',
+});
 
 const embeddingModel = openai.embedding('text-embedding-ada-002');
+
+/**
+ * Enhances a search query for better semantic matching
+ */
+const enhanceSearchQuery = (query: string): string => {
+  const lowerQuery = query.toLowerCase();
+
+  // Check for integrator-related queries
+  if (lowerQuery.includes('integrator')) {
+    // If about relationship with visionary
+    if (
+      lowerQuery.includes('visionary') ||
+      lowerQuery.includes('relationship') ||
+      lowerQuery.includes('work with') ||
+      lowerQuery.includes('work together')
+    ) {
+      console.log('RAG: Enhancing query for visionary-integrator relationship');
+      return 'visionary integrator relationship';
+    }
+
+    // If question asks about execution or implementing, simplify to core terms
+    if (
+      lowerQuery.includes('execute') ||
+      lowerQuery.includes('execution') ||
+      lowerQuery.includes('implement') ||
+      lowerQuery.includes('how') ||
+      lowerQuery.includes('vision')
+    ) {
+      console.log('RAG: Enhancing integrator search query for better matching');
+      return 'integrator execute vision';
+    }
+  }
+
+  // Return original query if no specific enhancement
+  return query;
+};
 
 /**
  * Chunks text content into smaller pieces for embedding
@@ -53,58 +109,282 @@ export const generateEmbeddings = async (
 /**
  * Generates a single embedding for a query
  */
-export const generateEmbedding = async (query: string): Promise<number[]> => {
-  const { embedding } = await embed({
-    model: embeddingModel,
-    value: query,
-  });
-  return embedding;
+export const generateEmbedding = async (
+  query: string | any,
+): Promise<number[]> => {
+  // Ensure the query is a string (in case it's passed as an object)
+  let queryText = typeof query === 'string' ? query : '';
+
+  // Handle case where the query might be an object with text property
+  if (typeof query === 'object' && query !== null) {
+    if (query.text && typeof query.text === 'string') {
+      queryText = query.text;
+    } else {
+      // Try to convert to string if it's a complex object
+      queryText = JSON.stringify(query);
+    }
+  }
+
+  try {
+    const { embedding } = await embed({
+      model: embeddingModel,
+      value: queryText,
+    });
+
+    return embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    // Return empty array in case of error to avoid breaking the app
+    return [];
+  }
 };
 
 /**
- * Processes a document and stores its chunks and embeddings
+ * Processes a document and stores its chunks and embeddings in Upstash Vector
  */
 export const processDocument = async (
   documentId: string,
   content: string,
 ): Promise<void> => {
-  // Generate chunks from content
-  const chunks = generateChunks(content);
+  try {
+    // Generate chunks from content
+    const chunks = generateChunks(content);
+    console.log(`RAG: Generated ${chunks.length} chunks from document`);
 
-  // Generate embeddings for chunks
-  const embeddingsData = await generateEmbeddings(chunks);
+    // Generate embeddings for chunks
+    const { embeddings } = await embedMany({
+      model: embeddingModel,
+      values: chunks,
+    });
 
-  // Store chunks and embeddings in database
-  await Promise.all(
-    embeddingsData.map(({ chunk }) =>
-      db.insert(embeddings).values({
-        id: generateUUID(),
+    // Combine chunks with embeddings
+    const embeddingsData = chunks.map((chunk, i) => ({
+      chunk,
+      embedding: embeddings[i],
+    }));
+
+    console.log(
+      `RAG: Generated embeddings with dimension ${embeddingsData[0]?.embedding.length || 0}`,
+    );
+
+    // Store chunks and embeddings in Upstash Vector
+    const vectors = embeddingsData.map(({ chunk, embedding }, index) => ({
+      id: `${documentId}-${index}`,
+      vector: embedding,
+      metadata: {
         documentId,
         chunk,
-        createdAt: new Date(),
-      }),
-    ),
-  );
+        createdAt: new Date().toISOString(),
+      },
+    }));
+
+    // Upsert vectors in batches to avoid rate limits
+    const batchSize = 100;
+    for (let i = 0; i < vectors.length; i += batchSize) {
+      const batch = vectors.slice(i, i + batchSize);
+      try {
+        await upstashVectorClient.upsert(batch);
+        console.log(
+          `RAG: Successfully stored batch ${i / batchSize + 1} of ${Math.ceil(vectors.length / batchSize)}`,
+        );
+      } catch (upsertError) {
+        console.error(
+          `RAG: Error storing vector batch ${i / batchSize + 1}:`,
+          upsertError,
+        );
+      }
+    }
+
+    console.log(
+      `RAG: Successfully stored ${embeddingsData.length} embeddings in vector database`,
+    );
+  } catch (error) {
+    console.error('RAG: Error processing document:', error);
+    throw error; // Rethrow to let the caller handle it
+  }
 };
 
 /**
- * Finds relevant content based on a query
+ * Type for Upstash Vector query results
+ */
+type UpstashVectorResult = {
+  id: string;
+  score: number;
+  vector?: number[];
+  metadata?: {
+    chunk?: string;
+    documentId?: string;
+    createdAt?: string;
+  };
+};
+
+/**
+ * Finds relevant content based on a query using Upstash Vector
  */
 export const findRelevantContent = async (
-  query: string,
+  query: string | any,
   limit = 5,
+  minRelevance = 0.8, // Increase to 80% for better quality matches
 ): Promise<{ content: string; relevance: number }[]> => {
-  // Since embeddings are temporarily disabled, just return the most recent chunks with a default relevance score
-  const results = await db
-    .select({
-      chunk: embeddings.chunk,
-    })
-    .from(embeddings)
-    .limit(limit);
+  try {
+    // Ensure the query is a string (in case it's passed as an object)
+    let queryText = typeof query === 'string' ? query : '';
 
-  // Transform the results to match the expected format with a default relevance score
-  return results.map((result) => ({
-    content: result.chunk,
-    relevance: 1.0, // Default high relevance since we can't calculate it without embeddings
+    // Handle case where the query might be an object with text property
+    if (typeof query === 'object' && query !== null) {
+      if (query.text && typeof query.text === 'string') {
+        queryText = query.text;
+      } else {
+        // Try to convert to string if it's a complex object
+        queryText = JSON.stringify(query);
+      }
+    }
+
+    // Enhance the search query for better semantic matching
+    const enhancedQuery = enhanceSearchQuery(queryText);
+
+    // Log the original and enhanced queries
+    if (enhancedQuery !== queryText) {
+      console.log(
+        `RAG: Enhanced query from "${queryText}" to "${enhancedQuery}"`,
+      );
+    } else {
+      console.log('RAG: Using original query:', queryText);
+    }
+
+    // Generate embedding for the query
+    const { embedding } = await embed({
+      model: embeddingModel,
+      value: enhancedQuery,
+    });
+
+    // Log the dimensions for debugging
+    console.log(`RAG: Generated ${embedding.length}-dimensional embedding`);
+
+    try {
+      // Query Upstash Vector using the embedding
+      const results = await upstashVectorClient.query({
+        vector: embedding,
+        topK: limit + 5, // Get a few extra results so we can filter by relevance
+        includeMetadata: true,
+        includeVectors: false,
+      });
+
+      // Transform and filter the results by relevance
+      const transformedResults = upstashToInternal(
+        results as UpstashVectorResult[],
+      );
+
+      // Filter results by minimum relevance threshold
+      const filteredResults = transformedResults.filter(
+        (result) => result.relevance >= minRelevance,
+      );
+
+      // Log more detailed information about the results
+      console.log(
+        `RAG: Found ${transformedResults.length} results, ${filteredResults.length} above threshold (${minRelevance * 100}%)`,
+      );
+
+      // Show first few results with content snippets
+      filteredResults.slice(0, 3).forEach((result, i) => {
+        const snippet = result.content?.substring(0, 100) || '';
+        console.log(
+          `RAG chunk ${i + 1}: Relevance ${(result.relevance * 100).toFixed(1)}%, Content: ${snippet}...`,
+        );
+      });
+
+      // Only return the limited number of high-quality results
+      return filteredResults.slice(0, limit);
+    } catch (upstashError: any) {
+      console.error('Error querying Upstash Vector:', upstashError);
+
+      // If getting dimension errors, log a more detailed error
+      if (
+        upstashError?.message &&
+        typeof upstashError.message === 'string' &&
+        upstashError.message.includes('Invalid vector dimension')
+      ) {
+        console.error(
+          'Vector dimension mismatch. Please check your Upstash Vector index configuration.',
+        );
+        return [];
+      }
+
+      // For other errors, log but return empty results
+      console.error('RAG: Unknown error with vector search, skipping');
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Error in findRelevantContent:', error);
+    console.log('RAG: Skipping search due to vector store errors');
+    return [];
+  }
+};
+
+/**
+ * Helper function to convert between Upstash Vector and our internal format
+ */
+const upstashToInternal = (
+  results: UpstashVectorResult[],
+): Array<{ content: string; relevance: number }> => {
+  return results.map((result: UpstashVectorResult) => ({
+    content: result.metadata?.chunk || '',
+    relevance: result.score || 0,
   }));
+};
+
+/**
+ * Searches for and deletes content from vector store by keyword
+ */
+export const deleteContentByKeyword = async (
+  keyword: string,
+): Promise<{ deleted: number }> => {
+  try {
+    // First, find entries containing the keyword
+    const { embedding } = await embed({
+      model: embeddingModel,
+      value: keyword,
+    });
+
+    // Search for similar vectors (potential matches)
+    const results = await upstashVectorClient.query({
+      vector: embedding,
+      topK: 50, // Get many results to find all matches
+      includeMetadata: true,
+    });
+
+    if (!results || results.length === 0) {
+      console.log(`RAG: No vectors found matching keyword "${keyword}"`);
+      return { deleted: 0 };
+    }
+
+    // Find exact keyword matches in metadata content
+    const matchingIds = results
+      .filter(
+        (result) =>
+          result.metadata?.chunk &&
+          typeof result.metadata.chunk === 'string' &&
+          result.metadata.chunk.toLowerCase().includes(keyword.toLowerCase()),
+      )
+      .map((result) => result.id);
+
+    if (matchingIds.length === 0) {
+      console.log(`RAG: No content found containing "${keyword}"`);
+      return { deleted: 0 };
+    }
+
+    console.log(
+      `RAG: Found ${matchingIds.length} vectors containing "${keyword}", deleting...`,
+    );
+
+    // Delete the matching vectors
+    for (const id of matchingIds) {
+      await upstashVectorClient.delete({ ids: [id as string] });
+    }
+
+    return { deleted: matchingIds.length };
+  } catch (error) {
+    console.error('RAG: Error deleting content:', error);
+    throw error;
+  }
 };

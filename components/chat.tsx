@@ -19,7 +19,6 @@ import type { Session } from 'next-auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
-import { DebugInfo } from './debug-info';
 
 export function Chat({
   id,
@@ -216,8 +215,6 @@ export function Chat({
         isReadonly={isReadonly}
         selectedVisibilityType={visibilityType}
       />
-
-      <DebugInfo provider={initialProvider} model={initialChatModel} />
     </>
   );
 }

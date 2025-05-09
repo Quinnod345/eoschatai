@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { document, embeddings } from '@/lib/db/schema';
+import { document } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { processDocument } from '../embeddings';
 import { tool } from 'ai';
@@ -59,34 +59,20 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
             continue;
           }
 
-          // Check if document already has embeddings
-          if (!reindex) {
-            const existingEmbeddings = await db
-              .select()
-              .from(embeddings)
-              .where(eq(embeddings.documentId, doc.id))
-              .limit(1);
+          try {
+            // Process the document - will be stored in Upstash Vector
+            await processDocument(doc.id, doc.content);
+            indexed++;
 
-            if (existingEmbeddings.length > 0) {
-              skipped++;
-              continue;
+            // Provide progress updates
+            if (docs.length > 1) {
+              dataStream.writeData(
+                `Indexed ${indexed} of ${docs.length} documents...`,
+              );
             }
-          } else {
-            // If reindexing, delete existing embeddings
-            await db
-              .delete(embeddings)
-              .where(eq(embeddings.documentId, doc.id));
-          }
-
-          // Process the document
-          await processDocument(doc.id, doc.content);
-          indexed++;
-
-          // Provide progress updates
-          if (docs.length > 1) {
-            dataStream.writeData(
-              `Indexed ${indexed} of ${docs.length} documents...`,
-            );
+          } catch (error) {
+            console.error(`Error indexing document ${doc.id}:`, error);
+            skipped++;
           }
         }
 

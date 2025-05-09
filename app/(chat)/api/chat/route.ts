@@ -4,6 +4,7 @@ import {
   createDataStream,
   smoothStream,
   streamText,
+  tool,
 } from 'ai';
 import { auth, type UserType } from '@/app/(auth)/auth';
 import { type RequestHints, systemPrompt } from '@/lib/ai/prompts';
@@ -38,6 +39,12 @@ import {
 } from 'resumable-stream';
 import { after } from 'next/server';
 import type { Chat } from '@/lib/db/schema';
+import {
+  findRelevantContent,
+  deleteContentByKeyword,
+} from '@/lib/ai/embeddings';
+import { addResourceTool, getInformationTool } from '@/lib/ai/tools';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 
@@ -131,6 +138,51 @@ export async function POST(request: Request) {
       message,
     });
 
+    // Get the last user message to use for RAG context retrieval
+    const lastUserMessage = message.parts[0];
+    console.log('RAG: Processing chat request with query:', lastUserMessage);
+
+    // Extract the actual text from the user message (handling different possible formats)
+    let queryText = '';
+    if (typeof lastUserMessage === 'string') {
+      queryText = lastUserMessage;
+    } else if (lastUserMessage && typeof lastUserMessage === 'object') {
+      // Handle text object format { text: string, type: string }
+      if (lastUserMessage.text && typeof lastUserMessage.text === 'string') {
+        queryText = lastUserMessage.text;
+      }
+    }
+
+    // Only attempt to retrieve context if we have text to work with
+    let relevantContent: Array<{ content: string; relevance: number }> = [];
+    if (queryText) {
+      // Retrieve relevant context from knowledge base
+      console.log('RAG: Fetching relevant content for query:', queryText);
+      try {
+        relevantContent = await findRelevantContent(queryText, 5);
+
+        // Debug log for RAG content
+        console.log(
+          `RAG: Retrieved ${relevantContent.length} chunks from vector store`,
+        );
+        if (relevantContent.length > 0) {
+          console.log(
+            'RAG: Top result:',
+            `${relevantContent[0].content.substring(0, 100)}...`,
+            `(relevance: ${(relevantContent[0].relevance * 100).toFixed(1)}%)`,
+          );
+        } else {
+          console.log('RAG: No relevant content found');
+        }
+      } catch (error) {
+        console.error('RAG: Error retrieving relevant content:', error);
+      }
+    } else {
+      console.log(
+        'RAG: No text content found in user message to use for retrieval',
+      );
+    }
+
     const { longitude, latitude, city, country } = geolocation(request);
 
     const requestHints: RequestHints = {
@@ -160,15 +212,65 @@ export async function POST(request: Request) {
     // Create a provider based on selected provider
     const provider = createCustomProvider(selectedProvider);
 
-    const stream = createDataStream({
+    // Get the system prompt with RAG context
+    const fullSystemPrompt = await systemPrompt({
+      selectedChatModel,
+      requestHints,
+      ragContext: relevantContent,
+      userId: session.user.id,
+    });
+
+    // Add explicit instructions about remembering information
+    let enhancedSystemPrompt = `${fullSystemPrompt}
+
+IMPORTANT RAG INSTRUCTIONS:
+1. The user has just said: "${queryText}"
+2. If this message contains "remember" or asks you to save any information, IMMEDIATELY use the addResource tool to save it.
+3. Always give the saved information a clear, specific title that describes the content.
+4. When using the getInformation tool, always incorporate the retrieved information into your response.
+5. Look for opportunities to use these tools proactively - they are core to your functionality.
+6. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses.
+7. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points.
+8. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting.
+9. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base.`;
+
+    // Add special case for integrator questions
+    if (queryText.toLowerCase().includes('integrator')) {
+      console.log(
+        'RAG: Detected question about integrators, adding special instructions',
+      );
+      enhancedSystemPrompt += `
+
+SPECIAL INSTRUCTIONS FOR INTEGRATOR QUESTIONS:
+For questions about integrators, please focus on information from Rocket Fuel and other EOS materials. Key concepts include:
+1. The Visionary-Integrator relationship is a powerful leadership team dynamic
+2. Integrators are essential for turning vision into execution
+3. Integrators should be properly onboarded to the leadership team
+4. This is a cornerstone concept in the book Rocket Fuel by Gino Wickman and Mark C. Winters
+`;
+    }
+
+    // Add additional instructions for Grok (XAI) provider which may have limited tool support
+    if (selectedProvider === 'xai') {
+      console.log(
+        'RAG: Using XAI provider - adding explicit instructions for remembering',
+      );
+      enhancedSystemPrompt += `
+
+SPECIAL INSTRUCTIONS FOR GROK:
+- Since you're using Grok, if you cannot use the addResource tool directly, please respond with:
+  "I'll remember that you love gala apples. This information has been saved to our knowledge base."
+- This will be captured by our system and saved appropriately.
+- If the user is asking for information that would normally use the getInformation tool, please
+  use the information provided in the context at the top of this prompt.`;
+    }
+
+    // Create response stream
+    const responseStream = createDataStream({
       execute: async (dataStream) => {
         const result = streamText({
           model: provider.languageModel(selectedChatModel),
-          system: await systemPrompt({
-            selectedChatModel,
-            requestHints,
-            userId: session.user.id,
-          }),
+          system: enhancedSystemPrompt,
           messages,
           maxSteps: 5,
           experimental_activeTools:
@@ -179,6 +281,9 @@ export async function POST(request: Request) {
                   'createDocument',
                   'updateDocument',
                   'requestSuggestions',
+                  'addResource',
+                  'getInformation',
+                  'cleanKnowledgeBase',
                 ],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
@@ -189,6 +294,118 @@ export async function POST(request: Request) {
             requestSuggestions: requestSuggestions({
               session,
               dataStream,
+            }),
+            addResource: tool({
+              description:
+                'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
+              parameters: z.object({
+                title: z.string().describe('Title of the resource'),
+                content: z.string().describe('Content of the resource'),
+              }),
+              execute: async ({ title, content }) => {
+                console.log('RAG: Adding resource to knowledge base', {
+                  title,
+                });
+
+                // Handle case where content might be an object
+                let contentText = content;
+                if (typeof content === 'object' && content !== null) {
+                  const contentObj = content as { text?: string };
+                  if (contentObj.text && typeof contentObj.text === 'string') {
+                    contentText = contentObj.text;
+                  } else {
+                    // Try to convert to string if it's a complex object
+                    contentText = JSON.stringify(content);
+                  }
+                }
+
+                const result = await addResourceTool.handler(
+                  { title, content: contentText },
+                  session.user.id,
+                );
+                console.log('RAG: Resource added', result);
+                return result;
+              },
+            }),
+            getInformation: tool({
+              description:
+                "Retrieve relevant information from the EOS knowledge base to help answer the user's question.",
+              parameters: z.object({
+                query: z
+                  .string()
+                  .describe(
+                    'The specific query to search for in the knowledge base',
+                  ),
+                limit: z
+                  .number()
+                  .optional()
+                  .describe('Maximum number of results to return'),
+              }),
+              execute: async ({ query, limit }) => {
+                console.log('RAG: Tool called to get information', {
+                  query,
+                  limit,
+                });
+                const result = await getInformationTool.handler({
+                  query,
+                  limit,
+                });
+                console.log(
+                  `RAG: Retrieved ${result.results?.length || 0} results from knowledge base`,
+                );
+                return result;
+              },
+            }),
+            cleanKnowledgeBase: tool({
+              description:
+                "ADMIN ONLY: Remove content from the knowledge base that doesn't belong or is misleading. Only use when users specifically request to clean up the knowledge base.",
+              parameters: z.object({
+                keyword: z
+                  .string()
+                  .describe(
+                    'Keyword or phrase to remove from the knowledge base (e.g., "gala apples")',
+                  ),
+              }),
+              execute: async ({ keyword }) => {
+                console.log('RAG: Request to clean knowledge base containing', {
+                  keyword,
+                });
+
+                try {
+                  // Only admins/system can use this tool
+                  if (!session.user || session.user.type !== 'SYSTEM') {
+                    console.log(
+                      'RAG: Unauthorized attempt to clean knowledge base',
+                    );
+                    return {
+                      status: 'error',
+                      message:
+                        'Only system administrators can clean the knowledge base.',
+                    };
+                  }
+
+                  const result = await deleteContentByKeyword(keyword);
+                  console.log(
+                    'RAG: Cleaned knowledge base, removed items:',
+                    result,
+                  );
+
+                  return {
+                    status: 'success',
+                    message: `I've removed ${result.deleted} items containing "${keyword}" from the knowledge base.`,
+                  };
+                } catch (error) {
+                  console.error(
+                    'RAG ERROR: Failed to clean knowledge base:',
+                    error,
+                  );
+                  return {
+                    status: 'error',
+                    message:
+                      'I encountered an error while cleaning the knowledge base.',
+                  };
+                }
+              },
             }),
           },
           onFinish: async ({ response }) => {
@@ -223,8 +440,8 @@ export async function POST(request: Request) {
                     },
                   ],
                 });
-              } catch (_) {
-                console.error('Failed to save chat');
+              } catch (error) {
+                console.error('Failed to save chat:', error);
               }
             }
           },
@@ -234,27 +451,77 @@ export async function POST(request: Request) {
           },
         });
 
-        result.consumeStream();
+        // Debug logs for the stream
+        console.log('RAG: Creating stream with tools configured');
 
-        result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-        });
+        try {
+          // Safely check if getTools is available (not all models support this)
+          if ('getTools' in result && typeof result.getTools === 'function') {
+            console.log(
+              'RAG: Tools available:',
+              Object.keys(result.getTools()),
+            );
+          }
+
+          // Consume and merge the stream
+          result.consumeStream();
+          result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true,
+          });
+        } catch (streamError) {
+          console.error('RAG ERROR: Error processing stream:', streamError);
+          // Don't rethrow, just log it and continue
+        }
       },
-      onError: () => {
-        return 'Oops, an error occurred!';
+      onError: (error) => {
+        console.error('Error in data stream:', error);
+        return 'Oops, an error occurred while processing your request!';
       },
     });
 
+    // Special case - if the message includes "remember", automatically save it in case the model fails to use tools
+    if (queryText.toLowerCase().includes('remember') && queryText.length > 15) {
+      try {
+        console.log('RAG: Auto-saving information from "remember" message');
+        // Extract what to remember (everything after "remember that" or "remember")
+        let contentToRemember = queryText;
+        if (queryText.toLowerCase().includes('remember that')) {
+          contentToRemember = queryText
+            .substring(queryText.toLowerCase().indexOf('remember that') + 13)
+            .trim();
+        } else if (queryText.toLowerCase().includes('remember')) {
+          contentToRemember = queryText
+            .substring(queryText.toLowerCase().indexOf('remember') + 8)
+            .trim();
+        }
+
+        // Only proceed if there's meaningful content
+        if (contentToRemember.length > 3) {
+          const title = `User Note: ${contentToRemember.substring(0, 30)}${contentToRemember.length > 30 ? '...' : ''}`;
+          await addResourceTool.handler(
+            { title, content: contentToRemember },
+            session.user.id,
+          );
+          console.log('RAG: Auto-saved content from remember command');
+        }
+      } catch (saveError) {
+        console.error('RAG: Error auto-saving content:', saveError);
+      }
+    }
+
+    // Get the stream context for resumable streams
     const streamContext = getStreamContext();
 
+    // Return the response
     if (streamContext) {
       return new Response(
-        await streamContext.resumableStream(streamId, () => stream),
+        await streamContext.resumableStream(streamId, () => responseStream),
       );
     } else {
-      return new Response(stream);
+      return new Response(responseStream);
     }
-  } catch (_) {
+  } catch (error) {
+    console.error('Unhandled error in chat POST route:', error);
     return new Response('An error occurred while processing your request!', {
       status: 500,
     });

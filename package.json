@@ -12,14 +12,18 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "npx tsx lib/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "db:push": "drizzle-kit push",
+    "db:push": "drizzle-kit push --accept-data-loss",
     "db:pull": "drizzle-kit pull",
     "db:check": "drizzle-kit check",
     "db:up": "drizzle-kit up",
     "db:pgvector": "node scripts/migrate-pgvector.js",
     "db:add-profile-picture": "npx tsx scripts/run-migration.ts",
     "test-blob": "npx tsx scripts/test-blob.ts",
-    "test": "export PLAYWRIGHT=True && pnpm exec playwright test"
+    "test": "export PLAYWRIGHT=True && pnpm exec playwright test",
+    "db:seed": "tsx drizzle/seed.ts",
+    "upload-docs": "tsx scripts/upload-documents.ts",
+    "redis:setup": "node scripts/add-redis-config.js",
+    "redis:test": "node scripts/test-redis-connection.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.21",

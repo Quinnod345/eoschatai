@@ -1,10 +1,9 @@
 import { auth } from '@/app/(auth)/auth';
 import { findRelevantContent } from '@/lib/ai/embeddings';
-import { createResource } from '@/lib/actions/resources';
-import { indexDocumentsTool, retrieveContextTool } from '@/lib/ai/tools';
+import { addResourceTool, getInformationTool } from '@/lib/ai/tools';
 import { myProvider } from '@/lib/ai/providers';
 import { openai } from '@ai-sdk/openai';
-import { ragContextPrompt } from '@/lib/ai/prompts';
+import { ragContextPrompt, systemPrompt } from '@/lib/ai/prompts';
 import { streamText, tool, type DataStreamWriter } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   // Get request body
-  const { messages, chatId } = await req.json();
+  const { messages, chatId, modelId = 'chat-model' } = await req.json();
 
   // Create data stream
   const dataStream = new TransformStream();
@@ -57,31 +56,102 @@ export async function POST(req: Request) {
     const lastUserMessage =
       [...messages].reverse().find((m) => m.role === 'user')?.content || '';
 
-    // Retrieve relevant context from knowledge base
-    const relevantContent = await findRelevantContent(lastUserMessage);
+    console.log('RAG: Processing chat request with query:', lastUserMessage);
 
-    // Stream response from model with RAG context
+    // Retrieve relevant context from knowledge base (using Upstash Vector)
+    console.log('RAG: Fetching relevant content from vector store');
+    const relevantContent = await findRelevantContent(lastUserMessage, 5);
+
+    // Debug log for RAG content
+    console.log(
+      `RAG: Retrieved ${relevantContent.length} chunks from vector store`,
+    );
+    if (relevantContent.length > 0) {
+      console.log(
+        'RAG: Top result:',
+        `${relevantContent[0].content.substring(0, 100)}...`,
+        `(relevance: ${(relevantContent[0].relevance * 100).toFixed(1)}%)`,
+      );
+    } else {
+      console.log('RAG: No relevant content found');
+    }
+
+    // Get user location hints for prompt
+    const requestHints = {
+      latitude: '',
+      longitude: '',
+      city: '',
+      country: '',
+    };
+
+    // Get system prompt with RAG context
+    const baseSystemPrompt = await systemPrompt({
+      selectedChatModel: modelId,
+      requestHints,
+      ragContext: relevantContent,
+      userId: session.user.id,
+    });
+
+    console.log('RAG: Created system prompt with context');
+
+    // Add RAG usage indicator for debugging
+    // Make RAG tools more likely to be used by the model
     const result = streamText({
-      model: openai('gpt-4o'),
+      model:
+        myProvider.languageModels[
+          modelId as 'chat-model' | 'chat-model-reasoning'
+        ],
       messages,
-      system: `You are EOS AI, a helpful assistant for EOS Implementers.
-      
-      ${ragContextPrompt(relevantContent)}
-      
-      Answer questions based on the retrieved information. If you don't have enough context, you can use the retrieve_context tool to find more information.`,
-      maxTokens: 1000,
+      system: `${baseSystemPrompt}\n\nALWAYS use the getInformation tool when you don't have enough context from the retrieved information above!\n\nIMPORTANT RAG RESPONSE INSTRUCTIONS:\n1. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses\n2. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points\n3. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting\n4. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base`,
+      maxTokens: 1500,
+      temperature: 0.7,
       tools: {
-        retrieve_context: retrieveContextTool({ dataStream: dataStreamWriter }),
-        add_to_knowledge: tool({
-          description: 'Add information to the EOS knowledge base',
+        // Add Resource tool - saves information to knowledge base
+        addResource: tool({
+          description:
+            'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
           parameters: z.object({
-            content: z
-              .string()
-              .describe('The content to add to the knowledge base'),
+            title: z.string().describe('Title of the resource'),
+            content: z.string().describe('Content of the resource'),
           }),
-          execute: async ({ content }) => createResource({ content }),
+          execute: async ({ title, content }) => {
+            console.log('RAG: Adding resource to knowledge base', { title });
+            const result = await addResourceTool.handler(
+              { title, content },
+              session.user.id,
+            );
+            console.log('RAG: Resource added', result);
+            return result;
+          },
         }),
-        index_documents: indexDocumentsTool({ dataStream: dataStreamWriter }),
+
+        // Get Information tool - retrieves information from knowledge base
+        getInformation: tool({
+          description:
+            "Retrieve more relevant information from the EOS knowledge base. Use this when you need additional context to answer the user's question.",
+          parameters: z.object({
+            query: z
+              .string()
+              .describe(
+                'The specific query to search for in the knowledge base',
+              ),
+            limit: z
+              .number()
+              .optional()
+              .describe('Maximum number of results to return'),
+          }),
+          execute: async ({ query, limit }) => {
+            console.log('RAG: Tool called to get information', {
+              query,
+              limit,
+            });
+            const result = await getInformationTool.handler({ query, limit });
+            console.log(
+              `RAG: Retrieved ${result.results?.length || 0} results from knowledge base`,
+            );
+            return result;
+          },
+        }),
       },
     });
 

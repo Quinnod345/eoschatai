@@ -11,6 +11,7 @@ import {
   inArray,
   lt,
   type SQL,
+  sql,
 } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -28,20 +29,21 @@ import {
   type Chat,
   stream,
   userSettings,
+  type Document,
 } from './schema';
 import type { ArtifactKind } from '@/components/artifact';
 import { generateUUID } from '../utils';
 import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
 import { processDocument } from '../ai/embeddings';
-
-// Optionally, if not using email/pass login, you can
-// use the Drizzle adapter for Auth.js / NextAuth
-// https://authjs.dev/reference/adapter/drizzle
+import type {
+  Stream as StreamType,
+  Suggestion as SuggestionType,
+} from '@/artifacts/suggestions/types';
 
 // biome-ignore lint: Forbidden non-null assertion.
 const client = postgres(process.env.POSTGRES_URL!);
-const db = drizzle(client);
+export const db = drizzle(client);
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
@@ -300,17 +302,46 @@ export async function saveDocument({
   userId: string;
 }) {
   try {
-    const documents = await db
-      .insert(document)
-      .values({
-        id,
-        title,
-        kind,
-        content,
-        userId,
-        createdAt: new Date(),
-      })
-      .returning();
+    let documents: Document[] | any;
+
+    try {
+      // Try to insert first
+      documents = await db
+        .insert(document)
+        .values({
+          id,
+          title,
+          kind,
+          content,
+          userId,
+          createdAt: new Date(),
+        })
+        .returning();
+
+      console.log(`Created new document with ID: ${id}`);
+    } catch (insertError: any) {
+      // Log the entire error for debugging
+      console.log(
+        'Insert error details:',
+        JSON.stringify(insertError, null, 2),
+      );
+
+      // If we got a duplicate key error, try updating instead
+      if (insertError.code === '23505') {
+        console.log(`Document ${id} already exists, updating instead`);
+        // Update existing document
+        const result = await db.execute(sql`
+          UPDATE "Document" 
+          SET title = ${title}, "text" = ${kind}, content = ${content}
+          WHERE id = ${id}
+          RETURNING *
+        `);
+        documents = result.rows;
+      } else {
+        // Not a duplicate key error, rethrow
+        throw insertError;
+      }
+    }
 
     // Process the document for embeddings (only for text kind)
     if (kind === 'text' && content) {
@@ -319,7 +350,7 @@ export async function saveDocument({
 
     return documents;
   } catch (error) {
-    console.error('Failed to save document in database');
+    console.error('Failed to save document in database:', error);
     throw error;
   }
 }
