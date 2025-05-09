@@ -1,6 +1,7 @@
 import { Artifact } from '@/components/create-artifact';
 import {
   CopyIcon,
+  DownloadIcon,
   LineChartIcon,
   RedoIcon,
   SparklesIcon,
@@ -9,6 +10,7 @@ import {
 import { SpreadsheetEditor } from '@/components/sheet-editor';
 import { parse, unparse } from 'papaparse';
 import { toast } from 'sonner';
+// Import will be done dynamically to avoid SSR issues
 
 type Metadata = any;
 
@@ -86,6 +88,64 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
 
         navigator.clipboard.writeText(cleanedCsv);
         toast.success('Copied csv to clipboard!');
+      },
+    },
+    {
+      icon: <DownloadIcon size={18} />,
+      description: 'Download as .xlsx',
+      onClick: async ({ content, title }) => {
+        const parsed = parse<string[]>(content, { skipEmptyLines: true });
+
+        const nonEmptyRows = parsed.data.filter((row) =>
+          row.some((cell) => cell.trim() !== ''),
+        );
+
+        try {
+          // Dynamically import xlsx to avoid SSR issues
+          const XLSX = await import('xlsx');
+
+          // Create a new workbook and add the data
+          const workbook = XLSX.utils.book_new();
+          const worksheet = XLSX.utils.aoa_to_sheet(nonEmptyRows);
+
+          // Use the artifact title for the sheet name (with character limit)
+          const sheetName = title
+            ? title.substring(0, 30).replace(/[*?:/\\[\]]/g, '_')
+            : 'Sheet1';
+
+          XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+          // Generate XLSX file data
+          const excelBuffer = XLSX.write(workbook, {
+            bookType: 'xlsx',
+            type: 'array',
+          });
+
+          // Create Blob and download
+          const blob = new Blob([excelBuffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+
+          // Use the artifact title for the filename, with fallback
+          const safeTitle =
+            title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'spreadsheet';
+          a.download = `${safeTitle}.xlsx`;
+
+          document.body.appendChild(a);
+          a.click();
+
+          // Clean up
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          toast.success(`Downloaded "${title}" as Excel spreadsheet`);
+        } catch (error) {
+          console.error('Error creating Excel file:', error);
+          toast.error('Failed to create Excel file');
+        }
       },
     },
   ],

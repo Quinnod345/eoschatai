@@ -170,7 +170,7 @@ export function Chat({
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Custom submit handler with timeout
+  // Custom submit handler with timeout and recovery
   const handleSubmitWithTimeout = (e: React.FormEvent<HTMLFormElement>) => {
     // Set a timeout to detect hanging responses
     responseTimeoutRef.current = setTimeout(() => {
@@ -180,7 +180,7 @@ export function Chat({
         toast({
           type: 'error',
           description:
-            'The response is taking too long. You may need to stop and try again.',
+            'The response is taking too long. Please stop and try again, or refresh the page to see the response.',
         });
       }
     }, 25000); // 25 second timeout
@@ -189,7 +189,7 @@ export function Chat({
     handleSubmit(e);
   };
 
-  // Create an adapter function for the multimodal input component
+  // Create an adapter function for the multimodal input component with improved error handling
   const handleSubmitAdapter = useCallback(
     (
       event?: { preventDefault?: () => void } | undefined,
@@ -198,6 +198,13 @@ export function Chat({
       if (event?.preventDefault) {
         event.preventDefault();
       }
+
+      // Clear any existing timeout
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+        responseTimeoutRef.current = null;
+      }
+
       // Call our custom handler if the event exists
       if (event) {
         handleSubmit(event, chatRequestOptions);
@@ -209,8 +216,19 @@ export function Chat({
             toast({
               type: 'error',
               description:
-                'The response is taking too long. You may need to stop and try again.',
+                'The response is taking too long. Please stop and try again, or refresh the page to see the response.',
             });
+
+            // Show a separate manual reload toast
+            toast({
+              type: 'success',
+              description: 'Response may be available after refresh',
+            });
+
+            // Set a timeout to automatically reload the page after 3 seconds
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000);
           }
         }, 25000);
       }

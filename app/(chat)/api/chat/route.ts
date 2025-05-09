@@ -53,6 +53,14 @@ let globalStreamContext: ResumableStreamContext | null = null;
 function getStreamContext() {
   if (!globalStreamContext) {
     try {
+      // Get REDIS_URL from environment and clean it (remove quotes if present)
+      const redisUrl = process.env.REDIS_URL;
+      if (redisUrl) {
+        // Clean the URL by removing any quotes that might be causing issues
+        const cleanRedisUrl = redisUrl.replace(/^["'](.*)["']$/, '$1');
+        console.log('Creating resumable stream context with Redis');
+      }
+
       globalStreamContext = createResumableStreamContext({
         waitUntil: after,
       });
@@ -611,14 +619,34 @@ SPECIAL INSTRUCTIONS FOR GROK:
     const streamContext = getStreamContext();
     console.log(`Stream context available: ${!!streamContext}`);
 
-    // Return the response
+    // Return the response with improved error handling and fallback
     if (streamContext) {
       try {
         console.log(`Using resumable stream with ID: ${streamId}`);
-        const resumableStream = await streamContext.resumableStream(
+
+        // Add a timeout to detect stalled streams
+        const streamPromise = streamContext.resumableStream(
           streamId,
           () => responseStream,
         );
+
+        // Create a timeout promise
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Resumable stream creation timed out'));
+          }, 10000); // 10 second timeout for stream creation
+        });
+
+        // Race the stream creation against the timeout
+        const resumableStream = await Promise.race([
+          streamPromise,
+          timeoutPromise,
+        ]).catch((error) => {
+          console.error(`Resumable stream error or timeout: ${error}`);
+          console.log('Falling back to direct response stream');
+          return responseStream;
+        });
+
         console.log(`Resumable stream created for ID: ${streamId}`);
         return new Response(resumableStream);
       } catch (streamError) {

@@ -599,45 +599,48 @@ function PureMultimodalInput({
       return;
     }
 
-    if (hasProcessedContent) {
-      // Use append for messages with processed content
-      append(
-        {
-          role: 'user',
-          content: finalInputContent, // Send the combined content
-        },
-        {
-          experimental_attachments:
-            attachments.length > 0 ? attachments : undefined,
-        },
-      );
-      setInput(''); // Clear the input field as append doesn't do it automatically.
-    } else {
-      // No processed content, use standard handleSubmit
-      // Ensure there's something to send (text or attachments)
-      if (input.trim().length > 0 || attachments.length > 0) {
-        handleSubmit(undefined, {
-          experimental_attachments:
-            attachments.length > 0 ? attachments : undefined,
-        });
-        // `handleSubmit` from `useChat` should clear the input state itself.
+    try {
+      if (hasProcessedContent) {
+        // Use append for messages with processed content
+        append(
+          {
+            role: 'user',
+            content: finalInputContent, // Send the combined content
+          },
+          {
+            experimental_attachments:
+              attachments.length > 0 ? attachments : undefined,
+          },
+        );
+        setInput(''); // Clear the input field as append doesn't do it automatically.
       } else {
-        // Nothing to send, might be good to log or handle, though button should be disabled
-        console.log('Submit called with nothing to send.');
-        return; // Early exit if there is truly nothing to send
+        // No processed content, use standard handleSubmit
+        // Ensure there's something to send (text or attachments)
+        if (input.trim().length > 0 || attachments.length > 0) {
+          handleSubmit(undefined, {
+            experimental_attachments:
+              attachments.length > 0 ? attachments : undefined,
+          });
+          // `handleSubmit` from `useChat` should clear the input state itself.
+        } else {
+          // Nothing to send, might be good to log or handle, though button should be disabled
+          return; // Early exit if there is truly nothing to send
+        }
       }
-    }
 
-    // Common cleanup operations
-    setAttachments([]); // Clear regular attachments
-    setPdfContents([]); // Clear PDF contents
-    setDocumentContents([]); // Clear document contents
-    setImageContents([]); // Clear image contents
-    // `setLocalStorageInput` will be triggered by `setInput('')` or by `useChat` clearing input.
-    resetHeight();
+      // Common cleanup operations
+      setAttachments([]); // Clear regular attachments
+      setPdfContents([]); // Clear PDF contents
+      setDocumentContents([]); // Clear document contents
+      setImageContents([]); // Clear image contents
+      // `setLocalStorageInput` will be triggered by `setInput('')` or by `useChat` clearing input.
+      resetHeight();
 
-    if (width && width > 768) {
-      textareaRef.current?.focus();
+      if (width && width > 768) {
+        textareaRef.current?.focus();
+      }
+    } catch (error) {
+      toast.error('Failed to send message. Please try again.');
     }
   }, [
     input,
@@ -1021,7 +1024,7 @@ function PureMultimodalInput({
         >
           <div className="bg-background/90 dark:bg-background/80 rounded-lg p-6 shadow-lg flex flex-col items-center">
             <div className="drag-icon-bounce">
-              <Paperclip size={36} className="mx-auto mb-3 text-primary" />
+              <Paperclip className="mx-auto mb-3 text-primary size-9" />
             </div>
             <p className="text-base font-medium">Drop files to upload</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -1057,7 +1060,7 @@ function PureMultimodalInput({
                 scrollToBottom();
               }}
             >
-              <ArrowDownLucide />
+              <ArrowDownLucide className="size-4" />
             </Button>
           </motion.div>
         )}
@@ -1160,7 +1163,7 @@ function PureMultimodalInput({
                     );
                   }}
                 >
-                  <X size={12} />
+                  <X className="size-3" />
                 </Button>
               </div>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
@@ -1215,7 +1218,7 @@ function PureMultimodalInput({
                     );
                   }}
                 >
-                  <X size={12} />
+                  <X className="size-3" />
                 </Button>
               </div>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
@@ -1273,7 +1276,11 @@ function PureMultimodalInput({
             if (status !== 'ready') {
               toast.error('Please wait for the model to finish its response!');
             } else {
-              submitForm();
+              // Use handleSubmit directly for consistency with the send button
+              handleSubmit(event, {
+                experimental_attachments:
+                  attachments.length > 0 ? attachments : undefined,
+              });
             }
           }
         }}
@@ -1319,6 +1326,8 @@ function PureMultimodalInput({
             pdfCount={pdfCount}
             docCount={docCount}
             imgCount={imgCount}
+            handleSubmit={handleSubmit}
+            attachments={attachments}
           />
         )}
       </div>
@@ -1360,7 +1369,7 @@ function PureAttachmentsButton({
       disabled={status !== 'ready'}
       variant="ghost"
     >
-      <Paperclip size={14} />
+      <Paperclip className="size-3.5" />
     </Button>
   );
 }
@@ -1384,7 +1393,7 @@ function PureStopButton({
         setMessages((messages) => messages);
       }}
     >
-      <Square size={14} />
+      <Square className="size-4" />
     </Button>
   );
 }
@@ -1399,6 +1408,8 @@ function PureSendButton({
   pdfCount,
   docCount,
   imgCount,
+  handleSubmit,
+  attachments,
 }: {
   submitForm: () => void;
   input: string;
@@ -1407,6 +1418,8 @@ function PureSendButton({
   pdfCount: number;
   docCount: number;
   imgCount: number;
+  handleSubmit: any;
+  attachments: Array<Attachment>;
 }) {
   const nothingToSend =
     input.trim().length === 0 &&
@@ -1422,11 +1435,23 @@ function PureSendButton({
       className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
       onClick={(event) => {
         event.preventDefault();
-        submitForm();
+
+        if (!isDisabled) {
+          // For debugging only - can be removed if not needed
+          console.log(
+            `Sending message: ${input.substring(0, 30)}${input.length > 30 ? '...' : ''}`,
+          );
+
+          // Always use direct handleSubmit which is more reliable
+          handleSubmit(event, {
+            experimental_attachments:
+              attachments.length > 0 ? attachments : undefined,
+          });
+        }
       }}
       disabled={isDisabled}
     >
-      <ArrowUp size={14} />
+      <ArrowUp className="size-4" />
     </Button>
   );
 }
@@ -1439,5 +1464,6 @@ const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   if (prevProps.pdfCount !== nextProps.pdfCount) return false;
   if (prevProps.docCount !== nextProps.docCount) return false;
   if (prevProps.imgCount !== nextProps.imgCount) return false;
+  // We intentionally don't compare handleSubmit or attachments since they don't affect rendering
   return true;
 });

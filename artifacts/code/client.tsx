@@ -2,6 +2,7 @@ import { Artifact } from '@/components/create-artifact';
 import { CodeEditor } from '@/components/code-editor';
 import {
   CopyIcon,
+  DownloadIcon,
   LogsIcon,
   MessageIcon,
   PlayIcon,
@@ -12,8 +13,8 @@ import { toast } from 'sonner';
 import { generateUUID } from '@/lib/utils';
 import {
   Console,
-  ConsoleOutput,
-  ConsoleOutputContent,
+  type ConsoleOutput,
+  type ConsoleOutputContent,
 } from '@/components/console';
 
 const OUTPUT_HANDLERS = {
@@ -242,6 +243,40 @@ export const codeArtifact = new Artifact<'code', Metadata>({
       onClick: ({ content }) => {
         navigator.clipboard.writeText(content);
         toast.success('Copied to clipboard!');
+      },
+    },
+    {
+      icon: <DownloadIcon size={18} />,
+      description: 'Download code file',
+      onClick: async ({ content, title }) => {
+        // Create a Blob with the code content
+        const blob = new Blob([content], { type: 'text/plain' });
+
+        // Determine file extension (default to .py for Python code)
+        const isPython =
+          content.includes('import') ||
+          content.includes('def ') ||
+          content.includes('print(');
+        const extension = isPython ? '.py' : '.txt';
+
+        // Create a download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Use the artifact title for the filename, with fallback
+        const safeTitle =
+          title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'code';
+        a.download = `${safeTitle}${extension}`;
+
+        document.body.appendChild(a);
+        a.click();
+
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success(`Downloaded "${title}" as${extension}`);
       },
     },
   ],
