@@ -18,53 +18,62 @@ const getDatabaseUrl = () => {
 
 export async function migrateUserDocuments() {
   console.log('Running UserDocuments migration...');
-  const databaseUrl = getDatabaseUrl();
-  console.log('Using PostgreSQL URL:', databaseUrl ? 'URL is defined' : 'URL is undefined');
-
-  if (!databaseUrl) {
-    console.error('Neither POSTGRES_URL nor DATABASE_URL is defined, skipping UserDocuments migration');
-    return;
-  }
-
+  
   try {
-    // Check if the table already exists
-    const tableExists = await db.execute(
-      sql`SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'UserDocuments'
-      )`
-    ).catch(err => {
-      console.warn('Error checking if UserDocuments table exists, will attempt to create it anyway:', err);
-      return { rows: [{ exists: false }] };
-    });
+    const databaseUrl = getDatabaseUrl();
+    console.log('Using PostgreSQL URL:', databaseUrl ? 'URL is defined' : 'URL is undefined');
 
-    // Safely access properties to avoid type errors
-    const exists = 'rows' in tableExists 
-      ? tableExists.rows?.[0]?.exists 
-      : (tableExists as any)?.[0]?.exists;
-
-    if (exists) {
-      console.log('UserDocuments table already exists, skipping migration');
+    if (!databaseUrl) {
+      console.error('Neither POSTGRES_URL nor DATABASE_URL is defined, skipping UserDocuments migration');
       return;
     }
 
-    // Create the UserDocuments table
-    await db.execute(
-      sql`CREATE TABLE IF NOT EXISTS "UserDocuments" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-        "userId" uuid NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
-        "fileName" varchar(255) NOT NULL,
-        "fileUrl" text NOT NULL,
-        "fileSize" integer NOT NULL,
-        "fileType" varchar(255) NOT NULL,
-        "category" varchar NOT NULL CHECK ("category" IN ('Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process')),
-        "content" text NOT NULL,
-        "createdAt" timestamp DEFAULT now() NOT NULL,
-        "updatedAt" timestamp DEFAULT now() NOT NULL
-      )`
-    );
+    try {
+      // Check if the table already exists
+      const tableExists = await db.execute(
+        sql`SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'UserDocuments'
+        )`
+      ).catch(err => {
+        console.warn('Error checking if UserDocuments table exists, will attempt to create it anyway:', err);
+        return { rows: [{ exists: false }] };
+      });
 
-    console.log('Successfully created UserDocuments table');
+      // Safely access properties to avoid type errors
+      const exists = 'rows' in tableExists 
+        ? tableExists.rows?.[0]?.exists 
+        : (tableExists as any)?.[0]?.exists;
+
+      if (exists) {
+        console.log('UserDocuments table already exists, skipping migration');
+        return;
+      }
+
+      // Create the UserDocuments table
+      await db.execute(
+        sql`CREATE TABLE IF NOT EXISTS "UserDocuments" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+          "userId" uuid NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+          "fileName" varchar(255) NOT NULL,
+          "fileUrl" text NOT NULL,
+          "fileSize" integer NOT NULL,
+          "fileType" varchar(255) NOT NULL,
+          "category" varchar NOT NULL CHECK ("category" IN ('Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process')),
+          "content" text NOT NULL,
+          "createdAt" timestamp DEFAULT now() NOT NULL,
+          "updatedAt" timestamp DEFAULT now() NOT NULL
+        )`
+      );
+
+      console.log('Successfully created UserDocuments table');
+    } catch (dbError: unknown) {
+      // If this is a connection error, don't try to continue
+      if (typeof dbError === 'object' && dbError !== null && 'code' in dbError && dbError.code === 'ECONNREFUSED') {
+        throw dbError;
+      }
+      console.error('Error during UserDocuments table operations:', dbError);
+    }
   } catch (error) {
     console.error('Error migrating UserDocuments table:', error);
     // Don't rethrow the error to prevent build failure

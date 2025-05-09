@@ -182,7 +182,8 @@ export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
                 elements.push(
                   new Paragraph({
                     text: token.text,
-                    heading: `Heading${level}` as HeadingLevel,
+                    heading:
+                      `Heading${level}` as (typeof HeadingLevel)[keyof typeof HeadingLevel],
                     spacing: { before: 200, after: 200 },
                   }),
                 );
