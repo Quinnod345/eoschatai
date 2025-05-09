@@ -39,6 +39,7 @@ import {
   LogOut,
   Settings,
 } from 'lucide-react';
+import { clientLogout } from '@/lib/auth-utils';
 
 export function SidebarUserNav({
   user,
@@ -89,7 +90,7 @@ export function SidebarUserNav({
   }, [status]);
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/sign-in' });
+    await clientLogout();
   };
 
   return (

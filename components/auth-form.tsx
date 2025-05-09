@@ -1,9 +1,7 @@
-import Form from 'next/form';
-
+import { signIn } from 'next-auth/react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { signIn } from 'next-auth/react';
 
 export function GoogleSignInButton() {
   return (
@@ -53,8 +51,20 @@ export function AuthForm({
   defaultEmail?: string;
   showSocial?: boolean;
 }) {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (typeof action === 'function') {
+      const formData = new FormData(e.currentTarget);
+      action(formData);
+    }
+  };
+
   return (
-    <Form action={action} className="flex flex-col gap-4 px-4 sm:px-16">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-4 px-4 sm:px-16"
+      action={typeof action === 'string' ? action : undefined}
+    >
       {showSocial && (
         <>
           <GoogleSignInButton />
@@ -110,6 +120,6 @@ export function AuthForm({
       </div>
 
       {children}
-    </Form>
+    </form>
   );
 }

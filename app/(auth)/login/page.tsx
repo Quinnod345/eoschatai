@@ -27,6 +27,17 @@ export default function Page() {
   const { update: updateSession } = useSession();
 
   useEffect(() => {
+    // Check for signout redirect
+    if (typeof window !== 'undefined') {
+      const signoutRedirect = sessionStorage.getItem('signout-redirect');
+      if (signoutRedirect === 'true') {
+        // Clear the signout flag
+        sessionStorage.removeItem('signout-redirect');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (state.status === 'failed') {
       toast({
         type: 'error',
