@@ -1139,6 +1139,70 @@ export const DownloadIcon = ({ size = 16 }: { size?: number }) => (
 
 export const LineChartIcon = ({ size = 16 }: { size?: number }) => (
   <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M8 17H4C3.44772 17 3 16.5523 3 16V9C3 8.44772 3.44772 8 4 8H8C8.55228 8 9 8.44772 9 9V16C9 16.5523 8.55228 17 8 17Z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 17H10C9.44772 17 9 16.5523 9 16V5C9 4.44772 9.44772 4 10 4H14C14.5523 4 15 4.44772 15 5V16C15 16.5523 14.5523 17 14 17Z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M20 17H16C15.4477 17 15 16.5523 15 16V13C15 12.4477 15.4477 12 16 12H20C20.5523 12 21 12.4477 21 13V16C21 16.5523 20.5523 17 20 17Z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M3 20H21"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const ChartIcon = ({ size = 16 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M21 21H3V3"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M7 14L12 9L17 14L22 9"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const MinusIcon = ({ size = 16 }: { size?: number }) => (
+  <svg
     height={size}
     strokeLinejoin="round"
     viewBox="0 0 16 16"
@@ -1146,10 +1210,10 @@ export const LineChartIcon = ({ size = 16 }: { size?: number }) => (
     style={{ color: 'currentcolor' }}
   >
     <path
-      fill="currentColor"
       fillRule="evenodd"
-      d="M1 1v11.75A2.25 2.25 0 0 0 3.25 15H15v-1.5H3.25a.75.75 0 0 1-.75-.75V1H1Zm13.297 5.013.513-.547-1.094-1.026-.513.547-3.22 3.434-2.276-2.275a1 1 0 0 0-1.414 0L4.22 8.22l-.53.53 1.06 1.06.53-.53L7 7.56l2.287 2.287a1 1 0 0 0 1.437-.023l3.573-3.811Z"
       clipRule="evenodd"
+      d="M12.5 8C12.5 7.17157 11.8284 6.5 11 6.5H5C4.17157 6.5 3.5 7.17157 3.5 8C3.5 8.82843 4.17157 9.5 5 9.5H11C11.8284 9.5 12.5 8.82843 12.5 8Z"
+      fill="currentColor"
     />
   </svg>
 );

@@ -7,7 +7,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { Search, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 
 import { PlusIcon } from '@/components/icons';
 import { SidebarHistory } from '@/components/sidebar-history';
@@ -36,6 +37,19 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   const { setOpenMobile, state } = useSidebar();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Once mounted on client, we can safely show the UI without hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Determine which logo to use based on theme
+  const logoSrc =
+    mounted && (theme === 'dark' || resolvedTheme === 'dark')
+      ? '/images/eos-logo-dark-mode.png'
+      : '/images/eos-logo.png';
 
   // Animation variants
   const headerVariants = {
@@ -110,11 +124,11 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                       }}
                     >
                       <img
-                        src="/images/eos-logo.png"
+                        src={logoSrc}
                         alt="EOS Logo"
                         className="w-24 h-auto"
                         style={{
-                          display: 'block',
+                          display: mounted ? 'block' : 'none', // Prevent flash of wrong theme logo
                           objectFit: 'contain',
                         }}
                       />
@@ -145,8 +159,15 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                           className="p-2 h-fit"
                           onClick={() => {
                             setOpenMobile(false);
-                            router.push('/');
-                            router.refresh();
+                            // Check if we're already at the root path to avoid unnecessary navigation
+                            // that could lose the current chat context on reload
+                            if (window.location.pathname === '/') {
+                              // If already at root, just refresh the page
+                              router.refresh();
+                            } else {
+                              // If in a specific chat, navigate to root for new chat
+                              router.push('/');
+                            }
                           }}
                         >
                           <PlusIcon />

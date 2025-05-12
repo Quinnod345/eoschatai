@@ -2,16 +2,16 @@
 
 import {
   memo,
-  MouseEvent,
+  type MouseEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
 } from 'react';
-import { ArtifactKind, UIArtifact } from './artifact';
+import type { ArtifactKind, UIArtifact } from './artifact';
 import { FileIcon, FullscreenIcon, ImageIcon, LoaderIcon } from './icons';
 import { cn, fetcher } from '@/lib/utils';
-import { Document } from '@/lib/db/schema';
+import type { Document } from '@/lib/db/schema';
 import { InlineDocumentSkeleton } from './document-skeleton';
 import useSWR from 'swr';
 import { Editor } from './text-editor';
@@ -21,6 +21,7 @@ import { useArtifact } from '@/hooks/use-artifact';
 import equal from 'fast-deep-equal';
 import { SpreadsheetEditor } from './sheet-editor';
 import { ImageEditor } from './image-editor';
+import { ChartPreview } from './chart-preview';
 
 interface DocumentPreviewProps {
   isReadonly: boolean;
@@ -235,13 +236,14 @@ const DocumentHeader = memo(PureDocumentHeader, (prevProps, nextProps) => {
 });
 
 const DocumentContent = ({ document }: { document: Document }) => {
-  const { artifact } = useArtifact();
+  const { artifact, metadata, setMetadata } = useArtifact();
 
   const containerClassName = cn(
     'h-[257px] overflow-y-scroll border rounded-b-2xl dark:bg-muted border-t-0 dark:border-zinc-700',
     {
       'p-4 sm:px-14 sm:py-16': document.kind === 'text',
       'p-0': document.kind === 'code',
+      'p-4': document.kind === 'chart',
     },
   );
 
@@ -252,6 +254,70 @@ const DocumentContent = ({ document }: { document: Document }) => {
     status: artifact.status,
     saveContent: () => {},
     suggestions: [],
+  };
+
+  // For chart preview, parse JSON and render
+  const renderChartPreview = () => {
+    try {
+      const content = document.content || '';
+      console.log(
+        'Attempting to render chart preview, content length:',
+        content.length,
+      );
+
+      // First check for special markers
+      const hasBeginMarker = content.includes('CHART_DATA_BEGIN');
+      const hasEndMarker = content.includes('CHART_DATA_END');
+
+      let chartData: any = null;
+
+      if (hasBeginMarker && hasEndMarker) {
+        // Extract JSON between markers
+        const startIndex =
+          content.indexOf('CHART_DATA_BEGIN') + 'CHART_DATA_BEGIN'.length;
+        const endIndex = content.indexOf('CHART_DATA_END');
+
+        if (startIndex >= 0 && endIndex > startIndex) {
+          const jsonStr = content.substring(startIndex, endIndex).trim();
+          console.log(
+            'Found chart data between markers, length:',
+            jsonStr.length,
+          );
+          chartData = JSON.parse(jsonStr);
+          console.log('Successfully parsed chart data, type:', chartData.type);
+        }
+      } else {
+        // Fallback to finding raw JSON
+        const jsonStartIndex = content.indexOf('{') ?? -1;
+        const jsonEndIndex = content.lastIndexOf('}') + 1;
+
+        if (jsonStartIndex >= 0 && jsonEndIndex > jsonStartIndex) {
+          const jsonStr = content.substring(jsonStartIndex, jsonEndIndex);
+          console.log('Found raw JSON in content, length:', jsonStr.length);
+          chartData = JSON.parse(jsonStr || '{}');
+          console.log('Successfully parsed raw JSON, type:', chartData?.type);
+        }
+      }
+
+      if (chartData?.type && chartData?.data) {
+        console.log('Rendering chart with type:', chartData.type);
+        return (
+          <div className="chart-preview-container w-full h-full flex items-center justify-center">
+            <ChartPreview chartConfig={JSON.stringify(chartData)} />
+          </div>
+        );
+      } else {
+        console.log('Invalid chart data found, missing type or data fields');
+      }
+    } catch (error) {
+      console.error('Failed to parse chart data for preview:', error);
+    }
+
+    return (
+      <div className="flex items-center justify-center w-full h-full text-muted-foreground">
+        Chart preview loading...
+      </div>
+    );
   };
 
   return (
@@ -279,6 +345,8 @@ const DocumentContent = ({ document }: { document: Document }) => {
           status={artifact.status}
           isInline={true}
         />
+      ) : document.kind === 'chart' ? (
+        renderChartPreview()
       ) : null}
     </div>
   );

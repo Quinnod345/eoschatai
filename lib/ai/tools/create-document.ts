@@ -1,7 +1,8 @@
 import { generateUUID } from '@/lib/utils';
-import { DataStreamWriter, tool } from 'ai';
+import { tool } from 'ai';
+import type { DataStreamWriter } from 'ai';
 import { z } from 'zod';
-import { Session } from 'next-auth';
+import type { Session } from 'next-auth';
 import {
   artifactKinds,
   documentHandlersByArtifactKind,
@@ -22,6 +23,8 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
     }),
     execute: async ({ title, kind }) => {
       const id = generateUUID();
+
+      console.log(`Creating document with kind: ${kind}, title: ${title}`);
 
       dataStream.writeData({
         type: 'kind',
@@ -52,6 +55,8 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
         throw new Error(`No document handler found for kind: ${kind}`);
       }
 
+      console.log(`Document handler found for kind: ${kind}, executing...`);
+
       await documentHandler.onCreateDocument({
         id,
         title,
@@ -59,13 +64,15 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
         session,
       });
 
+      console.log(`Document creation complete for kind: ${kind}`);
+
       dataStream.writeData({ type: 'finish', content: '' });
 
       return {
         id,
         title,
         kind,
-        content: 'A document was created and is now visible to the user.',
+        content: `I've created a document titled "${title}" for you in the right panel. You can review and interact with it there.`,
       };
     },
   });

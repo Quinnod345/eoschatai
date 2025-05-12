@@ -248,6 +248,7 @@ const Sidebar = React.forwardRef<
               ? 'group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]'
               : 'group-data-[collapsible=icon]:w-[--sidebar-width-icon]',
           )}
+          style={{ margin: 0, padding: 0 }}
         />
         <div
           className={cn(
@@ -349,6 +350,7 @@ const SidebarInset = React.forwardRef<
         'peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow',
         className,
       )}
+      style={{ marginLeft: 0, paddingLeft: 0 }}
       {...props}
     />
   );

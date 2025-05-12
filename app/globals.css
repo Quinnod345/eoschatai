@@ -14,6 +14,13 @@
     --hover-translate-y: -2px;
     --hover-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
     --spacing-unit: 0.25rem;
+
+    /* Font Size Settings */
+    --font-size-base: 1rem;
+    --font-size-sm: 0.875rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -217,6 +224,7 @@
 
     body {
         @apply bg-background text-foreground;
+        font-size: var(--font-size-base, 1rem);
     }
 
     /* Make all textareas transparent by default */
@@ -272,6 +280,27 @@
     select {
         @apply spring-transition;
         @apply focus:ring-2 focus:ring-primary/50 focus:ring-offset-1;
+    }
+
+    /* Apply font size to text elements */
+    .text-sm {
+        font-size: var(--font-size-sm, 0.875rem) !important;
+    }
+
+    .text-base {
+        font-size: var(--font-size-base, 1rem) !important;
+    }
+
+    .text-lg {
+        font-size: var(--font-size-lg, 1.125rem) !important;
+    }
+
+    .text-xl {
+        font-size: var(--font-size-xl, 1.25rem) !important;
+    }
+
+    .text-2xl {
+        font-size: var(--font-size-2xl, 1.5rem) !important;
     }
 }
 
@@ -422,4 +451,79 @@ button:hover .text-xs.text-muted-foreground,
         opacity: 0.3;
         transform: scale(1.5);
     }
+}
+
+/* UI Customization Settings */
+
+/* Interface Density Classes */
+.interface-compact {
+  --padding-button: 0.5rem 0.75rem;
+  --padding-input: 0.5rem;
+  --gap-default: 0.5rem;
+  --margin-block: 0.75rem;
+}
+
+.interface-comfortable {
+  --padding-button: 0.75rem 1rem;
+  --padding-input: 0.75rem;
+  --gap-default: 0.75rem;
+  --margin-block: 1rem;
+}
+
+.interface-spacious {
+  --padding-button: 1rem 1.5rem;
+  --padding-input: 1rem;
+  --gap-default: 1.25rem;
+  --margin-block: 1.5rem;
+}
+
+/* Apply interface density to components */
+button {
+  padding: var(--padding-button, 0.75rem 1rem);
+}
+
+input:not([type="checkbox"]):not([type="radio"]), 
+textarea, 
+select {
+  padding: var(--padding-input, 0.75rem);
+}
+
+.grid, 
+.flex {
+  gap: var(--gap-default, 0.75rem);
+}
+
+/* Font Size Settings Classes */
+.text-size-small {
+  --font-size-base: 0.875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.125rem;
+  --font-size-2xl: 1.25rem;
+}
+
+.text-size-medium {
+  --font-size-base: 1rem;
+  --font-size-sm: 0.875rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+}
+
+.text-size-large {
+  --font-size-base: 1.125rem;
+  --font-size-sm: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 1.75rem;
+}
+
+/* Fix for sidebar gap */
+.group\/sidebar-wrapper {
+  gap: 0 !important;
+}
+
+main[data-sidebar="sidebar-content"] {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
 }

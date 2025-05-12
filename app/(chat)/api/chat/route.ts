@@ -30,7 +30,7 @@ import {
   DEFAULT_PROVIDER,
   createCustomProvider,
 } from '@/lib/ai/providers';
-import { entitlementsByUserType } from '@/lib/ai/entitlements';
+import { entitlementsByUserType, getActiveTools } from '@/lib/ai/entitlements';
 import { postRequestBodySchema, type PostRequestBody } from './schema';
 import { geolocation } from '@vercel/functions';
 import {
@@ -43,7 +43,12 @@ import {
   findRelevantContent,
   deleteContentByKeyword,
 } from '@/lib/ai/embeddings';
-import { addResourceTool, getInformationTool } from '@/lib/ai/tools';
+import {
+  addResourceTool,
+  getInformationTool,
+  getCalendarEventsTool,
+  createCalendarEventTool,
+} from '@/lib/ai/tools';
 import { z } from 'zod';
 
 export const maxDuration = 60;
@@ -167,6 +172,40 @@ export async function POST(request: Request) {
       }
     }
 
+    // Check for @ mentions in the query text
+    const mentionMatches = queryText.match(/@(\w+):([^\s]+)/g) || [];
+    const detectedMentions = mentionMatches
+      .map((mention) => {
+        const [_, type, name] = mention.match(/@(\w+):(.+)/) || [];
+        return { type, name };
+      })
+      .filter(Boolean);
+
+    console.log(
+      `Detected ${detectedMentions.length} @ mentions in query:`,
+      detectedMentions,
+    );
+
+    // Track if we need to add special @ mention instructions
+    let hasMentionedCalendar = false;
+    let hasMentionedDocument = false;
+    let hasMentionedScorecard = false;
+    let hasMentionedVTO = false;
+    let hasMentionedRocks = false;
+    let hasMentionedPeople = false;
+
+    // Check what resources were referenced with @ mentions
+    if (detectedMentions.length > 0) {
+      for (const mention of detectedMentions) {
+        if (mention.type === 'calendar') hasMentionedCalendar = true;
+        if (mention.type === 'document') hasMentionedDocument = true;
+        if (mention.type === 'scorecard') hasMentionedScorecard = true;
+        if (mention.type === 'vto') hasMentionedVTO = true;
+        if (mention.type === 'rocks') hasMentionedRocks = true;
+        if (mention.type === 'people') hasMentionedPeople = true;
+      }
+    }
+
     // Only attempt to retrieve context if we have text to work with
     let relevantContent: Array<{ content: string; relevance: number }> = [];
     if (queryText) {
@@ -195,6 +234,77 @@ export async function POST(request: Request) {
       console.log(
         'RAG: No text content found in user message to use for retrieval',
       );
+    }
+
+    // Check if the user is asking about specific events in their calendar
+    const eventTypeMatches =
+      /(?:our|my|upcoming|next)\s+([a-z\s]+(?:session|meeting|review|appointment|event))/i.exec(
+        queryText,
+      );
+    let shouldCheckCalendar =
+      !!eventTypeMatches ||
+      queryText.toLowerCase().includes('quarterly session') ||
+      queryText.toLowerCase().includes('quarterly sessions') ||
+      queryText.toLowerCase().includes('vision building') ||
+      queryText.toLowerCase().includes('annual planning') ||
+      queryText.toLowerCase().includes('focus day');
+
+    // Extract the event type if present
+    let eventType = '';
+    if (eventTypeMatches?.[1]) {
+      eventType = eventTypeMatches[1].trim();
+      console.log(
+        `Calendar: Detected request about event type: "${eventType}"`,
+      );
+    } else if (shouldCheckCalendar) {
+      // Use specific named events
+      if (
+        queryText.toLowerCase().includes('quarterly session') ||
+        queryText.toLowerCase().includes('quarterly sessions')
+      )
+        eventType = 'quarterly session';
+      else if (queryText.toLowerCase().includes('vision building'))
+        eventType = 'vision building';
+      else if (queryText.toLowerCase().includes('annual planning'))
+        eventType = 'annual planning';
+      else if (queryText.toLowerCase().includes('focus day'))
+        eventType = 'focus day';
+      console.log(
+        `Calendar: Detected request about specific event: "${eventType}"`,
+      );
+    }
+
+    // If user is asking for help with a specific kind of session, we should check the calendar
+    // This handles cases like "Can you help me prepare for our Quarterly Session?"
+    if (
+      !shouldCheckCalendar &&
+      queryText.toLowerCase().includes('help') &&
+      (queryText.toLowerCase().includes('prepare') ||
+        queryText.toLowerCase().includes('ready'))
+    ) {
+      // Check for known EOS session types
+      if (
+        queryText.toLowerCase().includes('quarterly session') ||
+        queryText.toLowerCase().includes('quarterly sessions')
+      ) {
+        shouldCheckCalendar = true;
+        eventType = 'quarterly session';
+        console.log(
+          'Calendar: Detected preparation request for Quarterly Session',
+        );
+      } else if (queryText.toLowerCase().includes('vision building')) {
+        shouldCheckCalendar = true;
+        eventType = 'vision building';
+        console.log(
+          'Calendar: Detected preparation request for Vision Building',
+        );
+      } else if (queryText.toLowerCase().includes('annual planning')) {
+        shouldCheckCalendar = true;
+        eventType = 'annual planning';
+        console.log(
+          'Calendar: Detected preparation request for Annual Planning',
+        );
+      }
     }
 
     const { longitude, latitude, city, country } = geolocation(request);
@@ -251,6 +361,100 @@ export async function POST(request: Request) {
 
     // Add explicit instructions about remembering information
     let enhancedSystemPrompt = `${fullSystemPrompt}
+
+${
+  selectedChatModel === 'chat-model-reasoning'
+    ? `IMPORTANT REASONING MODEL LIMITATIONS:
+This is the Reasoning model, which has limited tool access. You CANNOT:
+1. Access calendar features
+2. Save information to the knowledge base
+3. Retrieve information from the knowledge base
+4. Most other tool functionality
+
+You CAN:
+1. Create and update documents
+2. Provide detailed step-by-step reasoning for complex problems
+`
+    : ''
+}
+
+${
+  detectedMentions.length > 0
+    ? `
+@ MENTION INSTRUCTIONS:
+The user has used @ mentions in their message. This indicates they want you to specifically focus on these linked resources.
+${
+  hasMentionedCalendar
+    ? `
+- Calendar mention detected: You should immediately check their calendar events by calling the getCalendarEvents tool. Present the results in a well-formatted table.
+`
+    : ''
+}
+${
+  hasMentionedDocument
+    ? `
+- Document mention detected: Focus your response on the document content and any specific user documents uploaded to the knowledge base.
+`
+    : ''
+}
+${
+  hasMentionedScorecard
+    ? `
+- Scorecard mention detected: Focus your response on EOS Scorecard concepts, measurables, and any scorecard content in their documents.
+`
+    : ''
+}
+${
+  hasMentionedVTO
+    ? `
+- Vision/Traction Organizer (V/TO) mention detected: Focus your response on V/TO concepts and any V/TO content in their documents.
+`
+    : ''
+}
+${
+  hasMentionedRocks
+    ? `
+- Rocks mention detected: Focus your response on the user's Rocks (priorities), quarterly goals, and any Rocks content in their documents.
+`
+    : ''
+}
+${
+  hasMentionedPeople
+    ? `
+- People Analyzer mention detected: Focus your response on EOS People Analyzer concepts, GWC, and any people-related content in their documents.
+`
+    : ''
+}
+
+Remove the @ mention syntax from your response but focus heavily on the mentioned resources.
+`
+    : ''
+}
+
+IMPORTANT RESPONSE GUIDELINES:
+1. When you use tools, NEVER display raw JSON responses in your replies.
+2. For Calendar data:
+   - Format them in a readable table or list format using markdown
+   - Only display the title, date, time, and location of events
+   - NEVER show the original response structure or raw data
+   - NEVER mention technical details about formatting
+   - If many events are returned, summarize them appropriately
+3. When confirming event creation:
+   - Simply state the event was created with its title and time
+   - Do not show any event details as JSON or raw data structure
+   - NEVER show any technical fields like 'id', 'htmlLink', etc.
+4. CRITICAL CALENDAR RULE: If you notice JSON structures in your text that contain fields like "events", "status", or "_formatInstructions", DELETE THIS IMMEDIATELY and only show the properly formatted data.
+5. This is especially critical for responses from the getCalendarEvents tool - NEVER emit raw JSON responses.
+6. ALWAYS format calendar data as clean tables using Markdown, never as raw data.
+
+AUTOMATIC CALENDAR INTELLIGENCE:
+1. When the user message mentions any type of meeting, event, or session (like "Quarterly Session", "Vision Building", "Annual Planning"):
+   - AUTOMATICALLY check their calendar for matching events 
+   - If matching events exist, INCLUDE them in your response
+   - If no matching events exist, DON'T mention the absence - simply respond to their question
+2. DO NOT make the user explicitly ask "Do I have one coming up?" - be proactive!
+3. When you find matching events, present them as a natural part of your response
+4. Format event information in clear, easy-to-read tables
 
 IMPORTANT RAG INSTRUCTIONS:
 1. The user has just said: "${queryText}"
@@ -346,6 +550,164 @@ SPECIAL INSTRUCTIONS FOR GROK:
   use the information provided in the context at the top of this prompt.`;
     }
 
+    // Add extra instructions about handling tool responses, particularly for calendar tools
+    const toolResponseInstructions = `
+CALENDAR DATA FORMATTING REQUIREMENTS:
+1. NEVER show raw JSON output directly to the user
+2. When displaying calendar events:
+   - Format them in a readable table or list format using markdown
+   - Only display the title, date, time, and location of events
+   - NEVER show the original response structure or raw data
+   - NEVER mention technical details about formatting
+   - If many events are returned, summarize them appropriately
+3. When confirming event creation:
+   - Simply state the event was created with its title and time
+   - Do not show any event details as JSON or raw data structure
+   - NEVER show any technical fields like 'id', 'htmlLink', etc.
+4. CRITICAL CALENDAR RULE: If you notice JSON structures in your text that contain fields like "events", "status", or "_formatInstructions", DELETE THIS IMMEDIATELY and only show the properly formatted data.
+5. This is especially critical for responses from the getCalendarEvents tool - NEVER emit raw JSON responses.
+6. ALWAYS format calendar data as clean tables using Markdown, never as raw data.
+
+AUTOMATIC CALENDAR CHECK INSTRUCTIONS:
+When the user asks about a specific type of event or session (like "Quarterly Session"), AUTOMATICALLY:
+1. Check their calendar using the getCalendarEvents tool
+2. If matching events exist, include them in your response WITHOUT mentioning the tool usage
+3. If no matching events exist, focus on answering their original question without mentioning "I checked your calendar and found no events"
+4. Be proactive - don't wait for them to explicitly ask "Do I have one coming up?"
+5. For known EOS events like "Quarterly Session", "Vision Building", "Annual Planning", or "Focus Day", always check the calendar automatically
+`;
+
+    // Add special case for calendar questions with reasoning model
+    if (
+      selectedChatModel === 'chat-model-reasoning' &&
+      (queryText.toLowerCase().includes('calendar') ||
+        queryText.toLowerCase().includes('event') ||
+        queryText.toLowerCase().includes('session') ||
+        queryText.toLowerCase().includes('schedule') ||
+        shouldCheckCalendar)
+    ) {
+      console.log(
+        'Reasoning model: Adding special instructions for calendar-related query',
+      );
+      enhancedSystemPrompt += `
+
+SPECIAL CALENDAR LIMITATION:
+I notice you're asking about calendars, events, or scheduling. As a Reasoning model, I don't have access to calendar features. If you need to:
+- Check your calendar
+- Schedule events
+- Find upcoming sessions
+- Manage your appointments
+
+Please switch to the regular Chat model using the model dropdown in the top-right corner. The Chat model has full calendar integration capabilities.
+`;
+    }
+
+    // For document mentions
+    if (
+      (hasMentionedDocument ||
+        hasMentionedScorecard ||
+        hasMentionedVTO ||
+        hasMentionedRocks ||
+        hasMentionedPeople) &&
+      selectedChatModel !== 'chat-model-reasoning'
+    ) {
+      try {
+        console.log('Documents: Processing document-related @ mentions');
+
+        // Here we'll add special prompt instructions to focus on document context
+        // The document context is already loaded from fullSystemPrompt
+        // But we'll add additional emphasis based on the specific document type mentioned
+
+        const documentTypes = {
+          document: hasMentionedDocument,
+          scorecard: hasMentionedScorecard,
+          vto: hasMentionedVTO,
+          rocks: hasMentionedRocks,
+          people: hasMentionedPeople,
+        };
+
+        // Get the specific document types that were mentioned
+        const mentionedTypes = Object.entries(documentTypes)
+          .filter(([_, mentioned]) => mentioned)
+          .map(([type]) => type);
+
+        // Create focused document context instructions
+        if (mentionedTypes.length > 0) {
+          enhancedSystemPrompt += `
+
+DOCUMENT FOCUS INSTRUCTIONS:
+The user has specifically requested information about: ${mentionedTypes.join(', ')}.
+
+${
+  hasMentionedDocument
+    ? `
+DOCUMENT MENTION:
+- Focus on the user's uploaded documents
+- Give specific information from their documents
+- Don't give generic information if document content is available
+`
+    : ''
+}
+
+${
+  hasMentionedScorecard
+    ? `
+SCORECARD MENTION:
+- Focus on the user's Scorecard content
+- Refer to their measurables, metrics, and KPIs
+- Discuss specific numbers, targets, and owners if available
+- Connect to Scorecard best practices when relevant
+`
+    : ''
+}
+
+${
+  hasMentionedVTO
+    ? `
+VISION/TRACTION ORGANIZER (V/TO) MENTION:
+- Focus on the user's V/TO content
+- Reference their Core Values, Core Focus, and 10-Year Target
+- Include their Marketing Strategy, 3 Uniques, and Proven Process
+- Discuss their 3-Year Picture, 1-Year Plan, and Quarterly Rocks
+`
+    : ''
+}
+
+${
+  hasMentionedRocks
+    ? `
+ROCKS MENTION:
+- Focus on the user's quarterly priorities
+- Discuss their Rocks - specific priorities for the current quarter
+- Reference any Rock completion status if available
+- Explain how these align with EOS Rocks best practices
+`
+    : ''
+}
+
+${
+  hasMentionedPeople
+    ? `
+PEOPLE ANALYZER MENTION:
+- Focus on the People Analyzer component of EOS
+- Reference GWC (Get it, Want it, Capacity to do it)
+- Discuss core values alignment in their team
+- Provide specific information from their People Analyzer data if available
+`
+    : ''
+}
+
+Always prioritize the user's document content over generic information. If specific document content isn't available, clearly state this and provide best practices instead.
+`;
+        }
+      } catch (docError) {
+        console.error(
+          'Documents: Error handling document @ mentions:',
+          docError,
+        );
+      }
+    }
+
     // Create response stream
     const responseStream = createDataStream({
       execute: async (dataStream) => {
@@ -375,6 +737,8 @@ SPECIAL INSTRUCTIONS FOR GROK:
                     'addResource',
                     'getInformation',
                     'cleanKnowledgeBase',
+                    'getCalendarEvents',
+                    'createCalendarEvent',
                   ],
             experimental_transform: smoothStream({ chunking: 'word' }),
             experimental_generateMessageId: generateUUID,
@@ -413,7 +777,7 @@ SPECIAL INSTRUCTIONS FOR GROK:
                     }
                   }
 
-                  const result = await addResourceTool.handler(
+                  const result = await addResourceTool.execute(
                     { title, content: contentText },
                     session.user.id,
                   );
@@ -440,14 +804,14 @@ SPECIAL INSTRUCTIONS FOR GROK:
                     query,
                     limit,
                   });
-                  const result = await getInformationTool.handler({
-                    query,
-                    limit,
-                  });
-                  console.log(
-                    `RAG: Retrieved ${result.results?.length || 0} results from knowledge base`,
+                  const infoResult = await getInformationTool.execute(
+                    { query, limit },
+                    session.user.id,
                   );
-                  return result;
+                  console.log(
+                    `RAG: Retrieved ${infoResult.results?.length || 0} results from knowledge base`,
+                  );
+                  return infoResult;
                 },
               }),
               cleanKnowledgeBase: tool({
@@ -501,6 +865,221 @@ SPECIAL INSTRUCTIONS FOR GROK:
                       status: 'error',
                       message:
                         'I encountered an error while cleaning the knowledge base.',
+                    };
+                  }
+                },
+              }),
+              // Add Google Calendar tools
+              getCalendarEvents: tool({
+                description:
+                  "Get the user's upcoming calendar events. Use this when the user asks about their schedule, upcoming meetings, or events.",
+                parameters: z.object({
+                  timeMin: z
+                    .string()
+                    .optional()
+                    .describe(
+                      'The RFC3339 timestamp for the earliest time to fetch events from (defaults to now)',
+                    ),
+                  timeMax: z
+                    .string()
+                    .optional()
+                    .describe(
+                      'The RFC3339 timestamp for the latest time to fetch events to (defaults to 7 days from now)',
+                    ),
+                  maxResults: z
+                    .number()
+                    .optional()
+                    .describe(
+                      'Maximum number of events to return (default: 10)',
+                    ),
+                  searchTerm: z
+                    .string()
+                    .optional()
+                    .describe(
+                      'Optional search term to filter events by keyword in title or description',
+                    ),
+                }),
+                execute: async ({
+                  timeMin,
+                  timeMax,
+                  maxResults,
+                  searchTerm,
+                }) => {
+                  console.log('Calendar: Tool called to get calendar events', {
+                    timeMin,
+                    timeMax,
+                    maxResults,
+                    searchTerm,
+                  });
+
+                  try {
+                    // Use the direct tool.execute method to avoid URL construction issues
+                    const calendarResult = await getCalendarEventsTool.execute(
+                      { timeMin, timeMax, maxResults, searchTerm },
+                      session.user.id,
+                    );
+
+                    console.log(
+                      `Calendar: Retrieved ${
+                        calendarResult.events?.length || 0
+                      } events from calendar`,
+                    );
+
+                    // Add extra formatting instructions for AI to avoid raw JSON display
+                    if (
+                      calendarResult.status === 'success' &&
+                      Array.isArray(calendarResult.events)
+                    ) {
+                      // Structure the data in a way that forces proper formatting and prevents raw display
+                      return {
+                        status: 'success',
+                        message: `Found ${calendarResult.events.length} upcoming events in your calendar.`,
+                        _formatInstructions:
+                          "CRITICAL: Present these events ONLY in a properly formatted table or list, NEVER as raw JSON. Only include date, time, title, and location in your presentation. NEVER show properties like 'id', 'htmlLink', or any technical details. NEVER show the raw JSON object in your response. Do not use code blocks to display this data. Format calendar events using markdown as a table (| Title | Date | Time | Location |) or a clear list format with bold headers. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.",
+                        isCalendarEvents: true, // Flag to signal this is calendar data
+                        hideJSON: true, // Flag to signal this should not be shown as JSON
+                        formattedEvents: calendarResult.events.map(
+                          (event: {
+                            start?: { dateTime?: string };
+                            summary?: string;
+                            location?: string;
+                            [key: string]: any;
+                          }) => ({
+                            title: event.summary || 'Untitled Event',
+                            date: event.start?.dateTime
+                              ? new Date(
+                                  event.start.dateTime,
+                                ).toLocaleDateString()
+                              : 'No date',
+                            time: event.start?.dateTime
+                              ? new Date(
+                                  event.start.dateTime,
+                                ).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : 'No time',
+                            location: event.location || 'No location',
+                          }),
+                        ),
+                      };
+                    }
+
+                    return calendarResult;
+                  } catch (error) {
+                    console.error('Calendar tool error:', error);
+                    return {
+                      status: 'error',
+                      message:
+                        'Failed to fetch calendar events. Please try again.',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              createCalendarEvent: tool({
+                description:
+                  "Create a new event in the user's Google Calendar. Use this when the user wants to schedule a meeting or add an event to their calendar.",
+                parameters: z.object({
+                  summary: z
+                    .string()
+                    .describe('The title/summary of the event'),
+                  description: z
+                    .string()
+                    .optional()
+                    .describe('Optional detailed description of the event'),
+                  location: z
+                    .string()
+                    .optional()
+                    .describe('Optional location of the event'),
+                  startDateTime: z
+                    .string()
+                    .describe(
+                      'The RFC3339 timestamp for the start time of the event',
+                    ),
+                  endDateTime: z
+                    .string()
+                    .describe(
+                      'The RFC3339 timestamp for the end time of the event',
+                    ),
+                  attendees: z
+                    .array(z.string())
+                    .optional()
+                    .describe('Optional list of email addresses of attendees'),
+                }),
+                execute: async ({
+                  summary,
+                  description,
+                  location,
+                  startDateTime,
+                  endDateTime,
+                  attendees,
+                }) => {
+                  console.log(
+                    'Calendar: Tool called to create calendar event',
+                    {
+                      summary,
+                      startDateTime,
+                      endDateTime,
+                    },
+                  );
+
+                  try {
+                    // Use direct tool execution with proper error handling
+                    const eventResult = await createCalendarEventTool.execute(
+                      {
+                        summary,
+                        description,
+                        location,
+                        startDateTime,
+                        endDateTime,
+                        attendees,
+                      },
+                      session.user.id,
+                    );
+
+                    console.log(
+                      `Calendar: ${
+                        eventResult.status === 'success'
+                          ? 'Successfully created'
+                          : 'Failed to create'
+                      } calendar event`,
+                    );
+
+                    // Add formatting instructions to prevent raw JSON display
+                    if (eventResult.status === 'success') {
+                      const startDate = new Date(
+                        startDateTime,
+                      ).toLocaleString();
+                      return {
+                        status: 'success',
+                        isCalendarEvent: true, // Flag to signal this is calendar data
+                        hideJSON: true, // Flag to signal this should not be shown as JSON
+                        _formatInstructions:
+                          'CRITICAL: Confirm the event was created with a simple sentence, NEVER as raw JSON. NEVER show any raw JSON or object data. NEVER display function call syntax, API responses, or JSON objects in your response. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.',
+                        message: `Successfully created event "${summary}" for ${startDate}.`,
+                        eventDetails: {
+                          title: summary,
+                          date: new Date(startDateTime).toLocaleDateString(),
+                          time: new Date(startDateTime).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }),
+                          location: location || 'No location',
+                        },
+                      };
+                    }
+
+                    return eventResult;
+                  } catch (error) {
+                    console.error('Calendar create event error:', error);
+                    return {
+                      status: 'error',
+                      message:
+                        'Failed to create calendar event. Please try again.',
+                      error:
+                        error instanceof Error ? error.message : String(error),
                     };
                   }
                 },
@@ -564,10 +1143,10 @@ SPECIAL INSTRUCTIONS FOR GROK:
               );
             }
 
-            // Consume and merge the stream
+            // Remove the stream processing code
             result.consumeStream();
             result.mergeIntoDataStream(dataStream, {
-              sendReasoning: true,
+              sendReasoning: false,
             });
           } catch (streamError) {
             console.error('RAG ERROR: Error processing stream:', streamError);
@@ -604,7 +1183,7 @@ SPECIAL INSTRUCTIONS FOR GROK:
         // Only proceed if there's meaningful content
         if (contentToRemember.length > 3) {
           const title = `User Note: ${contentToRemember.substring(0, 30)}${contentToRemember.length > 30 ? '...' : ''}`;
-          await addResourceTool.handler(
+          await addResourceTool.execute(
             { title, content: contentToRemember },
             session.user.id,
           );
@@ -612,6 +1191,222 @@ SPECIAL INSTRUCTIONS FOR GROK:
         }
       } catch (saveError) {
         console.error('RAG: Error auto-saving content:', saveError);
+      }
+    }
+
+    // Handle @ mention resource requests
+    // For calendar mentions
+    if (hasMentionedCalendar && selectedChatModel !== 'chat-model-reasoning') {
+      try {
+        console.log('Calendar: Auto-checking calendar from @ mention');
+
+        // Create timeMin and timeMax for next 3 months
+        const now = new Date();
+        const threeMonthsLater = new Date();
+        threeMonthsLater.setMonth(now.getMonth() + 3);
+
+        try {
+          // Directly call the calendar API to ensure results are available for the AI
+          console.log('Calendar: Executing calendar tool from @ mention');
+
+          getCalendarEventsTool
+            .execute(
+              {
+                timeMin: now.toISOString(),
+                timeMax: threeMonthsLater.toISOString(),
+                maxResults: 15,
+              },
+              session.user.id,
+            )
+            .then((calendarResult) => {
+              console.log(
+                `Calendar @ mention: Retrieved ${calendarResult.events?.length || 0} events`,
+              );
+
+              // Update the system prompt with the calendar results
+              if (
+                calendarResult.status === 'success' &&
+                Array.isArray(calendarResult.events) &&
+                calendarResult.events.length > 0
+              ) {
+                enhancedSystemPrompt += `
+
+CALENDAR RESULTS FROM @ MENTION:
+The user has requested calendar information. Here are their upcoming events:
+
+| Event | Date | Time | Location |
+|-------|------|------|----------|
+${calendarResult.events
+  .map(
+    (event: {
+      summary?: string;
+      start?: { dateTime?: string };
+      location?: string;
+    }) => {
+      const eventDate = event.start?.dateTime
+        ? new Date(event.start.dateTime).toLocaleDateString()
+        : 'No date';
+      const eventTime = event.start?.dateTime
+        ? new Date(event.start.dateTime).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'No time';
+      return `| ${event.summary || 'Untitled Event'} | ${eventDate} | ${eventTime} | ${event.location || 'No location'} |`;
+    },
+  )
+  .join('\n')}
+
+Present this information to the user in a clear and readable format. Format it as a table using markdown syntax.
+`;
+              } else if (
+                calendarResult.status === 'error' &&
+                calendarResult.authRequired
+              ) {
+                enhancedSystemPrompt += `
+
+CALENDAR CONNECTION ISSUE:
+The user mentioned calendar, but they need to connect their Google Calendar in Settings > Integrations.
+Please inform them of this requirement.
+`;
+              } else {
+                enhancedSystemPrompt += `
+
+CALENDAR RESULTS FROM @ MENTION:
+No upcoming events found in the user's calendar.
+`;
+              }
+            })
+            .catch((error) => {
+              console.error(
+                'Calendar: Error retrieving events for @ mention:',
+                error,
+              );
+            });
+        } catch (toolError) {
+          console.error(
+            'Calendar: Failed to execute calendar tool for @ mention:',
+            toolError,
+          );
+        }
+      } catch (mentionError) {
+        console.error('Calendar: Error in @ mention processing:', mentionError);
+      }
+    }
+
+    // Auto-check calendar for specific event types
+    if (
+      shouldCheckCalendar &&
+      eventType &&
+      selectedChatModel !== 'chat-model-reasoning'
+    ) {
+      try {
+        console.log(`Calendar: Auto-checking for "${eventType}" events`);
+
+        // Create timeMin and timeMax for next 6 months
+        const now = new Date();
+        const sixMonthsLater = new Date();
+        sixMonthsLater.setMonth(now.getMonth() + 6);
+
+        // Save the event type to use in the query later
+        const calendarEventType = eventType;
+
+        // Pre-emptively call getCalendarEvents to check for matching event types
+        // This way the AI will have access to this information without explicitly calling the tool
+        console.log(
+          `Calendar: Triggering auto-calendar check for "${calendarEventType}" events`,
+        );
+
+        try {
+          // Directly execute the calendar tool with a 6-month range
+          getCalendarEventsTool
+            .execute(
+              {
+                timeMin: now.toISOString(),
+                timeMax: sixMonthsLater.toISOString(),
+                maxResults: 20,
+                searchTerm: calendarEventType,
+              },
+              session.user.id,
+            )
+            .then((calendarResult) => {
+              console.log(
+                `Calendar: Auto-check complete, found ${calendarResult.events?.length || 0} events`,
+              );
+
+              // Since we're using searchTerm, we don't need the additional filtering here
+              if (
+                calendarResult.status === 'success' &&
+                Array.isArray(calendarResult.events)
+              ) {
+                const matchingEvents = calendarResult.events;
+
+                console.log(
+                  `Calendar: Found ${matchingEvents.length} events matching "${calendarEventType}"`,
+                );
+
+                // This data will be available to the AI model during its response generation
+                enhancedSystemPrompt += `
+
+CALENDAR SEARCH RESULTS:
+The user asked about "${calendarEventType}". ${
+                  matchingEvents.length > 0
+                    ? `There are ${matchingEvents.length} matching events in their calendar:`
+                    : `There are no matching events in their calendar.`
+                }
+${
+  matchingEvents.length > 0
+    ? `
+Here are the matching events:
+
+| Event | Date | Time | Location |
+|-------|------|------|----------|
+${matchingEvents
+  .map(
+    (event: {
+      summary?: string;
+      start?: { dateTime?: string };
+      location?: string;
+    }) => {
+      const eventDate = event.start?.dateTime
+        ? new Date(event.start.dateTime).toLocaleDateString()
+        : 'No date';
+      const eventTime = event.start?.dateTime
+        ? new Date(event.start.dateTime).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'No time';
+      return `| ${event.summary || 'Untitled Event'} | ${eventDate} | ${eventTime} | ${event.location || 'No location'} |`;
+    },
+  )
+  .join('\n')}
+`
+    : ''
+}
+                
+${
+  matchingEvents.length > 0
+    ? 'IMPORTANT: Include this information in your response using the table format above. NEVER mention that you searched their calendar or that you found these events. Simply respond to their question first, then mention "I see you have the following on your calendar:" and include the table. Format it nicely with a clear header row and well-aligned columns.'
+    : 'You should NOT mention that there are no events found. Just answer their question without referencing their calendar.'
+}
+`;
+              }
+            })
+            .catch((error) => {
+              console.error(
+                'Calendar: Auto-check calendar event search failed:',
+                error,
+              );
+            });
+        } catch (toolError) {
+          console.error(
+            'Calendar: Failed to execute calendar tool:',
+            toolError,
+          );
+        }
+      } catch (calendarError) {
+        console.error('Calendar: Error in auto-calendar check:', calendarError);
       }
     }
 

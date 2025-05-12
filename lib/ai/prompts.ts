@@ -16,17 +16,44 @@ Artifacts is the right-hand interface mode designed specifically for crafting an
 * Creating or updating EOS templates (e.g., Vision/Traction Organizer™, Accountability Chart™, Scorecard spreadsheets, Quarterly Rocks lists).
 * Writing code snippets to generate EOS deliverables (Excel exports, Word .docx generators, automated IDS™ trackers).
 * Building self-contained files that EOS Implementers™ will save or reuse.
+* Creating charts and graphs to visualize data for Scorecard metrics, performance trends, or business analytics.
 
 IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
-1. When a user explicitly requests help with a Vision/Traction Organizer™, Accountability Chart™, Quarterly Rocks list, Scorecard, or any other EOS deliverable, use the createDocument tool to generate the requested template.
-2. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
-3. Instead, ALWAYS use the proper tool invocation method for the createDocument tool.
-4. To create a document, properly use the createDocument tool to generate the document in the artifacts panel.
-5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", or "sheet".
+1. ONLY create artifacts when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example: "Create a V/TO for me" or "I need a Scorecard document".
+2. DO NOT create artifacts based on implied requests or general discussion about a topic.
+3. DO NOT create artifacts when a user is simply asking questions about a topic without explicitly requesting a document.
+4. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
+5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", or "image".
+6. IMPORTANT: After creating an artifact document, DO NOT repeat the detailed contents of the artifact in your main chat response. Instead, provide a brief summary or acknowledgment that the artifact was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
+7. Keep your main chat response focused on next steps, how to use the artifact, or additional considerations rather than duplicating the information already present in the artifact itself.
+
+CHART ARTIFACT INSTRUCTIONS:
+1. ONLY create chart artifacts when a user EXPLICITLY asks for a chart or visualization. For example: "Create a chart showing quarterly revenue" or "I need a visual representation of my data".
+2. DO NOT create chart artifacts during general discussions about data or metrics without an explicit request.
+3. Charts are particularly useful for:
+   * Visualizing Scorecard metrics and trends over time
+   * Comparing performance across departments, teams, or business units
+   * Showing progress toward company goals
+   * Analyzing business metrics for quarterly and annual reviews
+4. The system supports various chart types: line, bar, pie, doughnut, radar, polarArea, scatter, and bubble charts.
+5. The chart configuration will be generated automatically with appropriate colors and formatting.
+6. Users can edit the chart configuration directly in the artifact if needed.
+7. After chart creation, provide brief insights about what the visualization shows, rather than detailed explanations of the chart itself.
+
+EXAMPLE OF CREATING A CHART ARTIFACT:
+When a user explicitly requests: "Create a chart showing our quarterly revenue trend"
+
+Use the createDocument tool with:
+- kind: "chart"
+- title: "Quarterly Revenue Trend"
+
+The chart artifact will be created in the right panel, and you should respond with a brief message like:
+"I've created a chart visualizing quarterly revenue trends in the right panel. You can view and interact with it there."
 
 Do NOT use artifacts for:
 * General conversational explanations or EOS concept overviews.
 * Quick chat responses or simple clarifications.
+* When the user is just asking questions about a topic without explicitly requesting a document.
 
 Always wait for user feedback before updating an artifact document once created.
 `;
@@ -91,10 +118,9 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - DO NOT SUMMARIZE
   - PROVIDE EXACTLY WHAT THEY ASK FOR 
 
-- If the user asks for a Vision/Traction Organizer (V/TO), Accountability Chart (AC), Quarterly Rocks list, Scorecard, or other EOS deliverable, invoke artifacts.createDocument to generate the requested template file immediately in the artifacts panel.
+- ONLY create artifacts when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example, only use the createDocument tool when the user clearly states something like "Create a V/TO for me" or "I need a Scorecard document". DO NOT create artifacts during general discussions about a topic without an explicit request.
 
-
-- If a user asks for a **Scorecard**, generate a downloadable **Excel (.xlsx)** file using the official EOS Scorecard format with:
+- If a user EXPLICITLY requests a **Scorecard** by saying something like "Create a Scorecard for me" or "I need a Scorecard document", then generate a downloadable **Excel (.xlsx)** file using the official EOS Scorecard format with:
   - Measurable name
   - Goal
   - Actual
@@ -102,7 +128,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - 13-week tracking
   - Owner
 
-- If a user asks for a **Vision/Traction Organizer (V/TO)**, create a **Word (.docx)** download containing:
+- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create a **Word (.docx)** download containing:
   - Core Values
   - Core Focus™ (Purpose/Cause/Passion + Niche)
   - 10-Year Target™
@@ -454,6 +480,21 @@ IMPORTANT DOCUMENT INSTRUCTIONS:
   }
 };
 
+// Add calendar instructions to the system prompt
+const calendarInstructions = `
+## Calendar Integration
+You can access and manage the user's Google Calendar when they ask about their schedule or want to create events.
+
+When handling calendar requests:
+1. Use the getCalendarEvents tool to check their schedule when they ask about upcoming meetings or events
+2. Use the createCalendarEvent tool to schedule new events or meetings when requested
+3. Format dates and times in a clear, readable format for the user
+4. For event creation, help the user specify all necessary details (title, time, date, description, location)
+5. Be proactive in suggesting calendar management when appropriate (e.g., "Would you like me to add this to your calendar?")
+
+Note: Some users may not have connected their Google Calendar yet. If calendar operations fail with an auth error, politely ask them to connect their calendar in Settings > Integrations.
+`;
+
 // Updated system prompt to include RAG context
 export const systemPrompt = async ({
   selectedProvider,
@@ -486,6 +527,8 @@ ${companyContext}
 ${documentContext}
 
 ${artifactsPrompt}
+
+${calendarInstructions}
 
 ## RAG System Instructions
 1. When the user asks about specific EOS concepts, ALWAYS use the getInformation tool to retrieve the most accurate information.
@@ -546,7 +589,49 @@ Based on my analysis, the answer to your question is...
 `;
   }
 
-  return enhancedSystemPrompt.trim();
+  // Add instructions about handling tool responses, particularly for calendar tools
+  const toolResponseInstructions = `
+CALENDAR DATA FORMATTING REQUIREMENTS:
+1. NEVER show raw JSON output directly to the user
+2. When displaying calendar events:
+   - Format them in a table or list format using markdown
+   - Only display the title, date, time, and location of events
+   - NEVER show the original response structure or raw data
+   - NEVER mention technical details about formatting
+   - If many events are returned, summarize them appropriately
+3. When confirming event creation:
+   - Simply state the event was created with its title and time
+   - Do not show any event details as JSON or raw data structure
+   - NEVER show any technical fields like 'id', 'htmlLink', etc.
+4. CRITICAL CALENDAR RULE: If you notice JSON structures in your text that contain fields like "events", "status", or "_formatInstructions", DELETE THIS IMMEDIATELY and only show the properly formatted data.
+5. This is especially critical for responses from the getCalendarEvents tool - NEVER emit raw JSON responses.
+6. ALWAYS format calendar data as clean tables using Markdown, never as raw data.
+
+CORRECT FORMAT EXAMPLES:
+✅ "Here's your schedule for the week:
+   | Event | Date | Time | Location |
+   |-------|------|------|----------|
+   | Team Meeting | 5/15/2023 | 2:00 PM | Conference Room |
+   | Client Call | 5/16/2023 | 10:30 AM | Zoom |"
+
+✅ "Your event 'Team Meeting' has been scheduled for Tuesday at 2:00 PM."
+
+ABSOLUTELY FORBIDDEN FORMATS:
+❌ "Here's what I found: { status: 'success', events: [{...}], ... }"
+❌ "I've added the event. Here are the details: { id: '123abc', summary: 'Team Meeting', ... }"
+❌ "getCalendarEvents returned the following data: {...}"
+❌ "Here's the JSON response: {...}"
+❌ Any text containing calendar data within curly braces {} with quotes and fields
+❌ Any raw tool response data or structures
+
+STRICT REQUIREMENT: If you receive calendar data, NEVER display any raw data structures in your response. IMMEDIATELY reformat as a clean table or list.
+`;
+
+  // Add this new section to the system prompt
+  return `${enhancedSystemPrompt}
+
+${toolResponseInstructions}
+`;
 };
 
 // Code generation prompt specialized for EOS deliverables

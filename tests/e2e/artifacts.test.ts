@@ -24,9 +24,10 @@ test.describe('Artifacts activity', () => {
     expect(artifactPage.artifact).toBeVisible();
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      'A document was created and is now visible to the user.',
+    expect(assistantMessage.content).toContain(
+      "I've created a document titled",
     );
+    expect(assistantMessage.content).toContain('for you in the right panel');
 
     await chatPage.hasChatIdInUrl();
   });
@@ -42,9 +43,10 @@ test.describe('Artifacts activity', () => {
     expect(artifactPage.artifact).toBeVisible();
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      'A document was created and is now visible to the user.',
+    expect(assistantMessage.content).toContain(
+      "I've created a document titled",
     );
+    expect(assistantMessage.content).toContain('for you in the right panel');
 
     await artifactPage.closeArtifact();
     await chatPage.isElementNotVisible('artifact');
@@ -61,9 +63,10 @@ test.describe('Artifacts activity', () => {
     expect(artifactPage.artifact).toBeVisible();
 
     const assistantMessage = await artifactPage.getRecentAssistantMessage();
-    expect(assistantMessage.content).toBe(
-      'A document was created and is now visible to the user.',
+    expect(assistantMessage.content).toContain(
+      "I've created a document titled",
     );
+    expect(assistantMessage.content).toContain('for you in the right panel');
 
     await artifactPage.sendUserMessage('Thanks!');
     await artifactPage.isGenerationComplete();

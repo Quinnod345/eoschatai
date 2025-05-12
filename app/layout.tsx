@@ -2,14 +2,20 @@ import { Toaster } from 'sonner';
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
+import { UISettingsProvider } from '@/components/ui-settings-provider';
 
 import './globals.css';
 import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://chat.vercel.ai'),
-  title: 'Next.js Chatbot Template',
-  description: 'Next.js chatbot template using the AI SDK.',
+  title: 'EOS AI',
+  description: 'AI-powered chat assistant for EOS Worldwide.',
+  icons: {
+    icon: '/images/eos-logo.png',
+    shortcut: '/images/eos-logo.png',
+    apple: '/images/eos-logo.png',
+  },
 };
 
 export const viewport = {
@@ -70,7 +76,10 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-zinc-900 dark:via-zinc-950 dark:to-slate-900">
+      <body
+        className="antialiased bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-zinc-900 dark:via-zinc-950 dark:to-slate-900"
+        suppressHydrationWarning
+      >
         <div className="fixed inset-0 z-[-1] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:20px_20px] opacity-40" />
         <div className="fixed inset-0 z-[-2] bg-animate-pattern bg-[linear-gradient(45deg,rgba(125,211,252,0.1)_25%,transparent_25%,transparent_50%,rgba(125,211,252,0.1)_50%,rgba(125,211,252,0.1)_75%,transparent_75%,transparent)] dark:bg-[linear-gradient(45deg,rgba(31,41,55,0.3)_25%,transparent_25%,transparent_50%,rgba(31,41,55,0.3)_50%,rgba(31,41,55,0.3)_75%,transparent_75%,transparent)] [background-size:64px_64px]" />
         <ThemeProvider
@@ -101,7 +110,9 @@ export default async function RootLayout({
               descriptionClassName: 'text-sm',
             }}
           />
-          <SessionProvider>{children}</SessionProvider>
+          <SessionProvider>
+            <UISettingsProvider>{children}</UISettingsProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { chatModels } from '@/lib/ai/models';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/toast';
 
 import { CheckCircleFillIcon, ChevronDownIcon } from './icons';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
@@ -80,9 +81,36 @@ export function ModelSelector({
                   setOptimisticModelId(id);
                   saveChatModelAsCookie(id);
 
-                  // Clear any pending provider change timestamp
+                  // Show warning toast for reasoning model
+                  if (
+                    id === 'chat-model-reasoning' &&
+                    optimisticModelId !== id
+                  ) {
+                    toast({
+                      type: 'error',
+                      description:
+                        "The Reasoning model has limited functionality. It cannot access calendar features, use saved knowledge, retrieve documents, or use most other tools. It's designed for step-by-step reasoning on complex problems.",
+                    });
+                  }
+
+                  // Dispatch a custom event for model change
                   if (typeof window !== 'undefined') {
+                    // Clear any pending provider change timestamp
                     sessionStorage.removeItem('provider_change_timestamp');
+
+                    // Set model in session storage
+                    sessionStorage.setItem('current_model', id);
+
+                    // Create and dispatch a custom event
+                    const event = new CustomEvent('modelChanged', {
+                      detail: {
+                        modelId: id,
+                        timestamp: Date.now(),
+                        preventReload: true,
+                      },
+                    });
+                    window.dispatchEvent(event);
+                    console.log(`Model change event dispatched: ${id}`);
                   }
                 });
               }}

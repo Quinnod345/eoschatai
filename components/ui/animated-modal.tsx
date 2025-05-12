@@ -80,6 +80,15 @@ export function AnimatedModal({
   // Handle request to close from AlertDialog
   const handleOpenChange = (open: boolean) => {
     if (!open && !isClosing && !preventAutoClose) {
+      // Check if any dropdown is open before closing
+      const openDropdowns = document.querySelectorAll('[data-state="open"]');
+      const selectContent = document.querySelector('[role="listbox"]');
+
+      // Don't close if there are open dropdowns
+      if (openDropdowns.length > 0 || selectContent) {
+        return;
+      }
+
       setIsClosing(true);
     }
   };

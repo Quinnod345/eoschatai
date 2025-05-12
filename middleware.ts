@@ -17,7 +17,10 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/api/auth') ||
     pathname === '/login' ||
-    pathname === '/register'
+    pathname === '/register' ||
+    pathname === '/calendar-test.html' || // Allow access to calendar test page
+    pathname === '/calendar-test' ||
+    pathname === '/calendar-debug' // Allow access to the new debug page
   ) {
     return NextResponse.next();
   }

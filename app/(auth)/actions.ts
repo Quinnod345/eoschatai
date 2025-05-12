@@ -25,14 +25,23 @@ export const login = async (
       password: formData.get('password'),
     });
 
-    await signIn('credentials', {
-      email: validatedData.email,
-      password: validatedData.password,
-      redirect: false,
-    });
+    console.log(`Login attempt for user: ${validatedData.email}`);
 
-    return { status: 'success' };
+    try {
+      await signIn('credentials', {
+        email: validatedData.email,
+        password: validatedData.password,
+        redirect: true,
+        callbackUrl: '/',
+      });
+
+      return { status: 'success' };
+    } catch (signInError) {
+      console.error('Login error:', signInError);
+      return { status: 'failed' };
+    }
   } catch (error) {
+    console.error('Login validation error:', error);
     if (error instanceof z.ZodError) {
       return { status: 'invalid_data' };
     }
@@ -61,20 +70,39 @@ export const register = async (
       password: formData.get('password'),
     });
 
-    const [user] = await getUser(validatedData.email);
+    // Check if the user already exists
+    const users = await getUser(validatedData.email);
 
-    if (user) {
-      return { status: 'user_exists' } as RegisterActionState;
+    if (users.length > 0) {
+      console.log(
+        `Registration attempt: User with email ${validatedData.email} already exists`,
+      );
+      return { status: 'user_exists' };
     }
-    await createUser(validatedData.email, validatedData.password);
-    await signIn('credentials', {
-      email: validatedData.email,
-      password: validatedData.password,
-      redirect: false,
-    });
 
-    return { status: 'success' };
+    // Create the new user
+    console.log(
+      `Registration: Creating new user with email ${validatedData.email}`,
+    );
+    await createUser(validatedData.email, validatedData.password);
+
+    // Attempt to sign in with the new credentials
+    try {
+      await signIn('credentials', {
+        email: validatedData.email,
+        password: validatedData.password,
+        redirect: true,
+        callbackUrl: '/',
+      });
+
+      return { status: 'success' };
+    } catch (signInError) {
+      console.error('Error signing in after registration:', signInError);
+      // Even if sign-in fails, registration was successful
+      return { status: 'success' };
+    }
   } catch (error) {
+    console.error('Registration error:', error);
     if (error instanceof z.ZodError) {
       return { status: 'invalid_data' };
     }

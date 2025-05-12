@@ -20,6 +20,7 @@ export const user = pgTable('User', {
   email: varchar('email', { length: 64 }).notNull(),
   password: varchar('password', { length: 64 }),
   providerId: varchar('providerId', { length: 64 }),
+  googleCalendarConnected: boolean('googleCalendarConnected').default(false),
 });
 
 export type User = InferSelectModel<typeof user>;
@@ -113,7 +114,7 @@ export const document = pgTable('Document', {
   createdAt: timestamp('createdAt').notNull(),
   title: text('title').notNull(),
   content: text('content'),
-  kind: varchar('text', { enum: ['text', 'code', 'image', 'sheet'] })
+  kind: varchar('text', { enum: ['text', 'code', 'image', 'sheet', 'chart'] })
     .notNull()
     .default('text'),
   userId: uuid('userId')
@@ -211,3 +212,23 @@ export const userDocuments = pgTable('UserDocuments', {
 });
 
 export type UserDocument = InferSelectModel<typeof userDocuments>;
+
+// Google Calendar token table to store OAuth credentials
+export const googleCalendarToken = pgTable(
+  'GoogleCalendarToken',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    token: json('token').notNull(), // Store the entire OAuth token object
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure one token per user
+    userIdUnique: unique().on(table.userId),
+  }),
+);
+
+export type GoogleCalendarToken = InferSelectModel<typeof googleCalendarToken>;

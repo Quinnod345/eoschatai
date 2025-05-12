@@ -115,6 +115,10 @@ export async function POST(req: Request) {
           }),
           execute: async ({ title, content }) => {
             console.log('RAG: Adding resource to knowledge base', { title });
+            if (!addResourceTool.handler) {
+              console.error('RAG: addResourceTool.handler is undefined');
+              return { success: false, error: 'Tool handler is not available' };
+            }
             const result = await addResourceTool.handler(
               { title, content },
               session.user.id,
@@ -144,7 +148,18 @@ export async function POST(req: Request) {
               query,
               limit,
             });
-            const result = await getInformationTool.handler({ query, limit });
+            if (!getInformationTool.handler) {
+              console.error('RAG: getInformationTool.handler is undefined');
+              return {
+                success: false,
+                error: 'Tool handler is not available',
+                results: [],
+              };
+            }
+            const result = await getInformationTool.handler(
+              { query, limit },
+              session.user.id,
+            );
             console.log(
               `RAG: Retrieved ${result.results?.length || 0} results from knowledge base`,
             );

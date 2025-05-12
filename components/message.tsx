@@ -1,7 +1,7 @@
 import type { UIMessage } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useEffect } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
 import { PencilEditIcon, AILoaderIcon } from './icons';
@@ -19,6 +19,7 @@ import { MessageReasoning } from './message-reasoning';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PDFPreview } from './pdf-preview';
 import { DocumentBadge } from './document-badge';
+import { Calendar, FileText, Users } from 'lucide-react';
 
 // Extend UIMessage type to include provider
 interface ExtendedUIMessage extends UIMessage {
@@ -53,6 +54,9 @@ const DOC_CONTENT_REGEX =
 // Regular expression to extract image analysis
 const IMAGE_ANALYSIS_REGEX =
   /===\s+Image\s+Analysis\s+for\s+([^\n]+)\s+===\s*\n+Description:\s+([^\n]+)(?:\s*\n+Extracted\s+Text:\s+([^\n=]*))?([\s\S]*?)(?=\n\n===|\n*$)/gi;
+
+// Add regex for mention detection
+const MENTION_REGEX = /@(\w+):([^\s]+)/g;
 
 // Function to extract PDF content markers from text and return both PDFs and cleaned text
 function extractPDFContent(text: string): {
@@ -166,6 +170,62 @@ function extractImageAnalysis(text: string): {
   return { images, cleanedText };
 }
 
+// Function to extract and format mentions within message text
+function formatMentionsInText(text: string): React.ReactNode[] {
+  const elements: React.ReactNode[] = [];
+  let lastIndex = 0;
+
+  // Reset regex state
+  MENTION_REGEX.lastIndex = 0;
+
+  // Find all mentions in the text
+  let match: RegExpExecArray | null = MENTION_REGEX.exec(text);
+
+  while (match !== null) {
+    const fullMatch = match[0];
+    const type = match[1];
+    const name = match[2];
+    const matchIndex = match.index;
+
+    // Add text before this mention
+    if (matchIndex > lastIndex) {
+      elements.push(text.substring(lastIndex, matchIndex));
+    }
+
+    // Get appropriate icon based on resource type
+    let icon = <FileText className="size-3.5" />;
+    if (type === 'calendar') {
+      icon = <Calendar className="size-3.5" />;
+    } else if (type === 'people') {
+      icon = <Users className="size-3.5" />;
+    }
+
+    // Add the formatted mention badge
+    elements.push(
+      <span
+        key={`mention-${type}-${name}-${matchIndex}`}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-100/80 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-medium border border-blue-200/50 dark:border-blue-800/60 mx-0.5"
+      >
+        <span className="text-blue-600 dark:text-blue-400">{icon}</span>
+        {name}
+      </span>,
+    );
+
+    // Update the last index
+    lastIndex = matchIndex + fullMatch.length;
+
+    // Get next match
+    match = MENTION_REGEX.exec(text);
+  }
+
+  // Add any remaining text
+  if (lastIndex < text.length) {
+    elements.push(text.substring(lastIndex));
+  }
+
+  return elements;
+}
+
 const PurePreviewMessage = ({
   chatId,
   message,
@@ -187,7 +247,7 @@ const PurePreviewMessage = ({
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
-  // Process text parts to extract PDF content
+  // Process text parts to extract PDF content and format mentions
   const processedParts = useMemo(() => {
     if (!message.parts)
       return {
@@ -195,15 +255,24 @@ const PurePreviewMessage = ({
         pdfContents: [],
         documentContents: [],
         imageAnalyses: [],
+        hasMentions: false,
       };
 
     const pdfContents: PDFContent[] = [];
     const documentContents: DocumentContent[] = [];
     const imageAnalyses: ImageAnalysis[] = [];
+    let hasMentions = false;
 
     // Process each text part to extract structured content
     const parts = message.parts.map((part) => {
       if (part.type === 'text') {
+        // Check for mentions
+        if (MENTION_REGEX.test(part.text)) {
+          hasMentions = true;
+          // Reset regex state
+          MENTION_REGEX.lastIndex = 0;
+        }
+
         // First extract and clean PDF contents
         const { pdfs, cleanedText: textWithoutPdfs } = extractPDFContent(
           part.text,
@@ -226,10 +295,10 @@ const PurePreviewMessage = ({
       return part;
     });
 
-    return { parts, pdfContents, documentContents, imageAnalyses };
+    return { parts, pdfContents, documentContents, imageAnalyses, hasMentions };
   }, [message.parts]);
 
-  const { parts, pdfContents, documentContents, imageAnalyses } =
+  const { parts, pdfContents, documentContents, imageAnalyses, hasMentions } =
     processedParts;
 
   return (
@@ -724,6 +793,11 @@ const PurePreviewMessage = ({
 
               if (type === 'text') {
                 if (mode === 'view') {
+                  // Check if the text contains mentions that need formatting
+                  const containsMentions = MENTION_REGEX.test(part.text);
+                  // Reset regex state
+                  MENTION_REGEX.lastIndex = 0;
+
                   return (
                     <div key={key} className="flex flex-row gap-2 items-start">
                       {message.role === 'user' && !isReadonly && (
@@ -751,7 +825,23 @@ const PurePreviewMessage = ({
                             message.role === 'user',
                         })}
                       >
-                        <Markdown>{sanitizeText(part.text)}</Markdown>
+                        {containsMentions ? (
+                          // Custom rendering for text with mentions
+                          <div className="prose dark:prose-invert prose-sm max-w-none">
+                            {formatMentionsInText(sanitizeText(part.text)).map(
+                              (node, i) => (
+                                <React.Fragment
+                                  key={`mention-fragment-${message.id}-${i}`}
+                                >
+                                  {node}
+                                </React.Fragment>
+                              ),
+                            )}
+                          </div>
+                        ) : (
+                          // Regular markdown rendering for text without mentions
+                          <Markdown>{sanitizeText(part.text)}</Markdown>
+                        )}
                       </div>
                     </div>
                   );
@@ -822,19 +912,52 @@ const PurePreviewMessage = ({
                           result={result}
                         />
                       ) : toolName === 'updateDocument' ? (
-                        <DocumentToolResult
-                          type="update"
-                          result={result}
-                          isReadonly={isReadonly}
-                        />
+                        <DocumentToolResult result={result} />
                       ) : toolName === 'requestSuggestions' ? (
-                        <DocumentToolResult
-                          type="request-suggestions"
-                          result={result}
-                          isReadonly={isReadonly}
-                        />
+                        <DocumentToolResult result={result} />
                       ) : (
-                        <pre>{JSON.stringify(result, null, 2)}</pre>
+                        // Fallback for other tools - respect hideJSON and isCalendarEvents
+                        (() => {
+                          let parsedResultForFallback: any = result;
+                          if (typeof result === 'string') {
+                            try {
+                              parsedResultForFallback = JSON.parse(result);
+                            } catch (e) {
+                              /* ignore */
+                            }
+                          }
+
+                          if (
+                            typeof parsedResultForFallback === 'object' &&
+                            parsedResultForFallback !== null &&
+                            parsedResultForFallback.isCalendarEvents === true &&
+                            parsedResultForFallback.hideJSON === true &&
+                            typeof parsedResultForFallback.message === 'string'
+                          ) {
+                            return (
+                              <div
+                                className="text-sm text-zinc-700 dark:text-zinc-300"
+                                data-testid="calendar-tool-fallback-message-only"
+                              >
+                                {parsedResultForFallback.message}
+                              </div>
+                            );
+                          } else if (
+                            typeof parsedResultForFallback === 'object' &&
+                            parsedResultForFallback !== null &&
+                            parsedResultForFallback.hideJSON === true
+                          ) {
+                            // Generic hideJSON: render message if available, otherwise nothing
+                            return typeof parsedResultForFallback.message ===
+                              'string' ? (
+                              <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                                {parsedResultForFallback.message}
+                              </div>
+                            ) : null;
+                          } else {
+                            return <pre>{JSON.stringify(result, null, 2)}</pre>;
+                          }
+                        })()
                       )}
                     </div>
                   );
@@ -874,13 +997,92 @@ export const PreviewMessage = memo(
 
 export const ThinkingMessage = () => {
   const role = 'assistant';
+  const [loadingStage, setLoadingStage] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState(0);
+
+  // Define the main process phases
+  const processingPhases = [
+    { name: 'init' as const, duration: 1200 },
+    { name: 'search' as const, duration: 3000 },
+    { name: 'process' as const, duration: 4000 },
+    { name: 'generate' as const, duration: 3000 },
+    { name: 'final' as const, duration: 2000 },
+  ];
+
+  // Define phase name type for type safety
+  type PhaseName = (typeof processingPhases)[number]['name'];
+
+  // Detailed messages for each phase - these match what the AI is actually doing in the code
+  const phaseMessages: Record<PhaseName, string[]> = {
+    init: [
+      'Initializing...',
+      'Processing your query...',
+      'Preparing search parameters...',
+    ],
+    search: [
+      'Searching knowledge base...',
+      'Generating query embeddings...',
+      'Finding relevant documents...',
+      'Retrieving context information...',
+    ],
+    process: [
+      'Analyzing retrieved information...',
+      'Evaluating document relevance...',
+      'Integrating knowledge sources...',
+      'Synthesizing information...',
+    ],
+    generate: [
+      'Formulating response...',
+      'Reasoning about answer...',
+      'Constructing detailed reply...',
+      'Preparing final response...',
+    ],
+    final: ['Finalizing response...', 'Polishing answer...', 'Almost ready...'],
+  };
+
+  // Cycle through phases to simulate the actual AI process
+  useEffect(() => {
+    let phaseIndex = 0;
+    let messageIndex = 0;
+
+    // Start with first phase
+    setCurrentPhase(0);
+    setLoadingStage(0);
+
+    // Function to update the current message
+    const updateMessage = () => {
+      const phase = processingPhases[phaseIndex].name;
+      const messages = phaseMessages[phase];
+
+      // Update the visible message
+      setLoadingStage(messageIndex);
+
+      // Move to next message in current phase
+      messageIndex = (messageIndex + 1) % messages.length;
+
+      // If we've shown all messages in this phase multiple times, move to next phase
+      if (messageIndex === 0 && Math.random() > 0.5) {
+        phaseIndex = Math.min(phaseIndex + 1, processingPhases.length - 1);
+        setCurrentPhase(phaseIndex);
+      }
+    };
+
+    // Create interval based on current phase duration
+    const interval = setInterval(updateMessage, 1200);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get current phase and its messages
+  const currentPhaseName = processingPhases[currentPhase]?.name || 'init';
+  const currentMessages = phaseMessages[currentPhaseName];
 
   return (
     <motion.div
       data-testid="message-assistant-loading"
       className="w-full mx-auto max-w-3xl px-4 group/message min-h-96"
       initial={{ y: 5, opacity: 0 }}
-      animate={{ y: 0, opacity: 1, transition: { delay: 1 } }}
+      animate={{ y: 0, opacity: 1, transition: { delay: 0.5 } }}
       data-role={role}
     >
       <div
@@ -891,13 +1093,21 @@ export const ThinkingMessage = () => {
           },
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
+        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border animate-pulse">
           <AILoaderIcon size={14} />
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex flex-col gap-4 text-muted-foreground">
-            Hmm...
+          <div className="flex flex-col gap-4">
+            <motion.span
+              key={loadingStage}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="text-muted-foreground"
+            >
+              {currentMessages[loadingStage]}
+            </motion.span>
           </div>
         </div>
       </div>

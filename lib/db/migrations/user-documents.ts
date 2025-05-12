@@ -7,13 +7,15 @@ import dotenv from 'dotenv';
 // Load environment variables from .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-// Get the database URL from either POSTGRES_URL or DATABASE_URL
+// Get the database URL from available environment variables
 const getDatabaseUrl = () => {
   const postgresUrl = process.env.POSTGRES_URL;
   const databaseUrl = process.env.DATABASE_URL;
+  const postgresUrlNonPooling = process.env.POSTGRES_URL_NON_POOLING;
+  const databaseUrlUnpooled = process.env.DATABASE_URL_UNPOOLED;
   
-  // Return the first available URL
-  return postgresUrl || databaseUrl;
+  // Try each URL in order of preference
+  return postgresUrl || databaseUrl || postgresUrlNonPooling || databaseUrlUnpooled;
 };
 
 export async function migrateUserDocuments() {
@@ -24,7 +26,7 @@ export async function migrateUserDocuments() {
     console.log('Using PostgreSQL URL:', databaseUrl ? 'URL is defined' : 'URL is undefined');
 
     if (!databaseUrl) {
-      console.error('Neither POSTGRES_URL nor DATABASE_URL is defined, skipping UserDocuments migration');
+      console.error('No database URL environment variable is defined, skipping UserDocuments migration');
       return;
     }
 

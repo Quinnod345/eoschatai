@@ -2,8 +2,8 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef } from 'react';
-import { artifactDefinitions, ArtifactKind } from './artifact';
-import { Suggestion } from '@/lib/db/schema';
+import { artifactDefinitions, type ArtifactKind } from './artifact';
+import type { Suggestion } from '@/lib/db/schema';
 import { initialArtifactData, useArtifact } from '@/hooks/use-artifact';
 
 export type DataStreamDelta = {
@@ -17,7 +17,8 @@ export type DataStreamDelta = {
     | 'suggestion'
     | 'clear'
     | 'finish'
-    | 'kind';
+    | 'kind'
+    | 'chart-data';
   content: string | Suggestion;
 };
 
@@ -38,6 +39,19 @@ export function DataStreamHandler({ id }: { id: string }) {
       );
 
       if (artifactDefinition?.onStreamPart) {
+        // Log chart-related data for debugging
+        if (
+          delta.type === 'chart-data' ||
+          (delta.type === 'text-delta' &&
+            typeof delta.content === 'string' &&
+            delta.content.includes('"type"') &&
+            delta.content.includes('"data"'))
+        ) {
+          console.log(
+            `DataStreamHandler: Processing potential chart data: ${delta.type}`,
+          );
+        }
+
         artifactDefinition.onStreamPart({
           streamPart: delta,
           setArtifact,

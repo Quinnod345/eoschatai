@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .success {
+            background-color: #e6f7ea;
+            border-left: 4px solid #34d058;
+        }
+
+        .error {
+            background-color: #ffeef0;
+            border-left: 4px solid #d73a49;
+        }
+
+        button {
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        button:hover {
+            background-color: #0051a8;
+        }
+
+        code {
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            padding: 0.2em 0.4em;
+            font-family: monospace;
+        }
+
+        pre {
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+        }
+
+        .status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            color: #f57c00;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Calendar Integration Test</h1>
+
+    <div class="card">
+        <h2>Connection Status</h2>
+        <div id="connectionStatus" class="status">Checking...</div>
+        <button id="checkConnection">Check Connection</button>
+        <button id="connectCalendar">Connect Google Calendar</button>
+        <button id="disconnectCalendar">Disconnect Google Calendar</button>
+        <pre id="connectionOutput">Loading...</pre>
+    </div>
+
+    <div class="card">
+        <h2>Calendar Events</h2>
+        <div id="eventsStatus" class="status">Ready</div>
+        <button id="getEvents">Get Events</button>
+        <pre id="eventsOutput">Click "Get Events" to fetch your calendar events</pre>
+    </div>
+
+    <div class="card">
+        <h2>Create Event</h2>
+        <div id="createStatus" class="status">Ready</div>
+        <form id="createEventForm">
+            <div>
+                <label for="summary">Summary:</label>
+                <input type="text" id="summary" name="summary" required
+                    style="width: 100%; margin-bottom: 10px; padding: 5px;">
+            </div>
+            <div>
+                <label for="description">Description:</label>
+                <textarea id="description" name="description" rows="3"
+                    style="width: 100%; margin-bottom: 10px; padding: 5px;"></textarea>
+            </div>
+            <div>
+                <label for="location">Location:</label>
+                <input type="text" id="location" name="location"
+                    style="width: 100%; margin-bottom: 10px; padding: 5px;">
+            </div>
+            <div>
+                <label for="startDateTime">Start Date/Time:</label>
+                <input type="datetime-local" id="startDateTime" name="startDateTime" required
+                    style="margin-bottom: 10px; padding: 5px;">
+            </div>
+            <div>
+                <label for="endDateTime">End Date/Time:</label>
+                <input type="datetime-local" id="endDateTime" name="endDateTime" required
+                    style="margin-bottom: 10px; padding: 5px;">
+            </div>
+            <button type="submit">Create Event</button>
+        </form>
+        <pre id="createOutput">Fill the form and click "Create Event"</pre>
+    </div>
+
+    <script>
+        // Utility functions
+        function setStatus(elementId, message, type = 'loading') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        function setOutput(elementId, data) {
+            const element = document.getElementById(elementId);
+            if (typeof data === 'object') {
+                element.textContent = JSON.stringify(data, null, 2);
+            } else {
+                element.textContent = data;
+            }
+        }
+
+        // Initialize with the current date/time
+        function initializeDateTimeFields() {
+            const now = new Date();
+            const start = new Date(now.getTime() + 60 * 60 * 1000); // One hour from now
+            const end = new Date(now.getTime() + 2 * 60 * 60 * 1000); // Two hours from now
+
+            document.getElementById('startDateTime').value = formatDateTimeLocal(start);
+            document.getElementById('endDateTime').value = formatDateTimeLocal(end);
+        }
+
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        // Format ISO string to local date time format
+        function formatDateTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        // Check connection status
+        async function checkConnectionStatus() {
+            setStatus('connectionStatus', 'Checking...', 'loading');
+            setOutput('connectionOutput', 'Loading...');
+
+            try {
+                const response = await fetch('/api/calendar/status');
+                const data = await response.json();
+
+                if (data.connected) {
+                    setStatus('connectionStatus', 'Connected ✅', 'success');
+                } else if (data.error) {
+                    setStatus('connectionStatus', 'Error ❌', 'error');
+                } else {
+                    setStatus('connectionStatus', 'Not Connected ❌', 'error');
+                }
+
+                setOutput('connectionOutput', data);
+            } catch (error) {
+                setStatus('connectionStatus', 'Error ❌', 'error');
+                setOutput('connectionOutput', `Error: ${error.message}`);
+            }
+        }
+
+        // Connect to Google Calendar
+        function connectCalendar() {
+            window.location.href = '/api/calendar/auth';
+        }
+
+        // Disconnect from Google Calendar
+        async function disconnectCalendar() {
+            setStatus('connectionStatus', 'Disconnecting...', 'loading');
+
+            try {
+                const response = await fetch('/api/calendar/disconnect', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    setStatus('connectionStatus', 'Disconnected ✅', 'success');
+                    setOutput('connectionOutput', 'Google Calendar disconnected successfully');
+                } else {
+                    const data = await response.json();
+                    setStatus('connectionStatus', 'Error Disconnecting ❌', 'error');
+                    setOutput('connectionOutput', data);
+                }
+            } catch (error) {
+                setStatus('connectionStatus', 'Error ❌', 'error');
+                setOutput('connectionOutput', `Error: ${error.message}`);
+            }
+
+            // Check connection status after disconnecting
+            setTimeout(checkConnectionStatus, 1000);
+        }
+
+        // Get calendar events
+        async function getCalendarEvents() {
+            setStatus('eventsStatus', 'Loading events...', 'loading');
+            setOutput('eventsOutput', 'Fetching your calendar events...');
+
+            try {
+                const now = new Date();
+                const nextWeek = new Date();
+                nextWeek.setDate(nextWeek.getDate() + 7);
+
+                const timeMin = encodeURIComponent(now.toISOString());
+                const timeMax = encodeURIComponent(nextWeek.toISOString());
+
+                const response = await fetch(`/api/calendar/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=10`);
+
+                if (response.status === 401) {
+                    setStatus('eventsStatus', 'Not Connected ❌', 'error');
+                    setOutput('eventsOutput', 'Google Calendar is not connected. Click "Connect Google Calendar" to connect.');
+                    return;
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch events');
+                }
+
+                const events = await response.json();
+
+                if (Array.isArray(events) && events.length === 0) {
+                    setStatus('eventsStatus', 'No Events Found', 'success');
+                    setOutput('eventsOutput', 'No events found in the next 7 days.');
+                } else if (Array.isArray(events)) {
+                    const formattedEvents = events.map(event => ({
+                        ...event,
+                        startFormatted: event.start ? formatDateTime(event.start.dateTime || event.start.date) : 'N/A',
+                        endFormatted: event.end ? formatDateTime(event.end.dateTime || event.end.date) : 'N/A'
+                    }));
+
+                    setStatus('eventsStatus', `${events.length} Events Found ✅`, 'success');
+                    setOutput('eventsOutput', formattedEvents);
+                } else {
+                    setStatus('eventsStatus', 'Invalid Response ❌', 'error');
+                    setOutput('eventsOutput', events);
+                }
+            } catch (error) {
+                setStatus('eventsStatus', 'Error ❌', 'error');
+                setOutput('eventsOutput', `Error: ${error.message}`);
+            }
+        }
+
+        // Create a calendar event
+        async function createCalendarEvent(event) {
+            setStatus('createStatus', 'Creating event...', 'loading');
+            setOutput('createOutput', 'Creating your event...');
+
+            try {
+                // Convert local datetime to ISO string
+                const startDateTime = new Date(event.startDateTime).toISOString();
+                const endDateTime = new Date(event.endDateTime).toISOString();
+
+                const response = await fetch('/api/calendar/events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        summary: event.summary,
+                        description: event.description,
+                        location: event.location,
+                        startDateTime,
+                        endDateTime
+                    })
+                });
+
+                if (response.status === 401) {
+                    setStatus('createStatus', 'Not Connected ❌', 'error');
+                    setOutput('createOutput', 'Google Calendar is not connected. Click "Connect Google Calendar" to connect.');
+                    return;
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create event');
+                }
+
+                const createdEvent = await response.json();
+                setStatus('createStatus', 'Event Created ✅', 'success');
+                setOutput('createOutput', createdEvent);
+
+                // Refresh events list
+                getCalendarEvents();
+            } catch (error) {
+                setStatus('createStatus', 'Error ❌', 'error');
+                setOutput('createOutput', `Error: ${error.message}`);
+            }
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize form with current date/time
+            initializeDateTimeFields();
+
+            // Check connection status on load
+            checkConnectionStatus();
+
+            // Connection buttons
+            document.getElementById('checkConnection').addEventListener('click', checkConnectionStatus);
+            document.getElementById('connectCalendar').addEventListener('click', connectCalendar);
+            document.getElementById('disconnectCalendar').addEventListener('click', disconnectCalendar);
+
+            // Get events button
+            document.getElementById('getEvents').addEventListener('click', getCalendarEvents);
+
+            // Create event form
+            document.getElementById('createEventForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const event = {
+                    summary: document.getElementById('summary').value,
+                    description: document.getElementById('description').value,
+                    location: document.getElementById('location').value,
+                    startDateTime: document.getElementById('startDateTime').value,
+                    endDateTime: document.getElementById('endDateTime').value
+                };
+
+                createCalendarEvent(event);
+            });
+
+            // Check for success or error URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const success = urlParams.get('success');
+            const error = urlParams.get('error');
+
+            if (success) {
+                setStatus('connectionStatus', 'Connected ✅', 'success');
+                setOutput('connectionOutput', success);
+            } else if (error) {
+                setStatus('connectionStatus', 'Error ❌', 'error');
+                setOutput('connectionOutput', error);
+            }
+        });
+    </script>
+</body>
+
+</html>

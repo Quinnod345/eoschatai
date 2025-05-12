@@ -6,7 +6,7 @@ import type { User as NextAuthUser } from 'next-auth';
 import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from './toast';
 import { LoaderIcon, SettingsIcon } from './icons';
 import { guestRegex } from '@/lib/constants';
@@ -46,6 +46,7 @@ export function SidebarUserNav({
   className,
 }: { user: NextAuthUser; className?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, status } = useSession();
   const { setTheme, theme } = useTheme();
 
@@ -88,6 +89,101 @@ export function SidebarUserNav({
 
     fetchUserSettings();
   }, [status]);
+
+  // Check for URL parameters related to calendar integration
+  useEffect(() => {
+    const calendarSuccess = searchParams.get('calendar_success');
+    const calendarError = searchParams.get('calendar_error');
+    const success = searchParams.get('success');
+    const error = searchParams.get('error');
+    const openSettings = searchParams.get('open_settings');
+
+    // Check if we're returning from a Google Calendar authorization
+    // and need to restore the original tab
+    const savedReturnTo = localStorage.getItem('calendarAuthReturnTo');
+    if (savedReturnTo && (success || error)) {
+      // Clear the stored return URL
+      localStorage.removeItem('calendarAuthReturnTo');
+
+      // If we're on a different URL than the saved one, redirect back
+      // but preserve the success/error parameters
+      if (window.location.href !== savedReturnTo) {
+        const returnToUrl = new URL(savedReturnTo);
+        if (success) returnToUrl.searchParams.set('success', success);
+        if (error) returnToUrl.searchParams.set('error', error);
+        if (openSettings)
+          returnToUrl.searchParams.set('open_settings', openSettings);
+
+        // Redirect back to the original URL
+        window.location.href = returnToUrl.toString();
+        return;
+      }
+    }
+
+    // Check for calendar-specific parameters (old format)
+    if (calendarSuccess) {
+      setShowSettingsModal(true);
+      toast({
+        type: 'success',
+        description: calendarSuccess,
+      });
+
+      // Clear URL parameter
+      const url = new URL(window.location.href);
+      url.searchParams.delete('calendar_success');
+      window.history.replaceState({}, '', url);
+    }
+
+    if (calendarError) {
+      setShowSettingsModal(true);
+      toast({
+        type: 'error',
+        description: calendarError,
+      });
+
+      // Clear URL parameter
+      const url = new URL(window.location.href);
+      url.searchParams.delete('calendar_error');
+      window.history.replaceState({}, '', url);
+    }
+
+    // Check for general success/error parameters (new format)
+    if (success) {
+      toast({
+        type: 'success',
+        description: success,
+      });
+
+      // If openSettings is true, show the settings modal
+      if (openSettings === 'true') {
+        setShowSettingsModal(true);
+      }
+
+      // Clear URL parameter
+      const url = new URL(window.location.href);
+      url.searchParams.delete('success');
+      url.searchParams.delete('open_settings');
+      window.history.replaceState({}, '', url);
+    }
+
+    if (error) {
+      toast({
+        type: 'error',
+        description: error,
+      });
+
+      // If openSettings is true, show the settings modal
+      if (openSettings === 'true') {
+        setShowSettingsModal(true);
+      }
+
+      // Clear URL parameter
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      url.searchParams.delete('open_settings');
+      window.history.replaceState({}, '', url);
+    }
+  }, [searchParams]);
 
   const handleSignOut = async () => {
     await clientLogout();

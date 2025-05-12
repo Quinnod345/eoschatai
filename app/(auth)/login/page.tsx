@@ -51,7 +51,8 @@ export default function Page() {
     } else if (state.status === 'success') {
       setIsSuccessful(true);
       updateSession();
-      router.refresh();
+      // Explicitly redirect to the home page
+      window.location.href = '/';
     }
   }, [state.status, router, updateSession]);
 

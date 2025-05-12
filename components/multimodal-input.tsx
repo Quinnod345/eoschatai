@@ -16,7 +16,16 @@ import {
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
-import { ArrowDown, ArrowUp, Paperclip, X, Square } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Paperclip,
+  X,
+  Square,
+  Calendar,
+  FileText,
+  Image,
+} from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -32,6 +41,62 @@ import type { Session } from 'next-auth';
 import { ModelSelector } from './model-selector';
 import { ProviderSelector } from './provider-selector';
 
+// Interface for @ mention resources
+interface MentionResource {
+  id: string;
+  name: string;
+  type: 'calendar' | 'document' | 'scorecard' | 'vto' | 'rocks' | 'people';
+  description: string;
+  icon: React.ReactNode;
+}
+
+// Define available mention resources
+const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
+  {
+    id: 'calendar',
+    name: 'Calendar',
+    type: 'calendar',
+    description: 'Search and interact with your calendar events',
+    icon: <Calendar className="size-4" />,
+  },
+  {
+    id: 'documents',
+    name: 'Documents',
+    type: 'document',
+    description: 'View and retrieve information from your documents',
+    icon: <FileText className="size-4" />,
+  },
+  {
+    id: 'scorecard',
+    name: 'Scorecard',
+    type: 'scorecard',
+    description: 'Check your EOS Scorecard metrics',
+    icon: <FileText className="size-4" />,
+  },
+  {
+    id: 'vto',
+    name: 'Vision/Traction Organizer',
+    type: 'vto',
+    description: 'Review your V/TO',
+    icon: <FileText className="size-4" />,
+  },
+  {
+    id: 'rocks',
+    name: 'Rocks',
+    type: 'rocks',
+    description: 'Check your quarterly rocks',
+    icon: <FileText className="size-4" />,
+  },
+  {
+    id: 'people',
+    name: 'People Analyzer',
+    type: 'people',
+    description: 'Access your people analyzer data',
+    icon: <FileText className="size-4" />,
+  },
+];
+
+// Interface for PDFs and other file-based content
 interface ExtendedAttachment extends Attachment {
   pdfText?: string;
   pdfInfo?: {
@@ -78,6 +143,22 @@ const pulseDragDropStyle = `
   }
 `;
 
+// Add a utility function to generate UUIDs
+function generateUUID(): string {
+  return (
+    Math.random().toString(36).substring(2, 15) +
+    Math.random().toString(36).substring(2, 15)
+  );
+}
+
+// Add this new interface for selected mentions
+interface SelectedMention {
+  id: string;
+  type: string;
+  name: string;
+  icon?: React.ReactNode;
+}
+
 function PureMultimodalInput({
   chatId,
   input,
@@ -119,6 +200,207 @@ function PureMultimodalInput({
   const { width } = useWindowSize();
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+
+  // @ Mention feature state
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionResources] = useState<MentionResource[]>(
+    DEFAULT_MENTION_RESOURCES,
+  );
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [mentionSelectionIndex, setMentionSelectionIndex] = useState(0);
+  const [cursorPosition, setCursorPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const mentionsRef = useRef<HTMLDivElement>(null);
+
+  // Add state for selected mentions - store as separate array rather than in text
+  const [selectedMentions, setSelectedMentions] = useState<SelectedMention[]>(
+    [],
+  );
+
+  // Add regex to detect mentions in the input
+  const mentionRegex = /@(\w+):([^\s]+)/g;
+
+  // Close mentions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        mentionsRef.current &&
+        !mentionsRef.current.contains(event.target as Node)
+      ) {
+        setShowMentions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Filter mention resources based on user input
+  const filteredMentionResources = mentionResources.filter(
+    (resource) =>
+      resource.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+      resource.type.toLowerCase().includes(mentionFilter.toLowerCase()),
+  );
+
+  // Update the function to position the dropdown above the input
+  const calculateCursorPosition = useCallback(() => {
+    if (!textareaRef.current || !inputWrapperRef.current) return null;
+
+    // Get input wrapper position
+    const inputRect = inputWrapperRef.current.getBoundingClientRect();
+
+    // Get current cursor position for horizontal alignment only
+    const cursorPosition = textareaRef.current.selectionStart;
+    const textBeforeCursor = input.substring(0, cursorPosition);
+    const lineBeforeCursor = textBeforeCursor.split('\n').pop() || '';
+
+    // Calculate an approximate horizontal position based on cursor
+    const charWidth = 8.5; // Approximate character width in pixels
+    const padding = 12; // Approximate padding
+
+    // Limit the horizontal position to ensure dropdown stays visible
+    const xPos = Math.min(
+      padding + lineBeforeCursor.length * charWidth,
+      inputRect.width - 320,
+    );
+
+    // Position the dropdown ABOVE the input field
+    // Set to negative value to go above the input field
+    const yPos = -10;
+
+    return { top: yPos, left: xPos };
+  }, [input]);
+
+  // Handle @ mention detection
+  const handleInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = event.target.value;
+      setInput(value);
+
+      // Get cursor position
+      const cursorPosition = event.target.selectionStart;
+
+      // Check if we're in a potential @ mention context
+      const textUpToCursor = value.substring(0, cursorPosition);
+      const mentionMatch = textUpToCursor.match(/@(\w*)$/);
+
+      if (mentionMatch) {
+        const matchText = mentionMatch[1];
+        setMentionFilter(matchText);
+        setMentionQuery(matchText);
+        setShowMentions(true);
+        setMentionSelectionIndex(0);
+
+        // Calculate position for the mention dropdown
+        setCursorPosition(calculateCursorPosition());
+      } else {
+        setShowMentions(false);
+      }
+
+      adjustHeight();
+    },
+    [setInput, calculateCursorPosition],
+  );
+
+  // Handle selecting a mention - completely revised to remove text and add to separate array
+  const handleSelectMention = useCallback(
+    (resource: MentionResource) => {
+      if (!textareaRef.current) return;
+
+      const cursorPosition = textareaRef.current.selectionStart;
+
+      // Get text before and after the @ symbol
+      const textBeforeMention = input
+        .substring(0, cursorPosition)
+        .replace(/@\w*$/, '');
+      const textAfterMention = input.substring(cursorPosition);
+
+      // Add to selected mentions with the icon
+      setSelectedMentions((prev) => [
+        ...prev,
+        {
+          id: Math.random().toString(36).substring(2, 15),
+          type: resource.type,
+          name: resource.name,
+          icon: resource.icon,
+        },
+      ]);
+
+      // IMPORTANT: Remove the @ mention text entirely, don't insert the special format
+      const newText = textBeforeMention + textAfterMention;
+      setInput(newText);
+
+      // Close the dropdown
+      setShowMentions(false);
+
+      // Set focus back to textarea
+      textareaRef.current.focus();
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textBeforeMention.length;
+          textareaRef.current.selectionEnd = textBeforeMention.length;
+        }
+      }, 0);
+    },
+    [input, setInput],
+  );
+
+  // Handle removing a selected mention
+  const handleRemoveMention = useCallback((id: string) => {
+    setSelectedMentions((prev) => prev.filter((mention) => mention.id !== id));
+  }, []);
+
+  // Handle navigation within the mentions dropdown using keyboard
+  const handleMentionKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!showMentions) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setMentionSelectionIndex((prev) =>
+            prev < filteredMentionResources.length - 1 ? prev + 1 : prev,
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setMentionSelectionIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (filteredMentionResources[mentionSelectionIndex]) {
+            handleSelectMention(
+              filteredMentionResources[mentionSelectionIndex],
+            );
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setShowMentions(false);
+          break;
+        case 'Tab':
+          e.preventDefault();
+          if (filteredMentionResources[mentionSelectionIndex]) {
+            handleSelectMention(
+              filteredMentionResources[mentionSelectionIndex],
+            );
+          }
+          break;
+      }
+    },
+    [
+      filteredMentionResources,
+      mentionSelectionIndex,
+      handleSelectMention,
+      showMentions,
+    ],
+  );
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -160,11 +442,6 @@ function PureMultimodalInput({
   useEffect(() => {
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
-
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(event.target.value);
-    adjustHeight();
-  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
@@ -537,6 +814,18 @@ function PureMultimodalInput({
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
     let finalInputContent = input; // Start with current text input
+
+    // Add mention information to the content - this ensures backend still gets the mention data
+    if (selectedMentions.length > 0) {
+      // Add mention tags at the end of the message for processing by the AI
+      const mentionTags = selectedMentions
+        .map((mention) => `@${mention.type}:${mention.name}`)
+        .join(' ');
+
+      // Append mentions to the end of the message
+      finalInputContent = `${finalInputContent}\n\n${mentionTags}`;
+    }
+
     let hasProcessedContent = false;
 
     // Handle PDF content
@@ -615,16 +904,45 @@ function PureMultimodalInput({
         setInput(''); // Clear the input field as append doesn't do it automatically.
       } else {
         // No processed content, use standard handleSubmit
-        // Ensure there's something to send (text or attachments)
-        if (input.trim().length > 0 || attachments.length > 0) {
-          handleSubmit(undefined, {
-            experimental_attachments:
-              attachments.length > 0 ? attachments : undefined,
-          });
-          // `handleSubmit` from `useChat` should clear the input state itself.
+        if (
+          input.trim().length > 0 ||
+          attachments.length > 0 ||
+          selectedMentions.length > 0
+        ) {
+          // If we have selected mentions but no text content, create a message with just the mentions
+          if (input.trim().length === 0 && selectedMentions.length > 0) {
+            // Create a message with just the mentions for the AI
+            const mentionContent = selectedMentions
+              .map((mention) => `@${mention.type}:${mention.name}`)
+              .join(' ');
+
+            append(
+              {
+                role: 'user',
+                content: mentionContent,
+              },
+              {
+                experimental_attachments:
+                  attachments.length > 0 ? attachments : undefined,
+              },
+            );
+          } else {
+            // If we have text, use the finalInputContent with mentions appended
+            append(
+              {
+                role: 'user',
+                content: finalInputContent,
+              },
+              {
+                experimental_attachments:
+                  attachments.length > 0 ? attachments : undefined,
+              },
+            );
+          }
+          setInput('');
         } else {
-          // Nothing to send, might be good to log or handle, though button should be disabled
-          return; // Early exit if there is truly nothing to send
+          // Nothing to send
+          return;
         }
       }
 
@@ -633,7 +951,7 @@ function PureMultimodalInput({
       setPdfContents([]); // Clear PDF contents
       setDocumentContents([]); // Clear document contents
       setImageContents([]); // Clear image contents
-      // `setLocalStorageInput` will be triggered by `setInput('')` or by `useChat` clearing input.
+      setSelectedMentions([]); // Clear mentions
       resetHeight();
 
       if (width && width > 768) {
@@ -648,9 +966,9 @@ function PureMultimodalInput({
     pdfContents,
     documentContents,
     imageContents,
+    selectedMentions,
     chatId,
     append,
-    handleSubmit,
     setInput,
     setAttachments,
     setPdfContents,
@@ -1010,7 +1328,88 @@ function PureMultimodalInput({
           0% { transform: translateY(0); }
           100% { transform: translateY(-10px); }
         }
+        
+        .mention-dropdown {
+          animation: fadeIn 0.2s ease;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .mention-item {
+          transition: background-color 0.1s ease;
+        }
+        
+        .mention-item:hover, .mention-item.selected {
+          background-color: rgba(59, 130, 246, 0.1);
+        }
       `}</style>
+
+      {/* @ Mention dropdown */}
+      {showMentions && filteredMentionResources.length > 0 && (
+        <div
+          ref={mentionsRef}
+          className="mention-dropdown absolute bg-white dark:bg-zinc-900 shadow-xl rounded-lg z-50 border border-zinc-200 dark:border-zinc-700 w-80 max-h-80 overflow-y-auto"
+          style={{
+            bottom: '100%', // Position at bottom of container
+            marginBottom: '8px', // Add some space between dropdown and input
+            left: cursorPosition?.left ? `${cursorPosition.left}px` : '0',
+            boxShadow:
+              '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <div className="p-3 text-sm font-medium border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-t-lg">
+            Linking to:{' '}
+            {mentionQuery ? (
+              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                &quot;{mentionQuery}&quot;
+              </span>
+            ) : (
+              'Resources'
+            )}
+            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Select a resource to reference in your message
+            </div>
+          </div>
+          {filteredMentionResources.map((resource, index) => (
+            <div
+              key={resource.id}
+              className={`mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
+                index === mentionSelectionIndex
+                  ? 'selected bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
+                  : 'border-l-2 border-transparent'
+              }`}
+              onClick={() => handleSelectMention(resource)}
+              onMouseEnter={() => setMentionSelectionIndex(index)}
+            >
+              <div className="text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md">
+                {resource.icon}
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium">{resource.name}</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {resource.description}
+                </span>
+              </div>
+            </div>
+          ))}
+          <div className="p-2 text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
+            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
+              ↑
+            </kbd>
+            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
+              ↓
+            </kbd>
+            to navigate,
+            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
+              Enter
+            </kbd>
+            to select
+          </div>
+        </div>
+      )}
 
       {/* Drag overlay with improved visuals */}
       {isDragging && (
@@ -1241,95 +1640,130 @@ function PureMultimodalInput({
         </div>
       )}
 
-      <Textarea
-        data-testid="multimodal-input"
-        ref={textareaRef}
-        placeholder="Send a message... or drop files here"
-        value={input}
-        onChange={handleInput}
-        onPaste={handlePaste}
-        onDragOver={handleTextareaDragOver}
-        className={cx(
-          'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base',
-          'backdrop-filter backdrop-blur-[16px]',
-          'border border-white/30 dark:border-zinc-700/30',
-          'pb-10',
-          'input-tint shadow-enhanced',
-          isDragging && 'pointer-events-none',
-          className,
+      <div className="relative" ref={inputWrapperRef}>
+        {/* Show selected mentions above the input */}
+        {selectedMentions.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3 pt-1">
+            {selectedMentions.map((mention) => (
+              <div
+                key={mention.id}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow transition-all"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
+                    {mention.icon}
+                  </span>
+                  <span className="font-medium">{mention.name}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveMention(mention.id)}
+                  className="ml-1 text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300 focus:outline-none transition-colors p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  aria-label={`Remove ${mention.name} mention`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
-        style={{
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow:
-            'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-        }}
-        rows={2}
-        autoFocus
-        onKeyDown={(event) => {
-          if (
-            event.key === 'Enter' &&
-            !event.shiftKey &&
-            !event.nativeEvent.isComposing
-          ) {
-            event.preventDefault();
 
-            if (status !== 'ready') {
-              toast.error('Please wait for the model to finish its response!');
-            } else {
-              // Use handleSubmit directly for consistency with the send button
-              handleSubmit(event, {
-                experimental_attachments:
-                  attachments.length > 0 ? attachments : undefined,
-              });
+        <Textarea
+          data-testid="multimodal-input"
+          ref={textareaRef}
+          placeholder="Send a message... use @ to link resources"
+          value={input}
+          onChange={handleInputChange}
+          onPaste={handlePaste}
+          onDragOver={handleTextareaDragOver}
+          onKeyDown={(event) => {
+            // Handle @ mention dropdown navigation
+            if (showMentions) {
+              handleMentionKeyDown(event);
+              return;
             }
-          }
-        }}
-      />
 
-      <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start gap-1 items-center z-10">
-        <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+            // Normal enter key handling
+            if (
+              event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
 
-        {!isReadonly && session && selectedProviderId && (
-          <ProviderSelector
-            session={session}
-            selectedProviderId={selectedProviderId}
-            className="h-[30px] text-xs"
-          />
-        )}
+              if (status !== 'ready') {
+                toast.error(
+                  'Please wait for the model to finish its response!',
+                );
+              } else {
+                // Submit the form manually
+                submitForm();
+              }
+            }
+          }}
+          className={cx(
+            'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base',
+            'backdrop-filter backdrop-blur-[16px]',
+            'border border-white/30 dark:border-zinc-700/30',
+            'pb-10',
+            'input-tint shadow-enhanced',
+            isDragging && 'pointer-events-none',
+            className,
+          )}
+          style={{
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow:
+              'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+          }}
+          rows={2}
+          autoFocus
+        />
 
-        {!isReadonly && session && selectedModelId && (
-          <ModelSelector
-            session={session}
-            selectedModelId={selectedModelId}
-            className="h-[30px] text-xs"
-          />
-        )}
+        <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start gap-1 items-center z-10">
+          <AttachmentsButton fileInputRef={fileInputRef} status={status} />
 
-        {!isReadonly && (
-          <VisibilitySelector
-            chatId={chatId}
-            selectedVisibilityType={selectedVisibilityType}
-            className="h-[30px] text-xs"
-          />
-        )}
-      </div>
+          {!isReadonly && session && selectedProviderId && (
+            <ProviderSelector
+              session={session}
+              selectedProviderId={selectedProviderId}
+              className="h-[30px] text-xs"
+            />
+          )}
 
-      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-        {status === 'submitted' ? (
-          <StopButton stop={stop} setMessages={setMessages} />
-        ) : (
-          <SendButton
-            input={input}
-            submitForm={submitForm}
-            uploadQueue={uploadQueue}
-            attachmentsCount={attachmentsCount}
-            pdfCount={pdfCount}
-            docCount={docCount}
-            imgCount={imgCount}
-            handleSubmit={handleSubmit}
-            attachments={attachments}
-          />
-        )}
+          {!isReadonly && session && selectedModelId && (
+            <ModelSelector
+              session={session}
+              selectedModelId={selectedModelId}
+              className="h-[30px] text-xs"
+            />
+          )}
+
+          {!isReadonly && (
+            <VisibilitySelector
+              chatId={chatId}
+              selectedVisibilityType={selectedVisibilityType}
+              className="h-[30px] text-xs"
+            />
+          )}
+        </div>
+
+        <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+          {status === 'submitted' ? (
+            <StopButton stop={stop} setMessages={setMessages} />
+          ) : (
+            <SendButton
+              input={input}
+              submitForm={submitForm}
+              uploadQueue={uploadQueue}
+              attachmentsCount={attachmentsCount}
+              pdfCount={pdfCount}
+              docCount={docCount}
+              imgCount={imgCount}
+              handleSubmit={handleSubmit}
+              attachments={attachments}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

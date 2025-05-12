@@ -25,13 +25,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/toast';
 import { useSession } from 'next-auth/react';
 import { Separator } from '@/components/ui/separator';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserCircle } from 'lucide-react';
+import { UserCircle, Calendar, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
 import { AnimatedModal } from '@/components/ui/animated-modal';
+import { useUISettings } from '@/components/ui-settings-provider';
 
 // Custom styling to isolate the settings modal from global hover effects
 const styles = {
@@ -104,12 +105,16 @@ interface UserSettings {
   companyType?: string;
   companyDescription?: string;
   profilePicture?: string;
+  googleCalendarConnected?: boolean;
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(false);
+  const { settings: uiSettings, updateSettings: updateUISettings } =
+    useUISettings();
   const [settings, setSettings] = React.useState<UserSettings>({
     notificationsEnabled: true,
     language: 'english',
@@ -119,6 +124,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     companyType: '',
     companyDescription: '',
     profilePicture: '',
+    googleCalendarConnected: false,
   });
   const [activeTab, setActiveTab] = React.useState('profile');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -135,6 +141,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [cropperImage, setCropperImage] = React.useState<string | null>(null);
   const [isCropperOpen, setIsCropperOpen] = React.useState(false);
   const [blockOutsideClicks, setBlockOutsideClicks] = React.useState(false);
+
+  // Add a state for the current theme
+  const [currentTheme, setCurrentTheme] = React.useState<string>('system');
+
+  // Initialize the theme state when the modal opens
+  React.useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      const storedTheme = localStorage.getItem('theme');
+      setCurrentTheme(storedTheme || 'system');
+    }
+  }, [isOpen]);
 
   // Add settings modal specific styling to the document
   React.useEffect(() => {
@@ -217,12 +234,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         .${styles.fixedHeight} {
           height: 450px;
           overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: var(--color-border) transparent;
+        }
+        
+        /* Improve scrollbar styling */
+        .${styles.fixedHeight}::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .${styles.fixedHeight}::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .${styles.fixedHeight}::-webkit-scrollbar-thumb {
+          background-color: var(--color-border);
+          border-radius: 3px;
         }
         
         /* Enhanced modal styling with shadows */
         .${styles.enhancedModal} {
           background-color: hsl(var(--background));
           border: 1px solid var(--color-border);
+        }
+
+        /* Ensure dropdowns appear above other content */
+        .select-content {
+          z-index: 100;
         }
 
         /* Dark mode specific adjustments */
@@ -393,6 +431,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   // Create helper functions to update specific settings
   const updateSetting = (key: keyof UserSettings, value: any) => {
+    // Don't update if the value hasn't changed
+    if (settings[key] === value) {
+      return;
+    }
+
+    // Update local state
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -413,9 +457,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const fileInputs = document.querySelectorAll('input[type="file"]');
       const modalDialogs = document.querySelectorAll('[role="dialog"]');
 
+      // Check for dropdowns or popover elements
+      const dropdownElements = document.querySelectorAll(
+        '[data-state="open"], [data-radix-popper-content-wrapper]',
+      );
+
       // Check if target is a file input or inside one
       const isFileInputTarget = Array.from(fileInputs).some(
         (input) => input === e.target || input.contains(e.target as Node),
+      );
+
+      // Check if the click is inside a dropdown
+      const isInsideDropdown = Array.from(dropdownElements).some((dropdown) =>
+        dropdown.contains(e.target as Node),
       );
 
       // Don't close if clicking within interactive elements
@@ -424,6 +478,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         selectContent?.contains(e.target as Node) ||
         cropperUI?.contains(e.target as Node) ||
         isFileInputTarget ||
+        isInsideDropdown ||
         // Check if click target is within any dialog
         Array.from(modalDialogs).some((dialog) =>
           dialog.contains(e.target as Node),
@@ -456,6 +511,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       if (response.ok) {
         const data = await response.json();
+
+        // Set settings from database
         setSettings({
           notificationsEnabled: data.notificationsEnabled ?? true,
           language: data.language ?? 'english',
@@ -465,6 +522,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           companyType: data.companyType ?? '',
           companyDescription: data.companyDescription ?? '',
           profilePicture: data.profilePicture ?? '',
+          googleCalendarConnected: data.googleCalendarConnected ?? false,
         });
       }
     } catch (error) {
@@ -653,6 +711,138 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     onClose();
   };
 
+  // Add a function to handle Google Calendar authentication
+  const handleGoogleCalendarAuth = async () => {
+    try {
+      // Store current window location before redirecting
+      localStorage.setItem('calendarAuthReturnTo', window.location.href);
+
+      // Redirect to Google OAuth in the same window instead of opening a new tab
+      window.location.href = '/api/calendar/auth';
+
+      // Show a toast message
+      toast({
+        type: 'success',
+        description: 'Redirecting to Google authentication...',
+      });
+    } catch (error) {
+      console.error('Failed to initiate Google Calendar auth:', error);
+      toast({
+        type: 'error',
+        description: 'Failed to connect to Google Calendar',
+      });
+    }
+  };
+
+  // Add a function to disconnect Google Calendar
+  const handleGoogleCalendarDisconnect = async () => {
+    try {
+      setLoading(true);
+
+      const response = await fetch('/api/calendar/disconnect', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        updateSetting('googleCalendarConnected', false);
+        toast({
+          type: 'success',
+          description: 'Google Calendar has been disconnected',
+        });
+      } else {
+        throw new Error('Failed to disconnect Google Calendar');
+      }
+    } catch (error) {
+      console.error('Failed to disconnect Google Calendar:', error);
+      toast({
+        type: 'error',
+        description: 'Failed to disconnect Google Calendar',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check Google Calendar connection status during fetch
+  React.useEffect(() => {
+    const checkCalendarConnection = async () => {
+      try {
+        const response = await fetch('/api/calendar/status');
+        if (response.ok) {
+          const { connected } = await response.json();
+          updateSetting('googleCalendarConnected', connected);
+        }
+      } catch (error) {
+        console.error('Failed to check Google Calendar status:', error);
+      }
+    };
+
+    if (isOpen && session?.user) {
+      checkCalendarConnection();
+    }
+  }, [isOpen, session]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      // Check for success or error messages in URL
+      const success = searchParams.get('success');
+      const error = searchParams.get('error');
+
+      if (success) {
+        toast({
+          type: 'success',
+          description: success,
+        });
+
+        // Refresh settings to show updated connection status
+        fetchUserSettings();
+
+        // Clear the query params
+        const url = new URL(window.location.href);
+        url.searchParams.delete('success');
+        window.history.replaceState({}, '', url);
+      }
+
+      if (error) {
+        toast({
+          type: 'error',
+          description: error,
+        });
+
+        // Clear the query params
+        const url = new URL(window.location.href);
+        url.searchParams.delete('error');
+        window.history.replaceState({}, '', url);
+      }
+    }
+  }, [isOpen, searchParams]);
+
+  // Add this effect to ensure proper return from OAuth
+  React.useEffect(() => {
+    // Check if we need to preserve the current URL for returning from OAuth
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const storedReturnTo = localStorage.getItem('calendarAuthReturnTo');
+
+      // If we're navigating away and there's already a stored return URL
+      // but the current page isn't the Google auth page, we should update it
+      if (
+        storedReturnTo &&
+        !window.location.pathname.includes('/api/calendar/auth')
+      ) {
+        localStorage.setItem('calendarAuthReturnTo', window.location.href);
+      }
+    };
+
+    // Only add this listener if the settings modal is open
+    if (isOpen) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isOpen]);
+
   return (
     <AnimatedModal
       isOpen={isOpen}
@@ -666,7 +856,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           onCancel={handleCropperClose}
         />
       )}
-      <div className={cn('p-6 max-w-xl', styles.wrapper, styles.enhancedModal)}>
+      <div
+        className={cn(
+          'p-6 pb-4 max-w-xl',
+          styles.wrapper,
+          styles.enhancedModal,
+        )}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle className={cn('text-xl', styles.headerText)}>
             Account Settings
@@ -674,7 +870,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </AlertDialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={cn('w-full grid grid-cols-3', styles.tabList)}>
+          <TabsList className={cn('w-full grid grid-cols-4', styles.tabList)}>
             <TabsTrigger
               value="profile"
               className={cn(
@@ -702,9 +898,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               Company
             </TabsTrigger>
+            <TabsTrigger
+              value="integrations"
+              className={cn(
+                styles.tabTrigger,
+                activeTab === 'integrations' && styles.tabActive,
+              )}
+            >
+              Integrations
+            </TabsTrigger>
           </TabsList>
 
-          <div className={cn('mt-4', styles.fixedHeight)}>
+          <div className={cn('mt-4 px-1', styles.fixedHeight)}>
             <AnimatePresence mode="wait">
               {activeTab === 'profile' && (
                 <TabsContent value="profile" key="profile" forceMount>
@@ -713,7 +918,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     animate="visible"
                     exit="exit"
                     variants={containerVariants}
-                    className="space-y-6"
+                    className="space-y-6 pb-4"
                   >
                     {/* Profile and Account Overview in a cohesive layout */}
                     <div className="flex flex-col md:flex-row gap-6">
@@ -1132,6 +1337,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     animate="visible"
                     exit="exit"
                     variants={containerVariants}
+                    className="space-y-6 pb-4"
                   >
                     {/* Notifications Section */}
                     <motion.div className="space-y-4" variants={itemVariants}>
@@ -1176,35 +1382,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         Appearance
                       </h3>
                       <div className="grid gap-4">
-                        <motion.div
-                          className="grid gap-2"
-                          variants={itemVariants}
-                        >
-                          <Label
-                            htmlFor="language"
-                            className={styles.formLabel}
-                          >
-                            Language
-                          </Label>
-                          <Select
-                            value={settings.language}
-                            onValueChange={(value) =>
-                              updateSetting('language', value)
-                            }
-                            disabled={loading}
-                          >
-                            <SelectTrigger id="language">
-                              <SelectValue placeholder="Select language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="english">English</SelectItem>
-                              <SelectItem value="spanish">Spanish</SelectItem>
-                              <SelectItem value="french">French</SelectItem>
-                              <SelectItem value="german">German</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </motion.div>
-
+                        {/* Font Size Setting - Keep existing */}
                         <motion.div
                           className="grid gap-2"
                           variants={itemVariants}
@@ -1231,6 +1409,65 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               <SelectItem value="large">Large</SelectItem>
                             </SelectContent>
                           </Select>
+                        </motion.div>
+
+                        {/* Dark Mode Toggle */}
+                        <motion.div
+                          className="grid gap-2 mt-2"
+                          variants={itemVariants}
+                        >
+                          <Label
+                            htmlFor="theme-mode"
+                            className={styles.formLabel}
+                          >
+                            Theme Mode
+                          </Label>
+                          <Select
+                            value={currentTheme}
+                            onValueChange={(value) => {
+                              setCurrentTheme(value);
+                              if (value === 'dark') {
+                                document.documentElement.classList.add('dark');
+                                localStorage.setItem('theme', 'dark');
+                              } else if (value === 'light') {
+                                document.documentElement.classList.remove(
+                                  'dark',
+                                );
+                                localStorage.setItem('theme', 'light');
+                              } else {
+                                // System preference
+                                localStorage.removeItem('theme');
+                                if (
+                                  window.matchMedia(
+                                    '(prefers-color-scheme: dark)',
+                                  ).matches
+                                ) {
+                                  document.documentElement.classList.add(
+                                    'dark',
+                                  );
+                                } else {
+                                  document.documentElement.classList.remove(
+                                    'dark',
+                                  );
+                                }
+                              }
+                            }}
+                          >
+                            <SelectTrigger id="theme-mode">
+                              <SelectValue placeholder="Select theme mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="dark">Dark</SelectItem>
+                              <SelectItem value="system">
+                                System Default
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className={cn(styles.mutedText, 'text-xs')}>
+                            Choose between light, dark, or use your system
+                            preference
+                          </p>
                         </motion.div>
                       </div>
                     </motion.div>
@@ -1337,6 +1574,161 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           className="min-h-[100px]"
                           disabled={loading}
                         />
+                      </motion.div>
+                    </motion.div>
+                  </motion.div>
+                </TabsContent>
+              )}
+
+              {activeTab === 'integrations' && (
+                <TabsContent value="integrations" key="integrations" forceMount>
+                  <motion.div
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={containerVariants}
+                    className="space-y-6"
+                  >
+                    <motion.div variants={itemVariants}>
+                      <h3
+                        className={cn('text-lg font-medium', styles.headerText)}
+                      >
+                        External Integrations
+                      </h3>
+                      <p className={cn('text-sm', styles.mutedText)}>
+                        Connect your accounts to enable additional AI features
+                      </p>
+                    </motion.div>
+
+                    <motion.div
+                      className="space-y-6"
+                      variants={containerVariants}
+                    >
+                      {/* Google Calendar Integration Card */}
+                      <motion.div
+                        className="rounded-lg border border-border p-4 bg-muted/10"
+                        variants={itemVariants}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                              <Calendar className="h-6 w-6 text-primary" />
+                            </div>
+                            <div>
+                              <h4
+                                className={cn(
+                                  'text-base font-medium',
+                                  styles.headerText,
+                                )}
+                              >
+                                Google Calendar
+                              </h4>
+                              <p className={cn('text-sm', styles.mutedText)}>
+                                {settings.googleCalendarConnected
+                                  ? 'Connected. The AI can access and manage your calendar.'
+                                  : 'Connect to allow the AI to check and update your calendar.'}
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            {settings.googleCalendarConnected ? (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={handleGoogleCalendarDisconnect}
+                                disabled={loading}
+                              >
+                                Disconnect
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={handleGoogleCalendarAuth}
+                                disabled={
+                                  loading || session?.user?.type === 'guest'
+                                }
+                                className="flex items-center gap-2"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Connect
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {settings.googleCalendarConnected && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={cn('text-sm', styles.normalText)}
+                              >
+                                Calendar access
+                              </span>
+                              <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                                Active
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {session?.user?.type === 'guest' &&
+                          !settings.googleCalendarConnected && (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <p
+                                className={cn(
+                                  'text-xs italic',
+                                  styles.mutedText,
+                                )}
+                              >
+                                Guest accounts cannot connect to Google
+                                Calendar. Please register for a full account.
+                              </p>
+                            </div>
+                          )}
+                      </motion.div>
+
+                      {/* Information Card */}
+                      <motion.div
+                        className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4"
+                        variants={itemVariants}
+                      >
+                        <div className="flex space-x-3">
+                          <div className="flex-shrink-0">
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M9.99999 6.66669V10M9.99999 13.3334H10.0083M18.3333 10C18.3333 14.6024 14.6024 18.3334 9.99999 18.3334C5.39762 18.3334 1.66666 14.6024 1.66666 10C1.66666 5.39765 5.39762 1.66669 9.99999 1.66669C14.6024 1.66669 18.3333 5.39765 18.3333 10Z"
+                                stroke="#D97706"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4
+                              className={cn(
+                                'text-sm font-medium',
+                                styles.headerText,
+                              )}
+                            >
+                              About Calendar Integration
+                            </h4>
+                            <p className={cn('text-xs mt-1', styles.mutedText)}>
+                              When connected, the AI can check your calendar for
+                              free times, schedule meetings, and help manage
+                              your events when asked. Your calendar data is only
+                              accessed when you explicitly ask for
+                              calendar-related help.
+                            </p>
+                          </div>
+                        </div>
                       </motion.div>
                     </motion.div>
                   </motion.div>

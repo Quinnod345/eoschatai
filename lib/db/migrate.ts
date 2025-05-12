@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { migrateUserDocuments } from './migrations/user-documents';
 
+// Load environment variables from .env.local first
 config({
   path: '.env.local',
 });
@@ -12,13 +13,16 @@ config({
 const getDatabaseUrl = () => {
   const postgresUrl = process.env.POSTGRES_URL;
   const databaseUrl = process.env.DATABASE_URL;
+  const postgresUrlNonPooling = process.env.POSTGRES_URL_NON_POOLING;
+  const databaseUrlUnpooled = process.env.DATABASE_URL_UNPOOLED;
 
-  // Return the first available URL
-  const url = postgresUrl || databaseUrl;
+  // Try each URL in order of preference
+  const url =
+    postgresUrl || databaseUrl || postgresUrlNonPooling || databaseUrlUnpooled;
 
   if (!url) {
     throw new Error(
-      'Neither POSTGRES_URL nor DATABASE_URL environment variable is defined',
+      'No database URL environment variable is defined. Set POSTGRES_URL, DATABASE_URL, POSTGRES_URL_NON_POOLING, or DATABASE_URL_UNPOOLED',
     );
   }
 
@@ -46,6 +50,57 @@ const addProviderIdToUser = async (connection: postgres.Sql<{}>) => {
     }
   } catch (error) {
     console.error('Error adding providerId column to User table:', error);
+    // Don't rethrow the error so that the migration can continue
+  }
+};
+
+// Add Google Calendar support migration
+const addGoogleCalendarSupport = async (connection: postgres.Sql<{}>) => {
+  try {
+    // Check if User table has googleCalendarConnected column
+    const gcConnectedExists = await columnExists(
+      connection,
+      'User',
+      'googleCalendarConnected',
+    );
+
+    if (!gcConnectedExists) {
+      await connection`
+        ALTER TABLE "User"
+        ADD COLUMN "googleCalendarConnected" BOOLEAN DEFAULT false
+      `;
+      console.log('Added googleCalendarConnected column to User table');
+    } else {
+      console.log(
+        'googleCalendarConnected column already exists in User table',
+      );
+    }
+
+    // Check if GoogleCalendarToken table exists
+    const tableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'GoogleCalendarToken'
+      ) as "exists"
+    `;
+
+    if (!tableExists[0].exists) {
+      await connection`
+        CREATE TABLE "GoogleCalendarToken" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "userId" UUID NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+          "token" JSONB NOT NULL,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          CONSTRAINT "GoogleCalendarToken_userId_unique" UNIQUE ("userId")
+        )
+      `;
+      console.log('Created GoogleCalendarToken table');
+    } else {
+      console.log('GoogleCalendarToken table already exists');
+    }
+  } catch (error) {
+    console.error('Error setting up Google Calendar support:', error);
     // Don't rethrow the error so that the migration can continue
   }
 };
@@ -173,6 +228,13 @@ const runMigrate = async () => {
           await addProviderIdToUser(connection);
         } catch (error) {
           console.error('Error adding provider ID column:', error);
+        }
+
+        try {
+          // Add Google Calendar support
+          await addGoogleCalendarSupport(connection);
+        } catch (error) {
+          console.error('Error adding Google Calendar support:', error);
         }
 
         try {
