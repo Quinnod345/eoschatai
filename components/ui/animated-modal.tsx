@@ -102,18 +102,21 @@ export function AnimatedModal({
         >
           <AlertDialogContent
             className={cn(
-              'p-0 border-none bg-transparent shadow-none',
+              'p-0 border-none bg-transparent shadow-none max-h-[95vh] max-w-screen-md w-[95vw] sm:w-auto',
               className,
             )}
             forceMount
           >
             <motion.div
-              className="w-full max-w-xl bg-background rounded-lg border shadow-md overflow-hidden"
+              className="w-full max-h-[90vh] mx-auto bg-background rounded-lg border shadow-md overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
               initial="hidden"
               animate={isClosing ? 'exit' : 'visible'}
               exit="exit"
               variants={modalVariants}
               onAnimationComplete={handleAnimationComplete}
+              style={{
+                overscrollBehavior: 'contain',
+              }}
             >
               {children}
             </motion.div>

@@ -172,6 +172,9 @@ export function DocumentContextModal({
         .${styles.tabList} {
           background-color: var(--color-bg-muted);
           border-radius: 0.375rem;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
         
         /* Tab trigger styles */
@@ -179,6 +182,15 @@ export function DocumentContextModal({
           color: var(--color-text) !important;
           position: relative;
           z-index: 1;
+          font-size: 0.8rem;
+          padding: 0.5rem 0.25rem;
+        }
+        
+        @media (min-width: 640px) {
+          .${styles.tabTrigger} {
+            font-size: 0.875rem;
+            padding: 0.5rem 0.75rem;
+          }
         }
         
         /* Remove the tab trigger hover effect */
@@ -219,14 +231,49 @@ export function DocumentContextModal({
         
         /* Fixed height content */
         .${styles.fixedHeight} {
-          height: 450px;
+          max-height: 35vh;
           overflow-y: auto;
+          scrollbar-width: thin;
+        }
+        
+        @media (min-width: 640px) {
+          .${styles.fixedHeight} {
+            max-height: 40vh;
+          }
+        }
+        
+        @media (min-width: 768px) {
+          .${styles.fixedHeight} {
+            max-height: 400px;
+          }
+        }
+
+        /* Scrollbar styling */
+        .${styles.fixedHeight}::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .${styles.fixedHeight}::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .${styles.fixedHeight}::-webkit-scrollbar-thumb {
+          background: var(--color-border);
+          border-radius: 3px;
+        }
+        
+        .${styles.fixedHeight}::-webkit-scrollbar-thumb:hover {
+          background: var(--color-text-muted);
         }
         
         /* Enhanced modal styling with shadows */
         .${styles.enhancedModal} {
           background-color: hsl(var(--background));
           border: 1px solid var(--color-border);
+          width: 100%;
+          max-width: 550px;
+          display: flex;
+          flex-direction: column;
         }
 
         /* Dark mode specific adjustments */
@@ -251,9 +298,15 @@ export function DocumentContextModal({
         .document-upload-zone {
           border: 2px dashed hsl(var(--border));
           border-radius: 0.5rem;
-          padding: 2rem;
+          padding: 1.5rem;
           text-align: center;
           transition: all 0.2s;
+        }
+        
+        @media (min-width: 640px) {
+          .document-upload-zone {
+            padding: 2rem;
+          }
         }
         
         .document-upload-zone.drag-active {
@@ -279,6 +332,17 @@ export function DocumentContextModal({
         
         .document-item:hover {
           background-color: hsl(var(--muted) / 0.5);
+        }
+
+        /* Footer sticky positioning */
+        .document-modal-footer {
+          position: sticky;
+          bottom: 0;
+          background-color: hsl(var(--background));
+          padding-top: 0.75rem;
+          margin-top: 0.75rem;
+          border-top: 1px solid hsl(var(--border) / 0.5);
+          z-index: 10;
         }
       `;
       document.head.appendChild(styleEl);
@@ -577,21 +641,21 @@ export function DocumentContextModal({
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose}>
-      <div className={cn('p-6 max-w-xl', styles.wrapper, styles.enhancedModal)}>
-        <AlertDialogHeader>
-          <AlertDialogTitle className={cn('text-xl', styles.headerText)}>
+      <div className={cn('p-4 sm:p-6', styles.wrapper, styles.enhancedModal)}>
+        <AlertDialogHeader className="mb-4">
+          <AlertDialogTitle
+            className={cn('text-lg sm:text-xl', styles.headerText)}
+          >
             Document Context
           </AlertDialogTitle>
-          <AlertDialogDescription className={cn(styles.mutedText)}>
+          <AlertDialogDescription
+            className={cn('text-xs sm:text-sm', styles.mutedText)}
+          >
             Upload your EOS documents to provide context for AI responses.
-            <span className="block mt-2 text-sm font-medium text-foreground">
+            <span className="block mt-2 text-xs sm:text-sm font-medium text-foreground">
               After uploading, you can ask the AI about your documents by saying
               things like &ldquo;What&apos;s in my Core Process document?&rdquo;
               or &ldquo;Tell me about my Scorecard.&rdquo;
-            </span>
-            <span className="block mt-2 text-sm font-medium text-blue-600">
-              NEW: PDF documents are now processed with advanced AI that can
-              analyze images, charts, and scanned text!
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -645,11 +709,11 @@ export function DocumentContextModal({
                 activeTab === 'Core Process' && styles.tabActive,
               )}
             >
-              Core Process
+              CoreProcess
             </TabsTrigger>
           </TabsList>
 
-          <div className={cn('mt-4', styles.fixedHeight)}>
+          <div className={cn('mt-3 sm:mt-4', styles.fixedHeight)}>
             {/* Hidden file input for file selection */}
             <input
               type="file"
@@ -667,15 +731,18 @@ export function DocumentContextModal({
                   animate="visible"
                   exit="exit"
                   variants={containerVariants}
-                  className="space-y-6"
+                  className="space-y-4 sm:space-y-6"
                 >
                   <motion.div variants={itemVariants}>
                     <h3
-                      className={cn('text-lg font-medium', styles.headerText)}
+                      className={cn(
+                        'text-base sm:text-lg font-medium',
+                        styles.headerText,
+                      )}
                     >
                       {activeTab} Documents
                     </h3>
-                    <p className={cn('text-sm', styles.mutedText)}>
+                    <p className={cn('text-xs sm:text-sm', styles.mutedText)}>
                       Upload your {activeTab} documents to provide context for
                       AI responses.
                     </p>
@@ -691,17 +758,22 @@ export function DocumentContextModal({
                     >
                       {uploading ? (
                         <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mb-3" />
+                          <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-t-2 border-b-2 border-primary mb-2 sm:mb-3" />
                           <p className={styles.normalText}>Uploading...</p>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center">
-                          <Upload className="h-10 w-10 mb-3 text-primary" />
-                          <p className={styles.normalText}>
+                          <Upload className="h-8 w-8 sm:h-10 sm:w-10 mb-2 sm:mb-3 text-primary" />
+                          <p
+                            className={cn(
+                              'text-sm sm:text-base',
+                              styles.normalText,
+                            )}
+                          >
                             <span className="font-medium">Click to upload</span>{' '}
                             or drag and drop
                           </p>
-                          <p className={cn('text-sm mt-1', styles.mutedText)}>
+                          <p className={cn('text-xs mt-1', styles.mutedText)}>
                             PDF, TXT, MD, DOC, DOCX, XLS, XLSX (up to 10MB)
                           </p>
                         </div>
@@ -718,7 +790,7 @@ export function DocumentContextModal({
           </div>
         </Tabs>
 
-        <AlertDialogFooter>
+        <AlertDialogFooter className="document-modal-footer">
           <Button
             variant="outline"
             onClick={onClose}

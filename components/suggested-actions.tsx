@@ -235,19 +235,16 @@ function PureSuggestedActions({
   return (
     <div
       data-testid="suggested-actions"
-      className="flex flex-col max-w-3xl mx-auto px-2 animate-fadeIn"
+      className="flex flex-col max-w-3xl mx-auto px-2 sm:px-4 animate-fadeIn"
     >
       {/* Header section */}
-      <div className="flex flex-col items-center justify-center mb-6 md:mb-12 pt-4 md:pt-8">
-        <h2
-          className="text-xl md:text-3xl font-semibold text-center text-orange-500 dark:text-orange-400 mb-6 md:mb-12 animate-slideDown"
-          style={{ textShadow: '0 0 10px rgba(249, 115, 22, 0.4)' }}
-        >
+      <div className="flex flex-col items-center justify-center mb-4 sm:mb-6 md:mb-8 pt-4 md:pt-6">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-center text-orange-500 dark:text-orange-400 mb-4 sm:mb-6 md:mb-8 animate-slideDown max-w-full px-2 overflow-hidden text-ellipsis">
           {greeting}
         </h2>
 
         {/* Visual separator */}
-        <div className="w-full max-w-md mx-auto mb-6 md:mb-12">
+        <div className="w-full max-w-md mx-auto mb-4 sm:mb-6 md:mb-8">
           <hr
             className="border-none h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
             style={{
@@ -259,19 +256,19 @@ function PureSuggestedActions({
         </div>
 
         {/* Mobile Dropdown */}
-        <div className="md:hidden w-full max-w-sm mx-auto mb-4 animate-slideUp relative z-30">
+        <div className="md:hidden w-full max-w-[90%] mx-auto mb-3 animate-slideUp relative z-30">
           <div className="relative">
             <button
               type="button"
               onClick={toggleDropdown}
-              className="w-full flex items-center justify-between px-4 py-2 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
             >
-              <span>
+              <span className="truncate">
                 {randomizedStarters[activeCategory]?.category ||
                   'Select a category'}
               </span>
               <svg
-                className={`ml-2 h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
+                className={`ml-2 h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -291,11 +288,11 @@ function PureSuggestedActions({
                     key={`category-${category.category}-${index}`}
                     type="button"
                     onClick={() => handleCategoryChange(index)}
-                    className={`w-full text-left px-4 py-2 text-sm ${
+                    className={`w-full text-left px-3 py-1.5 text-sm ${
                       activeCategory === index
                         ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-medium'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
+                    } truncate`}
                   >
                     {category.category}
                   </button>
@@ -306,17 +303,17 @@ function PureSuggestedActions({
         </div>
 
         {/* Desktop Category Tabs */}
-        <div className="hidden md:flex flex-wrap gap-2 justify-center animate-slideUp">
+        <div className="hidden md:flex flex-wrap gap-1.5 justify-center animate-slideUp px-2 overflow-x-auto max-w-full">
           {randomizedStarters.map((category, index) => (
             <button
               key={`desktop-category-${category.category}-${index}`}
               type="button"
               onClick={() => handleCategoryChange(index)}
-              className={`px-4 py-2 rounded-modern text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+              className={`px-3 py-1.5 rounded-modern text-xs sm:text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
                 activeCategory === index
                   ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700'
-              }`}
+              } whitespace-nowrap`}
             >
               {category.category}
             </button>
@@ -326,12 +323,14 @@ function PureSuggestedActions({
 
       {/* Starters Grid - More compact on mobile */}
       <div
-        className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all duration-300 ease-in-out ${
+        className={`grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 transition-all duration-300 ease-in-out ${
           animateOut ? 'opacity-0' : 'opacity-100'
         } relative z-10`}
         style={{
-          minHeight: '220px', // Ensure consistent height during transitions
+          minHeight: '180px', // Reduced height but still maintains consistency
+          maxHeight: '400px', // Prevent overly large grid on big screens
           willChange: 'opacity, transform', // Optimize for animations
+          overflow: 'auto', // Allows scrolling if content exceeds max height
         }}
       >
         {randomizedStarters[displayedCategory]?.randomStarters?.map(
@@ -340,7 +339,7 @@ function PureSuggestedActions({
               key={`starter-${index}-${starter.substring(0, 10)}`}
               type="button"
               onClick={() => handleStarterClick(starter)}
-              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-3 py-2 md:p-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
+              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-2.5 py-1.5 sm:px-3 sm:py-2 md:p-3 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
@@ -351,10 +350,11 @@ function PureSuggestedActions({
               }}
               style={{
                 willChange: 'transform',
-                height: '100%',
+                height: 'auto', // Allow height to adjust to content
+                maxHeight: '100%',
               }}
             >
-              <p className="text-gray-800 dark:text-gray-200 text-sm md:text-base">
+              <p className="text-gray-800 dark:text-gray-200 text-xs sm:text-sm md:text-base line-clamp-3">
                 {starter}
               </p>
             </motion.button>
@@ -363,13 +363,13 @@ function PureSuggestedActions({
       </div>
 
       {/* Custom Prompt Section */}
-      <div className="mt-4 md:mt-8 text-center animate-fadeIn relative z-10">
-        <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">
+      <div className="mt-3 sm:mt-4 md:mt-6 text-center animate-fadeIn relative z-10">
+        <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">
           Or type your own question below
         </p>
         <div className="flex items-center justify-center">
           <svg
-            className="h-4 w-4 md:h-5 md:w-5 text-orange-500 dark:text-orange-400 mr-2 animate-bounce-slow"
+            className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-orange-500 dark:text-orange-400 animate-bounce-slow"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
