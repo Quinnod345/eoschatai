@@ -139,8 +139,13 @@ export function detectEditIntent(
     'opening',
   ];
 
-  let type: ArtifactContext['editIntent']['type'] | undefined;
-  let target: ArtifactContext['editIntent']['target'] | undefined;
+  let type: 'modify' | 'extend' | 'improve' | 'fix' | undefined;
+  let target:
+    | 'specific_section'
+    | 'entire_content'
+    | 'conclusion'
+    | 'introduction'
+    | undefined;
 
   // Determine edit type
   if (extendKeywords.some((keyword) => message.includes(keyword))) {
