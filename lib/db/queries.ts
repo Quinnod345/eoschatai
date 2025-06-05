@@ -29,7 +29,6 @@ import {
   type Chat,
   stream,
   userSettings,
-  type Document,
   pinnedMessage,
 } from './schema';
 import type { ArtifactKind } from '@/components/artifact';
@@ -724,7 +723,7 @@ export async function updateUserSettings({
         ...updatedSettings,
         lastFeaturesVersion: lastFeaturesVersion
           ? new Date(lastFeaturesVersion)
-          : updatedSettings.lastFeaturesVersion,
+          : null,
       };
     }
   } catch (error) {

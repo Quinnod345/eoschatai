@@ -1,4 +1,3 @@
-import { tool } from 'ai';
 import { z } from 'zod';
 import {
   processUserDocument,
@@ -10,10 +9,11 @@ import { generateUUID } from '@/lib/utils';
 /**
  * Tool for adding user documents to their personal RAG database
  */
-export const addUserDocumentTool = tool({
+export const addUserDocumentTool = {
+  name: 'addUserDocument',
   description:
     'Add a user document to their personal knowledge base using RAG. This replaces the old document context system.',
-  parameters: z.object({
+  schema: z.object({
     title: z.string().describe('The title/name of the document'),
     content: z.string().describe('The content of the document'),
     category: z
@@ -24,7 +24,7 @@ export const addUserDocumentTool = tool({
       .optional()
       .describe('The file type (e.g., pdf, docx, txt)'),
   }),
-  execute: async ({ title, content, category, fileType }, userId: string) => {
+  execute: async ({ title, content, category, fileType }: { title: string; content: string; category: 'Scorecard' | 'VTO' | 'Rocks' | 'A/C' | 'Core Process' | 'Other'; fileType?: string }, userId: string) => {
     try {
       console.log(
         `User RAG Tool: Adding document "${title}" for user ${userId}`,
@@ -54,15 +54,16 @@ export const addUserDocumentTool = tool({
       };
     }
   },
-});
+};
 
 /**
  * Tool for retrieving relevant user documents from their personal RAG database
  */
-export const getUserDocumentsTool = tool({
+export const getUserDocumentsTool = {
+  name: 'getUserDocuments',
   description:
     "Retrieve relevant documents from the user's personal knowledge base using semantic search.",
-  parameters: z.object({
+  schema: z.object({
     query: z
       .string()
       .describe('The search query to find relevant user documents'),
@@ -72,7 +73,7 @@ export const getUserDocumentsTool = tool({
       .default(5)
       .describe('Maximum number of results to return'),
   }),
-  execute: async ({ query, limit = 5 }, userId: string) => {
+  execute: async ({ query, limit = 5 }: { query: string; limit?: number }, userId: string) => {
     try {
       console.log(
         `User RAG Tool: Searching user ${userId} documents for: "${query}"`,
@@ -113,18 +114,19 @@ export const getUserDocumentsTool = tool({
       };
     }
   },
-});
+};
 
 /**
  * Tool for removing user documents from their personal RAG database
  */
-export const removeUserDocumentTool = tool({
+export const removeUserDocumentTool = {
+  name: 'removeUserDocument',
   description:
     "Remove a specific document from the user's personal knowledge base.",
-  parameters: z.object({
+  schema: z.object({
     documentId: z.string().describe('The ID of the document to remove'),
   }),
-  execute: async ({ documentId }, userId: string) => {
+  execute: async ({ documentId }: { documentId: string }, userId: string) => {
     try {
       console.log(
         `User RAG Tool: Removing document ${documentId} for user ${userId}`,
@@ -154,7 +156,7 @@ export const removeUserDocumentTool = tool({
       };
     }
   },
-});
+};
 
 /**
  * Export all user RAG tools

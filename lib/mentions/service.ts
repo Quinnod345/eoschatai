@@ -489,9 +489,9 @@ export class MentionService {
       return filters.every((filter) => {
         switch (filter.type) {
           case 'category':
-            return suggestion.resource.category === filter.value;
+            return 'category' in suggestion.resource && suggestion.resource.category === filter.value;
           case 'type':
-            return suggestion.resource.type === filter.value;
+            return 'type' in suggestion.resource && suggestion.resource.type === filter.value;
           case 'permission':
             // Check permissions
             return true;

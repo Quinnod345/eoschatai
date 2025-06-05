@@ -50,14 +50,14 @@ async function testVectors() {
           if (result[0]?.metadata) {
             console.log(`   Title: ${result[0].metadata.title}`);
             console.log(
-              `   Content preview: ${result[0].metadata.content?.substring(0, 100)}...`,
+              `   Content preview: ${(result[0].metadata?.content as string)?.substring(0, 100) || 'No content'}...`,
             );
           }
         } else {
           console.log(`❌ Not found: ${id}`);
         }
       } catch (err) {
-        console.log(`❌ Error fetching ${id}:`, err.message);
+        console.log(`❌ Error fetching ${id}:`, err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -84,7 +84,6 @@ async function testVectors() {
         vector: embedding,
         topK: 1,
         includeMetadata: true,
-        namespace: namespace,
       });
 
       console.log(`\n"${query}": ${results.length} results`);

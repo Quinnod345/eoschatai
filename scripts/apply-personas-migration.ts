@@ -41,7 +41,7 @@ async function applyPersonasMigration() {
           // Log the error but continue with other statements
           console.warn(
             '⚠️ Statement failed (may already exist):',
-            error.message,
+            error instanceof Error ? error.message : String(error),
           );
         }
       }

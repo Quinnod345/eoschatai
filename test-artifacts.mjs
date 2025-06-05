@@ -37,7 +37,7 @@ async function testArtifacts() {
         `   Content length: ${doc.content ? doc.content.length : 0} chars`,
       );
       console.log(
-        `   Content preview: ${doc.content ? doc.content.substring(0, 100) + '...' : 'NULL'}`,
+        `   Content preview: ${doc.content ? `${doc.content.substring(0, 100)}...` : 'NULL'}`,
       );
       console.log(`   Created: ${doc.createdAt}`);
       console.log(`   User ID: ${doc.userId}`);

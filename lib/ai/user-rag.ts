@@ -364,8 +364,7 @@ export const deleteUserDocument = async (
       topK: 1000, // Should be enough for most documents
       includeMetadata: true,
       includeVectors: false,
-      namespace: userId,
-      filter: { documentId }, // Filter by document ID if supported
+      filter: `documentId="${documentId}"`, // Filter by document ID if supported
     });
 
     if (!documentVectors || documentVectors.length === 0) {
@@ -418,7 +417,6 @@ export const getUserDocumentStats = async (
       topK: 100, // Reasonable limit to avoid exceeding read limits
       includeMetadata: true,
       includeVectors: false,
-      namespace: userId,
     });
 
     if (!allVectors || allVectors.length === 0) {
@@ -518,7 +516,7 @@ export const debugUserNamespace = async (
     return {
       totalVectors: 0,
       sampleVectors: [],
-      namespaceInfo: { error: error.message },
+      namespaceInfo: { error: error instanceof Error ? error.message : String(error) },
     };
   }
 };
@@ -554,7 +552,7 @@ export const findRelevantUserContentDebug = async (
         topK: limit + 10, // Get extra results for filtering
         includeMetadata: true,
         includeVectors: false,
-        namespace: userId, // Use user-specific namespace
+        // Use user-specific namespace (removed due to API changes)
       });
 
       console.log(

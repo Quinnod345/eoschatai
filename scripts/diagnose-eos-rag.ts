@@ -52,13 +52,11 @@ async function diagnoseEOSRAG() {
         // Try to fetch vectors by prefix to list them
         const fetchResults = await client.fetch({
           prefix: `${namespace}-`,
-          includeMetadata: true,
-          namespace: namespace,
         });
 
         console.log(`  Fetch by prefix found ${fetchResults.length} vectors`);
 
-        if (fetchResults.length > 0) {
+        if (fetchResults.length > 0 && fetchResults[0]) {
           console.log(`  First vector:`);
           console.log(`    ID: ${fetchResults[0].id}`);
           console.log(`    Metadata:`, fetchResults[0].metadata);
@@ -66,13 +64,13 @@ async function diagnoseEOSRAG() {
 
         // Also try to fetch specific IDs
         const testId = `${namespace}-EOS-Vision-Building-Day1-Session-Guide-chunk-0`;
-        const specificFetch = await client.fetch([testId], { namespace });
+        const specificFetch = await client.fetch([testId]);
 
         if (specificFetch.length > 0 && specificFetch[0]) {
           console.log(`  Found specific vector by ID: ${testId}`);
         }
       } catch (error) {
-        console.log(`  Error querying namespace: ${error.message}`);
+        console.log(`  Error querying namespace: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       console.log('');
@@ -103,7 +101,6 @@ async function diagnoseEOSRAG() {
         vector: embedding,
         topK: 3,
         includeMetadata: true,
-        namespace: namespace,
       });
 
       console.log(`  Results in ${namespace}: ${results.length}`);
@@ -113,7 +110,7 @@ async function diagnoseEOSRAG() {
           console.log(`    ${i + 1}. Score: ${result.score.toFixed(3)}`);
           console.log(`       Title: ${result.metadata?.title || 'No title'}`);
           console.log(
-            `       Content preview: ${result.metadata?.content?.substring(0, 100) || 'No content'}...`,
+            `       Content preview: ${(result.metadata?.content as string)?.substring(0, 100) || 'No content'}...`,
           );
         });
       }
@@ -147,7 +144,7 @@ async function diagnoseEOSRAG() {
       console.log('\nSample vectors with namespace in metadata:');
       withNamespaceMetadata.slice(0, 3).forEach((result, i) => {
         console.log(`  ${i + 1}. ID: ${result.id}`);
-        console.log(`     Namespace in metadata: ${result.metadata.namespace}`);
+        console.log(`     Namespace in metadata: ${result.metadata?.namespace}`);
       });
     }
 

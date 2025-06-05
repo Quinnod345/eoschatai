@@ -70,7 +70,6 @@ async function testSearch() {
       vector: embedding,
       topK: 5,
       includeMetadata: true,
-      namespace: namespace,
     });
     console.log(`Found ${namespaceResults.length} results in namespace`);
 
@@ -81,7 +80,7 @@ async function testSearch() {
         console.log(`   ID: ${result.id}`);
         console.log(`   Title: ${result.metadata?.title || 'No title'}`);
         console.log(
-          `   Content preview: ${result.metadata?.content?.substring(0, 100)}...`,
+          `   Content preview: ${(result.metadata?.content as string)?.substring(0, 100) || 'No content'}...`,
         );
       });
     }
@@ -100,7 +99,6 @@ async function testSearch() {
         vector: embedding,
         topK: 1,
         includeMetadata: true,
-        namespace: ns,
       });
       console.log(`   ${ns}: ${results.length} results`);
     }

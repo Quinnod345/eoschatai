@@ -60,7 +60,7 @@ async function testFetchWithMetadata() {
             console.log(`  - fileName: ${vector.metadata.fileName}`);
             console.log(`  - category: ${vector.metadata.category}`);
             console.log(
-              `  - chunk preview: ${vector.metadata.chunk?.substring(0, 100) || 'No chunk'}...`,
+              `  - chunk preview: ${(vector.metadata?.chunk as string)?.substring(0, 100) || 'No chunk'}...`,
             );
           }
         }
@@ -89,7 +89,6 @@ async function testFetchWithMetadata() {
           topK: 5,
           includeMetadata: true,
           includeVectors: false,
-          namespace: userId,
         });
 
         console.log(

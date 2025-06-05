@@ -64,7 +64,6 @@ async function testMetadata() {
       vector: new Array(1536).fill(0.1),
       topK: 5,
       includeMetadata: true,
-      namespace: testNamespace,
     });
 
     console.log(`Query found ${queryResults.length} results`);

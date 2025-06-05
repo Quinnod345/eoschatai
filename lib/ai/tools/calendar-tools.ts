@@ -20,6 +20,29 @@ interface MeetingAnalytics {
   upcomingPrep: { event: CalendarEvent; prepTime: number }[];
 }
 
+interface DailyBriefing {
+  date: string;
+  eventCount: number;
+  events: {
+    time: string;
+    duration: number | null;
+    title: string;
+    location?: string;
+    attendeeCount: number;
+    needsPrep?: boolean;
+  }[];
+  gaps: {
+    start: string;
+    end: string;
+    duration: number;
+  }[];
+  tomorrowPreview: {
+    count: number;
+    firstEvent: string;
+    firstEventTime: string;
+  } | null;
+}
+
 // Helper function to get calendar client
 async function getCalendarClient(userId: string) {
   const { db } = await import('../../db');
@@ -130,7 +153,7 @@ export const checkCalendarConflictsTool = {
     startDateTime: z.string().describe('Start time in ISO format'),
     endDateTime: z.string().describe('End time in ISO format'),
   }),
-  execute: async ({ startDateTime, endDateTime }, userId: string) => {
+  execute: async ({ startDateTime, endDateTime }: { startDateTime: string; endDateTime: string }, userId: string) => {
     try {
       const calendar = await getCalendarClient(userId);
       const conflicts = await checkConflicts(
@@ -180,7 +203,7 @@ export const findAvailableTimeSlotsTool = {
       .default(7)
       .describe('Number of days to search ahead'),
   }),
-  execute: async ({ duration, searchDays }, userId: string) => {
+  execute: async ({ duration, searchDays }: { duration: number; searchDays: number }, userId: string) => {
     try {
       const calendar = await getCalendarClient(userId);
       const freeSlots = await findFreeSlots(calendar, duration, searchDays);
@@ -226,7 +249,7 @@ export const getCalendarAnalyticsTool = {
       .default(30)
       .describe('Number of days to analyze'),
   }),
-  execute: async ({ days }, userId: string) => {
+  execute: async ({ days }: { days: number }, userId: string) => {
     try {
       const calendar = await getCalendarClient(userId);
 
@@ -360,7 +383,7 @@ export const getDailyBriefingTool = {
       .default(true)
       .describe('Include preparation suggestions'),
   }),
-  execute: async ({ includePrep }, userId: string) => {
+  execute: async ({ includePrep }: { includePrep: boolean }, userId: string) => {
     try {
       const calendar = await getCalendarClient(userId);
 
@@ -389,7 +412,7 @@ export const getDailyBriefingTool = {
 
       const tomorrowEvents = tomorrowData.items || [];
 
-      const briefing = {
+      const briefing: DailyBriefing = {
         date: format(today, 'EEEE, MMMM d, yyyy'),
         eventCount: todayEvents.length,
         events: todayEvents.map((event) => {
@@ -405,7 +428,7 @@ export const getDailyBriefingTool = {
                 ? Math.round((end.getTime() - start.getTime()) / (1000 * 60))
                 : null,
             title: event.summary || 'Untitled',
-            location: event.location,
+            location: event.location || undefined,
             attendeeCount: event.attendees?.length || 0,
             needsPrep:
               includePrep && event.attendees && event.attendees.length > 2,
@@ -473,7 +496,7 @@ export const parseNaturalLanguageEventTool = {
       .optional()
       .describe('Current date for relative date parsing'),
   }),
-  execute: async ({ text, currentDate }, userId: string) => {
+  execute: async ({ text, currentDate }: { text: string; currentDate?: string }, userId: string) => {
     // This is a simplified parser - in production, you'd use a more sophisticated NLP approach
     const patterns = {
       time: /(?:at|@)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i,

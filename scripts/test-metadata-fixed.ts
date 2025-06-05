@@ -82,7 +82,6 @@ async function testMetadataFixed() {
       vector: new Array(1536).fill(0.2), // Exact match
       topK: 5,
       includeMetadata: true,
-      namespace: testNamespace,
     });
 
     console.log(`Query found ${queryResults.length} results`);
@@ -98,7 +97,6 @@ async function testMetadataFixed() {
       vector: new Array(1536).fill(0.1), // Different vector
       topK: 10,
       includeMetadata: true,
-      namespace: testNamespace,
     });
 
     console.log(`Broad query found ${broadQuery.length} results`);

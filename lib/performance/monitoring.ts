@@ -76,6 +76,12 @@ class PerformanceMonitor {
     }
   }
 
+  // Add a custom metric directly
+  addMetric(metric: PerformanceMetrics): void {
+    this.metrics.push(metric);
+    this.observers.forEach((observer) => observer(metric));
+  }
+
   // Get metrics summary
   getSummary(): Record<
     string,
@@ -151,7 +157,7 @@ export function initWebVitals() {
   new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
       if (entry.name === 'first-contentful-paint') {
-        performanceMonitor.metrics.push({
+        performanceMonitor.addMetric({
           name: 'web-vitals-fcp',
           duration: entry.startTime,
           timestamp: Date.now(),
@@ -165,7 +171,7 @@ export function initWebVitals() {
   new PerformanceObserver((list) => {
     const entries = list.getEntries();
     const lastEntry = entries[entries.length - 1];
-    performanceMonitor.metrics.push({
+    performanceMonitor.addMetric({
       name: 'web-vitals-lcp',
       duration: lastEntry.startTime,
       timestamp: Date.now(),
@@ -176,9 +182,9 @@ export function initWebVitals() {
   // First Input Delay (FID)
   new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
-      performanceMonitor.metrics.push({
+      performanceMonitor.addMetric({
         name: 'web-vitals-fid',
-        duration: entry.processingStart - entry.startTime,
+        duration: (entry as any).processingStart - entry.startTime,
         timestamp: Date.now(),
         metadata: { type: 'web-vital' },
       });
@@ -189,9 +195,9 @@ export function initWebVitals() {
   let clsValue = 0;
   new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
-      if (!entry.hadRecentInput) {
-        clsValue += entry.value;
-        performanceMonitor.metrics.push({
+      if (!(entry as any).hadRecentInput) {
+        clsValue += (entry as any).value;
+        performanceMonitor.addMetric({
           name: 'web-vitals-cls',
           duration: clsValue,
           timestamp: Date.now(),
@@ -208,7 +214,7 @@ export function monitorMemory() {
 
   setInterval(() => {
     const memory = (performance as any).memory;
-    performanceMonitor.metrics.push({
+    performanceMonitor.addMetric({
       name: 'memory-usage',
       duration: memory.usedJSHeapSize / 1048576, // Convert to MB
       timestamp: Date.now(),

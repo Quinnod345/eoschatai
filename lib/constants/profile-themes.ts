@@ -5,12 +5,12 @@ import {
   CompassIcon,
   SettingsIcon,
 } from '@/components/icons';
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
 
 export interface ProfileTheme {
   id: string;
   name: string;
-  icon: LucideIcon;
+  icon: ComponentType<{ size?: number; className?: string }>;
   gradient: {
     from: string;
     to: string;

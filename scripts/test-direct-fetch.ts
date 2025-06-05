@@ -25,17 +25,13 @@ async function testDirectFetch() {
     'eos-implementer-vision-day-1-EOS-Vision-Building-Day1-Session-Guide.pdf-chunk-0';
 
   console.log(`1️⃣ Fetching known vector: ${knownId}`);
-  const fetchResult = await client.fetch([knownId], {
-    namespace,
-    includeMetadata: true,
-    includeVectors: false,
-  });
+  const fetchResult = await client.fetch([knownId]);
 
   if (fetchResult[0]) {
     console.log('✅ Vector found!');
     console.log(
       'Content:',
-      `${fetchResult[0].metadata?.content?.substring(0, 200)}...`,
+      `${(fetchResult[0].metadata?.content as string)?.substring(0, 200) || 'No content'}...`,
     );
 
     // 2. Generate embedding from the actual content
@@ -46,14 +42,13 @@ async function testDirectFetch() {
       );
       const { embedding } = await embed({
         model: openai.embedding('text-embedding-ada-002'),
-        value: content.substring(0, 500), // Use first 500 chars
+        value: (content as string).substring(0, 500), // Use first 500 chars
       });
 
       const searchResults = await client.query({
         vector: embedding,
         topK: 5,
         includeMetadata: true,
-        namespace: namespace,
       });
 
       console.log(`Found ${searchResults.length} results`);
@@ -74,7 +69,6 @@ async function testDirectFetch() {
     limit: 5,
     includeMetadata: true,
     includeVectors: false,
-    namespace: namespace,
   });
 
   console.log(`Range returned ${rangeResult.vectors?.length || 0} vectors`);

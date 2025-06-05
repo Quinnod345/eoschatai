@@ -1,6 +1,7 @@
 import { toast as sonnerToast, type ExternalToast } from 'sonner';
+import type { MouseEvent } from 'react';
 
-export interface ToastOptions extends ExternalToast {
+export interface ToastOptions extends Omit<ExternalToast, 'cancel'> {
   title?: string;
   description?: string;
   action?: {
@@ -9,7 +10,7 @@ export interface ToastOptions extends ExternalToast {
   };
   cancel?: {
     label: string;
-    onClick?: () => void;
+    onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   };
 }
 
@@ -40,12 +41,12 @@ class ToastManager {
             duration: 4000,
             ...options,
             onDismiss: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onDismiss?.(t);
               this.processQueue();
             },
             onAutoClose: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onAutoClose?.(t);
               this.processQueue();
             },
@@ -56,12 +57,12 @@ class ToastManager {
             duration: 6000,
             ...options,
             onDismiss: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onDismiss?.(t);
               this.processQueue();
             },
             onAutoClose: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onAutoClose?.(t);
               this.processQueue();
             },
@@ -72,12 +73,12 @@ class ToastManager {
             duration: 4000,
             ...options,
             onDismiss: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onDismiss?.(t);
               this.processQueue();
             },
             onAutoClose: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onAutoClose?.(t);
               this.processQueue();
             },
@@ -88,12 +89,12 @@ class ToastManager {
             duration: 5000,
             ...options,
             onDismiss: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onDismiss?.(t);
               this.processQueue();
             },
             onAutoClose: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onAutoClose?.(t);
               this.processQueue();
             },
@@ -110,12 +111,12 @@ class ToastManager {
             duration: 4000,
             ...options,
             onDismiss: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onDismiss?.(t);
               this.processQueue();
             },
             onAutoClose: (t) => {
-              this.activeToasts.delete(t);
+              this.activeToasts.delete(t.id);
               options?.onAutoClose?.(t);
               this.processQueue();
             },
@@ -185,8 +186,8 @@ class ToastManager {
         loading: loadingMessage,
         success: successMessage,
         error: errorMessage,
+        ...options,
       },
-      options,
     );
   }
 

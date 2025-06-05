@@ -17,6 +17,7 @@ import equal from 'fast-deep-equal';
 import { toast, toastUtils } from '@/lib/toast-system';
 import { Pin, MessageCircle, Share } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { copyRichText, processMessageParts } from '@/lib/utils/copy-utils';
 
 export function PureMessageActions({
   chatId,
@@ -39,27 +40,28 @@ export function PureMessageActions({
   const [_, copyToClipboard] = useCopyToClipboard();
 
   const handleCopy = async () => {
-    const textFromParts = message.parts
-      ?.filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('\n')
-      .trim();
+    // Process message parts to get clean text with formatted mentions
+    const textFromParts = processMessageParts(message.parts);
 
     if (!textFromParts) {
       toastUtils.copyError();
       return;
     }
 
-    await copyToClipboard(textFromParts);
-    toastUtils.copySuccess();
+    try {
+      // Try to copy as rich text (HTML)
+      await copyRichText(textFromParts);
+      toastUtils.copySuccess();
+    } catch (error) {
+      // Fallback to plain text copy
+      await copyToClipboard(textFromParts);
+      toastUtils.copySuccess();
+    }
   };
 
   const handleShare = () => {
-    const textFromParts = message.parts
-      ?.filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('\n')
-      .trim();
+    // Process message parts to get clean text with formatted mentions
+    const textFromParts = processMessageParts(message.parts);
 
     if (navigator.share && textFromParts) {
       navigator

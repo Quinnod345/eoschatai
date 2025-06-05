@@ -112,7 +112,7 @@ export const findRelevantUserContentWorkaround = async (
             foundChunks++;
 
             // Compute cosine similarity
-            const similarity = cosineSimilarity(queryEmbedding, vector.vector);
+            const similarity = cosineSimilarity(queryEmbedding, vector.vector!);
 
             console.log(
               `User RAG Workaround: Vector ${vectorId} similarity: ${(similarity * 100).toFixed(1)}%`,
@@ -120,7 +120,7 @@ export const findRelevantUserContentWorkaround = async (
 
             if (similarity >= minRelevance) {
               results.push({
-                content: vector.metadata?.chunk || '',
+                content: (vector.metadata?.chunk as string) || '',
                 relevance: similarity,
                 metadata: {
                   documentId: vector.metadata?.documentId,

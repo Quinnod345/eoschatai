@@ -62,7 +62,6 @@ async function testFetchById() {
         limit: 10,
         includeMetadata: true,
         includeVectors: false,
-        namespace: userId,
       });
       console.log('Range result:', rangeResult);
     } catch (error) {

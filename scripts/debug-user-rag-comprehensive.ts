@@ -57,7 +57,6 @@ async function comprehensiveDebug() {
         topK: 10,
         includeMetadata: true,
         includeVectors: false,
-        namespace: userId,
       });
       console.log(`Results with namespace: ${results1?.length || 0}`);
       if (results1 && results1.length > 0) {

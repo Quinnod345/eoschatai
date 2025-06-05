@@ -45,7 +45,6 @@ async function testEOSSearch() {
         vector: embedding,
         topK: 3,
         includeMetadata: true,
-        namespace: namespace,
       });
 
       // Filter by threshold
@@ -60,7 +59,7 @@ async function testEOSSearch() {
             `     ${i + 1}. Score: ${result.score.toFixed(3)} - ${result.metadata?.title || 'No title'}`,
           );
           console.log(
-            `        Content preview: ${result.metadata?.content?.substring(0, 100)?.replace(/\n/g, ' ') || 'No content'}...`,
+            `        Content preview: ${(result.metadata?.content as string)?.substring(0, 100)?.replace(/\n/g, ' ') || 'No content'}...`,
           );
         });
         break; // Found results, don't try lower thresholds

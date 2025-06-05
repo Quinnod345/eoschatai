@@ -75,8 +75,8 @@ export async function findUpstashSystemContent(
     return results
       .filter((result) => result.score >= threshold)
       .map((result) => ({
-        content: result.metadata?.content || '',
-        title: result.metadata?.title || 'Untitled',
+        content: (result.metadata?.content as string) || '',
+        title: (result.metadata?.title as string) || 'Untitled',
         relevance: result.score,
         metadata: result.metadata,
       }));
