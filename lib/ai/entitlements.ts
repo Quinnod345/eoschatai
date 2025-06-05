@@ -12,24 +12,20 @@ export const entitlementsByUserType: Record<UserType, Entitlements> = {
    */
   guest: {
     maxMessagesPerDay: 20,
-    availableChatModelIds: ['chat-model', 'chat-model-reasoning'],
+    availableChatModelIds: ['chat-model'],
   },
 
   /*
    * For users with an account
    */
   regular: {
-    maxMessagesPerDay: 100,
-    availableChatModelIds: ['chat-model', 'chat-model-reasoning'],
+    maxMessagesPerDay: 10000, // Effectively unlimited for all users
+    availableChatModelIds: ['chat-model'],
   },
-
-  /*
-   * TODO: For users with an account and a paid membership
-   */
 };
 
 // List of all possible AI tool entitlements
-export const getAIToolsEntitlements = (isPaid: boolean = false) => {
+export const getAIToolsEntitlements = (isPaid = false) => {
   // Base tools available to all users
   const baseTools = ['rag'];
 
@@ -40,8 +36,11 @@ export const getAIToolsEntitlements = (isPaid: boolean = false) => {
 };
 
 export const getActiveTools = (customerId?: string) => {
-  // All users get access to base tools and calendar tools
-  return [...getAIToolsEntitlements(!!customerId), 'calendar'];
+  // All users get access to all tools
+  return [
+    ...getAIToolsEntitlements(false),
+    'calendar', // Calendar is now available to all users
+  ];
 };
 
 export const userMayUseChat = (userId?: string) => {

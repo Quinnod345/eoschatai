@@ -29,7 +29,7 @@ export async function generateTitleFromUserMessage({
   const cookieStore = await cookies();
   const providerFromCookie = cookieStore.get('ai-provider');
   const selectedProvider = providerFromCookie?.value || DEFAULT_PROVIDER;
-  
+
   // Create the provider based on the cookie value
   const provider = createCustomProvider(selectedProvider);
 

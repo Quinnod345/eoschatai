@@ -4,6 +4,7 @@ import {
   varchar,
   timestamp,
   json,
+  jsonb,
   uuid,
   text,
   primaryKey,
@@ -13,6 +14,7 @@ import {
   index,
   unique,
   integer,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -21,6 +23,7 @@ export const user = pgTable('User', {
   password: varchar('password', { length: 64 }),
   providerId: varchar('providerId', { length: 64 }),
   googleCalendarConnected: boolean('googleCalendarConnected').default(false),
+  lastFeaturesVersion: timestamp('lastFeaturesVersion'),
 });
 
 export type User = InferSelectModel<typeof user>;
@@ -35,6 +38,8 @@ export const chat = pgTable('Chat', {
   visibility: varchar('visibility', { enum: ['public', 'private'] })
     .notNull()
     .default('private'),
+  personaId: uuid('personaId').references(() => persona.id),
+  profileId: uuid('profileId').references(() => personaProfile.id),
 });
 
 export type Chat = InferSelectModel<typeof chat>;
@@ -109,6 +114,59 @@ export const vote = pgTable(
 
 export type Vote = InferSelectModel<typeof vote>;
 
+export const pinnedMessage = pgTable(
+  'PinnedMessage',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    messageId: uuid('messageId')
+      .notNull()
+      .references(() => message.id),
+    chatId: uuid('chatId')
+      .notNull()
+      .references(() => chat.id),
+    pinnedAt: timestamp('pinnedAt').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      userMessageIdx: index('pinned_user_message_idx').on(
+        table.userId,
+        table.messageId,
+      ),
+      chatIdx: index('pinned_chat_idx').on(table.chatId),
+    };
+  },
+);
+
+export const bookmarkedChat = pgTable(
+  'BookmarkedChat',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    chatId: uuid('chatId')
+      .notNull()
+      .references(() => chat.id),
+    bookmarkedAt: timestamp('bookmarkedAt').notNull().defaultNow(),
+    note: text('note'),
+  },
+  (table) => {
+    return {
+      userChatIdx: uniqueIndex('bookmarked_user_chat_idx').on(
+        table.userId,
+        table.chatId,
+      ),
+      userIdx: index('bookmarked_user_idx').on(table.userId),
+    };
+  },
+);
+
+export type PinnedMessage = InferSelectModel<typeof pinnedMessage>;
+export type BookmarkedChat = InferSelectModel<typeof bookmarkedChat>;
+
 export const document = pgTable('Document', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   createdAt: timestamp('createdAt').notNull(),
@@ -174,12 +232,35 @@ export const embeddings = pgTable(
 
 export type Embedding = InferSelectModel<typeof embeddings>;
 
+// System-level embeddings for personas and profiles (EOS knowledge base)
+export const systemEmbeddings = pgTable(
+  'SystemEmbeddings',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    namespace: varchar('namespace', { length: 128 }).notNull(), // e.g., 'eos-implementer', 'eos-implementer-vision-day-1'
+    title: text('title').notNull(), // Document title
+    chunk: text('chunk').notNull(), // Text chunk
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    metadata: json('metadata'), // Additional metadata (source, tags, etc.)
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    systemEmbeddingIdx: index('system_embedding_idx').using(
+      'hnsw',
+      table.embedding.op('vector_cosine_ops'),
+    ),
+    namespaceIdx: index('namespace_idx').on(table.namespace),
+  }),
+);
+
+export type SystemEmbedding = InferSelectModel<typeof systemEmbeddings>;
+
 // New table for user settings
 export const userSettings = pgTable('UserSettings', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   userId: uuid('userId')
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: 'cascade' }),
   notificationsEnabled: boolean('notificationsEnabled').default(true),
   language: varchar('language', { length: 32 }).default('english'),
   fontSize: varchar('fontSize', { length: 16 }).default('medium'),
@@ -190,8 +271,17 @@ export const userSettings = pgTable('UserSettings', {
   companyDescription: text('companyDescription'),
   // Profile picture URL from Vercel Blob
   profilePicture: text('profilePicture'),
+  // Daily message tracking
+  dailyMessageCount: integer('dailyMessageCount').default(0),
+  lastMessageCountReset: timestamp('lastMessageCountReset').defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  selectedChatModel: text('selectedChatModel').default('gpt-4o-mini'),
+  selectedProvider: text('selectedProvider').default('openai'),
+  selectedVisibilityType: text('selectedVisibilityType').default('private'),
+  selectedPersonaId: uuid('selectedPersonaId'),
+  selectedProfileId: uuid('selectedProfileId'),
+  selectedResearchMode: text('selectedResearchMode').default('standard'),
 });
 
 export const userDocuments = pgTable('UserDocuments', {
@@ -221,7 +311,7 @@ export const googleCalendarToken = pgTable(
     userId: uuid('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    token: json('token').notNull(), // Store the entire OAuth token object
+    token: jsonb('token').notNull(), // Store the entire OAuth token object
     createdAt: timestamp('createdAt').notNull().defaultNow(),
     updatedAt: timestamp('updatedAt').notNull().defaultNow(),
   },
@@ -232,3 +322,79 @@ export const googleCalendarToken = pgTable(
 );
 
 export type GoogleCalendarToken = InferSelectModel<typeof googleCalendarToken>;
+
+// EOS Personas table for AI personalities with custom instructions and documents
+export const persona = pgTable('Persona', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId').references(() => user.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description'),
+  instructions: text('instructions').notNull(),
+  iconUrl: text('iconUrl'), // URL for persona icon stored in blob storage
+  isDefault: boolean('isDefault').default(false),
+  isSystemPersona: boolean('isSystemPersona').default(false), // System-provided personas (read-only)
+  knowledgeNamespace: varchar('knowledgeNamespace', { length: 128 }), // RAG namespace for this persona
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export type Persona = InferSelectModel<typeof persona>;
+
+// Junction table for persona-document relationships
+export const personaDocument = pgTable(
+  'PersonaDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    personaId: uuid('personaId')
+      .notNull()
+      .references(() => persona.id, { onDelete: 'cascade' }),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique persona-document pairs
+    personaDocumentUnique: unique().on(table.personaId, table.documentId),
+  }),
+);
+
+export type PersonaDocument = InferSelectModel<typeof personaDocument>;
+
+// EOS Persona Profiles table for sub-groups within personas (e.g., Vision Building Day 2, etc.)
+export const personaProfile = pgTable('PersonaProfile', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  personaId: uuid('personaId')
+    .notNull()
+    .references(() => persona.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description'),
+  instructions: text('instructions').notNull(),
+  isDefault: boolean('isDefault').default(false),
+  knowledgeNamespace: varchar('knowledgeNamespace', { length: 128 }), // RAG namespace for this profile
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export type PersonaProfile = InferSelectModel<typeof personaProfile>;
+
+// Junction table for profile-document relationships
+export const profileDocument = pgTable(
+  'ProfileDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    profileId: uuid('profileId')
+      .notNull()
+      .references(() => personaProfile.id, { onDelete: 'cascade' }),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique profile-document pairs
+    profileDocumentUnique: unique().on(table.profileId, table.documentId),
+  }),
+);
+
+export type ProfileDocument = InferSelectModel<typeof profileDocument>;

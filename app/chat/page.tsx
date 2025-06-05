@@ -1,0 +1,94 @@
+import { cookies } from 'next/headers';
+
+import { Chat } from '@/components/chat';
+import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
+import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
+import { generateUUID } from '@/lib/utils';
+import { DataStreamHandler } from '@/components/data-stream-handler';
+import { auth } from '../(auth)/auth';
+import { redirect } from 'next/navigation';
+
+export default async function ChatPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    documentId?: string;
+    documentTitle?: string;
+    userDocumentId?: string;
+  }>;
+}) {
+  const session = await auth();
+
+  if (!session) {
+    redirect('/');
+  }
+
+  const id = generateUUID();
+
+  // Await searchParams as required by Next.js 15
+  const params = await searchParams;
+
+  // Handle document context if provided - we'll pass this as a prop to trigger auto-submission
+  let documentContext = null;
+  if (params.documentId && params.documentTitle) {
+    // AI-generated document
+    documentContext = {
+      type: 'ai-document',
+      id: params.documentId,
+      title: params.documentTitle,
+      message: `I'd like to discuss the document "${params.documentTitle}". Please help me understand and work with this document.`,
+    };
+  } else if (params.userDocumentId && params.documentTitle) {
+    // User-uploaded document
+    documentContext = {
+      type: 'user-document',
+      id: params.userDocumentId,
+      title: params.documentTitle,
+      message: `I'd like to discuss the document "${params.documentTitle}". This is a document I uploaded. Please help me understand and work with this document.`,
+    };
+  }
+
+  const cookieStore = await cookies();
+  const modelIdFromCookie = cookieStore.get('chat-model');
+  const providerFromCookie = cookieStore.get('ai-provider');
+
+  if (!modelIdFromCookie || !providerFromCookie) {
+    return (
+      <>
+        <Chat
+          key={id}
+          id={id}
+          initialMessages={[]}
+          initialChatModel={DEFAULT_CHAT_MODEL}
+          initialProvider={DEFAULT_PROVIDER}
+          initialVisibilityType="private"
+          isReadonly={false}
+          session={session}
+          autoResume={false}
+          initialPersonaId={undefined}
+          documentContext={documentContext}
+        />
+        <DataStreamHandler id={id} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Chat
+        key={id}
+        id={id}
+        initialMessages={[]}
+        initialChatModel={modelIdFromCookie.value}
+        initialProvider={providerFromCookie.value}
+        initialVisibilityType="private"
+        isReadonly={false}
+        session={session}
+        autoResume={false}
+        initialPersonaId={undefined}
+        documentContext={documentContext}
+      />
+      <DataStreamHandler id={id} />
+    </>
+  );
+}

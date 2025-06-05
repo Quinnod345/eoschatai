@@ -81,18 +81,6 @@ export function ModelSelector({
                   setOptimisticModelId(id);
                   saveChatModelAsCookie(id);
 
-                  // Show warning toast for reasoning model
-                  if (
-                    id === 'chat-model-reasoning' &&
-                    optimisticModelId !== id
-                  ) {
-                    toast({
-                      type: 'error',
-                      description:
-                        "The Reasoning model has limited functionality. It cannot access calendar features, use saved knowledge, retrieve documents, or use most other tools. It's designed for step-by-step reasoning on complex problems.",
-                    });
-                  }
-
                   // Dispatch a custom event for model change
                   if (typeof window !== 'undefined') {
                     // Clear any pending provider change timestamp

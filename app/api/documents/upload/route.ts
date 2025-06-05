@@ -10,6 +10,7 @@ import JSZip from 'jszip';
 import { sql } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import OpenAI from 'openai';
+import { processUserDocument } from '@/lib/ai/user-rag';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -249,8 +250,14 @@ async function extractTextFromFile(
 export async function POST(request: Request) {
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const db = await import('@/lib/db').then((module) => module.db);
+
+  if (request.body === null) {
+    return new Response('Request body is empty', { status: 400 });
   }
 
   try {
@@ -357,6 +364,27 @@ export async function POST(request: Request) {
           content: textContent,
         })
         .returning();
+
+      // Process the document for User RAG
+      try {
+        console.log(`Processing document for User RAG: ${fileName}`);
+        await processUserDocument(
+          session.user.id,
+          newDocument[0].id,
+          textContent,
+          {
+            fileName: fileName,
+            category: validCategory,
+            fileType: trimmedFileType,
+          },
+        );
+        console.log(
+          `Successfully processed document for User RAG: ${fileName}`,
+        );
+      } catch (ragError) {
+        console.error('Error processing document for User RAG:', ragError);
+        // Don't fail the upload if RAG processing fails
+      }
 
       return NextResponse.json({
         message: 'Document uploaded successfully',

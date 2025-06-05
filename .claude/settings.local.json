@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm format)",
+      "Bash(ls:*)",
+      "Bash(npx eslint:*)",
+      "Bash(timeout 10 pnpm dev:*)",
+      "Bash(true)",
+      "Bash(gtimeout:*)",
+      "Bash(npx tsx:*)",
+      "Bash(mkdir:*)",
+      "Bash(pnpm tsx:*)",
+      "Bash(rg:*)",
+      "Bash(/Users/quinnodonnell/.nvm/versions/node/v20.9.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg \"tools.*=.*\\[\" \"app/(chat)/api/chat/route.ts\" -n)",
+      "Bash(cat:*)",
+      "Bash(pnpm build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm list:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(rm:*)",
+      "Bash(node:*)",
+      "Bash(/Users/quinnodonnell/.nvm/versions/node/v20.9.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg -A 5 -B 5 \"selectedResearchMode\" --type tsx)",
+      "Bash(/Users/quinnodonnell/.nvm/versions/node/v20.9.0/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg -A 5 -B 5 \"selectedResearchMode\" --type ts)",
+      "Bash(tsx scripts/apply-features-migration.ts:*)",
+      "Bash(pnpm db:generate:*)",
+      "Bash(timeout:*)",
+      "Bash(cp:*)",
+      "Bash(pkill:*)",
+      "Bash(pnpm db:migrate:*)",
+      "Bash(psql:*)",
+      "Bash(POSTGRES_URL=$DATABASE_URL npx tsx scripts/add-features-column.ts)",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm next build:*)",
+      "Bash(npx next build:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": false
+}

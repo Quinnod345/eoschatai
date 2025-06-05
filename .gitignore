@@ -41,3 +41,14 @@ yarn-error.log*
 /playwright-report/
 /blob-report/
 /playwright/*
+
+# EOS Implementer documents (actual content)
+eos-implementer-documents/*
+!eos-implementer-documents/README.md
+!eos-implementer-documents/**/.gitkeep
+
+# Knowledge base documents (actual content)
+knowledge-base/**/*.md
+knowledge-base/**/*.pdf
+!knowledge-base/**/README.md
+!knowledge-base/**/.gitkeep

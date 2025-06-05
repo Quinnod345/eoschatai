@@ -1,17 +1,20 @@
 'use client';
 
-import { ChevronUp, User, FileText, Globe } from 'lucide-react';
+import { ChevronUp, User, FileText, Globe, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import type { User as NextAuthUser } from 'next-auth';
 import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { toast } from './toast';
+import { toast } from '@/lib/toast-system';
 import { LoaderIcon, SettingsIcon } from './icons';
 import { guestRegex } from '@/lib/constants';
 import { SettingsModal } from './settings-modal';
 import { DocumentContextModal } from './document-context-modal';
+import { KeyboardShortcutsModal } from './keyboard-shortcuts-modal';
+import { useFeatures } from '@/hooks/use-features';
+import { WhatsNewModal } from './whats-new-modal';
 import {
   Tooltip,
   TooltipContent,
@@ -54,6 +57,22 @@ export function SidebarUserNav({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDocumentContextModal, setShowDocumentContextModal] =
     useState(false);
+  const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
+    useState(false);
+
+  // Features hook
+  const {
+    hasNewFeatures,
+    newFeaturesCount,
+    lastSeenVersion,
+    markAsSeen,
+    showModal: showFeaturesModal,
+    hideModal: hideFeaturesModal,
+    isModalOpen: isFeaturesModalOpen,
+  } = useFeatures({
+    userId: user?.id,
+    autoShow: false, // Don't auto-show in sidebar, only manual
+  });
 
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -66,6 +85,28 @@ export function SidebarUserNav({
 
   // Detect if the component is used in the header
   const isInHeader = className?.includes('header-user-nav');
+
+  // Add keyboard shortcut to open keyboard shortcuts modal
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === '?') {
+        event.preventDefault();
+        setShowKeyboardShortcutsModal(true);
+      }
+    };
+
+    const handleOpenSettingsModal = () => {
+      setShowSettingsModal(true);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('openSettingsModal', handleOpenSettingsModal);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('openSettingsModal', handleOpenSettingsModal);
+    };
+  }, []);
 
   // Fetch user settings to get profile picture
   useEffect(() => {
@@ -123,10 +164,7 @@ export function SidebarUserNav({
     // Check for calendar-specific parameters (old format)
     if (calendarSuccess) {
       setShowSettingsModal(true);
-      toast({
-        type: 'success',
-        description: calendarSuccess,
-      });
+      toast.success(calendarSuccess);
 
       // Clear URL parameter
       const url = new URL(window.location.href);
@@ -136,10 +174,7 @@ export function SidebarUserNav({
 
     if (calendarError) {
       setShowSettingsModal(true);
-      toast({
-        type: 'error',
-        description: calendarError,
-      });
+      toast.error(calendarError);
 
       // Clear URL parameter
       const url = new URL(window.location.href);
@@ -149,10 +184,7 @@ export function SidebarUserNav({
 
     // Check for general success/error parameters (new format)
     if (success) {
-      toast({
-        type: 'success',
-        description: success,
-      });
+      toast.success(success);
 
       // If openSettings is true, show the settings modal
       if (openSettings === 'true') {
@@ -167,10 +199,7 @@ export function SidebarUserNav({
     }
 
     if (error) {
-      toast({
-        type: 'error',
-        description: error,
-      });
+      toast.error(error);
 
       // If openSettings is true, show the settings modal
       if (openSettings === 'true') {
@@ -256,6 +285,19 @@ export function SidebarUserNav({
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={showFeaturesModal}>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    <span>What&apos;s New</span>
+                  </div>
+                  {hasNewFeatures && newFeaturesCount > 0 && (
+                    <div className="flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-primary rounded-full">
+                      {newFeaturesCount}
+                    </div>
+                  )}
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setShowDocumentContextModal(true)}
               >
@@ -283,10 +325,7 @@ export function SidebarUserNav({
                 <span>EOS Website</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onSelect={() => {
-                  setChatHistoryChecked('keyboard_shortcuts');
-                  router.push('/keyboard-shortcuts');
-                }}
+                onSelect={() => setShowKeyboardShortcutsModal(true)}
               >
                 <Keyboard className="mr-2 h-4 w-4" />
                 <span>Keyboard shortcuts</span>
@@ -314,6 +353,20 @@ export function SidebarUserNav({
       <DocumentContextModal
         isOpen={showDocumentContextModal}
         onClose={() => setShowDocumentContextModal(false)}
+      />
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={showKeyboardShortcutsModal}
+        onClose={() => setShowKeyboardShortcutsModal(false)}
+      />
+
+      {/* What's New Modal */}
+      <WhatsNewModal
+        isOpen={isFeaturesModalOpen}
+        onClose={hideFeaturesModal}
+        lastSeenVersion={lastSeenVersion}
+        onMarkAsSeen={markAsSeen}
       />
     </>
   );

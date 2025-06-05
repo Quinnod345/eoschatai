@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
-import { toast } from '@/components/toast';
+import { toast } from '@/lib/toast-system';
 
 import { AuthForm } from '@/components/auth-form';
 import { SubmitButton } from '@/components/submit-button';
@@ -11,11 +11,22 @@ import { SubmitButton } from '@/components/submit-button';
 import { login, type LoginActionState } from '../actions';
 import { useSession } from 'next-auth/react';
 
+// Function to get cookie value by name
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
 export default function Page() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [isSuccessful, setIsSuccessful] = useState(false);
+  const [redirectPath, setRedirectPath] = useState('/chat');
 
   const [state, formAction] = useActionState<LoginActionState, FormData>(
     login,
@@ -27,8 +38,20 @@ export default function Page() {
   const { update: updateSession } = useSession();
 
   useEffect(() => {
-    // Check for signout redirect
+    // Check for redirect path in cookies
     if (typeof window !== 'undefined') {
+      const redirectedFrom = getCookie('redirected_from');
+
+      // If we have a redirected_from cookie, use that path
+      if (redirectedFrom && redirectedFrom.startsWith('/')) {
+        setRedirectPath(redirectedFrom);
+
+        // Clear the cookie by setting it to expire immediately
+        document.cookie =
+          'redirected_from=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      }
+
+      // Check for signout redirect
       const signoutRedirect = sessionStorage.getItem('signout-redirect');
       if (signoutRedirect === 'true') {
         // Clear the signout flag
@@ -39,22 +62,17 @@ export default function Page() {
 
   useEffect(() => {
     if (state.status === 'failed') {
-      toast({
-        type: 'error',
-        description: 'Invalid credentials!',
-      });
+      toast.error('Invalid credentials!');
     } else if (state.status === 'invalid_data') {
-      toast({
-        type: 'error',
-        description: 'Failed validating your submission!',
-      });
+      toast.error('Failed validating your submission!');
     } else if (state.status === 'success') {
       setIsSuccessful(true);
       updateSession();
-      // Explicitly redirect to the home page
-      window.location.href = '/';
+
+      // Redirect to the appropriate path after successful login
+      window.location.href = redirectPath;
     }
-  }, [state.status, router, updateSession]);
+  }, [state.status, redirectPath, router, updateSession]);
 
   const handleSubmit = (formData: FormData) => {
     setEmail(formData.get('email') as string);

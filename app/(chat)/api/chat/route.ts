@@ -48,8 +48,12 @@ import {
   getInformationTool,
   getCalendarEventsTool,
   createCalendarEventTool,
+  enhancedCalendarTools,
 } from '@/lib/ai/tools';
 import { z } from 'zod';
+import { MentionProcessor } from '@/lib/ai/mention-processor';
+import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
+import { searchWeb } from '@/lib/web-search';
 
 export const maxDuration = 60;
 
@@ -60,29 +64,45 @@ function getStreamContext() {
     try {
       // Get REDIS_URL from environment and clean it (remove quotes if present)
       const redisUrl = process.env.REDIS_URL;
-      if (redisUrl) {
-        // Clean the URL by removing any quotes that might be causing issues
-        const cleanRedisUrl = redisUrl.replace(/^["'](.*)["']$/, '$1');
-        console.log('Creating resumable stream context with Redis');
+      console.log('Redis URL check:', {
+        hasRedisUrl: !!redisUrl,
+        redisUrlLength: redisUrl?.length || 0,
+        redisUrlPrefix: redisUrl?.substring(0, 10) || 'none',
+      });
+
+      if (!redisUrl) {
+        console.log(
+          ' > Resumable streams are disabled due to missing REDIS_URL',
+        );
+        return null;
       }
+
+      // Clean the URL by removing any quotes that might be causing issues
+      const cleanRedisUrl = redisUrl.replace(/^["'](.*)["']$/, '$1');
+      console.log(
+        'Creating resumable stream context with Redis URL:',
+        `${cleanRedisUrl.substring(0, 20)}...`,
+      );
+
+      // Set the cleaned Redis URL back to the environment for the resumable stream context
+      process.env.REDIS_URL = cleanRedisUrl;
 
       globalStreamContext = createResumableStreamContext({
         waitUntil: after,
       });
 
       // Debug log for stream context
-      console.log('Stream context created successfully');
+      console.log('Stream context created successfully with Redis');
+      console.log('Stream context type:', typeof globalStreamContext);
+      console.log(
+        'Stream context methods:',
+        Object.getOwnPropertyNames(globalStreamContext),
+      );
     } catch (error: any) {
-      if (error.message.includes('REDIS_URL')) {
-        console.log(
-          ' > Resumable streams are disabled due to missing REDIS_URL',
-        );
-        // When REDIS_URL is missing, we should return null to use non-resumable streams
-        return null;
-      } else {
-        console.error('Error creating stream context:', error);
-        return null;
-      }
+      console.error('Error creating stream context:', error);
+      console.error('Error stack:', error.stack);
+      console.log('Falling back to non-resumable streams');
+      return null;
     }
   }
 
@@ -106,7 +126,28 @@ export async function POST(request: Request) {
       selectedChatModel,
       selectedVisibilityType,
       selectedProvider = DEFAULT_PROVIDER,
+      selectedPersonaId,
+      selectedProfileId,
+      selectedResearchMode,
     } = requestBody;
+
+    console.log('PERSONA_CHAT_API: Request received', {
+      chatId: id,
+      selectedPersonaId: selectedPersonaId,
+      selectedProfileId: selectedProfileId,
+      selectedResearchMode: selectedResearchMode,
+      hasPersona: !!selectedPersonaId,
+      hasProfile: !!selectedProfileId,
+      timestamp: new Date().toISOString(),
+      requestBody: JSON.stringify(requestBody, null, 2),
+    });
+
+    // Add explicit Nexus mode logging
+    console.log('[NEXUS MODE DEBUG] Research mode:', {
+      selectedResearchMode,
+      isNexusMode: selectedResearchMode === 'nexus',
+      typeOfSelectedResearchMode: typeof selectedResearchMode,
+    });
 
     const session = await auth();
 
@@ -114,7 +155,8 @@ export async function POST(request: Request) {
       return new Response('Unauthorized', { status: 401 });
     }
 
-    const userType: UserType = session.user.type;
+    // Set the user type
+    const userType: UserType = session.user.type || 'regular';
 
     const messageCount = await getMessageCountByUserId({
       id: session.user.id,
@@ -122,28 +164,82 @@ export async function POST(request: Request) {
     });
 
     if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
-      return new Response(
-        'You have exceeded your maximum number of messages for the day! Please try again later.',
-        {
-          status: 429,
-        },
-      );
+      return new Response('You have reached your daily message limit.', {
+        status: 429,
+      });
     }
 
     const chat = await getChatById({ id });
 
     if (!chat) {
+      console.log('PERSONA_CHAT_API: Creating new chat', {
+        chatId: id,
+        userId: session.user.id,
+        personaId: selectedPersonaId,
+      });
+
       const title = await generateTitleFromUserMessage({
         message,
       });
 
+      console.log('PERSONA_CHAT_API: Before UUID conversion', {
+        chatId: id,
+        selectedPersonaId: selectedPersonaId,
+        isEosImplementerString: selectedPersonaId === 'eos-implementer',
+      });
+
+      // Handle hardcoded EOS implementer persona - store metadata in title
+      let personaIdToSave: string | null = selectedPersonaId || null;
+      let profileIdToSave: string | null = selectedProfileId || null;
+      let titleWithMetadata = title;
+
+      if (
+        selectedPersonaId === 'eos-implementer' ||
+        selectedPersonaId === '00000000-0000-0000-0000-000000000001'
+      ) {
+        // Store null for persona but encode metadata in title
+        personaIdToSave = null;
+        profileIdToSave = null;
+
+        // Encode the EOS Implementer selection in the title as metadata
+        const metadata = {
+          persona: 'eos-implementer',
+          profile: selectedProfileId || null,
+        };
+        titleWithMetadata = `${title}|||EOS_META:${JSON.stringify(metadata)}`;
+
+        console.log(
+          'PERSONA_CHAT_API: EOS Implementer detected, storing metadata in title',
+          {
+            from: selectedPersonaId,
+            profileFrom: selectedProfileId,
+            metadata: metadata,
+          },
+        );
+      }
+
       await saveChat({
         id,
         userId: session.user.id,
-        title,
+        title: titleWithMetadata,
         visibility: selectedVisibilityType,
+        personaId: personaIdToSave || undefined,
+        profileId: profileIdToSave || undefined,
+      });
+
+      console.log('PERSONA_CHAT_API: New chat created with persona', {
+        chatId: id,
+        personaId: selectedPersonaId,
+        profileId: selectedProfileId,
+        title: title,
       });
     } else {
+      console.log('PERSONA_CHAT_API: Using existing chat', {
+        chatId: id,
+        existingPersonaId: chat.personaId,
+        requestPersonaId: selectedPersonaId,
+      });
+
       if (chat.userId !== session.user.id) {
         return new Response('Forbidden', { status: 403 });
       }
@@ -160,6 +256,15 @@ export async function POST(request: Request) {
     // Get the last user message to use for RAG context retrieval
     const lastUserMessage = message.parts[0];
     console.log('RAG: Processing chat request with query:', lastUserMessage);
+    console.log('RAG: Message structure:', {
+      messageId: message.id,
+      messageRole: message.role,
+      messageContent: message.content,
+      messageParts: message.parts,
+      partsLength: message.parts?.length,
+      firstPartType: typeof lastUserMessage,
+      firstPartValue: lastUserMessage,
+    });
 
     // Extract the actual text from the user message (handling different possible formats)
     let queryText = '';
@@ -172,67 +277,311 @@ export async function POST(request: Request) {
       }
     }
 
-    // Check for @ mentions in the query text
-    const mentionMatches = queryText.match(/@(\w+):([^\s]+)/g) || [];
-    const detectedMentions = mentionMatches
-      .map((mention) => {
-        const [_, type, name] = mention.match(/@(\w+):(.+)/) || [];
-        return { type, name };
-      })
-      .filter(Boolean);
+    console.log('RAG: Extracted queryText:', {
+      queryText,
+      queryTextLength: queryText.length,
+      isEmpty: queryText.length === 0,
+    });
 
-    console.log(
-      `Detected ${detectedMentions.length} @ mentions in query:`,
-      detectedMentions,
+    // Enhanced mention processing with smart detection
+    const extractedMentions = MentionProcessor.extractMentions(queryText);
+    const implicitMentions =
+      SmartMentionDetector.detectImplicitMentions(queryText);
+
+    // Combine explicit and implicit mentions
+    const allMentions = [
+      ...extractedMentions,
+      ...implicitMentions.map((im) => ({
+        type: im.type,
+        id: im.type,
+        name: im.trigger,
+        metadata: {
+          confidence: im.confidence,
+          implicit: true,
+          context: im.context,
+        },
+      })),
+    ];
+
+    const mentionResult = MentionProcessor.processMentions(
+      allMentions,
+      queryText,
     );
 
-    // Track if we need to add special @ mention instructions
-    let hasMentionedCalendar = false;
-    let hasMentionedDocument = false;
-    let hasMentionedScorecard = false;
-    let hasMentionedVTO = false;
-    let hasMentionedRocks = false;
-    let hasMentionedPeople = false;
+    console.log(
+      `Detected ${extractedMentions.length} explicit @ mentions and ${implicitMentions.length} implicit mentions:`,
+      { explicit: extractedMentions, implicit: implicitMentions },
+    );
 
-    // Check what resources were referenced with @ mentions
-    if (detectedMentions.length > 0) {
-      for (const mention of detectedMentions) {
-        if (mention.type === 'calendar') hasMentionedCalendar = true;
-        if (mention.type === 'document') hasMentionedDocument = true;
-        if (mention.type === 'scorecard') hasMentionedScorecard = true;
-        if (mention.type === 'vto') hasMentionedVTO = true;
-        if (mention.type === 'rocks') hasMentionedRocks = true;
-        if (mention.type === 'people') hasMentionedPeople = true;
-      }
+    if (mentionResult.toolsToActivate.length > 0) {
+      console.log(
+        'Mentions suggest activating tools:',
+        mentionResult.toolsToActivate,
+      );
     }
 
-    // Only attempt to retrieve context if we have text to work with
-    let relevantContent: Array<{ content: string; relevance: number }> = [];
-    if (queryText) {
-      // Retrieve relevant context from knowledge base
-      console.log('RAG: Fetching relevant content for query:', queryText);
-      try {
-        relevantContent = await findRelevantContent(queryText, 5);
+    // Generate smart suggestions for the user
+    const smartSuggestions =
+      SmartMentionDetector.generateSmartSuggestions(queryText);
+    if (smartSuggestions.length > 0) {
+      console.log('Smart mention suggestions:', smartSuggestions);
+    }
 
-        // Debug log for RAG content
-        console.log(
-          `RAG: Retrieved ${relevantContent.length} chunks from vector store`,
-        );
-        if (relevantContent.length > 0) {
-          console.log(
-            'RAG: Top result:',
-            `${relevantContent[0].content.substring(0, 100)}...`,
-            `(relevance: ${(relevantContent[0].relevance * 100).toFixed(1)}%)`,
-          );
-        } else {
-          console.log('RAG: No relevant content found');
-        }
-      } catch (error) {
-        console.error('RAG: Error retrieving relevant content:', error);
-      }
-    } else {
+    // Legacy compatibility flags
+    const hasMentionedCalendar = extractedMentions.some((m) =>
+      ['calendar', 'event', 'meeting'].includes(m.type),
+    );
+    const hasMentionedDocument = extractedMentions.some((m) =>
+      ['document', 'file'].includes(m.type),
+    );
+    const hasMentionedScorecard = extractedMentions.some(
+      (m) => m.type === 'scorecard',
+    );
+    const hasMentionedVTO = extractedMentions.some((m) => m.type === 'vto');
+    const hasMentionedRocks = extractedMentions.some((m) => m.type === 'rocks');
+    const hasMentionedPeople = extractedMentions.some((m) =>
+      ['user', 'team', 'contact'].includes(m.type),
+    );
+
+    // Execute both RAG operations in parallel for better performance
+    console.log('RAG: Starting parallel RAG operations...');
+    const ragStartTime = Date.now();
+
+    const [
+      relevantContent,
+      userRagContext,
+      personaRagContext,
+      systemRagContext,
+    ] = await Promise.all([
+      // General RAG (Knowledge Base) - Company RAG
+      queryText
+        ? (() => {
+            const generalRagStart = Date.now();
+            return findRelevantContent(queryText, 5)
+              .then((content) => {
+                const generalRagTime = Date.now() - generalRagStart;
+                console.log(
+                  `Company RAG: Retrieved ${content.length} chunks from vector store in ${generalRagTime}ms`,
+                );
+                if (content.length > 0) {
+                  console.log(
+                    'Company RAG: Top result:',
+                    `${content[0].content.substring(0, 100)}...`,
+                    `(relevance: ${(content[0].relevance * 100).toFixed(1)}%)`,
+                  );
+                }
+                return content;
+              })
+              .catch((error) => {
+                const generalRagTime = Date.now() - generalRagStart;
+                console.error(
+                  `Company RAG: Error retrieving relevant content after ${generalRagTime}ms:`,
+                  error,
+                );
+                return [];
+              });
+          })()
+        : Promise.resolve([]),
+
+      // User RAG (User Documents)
+      session.user.id && queryText
+        ? (() => {
+            const userRagStart = Date.now();
+            return import('@/lib/ai/prompts')
+              .then(({ userRagContextPrompt }) =>
+                userRagContextPrompt(session.user.id, queryText),
+              )
+              .then((context) => {
+                const userRagTime = Date.now() - userRagStart;
+                console.log(
+                  `User RAG: Generated context with ${context.length} characters in ${userRagTime}ms`,
+                );
+
+                // Debug: Log first 200 characters of user RAG context
+                if (context.length > 0) {
+                  console.log(
+                    `User RAG: Context preview: ${context.substring(0, 200)}...`,
+                  );
+                }
+                return context;
+              })
+              .catch((error) => {
+                const userRagTime = Date.now() - userRagStart;
+                console.error(
+                  `User RAG: Error getting user RAG context after ${userRagTime}ms:`,
+                  error,
+                );
+                return '';
+              });
+          })()
+        : Promise.resolve(''),
+
+      // Persona RAG (Persona Documents) - Only if persona is selected
+      selectedPersonaId && queryText
+        ? (() => {
+            const personaRagStart = Date.now();
+            console.log(
+              `Persona RAG: Starting retrieval for persona ${selectedPersonaId} with query: "${queryText}"`,
+            );
+
+            return import('@/lib/ai/persona-rag')
+              .then(({ personaRagContextPrompt }) =>
+                personaRagContextPrompt(
+                  selectedPersonaId,
+                  queryText,
+                  session.user.id,
+                ),
+              )
+              .then((context) => {
+                const personaRagTime = Date.now() - personaRagStart;
+                console.log(
+                  `Persona RAG: Generated context with ${context.length} characters in ${personaRagTime}ms`,
+                );
+
+                // Debug: Log first 200 characters of persona RAG context
+                if (context.length > 0) {
+                  console.log(
+                    `Persona RAG: Context preview: ${context.substring(0, 200)}...`,
+                  );
+                }
+                return context;
+              })
+              .catch((error) => {
+                const personaRagTime = Date.now() - personaRagStart;
+                console.error(
+                  `Persona RAG: Error getting persona RAG context after ${personaRagTime}ms:`,
+                  error,
+                );
+                return '';
+              });
+          })()
+        : Promise.resolve(''),
+
+      // System RAG (System Persona Documents) - Only if system persona is selected
+      selectedPersonaId && queryText
+        ? (() => {
+            const systemRagStart = Date.now();
+            console.log(
+              `System RAG: Starting retrieval for persona ${selectedPersonaId}, profile ${selectedProfileId} with query: "${queryText}"`,
+            );
+
+            // Check if this is the hardcoded EOS implementer
+            if (selectedPersonaId === 'eos-implementer') {
+              console.log(
+                `System RAG: Using hardcoded EOS implementer, profile: ${selectedProfileId}`,
+              );
+
+              // For hardcoded EOS implementer, use the new Upstash system RAG
+              return import('@/lib/ai/upstash-system-rag')
+                .then(({ upstashSystemRagContextPrompt }) =>
+                  upstashSystemRagContextPrompt(
+                    selectedProfileId || null,
+                    queryText,
+                  ),
+                )
+                .then((context) => {
+                  const systemRagTime = Date.now() - systemRagStart;
+                  console.log(
+                    `Upstash System RAG: Generated context with ${context.length} characters in ${systemRagTime}ms`,
+                  );
+
+                  // Debug: Log first 200 characters of system RAG context
+                  if (context.length > 0) {
+                    console.log(
+                      `Upstash System RAG: Context preview: ${context.substring(0, 200)}...`,
+                    );
+                  }
+                  return context;
+                })
+                .catch((error) => {
+                  const systemRagTime = Date.now() - systemRagStart;
+                  console.error(
+                    `Upstash System RAG: Error getting system RAG context after ${systemRagTime}ms:`,
+                    error,
+                  );
+                  return '';
+                });
+            }
+
+            // For database personas, check if it's a system persona
+            return import('@/lib/db')
+              .then(async ({ db }) => {
+                const { persona } = await import('@/lib/db/schema');
+                const { eq } = await import('drizzle-orm');
+
+                const [personaData] = await db
+                  .select()
+                  .from(persona)
+                  .where(eq(persona.id, selectedPersonaId))
+                  .limit(1);
+
+                if (!personaData?.isSystemPersona) {
+                  console.log(
+                    `System RAG: Persona ${selectedPersonaId} is not a system persona, skipping`,
+                  );
+                  return '';
+                }
+
+                console.log(
+                  `System RAG: Confirmed ${personaData.name} is a system persona`,
+                );
+
+                // Import and call systemRagContextPrompt
+                const { systemRagContextPrompt } = await import(
+                  '@/lib/ai/system-rag'
+                );
+                return systemRagContextPrompt(
+                  selectedPersonaId,
+                  selectedProfileId || null,
+                  queryText,
+                );
+              })
+              .then((context) => {
+                const systemRagTime = Date.now() - systemRagStart;
+                console.log(
+                  `System RAG: Generated context with ${context.length} characters in ${systemRagTime}ms`,
+                );
+
+                // Debug: Log first 200 characters of system RAG context
+                if (context.length > 0) {
+                  console.log(
+                    `System RAG: Context preview: ${context.substring(0, 200)}...`,
+                  );
+                }
+                return context;
+              })
+              .catch((error) => {
+                const systemRagTime = Date.now() - systemRagStart;
+                console.error(
+                  `System RAG: Error getting system RAG context after ${systemRagTime}ms:`,
+                  error,
+                );
+                return '';
+              });
+          })()
+        : Promise.resolve(''),
+    ]);
+
+    const ragEndTime = Date.now();
+    console.log(
+      `RAG: All parallel operations completed in ${ragEndTime - ragStartTime}ms`,
+    );
+
+    // Nexus Research (Nexus Mode) - Will be performed in the data stream with progress updates
+    let nexusResearchContext = '';
+
+    // Log results summary
+    if (!queryText) {
       console.log(
         'RAG: No text content found in user message to use for retrieval',
+      );
+    } else {
+      console.log(
+        `RAG Summary:`,
+        `\n  - Company knowledge base: ${relevantContent.length} chunks`,
+        `\n  - User documents: ${userRagContext.length} characters`,
+        `\n  - Persona documents: ${personaRagContext.length} characters`,
+        `\n  - System knowledge: ${systemRagContext.length} characters`,
       );
     }
 
@@ -336,16 +685,23 @@ export async function POST(request: Request) {
     // Create a provider based on selected provider
     const provider = createCustomProvider(selectedProvider);
 
-    // Get the system prompt with RAG context
+    // Get the system prompt with both general RAG and user RAG context
     const fullSystemPrompt = await systemPrompt({
       selectedProvider,
       requestHints,
-      ragContext: relevantContent,
+      ragContext: relevantContent, // General knowledge base RAG
+      userRagContext: userRagContext, // User-specific document context
+      personaRagContext: personaRagContext, // Persona-specific document context
+      systemRagContext: systemRagContext, // System-specific document context
       userId: session.user.id,
+      userEmail: session.user.email || '', // Add userEmail for hardcoded EOS implementer access
+      query: queryText,
+      selectedPersonaId: selectedPersonaId, // Pass the selected persona ID
+      selectedProfileId: selectedProfileId, // Pass the selected profile ID
     });
 
     // Log document context usage
-    const hasUserDocs = fullSystemPrompt.includes('## User Documents');
+    const hasUserDocs = fullSystemPrompt.includes('## USER DOCUMENT CONTEXT');
     console.log(
       `Chat: System prompt includes document context: ${hasUserDocs}`,
     );
@@ -360,26 +716,10 @@ export async function POST(request: Request) {
     }
 
     // Add explicit instructions about remembering information
-    let enhancedSystemPrompt = `${fullSystemPrompt}
+    let enhancedSystemPrompt = `${fullSystemPrompt}${nexusResearchContext}
 
 ${
-  selectedChatModel === 'chat-model-reasoning'
-    ? `IMPORTANT REASONING MODEL LIMITATIONS:
-This is the Reasoning model, which has limited tool access. You CANNOT:
-1. Access calendar features
-2. Save information to the knowledge base
-3. Retrieve information from the knowledge base
-4. Most other tool functionality
-
-You CAN:
-1. Create and update documents
-2. Provide detailed step-by-step reasoning for complex problems
-`
-    : ''
-}
-
-${
-  detectedMentions.length > 0
+  allMentions.length > 0
     ? `
 @ MENTION INSTRUCTIONS:
 The user has used @ mentions in their message. This indicates they want you to specifically focus on these linked resources.
@@ -432,20 +772,29 @@ Remove the @ mention syntax from your response but focus heavily on the mentione
 }
 
 IMPORTANT RESPONSE GUIDELINES:
-1. When you use tools, NEVER display raw JSON responses in your replies.
-2. For Calendar data:
+1. **NEVER RESPOND WITH GENERIC MESSAGES**: If you receive a user query, ALWAYS provide a substantive, helpful response. NEVER say "your message is blank" or "how can I help you" when document context is provided.
+
+2. **DOCUMENT CONTEXT PRIORITY**: When user document context is included in the system prompt, it means the user has uploaded documents and is asking about their specific business. ALWAYS use this information to provide detailed, personalized responses.
+
+3. When you use tools, NEVER display raw JSON responses in your replies.
+
+4. For Calendar data:
    - Format them in a readable table or list format using markdown
    - Only display the title, date, time, and location of events
    - NEVER show the original response structure or raw data
    - NEVER mention technical details about formatting
    - If many events are returned, summarize them appropriately
-3. When confirming event creation:
+
+5. When confirming event creation:
    - Simply state the event was created with its title and time
    - Do not show any event details as JSON or raw data structure
    - NEVER show any technical fields like 'id', 'htmlLink', etc.
-4. CRITICAL CALENDAR RULE: If you notice JSON structures in your text that contain fields like "events", "status", or "_formatInstructions", DELETE THIS IMMEDIATELY and only show the properly formatted data.
-5. This is especially critical for responses from the getCalendarEvents tool - NEVER emit raw JSON responses.
-6. ALWAYS format calendar data as clean tables using Markdown, never as raw data.
+
+6. CRITICAL CALENDAR RULE: If you notice JSON structures in your text that contain fields like "events", "status", or "_formatInstructions", DELETE THIS IMMEDIATELY and only show the properly formatted data.
+
+7. This is especially critical for responses from the getCalendarEvents tool - NEVER emit raw JSON responses.
+
+8. ALWAYS format calendar data as clean tables using Markdown, never as raw data.
 
 AUTOMATIC CALENDAR INTELLIGENCE:
 1. When the user message mentions any type of meeting, event, or session (like "Quarterly Session", "Vision Building", "Annual Planning"):
@@ -457,15 +806,17 @@ AUTOMATIC CALENDAR INTELLIGENCE:
 4. Format event information in clear, easy-to-read tables
 
 IMPORTANT RAG INSTRUCTIONS:
-1. The user has just said: "${queryText}"
-2. If this message contains "remember" or asks you to save any information, IMMEDIATELY use the addResource tool to save it.
-3. Always give the saved information a clear, specific title that describes the content.
-4. When using the getInformation tool, always incorporate the retrieved information into your response.
-5. Look for opportunities to use these tools proactively - they are core to your functionality.
-6. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses.
-7. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points.
-8. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting.
-9. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base.
+1. **USER QUERY**: The user has just said: "${queryText}"
+2. **ALWAYS RESPOND TO THE QUERY**: Even if document context is provided, you MUST address the user's actual question. The document context is additional information to help you provide a better answer.
+3. **QUERY + CONTEXT = COMPREHENSIVE RESPONSE**: Use both the user's query and any document context to provide a complete, helpful response.
+4. If this message contains "remember" or asks you to save any information, IMMEDIATELY use the addResource tool to save it.
+5. Always give the saved information a clear, specific title that describes the content.
+6. When using the getInformation tool, always incorporate the retrieved information into your response.
+7. Look for opportunities to use these tools proactively - they are core to your functionality.
+8. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses.
+9. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points.
+10. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting.
+11. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base.
 
 DOCUMENT USAGE INSTRUCTIONS:
 1. If the user asks about THEIR specific Core Process, Scorecard, Rocks, V/TO, or A/C, use ONLY the information provided in their uploaded documents.
@@ -489,6 +840,28 @@ SPECIAL INSTRUCTIONS FOR CORE PROCESS QUESTIONS:
 - Use the EXACT text from their uploaded Core Process documents.
 - Do NOT make up or generate a generic Core Process - use ONLY what is in their documents.
 - If no Core Process document is found, clearly tell the user you cannot find their Core Process information.
+`;
+    }
+
+    // Add conversational instructions when NOT in Nexus mode
+    if (selectedResearchMode !== 'nexus') {
+      enhancedSystemPrompt += `
+
+CONVERSATIONAL MODE INSTRUCTIONS:
+Since Nexus mode is not enabled, keep your responses:
+- CONCISE and to the point (aim for 200-500 words unless more detail is specifically requested)
+- CONVERSATIONAL and friendly in tone
+- FOCUSED on directly answering the user's question
+- PRACTICAL with actionable advice
+- ENGAGING without being overly verbose
+
+Avoid:
+- Extremely long explanations unless specifically requested
+- Overly formal or academic language
+- Excessive detail that wasn't asked for
+- Multiple lengthy sections unless the question requires it
+
+Be helpful, direct, and conversational while still being comprehensive enough to be useful.
 `;
     }
 
@@ -535,21 +908,6 @@ Example of CORRECT tool usage (conceptual, not actual syntax):
 `;
     }
 
-    // Add additional instructions for Grok (XAI) provider which may have limited tool support
-    if (selectedProvider === 'xai') {
-      console.log(
-        'RAG: Using XAI provider - adding explicit instructions for remembering',
-      );
-      enhancedSystemPrompt += `
-
-SPECIAL INSTRUCTIONS FOR GROK:
-- Since you're using Grok, if you cannot use the addResource tool directly, please respond with:
-  "I'll remember that you love gala apples. This information has been saved to our knowledge base."
-- This will be captured by our system and saved appropriately.
-- If the user is asking for information that would normally use the getInformation tool, please
-  use the information provided in the context at the top of this prompt.`;
-    }
-
     // Add extra instructions about handling tool responses, particularly for calendar tools
     const toolResponseInstructions = `
 CALENDAR DATA FORMATTING REQUIREMENTS:
@@ -575,41 +933,67 @@ When the user asks about a specific type of event or session (like "Quarterly Se
 3. If no matching events exist, focus on answering their original question without mentioning "I checked your calendar and found no events"
 4. Be proactive - don't wait for them to explicitly ask "Do I have one coming up?"
 5. For known EOS events like "Quarterly Session", "Vision Building", "Annual Planning", or "Focus Day", always check the calendar automatically
+
+ENHANCED CALENDAR INTEGRATION INSTRUCTIONS:
+1. PROACTIVE ASSISTANCE:
+   - When users mention scheduling or planning, automatically check for conflicts using checkCalendarConflicts
+   - When users ask "when can we meet" or similar, use findAvailableTimeSlots
+   - At the start of conversations (especially in the morning), consider offering a daily briefing
+   - When users describe events naturally ("meeting with John tomorrow at 2pm"), use parseNaturalLanguageEvent
+
+2. SEAMLESS INTEGRATION:
+   - Don't announce that you're checking the calendar - just do it and present results naturally
+   - When suggesting meeting times, automatically check availability first
+   - Provide calendar insights when relevant (e.g., "You have a busy week with 12 meetings")
+   - Alert users to meetings that might need preparation time
+
+3. NATURAL LANGUAGE PROCESSING:
+   - Parse casual mentions of events: "lunch with Sarah next Tuesday" → create proper event
+   - Understand relative dates: "next Monday", "tomorrow at 3", "in two weeks"
+   - Extract all relevant details from context without asking repeatedly
+
+4. INTELLIGENT SUGGESTIONS:
+   - When calendar is busy, suggest optimal time slots for focused work
+   - Identify patterns and suggest improvements (e.g., "You have back-to-back meetings every Tuesday")
+   - Recommend preparation time for important meetings
+   - Suggest breaks between long meeting blocks
+
+SMART MENTION SYSTEM:
+The system has detected both explicit @ mentions and implicit intent. Context:
+
+${mentionResult.enhancedPrompt}
+
+IMPLICIT MENTION DETECTION:
+${
+  implicitMentions.length > 0
+    ? `Detected implicit mentions: ${implicitMentions.map((im) => `${im.type} (confidence: ${Math.round(im.confidence * 100)}%, trigger: "${im.trigger}")`).join(', ')}`
+    : 'No implicit mentions detected'
+}
+
+INTELLIGENT TOOL USAGE:
+- When user mentions @availability or @free: Use findSmartAvailability tool
+- When user mentions scheduling naturally: Use parseNaturalLanguageEvent tool  
+- When user asks about calendar with time context: Use enhanced getCalendarEvents with smart time parameters
+- The system automatically extracts duration, time preferences, and context from natural language
+- Even without @ symbols, the system detects intent and activates appropriate tools
+
+AUTOMATIC TOOL ACTIVATION:
+Based on mentions detected, automatically activate these tools: ${mentionResult.toolsToActivate.join(', ')}
+
+${
+  smartSuggestions.length > 0
+    ? `\nSMART SUGGESTIONS FOR USER: ${smartSuggestions.join(' • ')}`
+    : ''
+}
 `;
-
-    // Add special case for calendar questions with reasoning model
-    if (
-      selectedChatModel === 'chat-model-reasoning' &&
-      (queryText.toLowerCase().includes('calendar') ||
-        queryText.toLowerCase().includes('event') ||
-        queryText.toLowerCase().includes('session') ||
-        queryText.toLowerCase().includes('schedule') ||
-        shouldCheckCalendar)
-    ) {
-      console.log(
-        'Reasoning model: Adding special instructions for calendar-related query',
-      );
-      enhancedSystemPrompt += `
-
-SPECIAL CALENDAR LIMITATION:
-I notice you're asking about calendars, events, or scheduling. As a Reasoning model, I don't have access to calendar features. If you need to:
-- Check your calendar
-- Schedule events
-- Find upcoming sessions
-- Manage your appointments
-
-Please switch to the regular Chat model using the model dropdown in the top-right corner. The Chat model has full calendar integration capabilities.
-`;
-    }
 
     // For document mentions
     if (
-      (hasMentionedDocument ||
-        hasMentionedScorecard ||
-        hasMentionedVTO ||
-        hasMentionedRocks ||
-        hasMentionedPeople) &&
-      selectedChatModel !== 'chat-model-reasoning'
+      hasMentionedDocument ||
+      hasMentionedScorecard ||
+      hasMentionedVTO ||
+      hasMentionedRocks ||
+      hasMentionedPeople
     ) {
       try {
         console.log('Documents: Processing document-related @ mentions');
@@ -711,6 +1095,284 @@ Always prioritize the user's document content over generic information. If speci
     // Create response stream
     const responseStream = createDataStream({
       execute: async (dataStream) => {
+        console.log('[NEXUS MODE] Before condition check:', {
+          selectedResearchMode,
+          queryText,
+          hasQueryText: !!queryText,
+          queryTextLength: queryText?.length || 0,
+          nexusResearchContext,
+          hasNexusResearchContext: !!nexusResearchContext,
+        });
+
+        // If Nexus mode is enabled, perform web search with progress updates
+        console.log('[DEBUG] Nexus mode check:', {
+          selectedResearchMode,
+          hasQueryText: !!queryText,
+          hasNexusResearchContext: !!nexusResearchContext,
+          shouldActivateNexus:
+            selectedResearchMode === 'nexus' &&
+            queryText &&
+            !nexusResearchContext,
+        });
+
+        if (
+          selectedResearchMode === 'nexus' &&
+          queryText &&
+          !nexusResearchContext
+        ) {
+          console.log(
+            '[NEXUS MODE] Starting nexus research with progress tracking',
+          );
+          console.log(
+            '[NEXUS MODE] Inside condition - will perform web search',
+          );
+          const researchStartTime = Date.now();
+
+          try {
+            // Generate 20 comprehensive search queries
+            const generateComprehensiveQueries = (baseQuery: string) => {
+              const lowerQuery = baseQuery.toLowerCase();
+
+              if (
+                lowerQuery.includes('eos') ||
+                lowerQuery.includes('entrepreneurial operating system')
+              ) {
+                return [
+                  baseQuery,
+                  `${baseQuery} comprehensive analysis`,
+                  `${baseQuery} implementation guide`,
+                  `${baseQuery} best practices 2024`,
+                  `${baseQuery} success stories case studies`,
+                  `${baseQuery} challenges and solutions`,
+                  `${baseQuery} expert recommendations`,
+                  `${baseQuery} industry benchmarks`,
+                  `${baseQuery} ROI and benefits`,
+                  `${baseQuery} step by step process`,
+                  `${baseQuery} leadership team requirements`,
+                  `${baseQuery} organizational readiness`,
+                  `${baseQuery} common mistakes to avoid`,
+                  `${baseQuery} tools and resources`,
+                  `${baseQuery} training and certification`,
+                  `${baseQuery} small business vs enterprise`,
+                  `${baseQuery} competitive analysis`,
+                  `${baseQuery} future trends and evolution`,
+                  `${baseQuery} integration with other systems`,
+                  `${baseQuery} measurable outcomes and KPIs`,
+                ];
+              }
+
+              return [
+                baseQuery,
+                `${baseQuery} comprehensive guide`,
+                `${baseQuery} expert analysis`,
+                `${baseQuery} best practices`,
+                `${baseQuery} latest research 2024`,
+                `${baseQuery} industry insights`,
+                `${baseQuery} case studies`,
+                `${baseQuery} implementation strategies`,
+                `${baseQuery} benefits and challenges`,
+                `${baseQuery} step by step approach`,
+                `${baseQuery} common mistakes`,
+                `${baseQuery} success factors`,
+                `${baseQuery} tools and resources`,
+                `${baseQuery} market trends`,
+                `${baseQuery} expert opinions`,
+                `${baseQuery} comparative analysis`,
+                `${baseQuery} ROI and value`,
+                `${baseQuery} future outlook`,
+                `${baseQuery} practical tips`,
+                `${baseQuery} detailed evaluation`,
+              ];
+            };
+
+            const searchQueries = generateComprehensiveQueries(queryText);
+
+            // Emit search start event
+            dataStream.writeData({
+              type: 'nexus-search-start',
+              totalSearches: searchQueries.length,
+              query: queryText,
+            });
+
+            const allResults: any[] = [];
+            let completedSearches = 0;
+
+            // Execute searches sequentially with progress updates
+            for (let i = 0; i < searchQueries.length; i++) {
+              const searchQuery = searchQueries[i];
+
+              // Emit progress event
+              dataStream.writeData({
+                type: 'nexus-search-progress',
+                currentSearch: searchQuery,
+                searchIndex: i,
+                searchesCompleted: completedSearches,
+                totalSearches: searchQueries.length,
+              });
+
+              try {
+                const results = await searchWeb(
+                  searchQuery,
+                  (progress) => {
+                    // Emit detailed search progress
+                    dataStream.writeData({
+                      type: 'nexus-search-detail',
+                      searchIndex: i,
+                      query: searchQuery,
+                      status: progress.status,
+                      sitesFound: progress.sitesFound ?? 0,
+                      error: progress.error ?? null,
+                    });
+                  },
+                  i,
+                );
+
+                if (results.length > 0) {
+                  // Emit sites found event
+                  dataStream.writeData({
+                    type: 'nexus-sites-found',
+                    searchIndex: i,
+                    sites: results.map((r) => ({
+                      url: r.url,
+                      title: r.title,
+                    })),
+                  });
+                  allResults.push(...results);
+                }
+
+                completedSearches++;
+              } catch (error) {
+                console.error(
+                  `[NEXUS MODE] Search failed for "${searchQuery}":`,
+                  error,
+                );
+                dataStream.writeData({
+                  type: 'nexus-search-error',
+                  searchIndex: i,
+                  query: searchQuery,
+                  error:
+                    error instanceof Error ? error.message : 'Unknown error',
+                });
+                completedSearches++;
+              }
+            }
+
+            // Deduplicate and format results
+            const uniqueResults = Array.from(
+              new Map(allResults.map((item) => [item.url, item])).values(),
+            );
+
+            if (uniqueResults.length > 0) {
+              nexusResearchContext = `
+
+## NEXUS MODE - Deep Web Research Results
+
+I've conducted comprehensive research across multiple sources for: "${queryText}"
+
+### RESEARCH SOURCES AND CITATIONS
+${uniqueResults
+  .slice(0, 30)
+  .map(
+    (result, index) => `
+**[${index + 1}] ${result.title}**
+- URL: ${result.url}
+- Summary: ${result.snippet}
+${result.content ? `- Analysis: ${result.content}` : ''}
+- Type: ${result.content ? 'Primary source with detailed analysis' : 'Secondary reference source'}
+`,
+  )
+  .join('\n')}
+
+**CRITICAL NEXUS MODE INSTRUCTIONS - MAXIMUM CONTENT GENERATION:**
+
+This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL sources. Your response should be comprehensive, exhaustive, and extremely detailed. Follow these mandatory requirements:
+
+1. **EXHAUSTIVE CONTENT GENERATION**: 
+   - Minimum 3000+ words total across multiple sections
+   - Utilize EVERY single source provided above
+   - Create the most comprehensive analysis possible
+   - Generate multiple perspectives and angles
+
+2. **MULTI-LAYERED ANALYSIS STRUCTURE**:
+   - Executive Summary (300+ words)
+   - Detailed Analysis (1000+ words)
+   - Implementation Guide (800+ words)
+   - Risk Assessment & Mitigation (400+ words)
+   - Future Outlook & Trends (300+ words)
+   - Actionable Recommendations (200+ words)
+
+3. **MANDATORY IN-TEXT CITATIONS**:
+   - CRITICAL: Include source citations in this exact format: [SOURCE_NUMBER]
+   - Example: "According to research findings [1], the implementation shows..."
+   - Use citations throughout the entire response
+   - Reference EVERY source at least once
+
+4. **REQUIRED CONTENT ELEMENTS** (MANDATORY):
+   - **DATA VISUALIZATIONS**: Create detailed charts using JSON format for:
+     * Performance comparisons (bar charts)
+     * ROI analysis over time (line charts)
+     * Market share or component breakdowns (pie/doughnut charts)
+     * Implementation timelines (timeline charts)
+   - **COMPREHENSIVE TABLES**: Generate detailed comparison tables for:
+     * Feature comparisons
+     * Cost-benefit analysis
+     * Implementation phases
+     * Resource requirements
+     * Risk assessments
+   - **STRUCTURED GUIDES**: Step-by-step implementation guides with numbered lists
+   - **CASE STUDIES**: Detailed examples and real-world applications from sources
+   - **FINANCIAL ANALYSIS**: ROI calculations, cost breakdowns, and budget planning
+   - **PROJECT TIMELINES**: Detailed milestone planning with timelines
+   - **METRICS & KPIs**: Success measurement frameworks and benchmarks
+   - **RISK MITIGATION**: Common pitfalls and prevention strategies
+
+5. **FORMATTING REQUIREMENTS**:
+   - Use extensive markdown formatting
+   - Multiple heading levels (##, ###, ####)
+   - Bullet points, numbered lists, and comprehensive tables
+   - **CHART GENERATION**: Include charts using JSON format in code blocks with chart data for visualizations
+   - **EXAMPLE CHART FORMAT**: Use proper JSON structure for bar, line, pie, doughnut, or radar charts
+   - Code blocks for processes or frameworks
+   - Blockquotes for key insights from sources
+   - Horizontal rules for section breaks
+
+6. **RESEARCH UTILIZATION MANDATE**:
+   - Reference specific data points from sources
+   - Quote key insights with proper citations
+   - Build upon multiple source perspectives
+   - Create synthesis of all available information
+   - Address contradictions between sources
+
+**ABSOLUTE REQUIREMENT**: Generate the most comprehensive, detailed, and exhaustive response possible. This is NEXUS MODE - maximum content generation is mandatory. Do not summarize or condense - expand and elaborate on every point extensively.
+`;
+            }
+
+            // Emit completion event with citation data
+            dataStream.writeData({
+              type: 'nexus-search-complete',
+              totalResults: uniqueResults.length,
+              searchesCompleted: completedSearches,
+              researchTime: Date.now() - researchStartTime,
+              citations: uniqueResults.slice(0, 30).map((result, index) => ({
+                number: index + 1,
+                title: result.title,
+                url: result.url,
+                snippet: result.snippet,
+              })),
+            });
+
+            console.log(
+              `[NEXUS MODE] Research completed in ${Date.now() - researchStartTime}ms, found ${uniqueResults.length} unique sources`,
+            );
+          } catch (error) {
+            console.error('[NEXUS MODE] Nexus research error:', error);
+            dataStream.writeData({
+              type: 'nexus-error',
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        }
+
         // Set up a timeout to prevent hanging responses
         const responseTimeout = setTimeout(() => {
           console.error(
@@ -720,28 +1382,52 @@ Always prioritize the user's document content over generic information. If speci
           console.error('Stream response timed out - client should refresh');
         }, 30000); // Extended to 30 second timeout for document creation
 
+        // Keep original messages - we'll add User RAG context to system prompt instead
+        const modifiedMessages = messages;
+
+        // Combine the enhanced system prompt with nexus research context
+        const finalSystemPrompt =
+          enhancedSystemPrompt +
+          nexusResearchContext +
+          toolResponseInstructions;
+
+        // Log the mode being used
+        const isNexusMode = selectedResearchMode === 'nexus';
+        const tokenLimit = isNexusMode ? 4000 : 1500;
+        const temperature = isNexusMode ? 0.7 : 0.8;
+
+        console.log(
+          `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
+          {
+            tokenLimit,
+            temperature,
+            hasNexusResearch: !!nexusResearchContext,
+            systemPromptLength: finalSystemPrompt.length,
+          },
+        );
+
         try {
           const result = streamText({
             model: provider.languageModel(selectedChatModel),
-            system: enhancedSystemPrompt,
-            messages,
-            maxSteps: 5,
-            experimental_activeTools:
-              selectedChatModel === 'chat-model-reasoning'
-                ? ['createDocument', 'updateDocument']
-                : [
-                    'getWeather',
-                    'createDocument',
-                    'updateDocument',
-                    'requestSuggestions',
-                    'addResource',
-                    'getInformation',
-                    'cleanKnowledgeBase',
-                    'getCalendarEvents',
-                    'createCalendarEvent',
-                  ],
+            system: finalSystemPrompt,
+            messages: modifiedMessages,
+            maxSteps: 10, // Increased from 5 to allow more tool calls and continuations
+            experimental_activeTools: [
+              'getWeather',
+              'createDocument',
+              'updateDocument',
+              'requestSuggestions',
+              'addResource',
+              'getInformation',
+              'cleanKnowledgeBase',
+              'getCalendarEvents',
+              'createCalendarEvent',
+            ],
             experimental_transform: smoothStream({ chunking: 'word' }),
             experimental_generateMessageId: generateUUID,
+            // Dynamic settings based on Nexus mode
+            temperature: temperature, // Use the variable we defined
+            maxTokens: tokenLimit, // Use the variable we defined
             tools: {
               getWeather,
               createDocument: createDocument({ session, dataStream }),
@@ -905,17 +1591,45 @@ Always prioritize the user's document content over generic information. If speci
                   maxResults,
                   searchTerm,
                 }) => {
-                  console.log('Calendar: Tool called to get calendar events', {
-                    timeMin,
-                    timeMax,
-                    maxResults,
-                    searchTerm,
-                  });
+                  console.log(
+                    'Calendar: Enhanced tool called to get calendar events',
+                    {
+                      timeMin,
+                      timeMax,
+                      maxResults,
+                      searchTerm,
+                    },
+                  );
 
                   try {
+                    // Use smart parameters if available from mention context
+                    const smartParams: any = {
+                      timeMin,
+                      timeMax,
+                      maxResults,
+                      searchTerm,
+                    };
+
+                    // If no time range specified and we have mentions, apply smart defaults
+                    if (!timeMin && !timeMax && extractedMentions.length > 0) {
+                      const calendarMentions = extractedMentions.filter((m) =>
+                        ['calendar', 'event', 'meeting'].includes(m.type),
+                      );
+
+                      if (calendarMentions.length > 0) {
+                        // Use enhanced processor to get smart parameters
+                        const smartMentionParams =
+                          MentionProcessor.generateSmartToolParameters(
+                            calendarMentions[0],
+                            queryText,
+                          );
+                        Object.assign(smartParams, smartMentionParams);
+                      }
+                    }
+
                     // Use the direct tool.execute method to avoid URL construction issues
                     const calendarResult = await getCalendarEventsTool.execute(
-                      { timeMin, timeMax, maxResults, searchTerm },
+                      smartParams,
                       session.user.id,
                     );
 
@@ -1084,6 +1798,254 @@ Always prioritize the user's document content over generic information. If speci
                   }
                 },
               }),
+              // Enhanced calendar tools for deeper integration
+              checkCalendarConflicts: tool({
+                description:
+                  'Check if there are any calendar conflicts for a proposed time. Use this proactively when users mention scheduling something.',
+                parameters: z.object({
+                  startDateTime: z
+                    .string()
+                    .describe('Start time in ISO format'),
+                  endDateTime: z.string().describe('End time in ISO format'),
+                }),
+                execute: async ({ startDateTime, endDateTime }) => {
+                  try {
+                    const { checkCalendarConflictsTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    return await checkCalendarConflictsTool.execute(
+                      { startDateTime, endDateTime },
+                      session.user.id,
+                    );
+                  } catch (error) {
+                    console.error('Error checking calendar conflicts:', error);
+                    return {
+                      status: 'error',
+                      message: 'Failed to check calendar conflicts',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              findAvailableTimeSlots: tool({
+                description:
+                  'Find available time slots in the calendar for scheduling meetings. Use this when users ask for available times or need to schedule something.',
+                parameters: z.object({
+                  duration: z.number().describe('Duration in minutes'),
+                  searchDays: z
+                    .number()
+                    .optional()
+                    .default(7)
+                    .describe('Number of days to search ahead'),
+                }),
+                execute: async ({ duration, searchDays }) => {
+                  try {
+                    const { findAvailableTimeSlotsTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    return await findAvailableTimeSlotsTool.execute(
+                      { duration, searchDays },
+                      session.user.id,
+                    );
+                  } catch (error) {
+                    console.error('Error finding available time slots:', error);
+                    return {
+                      status: 'error',
+                      message: 'Failed to find available time slots',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              getCalendarAnalytics: tool({
+                description:
+                  'Get analytics and insights about calendar usage, meeting patterns, and upcoming events that need preparation.',
+                parameters: z.object({
+                  days: z
+                    .number()
+                    .optional()
+                    .default(30)
+                    .describe('Number of days to analyze'),
+                }),
+                execute: async ({ days }) => {
+                  try {
+                    const { getCalendarAnalyticsTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    return await getCalendarAnalyticsTool.execute(
+                      { days },
+                      session.user.id,
+                    );
+                  } catch (error) {
+                    console.error('Error getting calendar analytics:', error);
+                    return {
+                      status: 'error',
+                      message: 'Failed to get calendar analytics',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              getDailyBriefing: tool({
+                description:
+                  "Get a daily briefing of today's calendar events and important reminders. Use this proactively when users start their day or ask about their schedule.",
+                parameters: z.object({
+                  includePrep: z
+                    .boolean()
+                    .optional()
+                    .default(true)
+                    .describe('Include preparation suggestions'),
+                }),
+                execute: async ({ includePrep }) => {
+                  try {
+                    const { getDailyBriefingTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    return await getDailyBriefingTool.execute(
+                      { includePrep },
+                      session.user.id,
+                    );
+                  } catch (error) {
+                    console.error('Error getting daily briefing:', error);
+                    return {
+                      status: 'error',
+                      message: 'Failed to get daily briefing',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              parseNaturalLanguageEvent: tool({
+                description:
+                  'Parse natural language into calendar event details. Use this when users describe events in natural language like "Schedule a meeting with John tomorrow at 2pm".',
+                parameters: z.object({
+                  text: z
+                    .string()
+                    .describe('Natural language description of the event'),
+                  currentDate: z
+                    .string()
+                    .optional()
+                    .describe('Current date for relative date parsing'),
+                }),
+                execute: async ({ text, currentDate }) => {
+                  try {
+                    const { parseNaturalLanguageEventTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    return await parseNaturalLanguageEventTool.execute(
+                      { text, currentDate },
+                      session.user.id,
+                    );
+                  } catch (error) {
+                    console.error(
+                      'Error parsing natural language event:',
+                      error,
+                    );
+                    return {
+                      status: 'error',
+                      message: 'Failed to parse natural language event',
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    };
+                  }
+                },
+              }),
+              // Enhanced availability finder
+              findSmartAvailability: tool({
+                description:
+                  'Intelligently find available time slots based on user preferences and context. Use when users mention "free time", "available", or want to schedule something.',
+                parameters: z.object({
+                  duration: z
+                    .number()
+                    .optional()
+                    .default(30)
+                    .describe('Duration in minutes'),
+                  searchDays: z
+                    .number()
+                    .optional()
+                    .default(7)
+                    .describe('Number of days to search ahead'),
+                  preferredTime: z
+                    .string()
+                    .optional()
+                    .describe(
+                      'Preferred time of day (morning, afternoon, evening)',
+                    ),
+                  context: z
+                    .string()
+                    .optional()
+                    .describe('Context about the meeting or event'),
+                }),
+                execute: async ({
+                  duration,
+                  searchDays,
+                  preferredTime,
+                  context,
+                }) => {
+                  console.log('Calendar: Smart availability search', {
+                    duration,
+                    searchDays,
+                    preferredTime,
+                    context,
+                  });
+
+                  try {
+                    // Extract smart duration from context if not provided
+                    let smartDuration = duration;
+                    if (context) {
+                      const meetingContext =
+                        MentionProcessor.extractMeetingContext?.(context);
+                      if (meetingContext?.duration) {
+                        smartDuration = meetingContext.duration;
+                      }
+                    }
+
+                    // Extract user message context for better parameters
+                    if (queryText && !context) {
+                      const meetingContext =
+                        MentionProcessor.extractMeetingContext?.(queryText);
+                      if (meetingContext?.duration) {
+                        smartDuration = meetingContext.duration;
+                      }
+                    }
+
+                    const { findAvailableTimeSlotsTool } = await import(
+                      '@/lib/ai/tools/calendar-tools'
+                    );
+                    const result = await findAvailableTimeSlotsTool.execute(
+                      {
+                        duration: smartDuration,
+                        searchDays,
+                      },
+                      session.user.id,
+                    );
+
+                    // Enhance result with context
+                    if (result.status === 'success' && result.slots) {
+                      return {
+                        ...result,
+                        message: `Found ${result.slots.length} available ${smartDuration}-minute slots${preferredTime ? ` for ${preferredTime}` : ''}`,
+                        smartContext: {
+                          suggestedDuration: smartDuration,
+                          preferredTime,
+                          context,
+                        },
+                      };
+                    }
+                    return result;
+                  } catch (error) {
+                    console.error('Smart availability error:', error);
+                    return {
+                      status: 'error',
+                      message: 'Failed to find available time slots',
+                    };
+                  }
+                },
+              }),
             },
             onFinish: async ({ response }) => {
               if (session.user?.id) {
@@ -1145,9 +2107,7 @@ Always prioritize the user's document content over generic information. If speci
 
             // Remove the stream processing code
             result.consumeStream();
-            result.mergeIntoDataStream(dataStream, {
-              sendReasoning: false,
-            });
+            result.mergeIntoDataStream(dataStream);
           } catch (streamError) {
             console.error('RAG ERROR: Error processing stream:', streamError);
             // Don't rethrow, just log it and continue
@@ -1196,7 +2156,7 @@ Always prioritize the user's document content over generic information. If speci
 
     // Handle @ mention resource requests
     // For calendar mentions
-    if (hasMentionedCalendar && selectedChatModel !== 'chat-model-reasoning') {
+    if (hasMentionedCalendar) {
       try {
         console.log('Calendar: Auto-checking calendar from @ mention');
 
@@ -1295,11 +2255,7 @@ No upcoming events found in the user's calendar.
     }
 
     // Auto-check calendar for specific event types
-    if (
-      shouldCheckCalendar &&
-      eventType &&
-      selectedChatModel !== 'chat-model-reasoning'
-    ) {
+    if (shouldCheckCalendar && eventType) {
       try {
         console.log(`Calendar: Auto-checking for "${eventType}" events`);
 
@@ -1413,17 +2369,26 @@ ${
     // Get the stream context for resumable streams
     const streamContext = getStreamContext();
     console.log(`Stream context available: ${!!streamContext}`);
+    console.log('Stream context debug:', {
+      hasContext: !!streamContext,
+      contextType: typeof streamContext,
+      streamId: streamId,
+      redisUrl: process.env.REDIS_URL ? 'present' : 'missing',
+    });
 
     // Return the response with improved error handling and fallback
     if (streamContext) {
       try {
         console.log(`Using resumable stream with ID: ${streamId}`);
+        console.log('About to call streamContext.resumableStream...');
 
         // Add a timeout to detect stalled streams
-        const streamPromise = streamContext.resumableStream(
-          streamId,
-          () => responseStream,
-        );
+        const streamPromise = streamContext.resumableStream(streamId, () => {
+          console.log('Stream factory function called for streamId:', streamId);
+          return responseStream;
+        });
+
+        console.log('Stream promise created, waiting for resolution...');
 
         // Create a timeout promise
         const timeoutPromise = new Promise<null>((_, reject) => {
@@ -1443,6 +2408,7 @@ ${
         });
 
         console.log(`Resumable stream created for ID: ${streamId}`);
+        console.log('Resumable stream type:', typeof resumableStream);
         return new Response(resumableStream);
       } catch (streamError) {
         console.error(`Error with resumable stream: ${streamError}`);

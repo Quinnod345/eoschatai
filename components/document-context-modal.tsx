@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { toast } from '@/components/toast';
+import { toast } from '@/lib/toast-system';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -129,10 +129,7 @@ export function DocumentContextModal({
       }
     } catch (error) {
       console.error('Failed to fetch user documents:', error);
-      toast({
-        type: 'error',
-        description: 'Failed to load documents',
-      });
+      toast.error('Failed to load documents');
     } finally {
       setLoading(false);
     }
@@ -366,10 +363,7 @@ export function DocumentContextModal({
 
   const uploadFiles = async (files: File[]) => {
     if (!session?.user) {
-      toast({
-        type: 'error',
-        description: 'You must be logged in to upload documents',
-      });
+      toast.error('You must be logged in to upload documents');
       return;
     }
 
@@ -404,19 +398,15 @@ export function DocumentContextModal({
           !validTypes.includes(file.type) &&
           !validExtensions.includes(fileExt || '')
         ) {
-          toast({
-            type: 'error',
-            description: `Invalid file type: ${file.name}. Only PDF, TXT, MD, DOC, DOCX, XLS, and XLSX files are supported.`,
-          });
+          toast.error(
+            `Invalid file type: ${file.name}. Only PDF, TXT, MD, DOC, DOCX, XLS, and XLSX files are supported.`,
+          );
           continue;
         }
 
         // Check file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
-          toast({
-            type: 'error',
-            description: `File too large: ${file.name}. Maximum size is 10MB.`,
-          });
+          toast.error(`File too large: ${file.name}. Maximum size is 10MB.`);
           continue;
         }
 
@@ -459,29 +449,38 @@ export function DocumentContextModal({
             file.name.toLowerCase().endsWith('.pdf')
           ) {
             // Special handling for PDFs with AI processing
-            toast({
-              type: 'success',
-              description: `${file.name} uploaded. AI analysis in progress...`,
-            });
+            toast.success(`${file.name} uploaded. AI analysis in progress...`);
 
             // After a short delay, show the success message
             setTimeout(() => {
-              toast({
-                type: 'success',
-                description: `${file.name} has been AI-processed! The document text and a comprehensive summary are now available for chatbot reference.`,
-              });
+              toast.success(
+                `${file.name} has been AI-processed! The document text and a comprehensive summary are now available for chatbot reference.`,
+              );
             }, 3000);
           } else {
-            toast({
-              type: 'success',
-              description: `${file.name} uploaded successfully`,
-            });
+            toast.success(`${file.name} uploaded successfully`);
           }
 
           console.log(`Document uploaded successfully: ${file.name}`, data);
         } else {
           const error = await response.json();
-          throw new Error(error.error || 'Failed to upload document');
+
+          // Check if this is a premium feature error
+          if (response.status === 403 && error.requiresPremium) {
+            toast.error(
+              'Document upload is a premium feature. Please upgrade to enable document uploads.',
+            );
+
+            setTimeout(() => {
+              // Redirect to settings with premium tab focused
+              window.location.href = '/settings?tab=preferences';
+            }, 2000);
+
+            // Stop trying to upload more files
+            break;
+          } else {
+            throw new Error(error.error || 'Failed to upload document');
+          }
         }
       }
 
@@ -489,11 +488,9 @@ export function DocumentContextModal({
       fetchUserDocuments();
     } catch (error) {
       console.error('Error uploading documents:', error);
-      toast({
-        type: 'error',
-        description:
-          error instanceof Error ? error.message : 'Failed to upload documents',
-      });
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to upload documents',
+      );
     } finally {
       setUploading(false);
       // Reset the file input
@@ -515,21 +512,16 @@ export function DocumentContextModal({
       if (response.ok) {
         // Remove the document from the list
         setDocuments((prev) => prev.filter((doc) => doc.id !== id));
-        toast({
-          type: 'success',
-          description: 'Document deleted successfully',
-        });
+        toast.success('Document deleted successfully');
       } else {
         const error = await response.json();
         throw new Error(error.error || 'Failed to delete document');
       }
     } catch (error) {
       console.error('Error deleting document:', error);
-      toast({
-        type: 'error',
-        description:
-          error instanceof Error ? error.message : 'Failed to delete document',
-      });
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to delete document',
+      );
     } finally {
       setLoading(false);
     }

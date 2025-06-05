@@ -291,6 +291,9 @@ export const getInformationTool: Tool<{ query: string; limit?: number }> = {
 // Export all RAG tools for use in chat routes
 export const ragTools = [addResourceTool, getInformationTool];
 
+// Import enhanced calendar tools
+export { enhancedCalendarTools } from './tools/calendar-tools';
+
 // Helper function to check calendar connection status
 async function checkCalendarConnection(): Promise<boolean> {
   try {

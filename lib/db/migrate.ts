@@ -105,6 +105,93 @@ const addGoogleCalendarSupport = async (connection: postgres.Sql<{}>) => {
   }
 };
 
+// Add PinnedMessage and BookmarkedMessage tables
+const addMessageActionTables = async (connection: postgres.Sql<{}>) => {
+  try {
+    // Check if PinnedMessage table exists
+    const pinnedTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'PinnedMessage'
+      ) as "exists"
+    `;
+
+    if (!pinnedTableExists[0].exists) {
+      await connection`
+        CREATE TABLE "PinnedMessage" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "userId" UUID NOT NULL REFERENCES "User"("id"),
+          "messageId" UUID NOT NULL REFERENCES "Message_v2"("id"),
+          "chatId" UUID NOT NULL REFERENCES "Chat"("id"),
+          "pinnedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await connection`
+        CREATE INDEX "pinned_user_message_idx" ON "PinnedMessage" ("userId", "messageId")
+      `;
+
+      await connection`
+        CREATE INDEX "pinned_chat_idx" ON "PinnedMessage" ("chatId")
+      `;
+
+      console.log('Created PinnedMessage table with indexes');
+    } else {
+      console.log('PinnedMessage table already exists');
+    }
+
+    // Check if BookmarkedChat table exists
+    const bookmarkedTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'BookmarkedChat'
+      )
+    `;
+
+    if (!bookmarkedTableExists[0].exists) {
+      await connection`
+        CREATE TABLE "BookmarkedChat" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "userId" UUID NOT NULL REFERENCES "User"("id"),
+          "chatId" UUID NOT NULL REFERENCES "Chat"("id"),
+          "bookmarkedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "note" TEXT
+        )
+      `;
+
+      await connection`
+        CREATE UNIQUE INDEX "bookmarked_user_chat_idx" ON "BookmarkedChat" ("userId", "chatId")
+      `;
+
+      await connection`
+        CREATE INDEX "bookmarked_user_idx" ON "BookmarkedChat" ("userId")
+      `;
+
+      console.log('Created BookmarkedChat table with indexes');
+    } else {
+      console.log('BookmarkedChat table already exists');
+    }
+
+    // Clean up old BookmarkedMessage table if it exists
+    const oldBookmarkedTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'BookmarkedMessage'
+      )
+    `;
+
+    if (oldBookmarkedTableExists[0].exists) {
+      await connection`DROP TABLE IF EXISTS "BookmarkedMessage" CASCADE`;
+      console.log('Dropped old BookmarkedMessage table');
+    }
+  } catch (error) {
+    console.error('Error creating message action tables:', error);
+    // Don't rethrow the error so that the migration can continue
+  }
+};
+
 // Check if a column exists in a table
 const columnExists = async (
   connection: postgres.Sql<{}>,
@@ -235,6 +322,13 @@ const runMigrate = async () => {
           await addGoogleCalendarSupport(connection);
         } catch (error) {
           console.error('Error adding Google Calendar support:', error);
+        }
+
+        try {
+          // Add message action tables (PinnedMessage and BookmarkedMessage)
+          await addMessageActionTables(connection);
+        } catch (error) {
+          console.error('Error adding message action tables:', error);
         }
 
         try {

@@ -18,7 +18,9 @@ export type DataStreamDelta = {
     | 'clear'
     | 'finish'
     | 'kind'
-    | 'chart-data';
+    | 'chart-data'
+    | 'ai-edit-start'
+    | 'ai-edit-complete';
   content: string | Suggestion;
 };
 

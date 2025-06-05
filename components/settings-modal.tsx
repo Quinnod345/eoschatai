@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/components/toast';
+import { toast } from '@/lib/toast-system';
 import { useSession } from 'next-auth/react';
 import { Separator } from '@/components/ui/separator';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -48,6 +48,7 @@ const styles = {
   cancelButton: 'settings-cancel-button',
   fixedHeight: 'settings-fixed-height',
   enhancedModal: 'settings-enhanced-modal',
+  modalContent: 'settings-modal-content', // New class for consistent width
 };
 
 // Animation variants for staggered animations
@@ -128,6 +129,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   });
   const [activeTab, setActiveTab] = React.useState('profile');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const settingsContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Account management state
   const [email, setEmail] = React.useState('');
@@ -153,6 +155,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [isOpen]);
 
+  // Apply font size to the settings container based on the selected fontSize
+  React.useEffect(() => {
+    if (settingsContainerRef.current && settings.fontSize) {
+      // Remove any previous font size classes
+      settingsContainerRef.current.classList.remove(
+        'text-sm',
+        'text-base',
+        'text-lg',
+      );
+
+      // Apply the appropriate font size class
+      switch (settings.fontSize) {
+        case 'small':
+          settingsContainerRef.current.classList.add('text-sm');
+          break;
+        case 'medium':
+          settingsContainerRef.current.classList.add('text-base');
+          break;
+        case 'large':
+          settingsContainerRef.current.classList.add('text-lg');
+          break;
+        default:
+          settingsContainerRef.current.classList.add('text-base');
+      }
+    }
+  }, [settings.fontSize, isOpen]);
+
   // Add settings modal specific styling to the document
   React.useEffect(() => {
     // Create a style element if it doesn't exist already
@@ -174,6 +203,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           --color-bg-muted: hsl(var(--muted));
           --color-primary: hsl(var(--primary));
           --color-border: hsl(var(--border));
+        }
+        
+        /* Fix modal width to be consistent across tabs */
+        .${styles.modalContent} {
+          width: 540px;
+          max-width: calc(100vw - 32px);
         }
         
         /* Tab list styles */
@@ -258,6 +293,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           border: 1px solid var(--color-border);
         }
 
+        /* Fix switch toggle styling */
+        .${styles.wrapper} [data-state="checked"] {
+          background-color: hsl(var(--primary)) !important;
+        }
+        
+        .${styles.wrapper} [data-state="unchecked"] {
+          background-color: hsl(var(--muted)) !important;
+        }
+
+        .${styles.wrapper} [role="switch"] span {
+          transform: translateX(0) !important;
+          transition: transform 200ms ease-in-out !important;
+        }
+
+        .${styles.wrapper} [data-state="checked"] span {
+          transform: translateX(1rem) !important;
+        }
+
         /* Ensure dropdowns appear above other content */
         .select-content {
           z-index: 100;
@@ -303,20 +356,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      toast({
-        type: 'error',
-        description:
-          'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
-      });
+      toast.error(
+        'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
+      );
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast({
-        type: 'error',
-        description: 'File too large. Maximum size is 5MB.',
-      });
+      toast.error('File too large. Maximum size is 5MB.');
       return;
     }
 
@@ -392,10 +440,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           }),
         });
 
-        toast({
-          type: 'success',
-          description: 'Profile picture updated',
-        });
+        toast.success('Profile picture updated');
 
         // Update session to reflect new profile picture
         await updateSession({ profilePicture: data.url });
@@ -412,13 +457,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      toast({
-        type: 'error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to upload profile picture. Please try again.',
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to upload profile picture. Please try again.',
+      );
     } finally {
       setUploadingImage(false);
       // Clean up the object URL
@@ -438,6 +481,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     // Update local state
     setSettings((prev) => ({ ...prev, [key]: value }));
+
+    // If we're updating the font size, update it in the UI context as well
+    if (key === 'fontSize' && updateUISettings) {
+      updateUISettings((prev) => ({ ...prev, fontSize: value }));
+    }
   };
 
   // Modify the event listener for clicks outside the modal
@@ -512,8 +560,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (response.ok) {
         const data = await response.json();
 
-        // Set settings from database
-        setSettings({
+        const fetchedSettings = {
           notificationsEnabled: data.notificationsEnabled ?? true,
           language: data.language ?? 'english',
           fontSize: data.fontSize ?? 'medium',
@@ -523,18 +570,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           companyDescription: data.companyDescription ?? '',
           profilePicture: data.profilePicture ?? '',
           googleCalendarConnected: data.googleCalendarConnected ?? false,
-        });
+        };
+
+        // Set settings from database
+        setSettings(fetchedSettings);
+
+        // Also update UI settings with font size
+        if (updateUISettings && fetchedSettings.fontSize) {
+          updateUISettings((prev) => ({
+            ...prev,
+            fontSize: fetchedSettings.fontSize || 'medium',
+          }));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch user settings:', error);
-      toast({
-        type: 'error',
-        description: 'Failed to load settings',
-      });
+      toast.error('Failed to load settings');
     } finally {
       setLoading(false);
     }
-  }, [session?.user]);
+  }, [session?.user, updateUISettings]);
 
   React.useEffect(() => {
     if (isOpen && session?.user) {
@@ -545,10 +600,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleSaveChanges = async () => {
     if (!session?.user) {
-      toast({
-        type: 'error',
-        description: 'You must be logged in to save settings',
-      });
+      toast.error('You must be logged in to save settings');
       return;
     }
 
@@ -564,10 +616,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       });
 
       if (response.ok) {
-        toast({
-          type: 'success',
-          description: 'Settings saved successfully!',
-        });
+        toast.success('Settings saved successfully!');
+
+        // Apply UI updates for font size
+        if (updateUISettings) {
+          updateUISettings((prev) => ({
+            ...prev,
+            fontSize: settings.fontSize || 'medium',
+          }));
+        }
 
         // Force a session update if display name was changed
         if (settings.displayName) {
@@ -581,11 +638,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     } catch (error) {
       console.error('Error saving settings:', error);
-      toast({
-        type: 'error',
-        description:
-          error instanceof Error ? error.message : 'Failed to save settings',
-      });
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save settings',
+      );
     } finally {
       setLoading(false);
     }
@@ -626,10 +681,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       });
 
       if (response.ok) {
-        toast({
-          type: 'success',
-          description: 'Password updated successfully',
-        });
+        toast.success('Password updated successfully');
 
         // Reset password fields
         setCurrentPassword('');
@@ -662,26 +714,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       });
 
       if (response.ok) {
-        toast({
-          type: 'success',
-          description: 'Email updated successfully. Please sign in again.',
-        });
+        toast.success('Email updated successfully. Please sign in again.');
 
         // Force reload of session after email change
         router.refresh();
       } else {
         const data = await response.json();
-        toast({
-          type: 'error',
-          description: data.error || 'Failed to update email',
-        });
+        toast.error(data.error || 'Failed to update email');
       }
     } catch (error) {
       console.error('Error updating email:', error);
-      toast({
-        type: 'error',
-        description: 'An unexpected error occurred',
-      });
+      toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -709,6 +752,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     // Proceed with normal close
     onClose();
+
+    // Dispatch event to notify that settings modal has closed
+    window.dispatchEvent(new CustomEvent('settingsModalClosed'));
   };
 
   // Add a function to handle Google Calendar authentication
@@ -721,16 +767,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       window.location.href = '/api/calendar/auth';
 
       // Show a toast message
-      toast({
-        type: 'success',
-        description: 'Redirecting to Google authentication...',
-      });
+      toast.success('Redirecting to Google authentication...');
     } catch (error) {
       console.error('Failed to initiate Google Calendar auth:', error);
-      toast({
-        type: 'error',
-        description: 'Failed to connect to Google Calendar',
-      });
+      toast.error('Failed to connect to Google Calendar');
     }
   };
 
@@ -745,19 +785,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       if (response.ok) {
         updateSetting('googleCalendarConnected', false);
-        toast({
-          type: 'success',
-          description: 'Google Calendar has been disconnected',
-        });
+        toast.success('Google Calendar has been disconnected');
       } else {
         throw new Error('Failed to disconnect Google Calendar');
       }
     } catch (error) {
       console.error('Failed to disconnect Google Calendar:', error);
-      toast({
-        type: 'error',
-        description: 'Failed to disconnect Google Calendar',
-      });
+      toast.error('Failed to disconnect Google Calendar');
     } finally {
       setLoading(false);
     }
@@ -789,10 +823,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const error = searchParams.get('error');
 
       if (success) {
-        toast({
-          type: 'success',
-          description: success,
-        });
+        toast.success(success);
 
         // Refresh settings to show updated connection status
         fetchUserSettings();
@@ -804,10 +835,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
 
       if (error) {
-        toast({
-          type: 'error',
-          description: error,
-        });
+        toast.error(error);
 
         // Clear the query params
         const url = new URL(window.location.href);
@@ -857,10 +885,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         />
       )}
       <div
+        ref={settingsContainerRef}
         className={cn(
-          'p-6 pb-4 max-w-xl',
+          'p-6 pb-4',
           styles.wrapper,
           styles.enhancedModal,
+          styles.modalContent,
         )}
       >
         <AlertDialogHeader>
@@ -912,7 +942,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className={cn('mt-4 px-1', styles.fixedHeight)}>
             <AnimatePresence mode="wait">
               {activeTab === 'profile' && (
-                <TabsContent value="profile" key="profile" forceMount>
+                <TabsContent
+                  value="profile"
+                  key="profile"
+                  forceMount
+                  className="w-full"
+                >
                   <motion.div
                     initial="hidden"
                     animate="visible"
@@ -1331,7 +1366,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
 
               {activeTab === 'preferences' && (
-                <TabsContent value="preferences" key="preferences" forceMount>
+                <TabsContent
+                  value="preferences"
+                  key="preferences"
+                  forceMount
+                  className="w-full"
+                >
                   <motion.div
                     initial="hidden"
                     animate="visible"
@@ -1347,31 +1387,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         Notifications
                       </h3>
                       <div className="flex items-center justify-between">
-                        <Label
-                          htmlFor="notifications"
-                          className={cn(
-                            'flex flex-col space-y-1',
-                            styles.formLabel,
-                          )}
-                        >
-                          <span className={styles.normalText}>
-                            Enable Notifications
-                          </span>
-                          <span className={styles.mutedText}>
-                            Receive notifications when new messages arrive
-                          </span>
-                        </Label>
+                        <div className="space-y-0.5">
+                          <Label
+                            htmlFor="notification-toggle"
+                            className={styles.formLabel}
+                          >
+                            Allow Notifications
+                          </Label>
+                          <p className={cn(styles.mutedText, 'text-xs')}>
+                            Receive notifications for important updates
+                          </p>
+                        </div>
                         <Switch
-                          id="notifications"
+                          id="notification-toggle"
                           checked={settings.notificationsEnabled}
-                          onCheckedChange={(value) =>
-                            updateSetting('notificationsEnabled', value)
+                          onCheckedChange={(checked) =>
+                            updateSetting('notificationsEnabled', checked)
                           }
                           disabled={loading}
                         />
                       </div>
                     </motion.div>
 
+                    {/* Font Size Section */}
                     <motion.div
                       className="space-y-4 mt-6"
                       variants={itemVariants}
@@ -1382,7 +1420,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         Appearance
                       </h3>
                       <div className="grid gap-4">
-                        {/* Font Size Setting - Keep existing */}
+                        {/* Font Size Setting - Updated to apply changes */}
                         <motion.div
                           className="grid gap-2"
                           variants={itemVariants}
@@ -1395,12 +1433,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </Label>
                           <Select
                             value={settings.fontSize}
-                            onValueChange={(value) =>
-                              updateSetting('fontSize', value)
-                            }
+                            onValueChange={(value) => {
+                              updateSetting('fontSize', value);
+
+                              // Apply the font size change immediately for preview
+                              if (settingsContainerRef.current) {
+                                settingsContainerRef.current.classList.remove(
+                                  'text-sm',
+                                  'text-base',
+                                  'text-lg',
+                                );
+
+                                switch (value) {
+                                  case 'small':
+                                    settingsContainerRef.current.classList.add(
+                                      'text-sm',
+                                    );
+                                    break;
+                                  case 'medium':
+                                    settingsContainerRef.current.classList.add(
+                                      'text-base',
+                                    );
+                                    break;
+                                  case 'large':
+                                    settingsContainerRef.current.classList.add(
+                                      'text-lg',
+                                    );
+                                    break;
+                                }
+                              }
+                            }}
                             disabled={loading}
                           >
-                            <SelectTrigger id="fontSize">
+                            <SelectTrigger id="fontSize" className="w-full">
                               <SelectValue placeholder="Select font size" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1409,6 +1474,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               <SelectItem value="large">Large</SelectItem>
                             </SelectContent>
                           </Select>
+                          <p className={cn(styles.mutedText, 'text-xs')}>
+                            Changes the font size throughout the application.
+                          </p>
                         </motion.div>
 
                         {/* Dark Mode Toggle */}
@@ -1476,7 +1544,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
 
               {activeTab === 'company' && (
-                <TabsContent value="company" key="company" forceMount>
+                <TabsContent
+                  value="company"
+                  key="company"
+                  forceMount
+                  className="w-full"
+                >
                   <motion.div
                     initial="hidden"
                     animate="visible"
@@ -1581,7 +1654,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
 
               {activeTab === 'integrations' && (
-                <TabsContent value="integrations" key="integrations" forceMount>
+                <TabsContent
+                  value="integrations"
+                  key="integrations"
+                  forceMount
+                  className="w-full"
+                >
                   <motion.div
                     initial="hidden"
                     animate="visible"

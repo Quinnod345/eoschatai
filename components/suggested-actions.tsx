@@ -11,7 +11,7 @@ import '../styles/animations.css';
 // Conversation starters organized by category
 const CONVERSATION_STARTERS = [
   {
-    category: '🧠 EOS Model & Tools',
+    category: 'EOS Model & Tools',
     starters: [
       'What are the Six Key Components® of EOS?',
       'How do I fill out a Vision/Traction Organizer™?',
@@ -26,7 +26,7 @@ const CONVERSATION_STARTERS = [
     ],
   },
   {
-    category: '🚀 Implementation & Coaching',
+    category: 'Implementation & Coaching',
     starters: [
       'How do I start implementing EOS in my company?',
       'What should we do in our first 90 days of EOS?',
@@ -36,17 +36,17 @@ const CONVERSATION_STARTERS = [
     ],
   },
   {
-    category: '🧰 People Tools',
+    category: 'People Tools',
     starters: [
       'How do I use the People Analyzer™?',
       'What does GWC™ mean and how do I use it?',
-      'Can you help me conduct a 5-5-5™ conversation?',
+      'Can you help me conduct a Quarterly Conversation?',
       "What's the LMA™ concept in EOS?",
       "What if someone doesn't fit our Core Values?",
     ],
   },
   {
-    category: '📊 Data & Scorecards',
+    category: 'Data & Scorecards',
     starters: [
       'How do I build a 13-week Scorecard?',
       "What's a good Scorecard for an operations team?",
@@ -56,7 +56,7 @@ const CONVERSATION_STARTERS = [
     ],
   },
   {
-    category: '🗓️ Meetings & Cadence',
+    category: 'Meetings & Cadence',
     starters: [
       'What is a Weekly Level 10 Meeting™?',
       'How long should a Level 10 take?',
@@ -66,7 +66,7 @@ const CONVERSATION_STARTERS = [
     ],
   },
   {
-    category: '📘 EOS Books & Philosophy',
+    category: 'EOS Books & Philosophy',
     starters: [
       'What book should I start with in the Traction Library?',
       'What is EOS Life®?',
@@ -76,7 +76,7 @@ const CONVERSATION_STARTERS = [
     ],
   },
   {
-    category: '💡 Leadership, Culture & EOS Life®',
+    category: 'Leadership, Culture & EOS Life®',
     starters: [
       'How do I know if someone is a Visionary or Integrator?',
       'Can you help me clarify our 10-Year Target™?',
@@ -87,29 +87,29 @@ const CONVERSATION_STARTERS = [
   },
 ];
 
-// Time-based greeting options with emojis
+// Time-based greeting options - conversational and warm
 const MORNING_GREETINGS = [
-  '☀️ Good morning! What can I help with today?',
-  '🌅 Rise and shine! Ready to boost your EOS journey?',
-  '🌞 Morning! What EOS questions are on your mind?',
-  '🍳 Early bird gets the ROCKs done! How can I assist?',
-  "☕ Coffee in hand? Let's tackle some EOS challenges!",
+  "Good morning! I'm excited to help you with your EOS journey today. What's on your mind?",
+  'Rise and shine! Ready to tackle some EOS challenges together?',
+  'Morning! What EOS questions are you thinking about as you start your day?',
+  'Early bird gets the Rocks done! How can I support your business today?',
+  'Good morning! What would you like to explore about EOS over your coffee?',
 ];
 
 const AFTERNOON_GREETINGS = [
-  '🌤️ Good afternoon! What EOS topic interests you?',
-  '⚡ Midday motivation! What would you like to learn?',
-  '🚀 Afternoon boost! What can I clarify about EOS?',
-  "💼 Back from lunch? Let's get some EOS work done!",
-  "🌻 Afternoon! What's your EOS focus right now?",
+  'Good afternoon! What EOS topic would you like to dive into?',
+  'Hope your day is going well! What EOS questions can I help you with?',
+  "Afternoon! What's the biggest EOS challenge you're working on right now?",
+  "Back from lunch? Let's make some progress on your EOS implementation!",
+  'Good afternoon! What aspect of your business would you like to strengthen with EOS?',
 ];
 
 const EVENING_GREETINGS = [
-  '🌙 Good evening! What EOS topics shall we explore?',
-  "✨ Evening reflection time! What's on your EOS mind?",
-  '🌆 Wrapping up your day! Let me help with EOS!',
-  '🔮 Evening inspiration! What EOS challenge are you facing?',
-  '🌟 Night owls get things done! What EOS questions do you have?',
+  'Good evening! What EOS topics would you like to explore tonight?',
+  "Evening reflection time! What's been on your mind about your business lately?",
+  "Wrapping up your day? Let's work through some EOS concepts together!",
+  'Evening! What EOS challenge would you like to tackle before tomorrow?',
+  'Good evening! What questions about your business can I help you think through?',
 ];
 
 // Define type for conversation starter category
@@ -199,22 +199,25 @@ function PureSuggestedActions({
   // Handle category change with animation
   const handleCategoryChange = (index: number) => {
     if (index === activeCategory) return;
-    setAnimateOut(true);
+
+    // Immediately update the active category for visual feedback
+    setActiveCategory(index);
     setDropdownOpen(false);
 
-    // Increase timeout to allow animation to complete smoothly
+    // Start the content animation
+    setAnimateOut(true);
+
+    // Update the displayed content after animation starts
     setTimeout(() => {
       setDisplayedCategory(index);
-      setActiveCategory(index);
 
       // Small delay before starting the fade-in animation
-      // This prevents visual glitches during the transition
       requestAnimationFrame(() => {
         setTimeout(() => {
           setAnimateOut(false);
         }, 50);
       });
-    }, 400); // Increased from 300ms to 400ms for smoother transition
+    }, 200); // Reduced timeout for faster content transition
   };
 
   // Handle dropdown toggle
@@ -235,16 +238,51 @@ function PureSuggestedActions({
   return (
     <div
       data-testid="suggested-actions"
-      className="flex flex-col max-w-3xl mx-auto px-2 sm:px-4 animate-fadeIn"
+      className="flex flex-col max-w-3xl mx-auto px-4 sm:px-6 animate-fadeIn suggestions-container"
+      style={{
+        overflow: 'visible',
+        minHeight: 'fit-content',
+      }}
     >
       {/* Header section */}
-      <div className="flex flex-col items-center justify-center mb-4 sm:mb-6 md:mb-8 pt-4 md:pt-6">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-center text-orange-500 dark:text-orange-400 mb-4 sm:mb-6 md:mb-8 animate-slideDown max-w-full px-2 overflow-hidden text-ellipsis">
-          {greeting}
+      <div className="flex flex-col items-center justify-center mb-2 sm:mb-4 md:mb-6 pt-4 md:pt-6">
+        <h2 className="font-bold text-center text-orange-500 dark:text-orange-400 mb-4 sm:mb-6 md:mb-8 w-full px-4 responsive-title">
+          <span className="inline-block animate-blur-in-text whitespace-nowrap-words">
+            {greeting.split(' ').map((word, wordIndex) => (
+              <span
+                key={`word-${wordIndex}`}
+                className="inline-block mr-2 whitespace-nowrap"
+              >
+                {word.split('').map((char, charIndex) => {
+                  const globalIndex = greeting
+                    .split('')
+                    .slice(
+                      0,
+                      greeting.split(' ').slice(0, wordIndex).join(' ').length +
+                        (wordIndex > 0 ? 1 : 0) +
+                        charIndex,
+                    ).length;
+                  return (
+                    <span
+                      key={`${wordIndex}-${charIndex}`}
+                      className="inline-block animate-blur-in-char"
+                      style={{
+                        animationDelay: `${globalIndex * 0.015}s`,
+                        filter: 'blur(8px)',
+                        opacity: 0,
+                      }}
+                    >
+                      {char}
+                    </span>
+                  );
+                })}
+              </span>
+            ))}
+          </span>
         </h2>
 
         {/* Visual separator */}
-        <div className="w-full max-w-md mx-auto mb-4 sm:mb-6 md:mb-8">
+        <div className="w-full max-w-md mx-auto mb-3 sm:mb-4 md:mb-6">
           <hr
             className="border-none h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
             style={{
@@ -256,19 +294,22 @@ function PureSuggestedActions({
         </div>
 
         {/* Mobile Dropdown */}
-        <div className="md:hidden w-full max-w-[90%] mx-auto mb-3 animate-slideUp relative z-30">
-          <div className="relative">
+        <div
+          className="md:hidden w-full max-w-[90%] mx-auto mb-3 animate-slideUp relative z-30"
+          style={{ overflow: 'visible' }}
+        >
+          <div className="relative" style={{ overflow: 'visible' }}>
             <button
               type="button"
               onClick={toggleDropdown}
-              className="w-full flex items-center justify-between px-3 py-1.5 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
+              className="w-full flex items-center justify-between px-4 py-2 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
             >
-              <span className="truncate">
+              <span className="text-left flex-1 mr-2">
                 {randomizedStarters[activeCategory]?.category ||
                   'Select a category'}
               </span>
               <svg
-                className={`ml-2 h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
+                className={`flex-shrink-0 h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -282,17 +323,25 @@ function PureSuggestedActions({
             </button>
 
             {dropdownOpen && (
-              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 rounded-modern shadow-lg dark:shadow-modern-dark border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-60 overflow-auto">
+              <div
+                className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 rounded-modern border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-60 overflow-auto"
+                style={{
+                  boxShadow:
+                    '0 20px 50px -10px rgba(0, 0, 0, 0.15), 0 8px 16px -4px rgba(0, 0, 0, 0.1)',
+                  filter: 'drop-shadow(0 10px 20px rgba(0, 0, 0, 0.1))',
+                  margin: '0.5rem 0',
+                }}
+              >
                 {randomizedStarters.map((category, index) => (
                   <button
                     key={`category-${category.category}-${index}`}
                     type="button"
                     onClick={() => handleCategoryChange(index)}
-                    className={`w-full text-left px-3 py-1.5 text-sm ${
+                    className={`w-full text-left px-4 py-2 text-sm ${
                       activeCategory === index
                         ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-medium'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    } truncate`}
+                    } break-words`}
                   >
                     {category.category}
                   </button>
@@ -303,17 +352,25 @@ function PureSuggestedActions({
         </div>
 
         {/* Desktop Category Tabs */}
-        <div className="hidden md:flex flex-wrap gap-1.5 justify-center animate-slideUp px-2 overflow-x-auto max-w-full">
+        <div
+          className="hidden md:flex flex-wrap gap-2 justify-center animate-slideUp px-4 py-3 max-w-full category-tabs-container"
+          style={{ overflow: 'visible' }}
+        >
           {randomizedStarters.map((category, index) => (
             <button
               key={`desktop-category-${category.category}-${index}`}
               type="button"
               onClick={() => handleCategoryChange(index)}
-              className={`px-3 py-1.5 rounded-modern text-xs sm:text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+              className={`px-4 py-2 rounded-modern text-sm font-medium transition-all duration-300 hover:shadow-md ${
                 activeCategory === index
                   ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700'
-              } whitespace-nowrap`}
+              } min-w-fit flex-shrink-0`}
+              style={{
+                filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1))',
+                margin: '0.25rem',
+                transform: 'translateZ(0)',
+              }}
             >
               {category.category}
             </button>
@@ -321,16 +378,16 @@ function PureSuggestedActions({
         </div>
       </div>
 
-      {/* Starters Grid - More compact on mobile */}
+      {/* Starters Grid - Compact with shadow protection */}
       <div
-        className={`grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 transition-all duration-300 ease-in-out ${
+        className={`grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 transition-all duration-300 ease-in-out ${
           animateOut ? 'opacity-0' : 'opacity-100'
         } relative z-10`}
         style={{
-          minHeight: '180px', // Reduced height but still maintains consistency
-          maxHeight: '400px', // Prevent overly large grid on big screens
-          willChange: 'opacity, transform', // Optimize for animations
-          overflow: 'auto', // Allows scrolling if content exceeds max height
+          minHeight: 'fit-content',
+          willChange: 'opacity, transform',
+          overflow: 'visible',
+          padding: '1rem 0.5rem 2rem 0.5rem',
         }}
       >
         {randomizedStarters[displayedCategory]?.randomStarters?.map(
@@ -339,7 +396,13 @@ function PureSuggestedActions({
               key={`starter-${index}-${starter.substring(0, 10)}`}
               type="button"
               onClick={() => handleStarterClick(starter)}
-              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-2.5 py-1.5 sm:px-3 sm:py-2 md:p-3 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 transform hover:scale-102 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`}`}
+              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-4 py-3 md:px-5 md:py-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`} min-h-[80px] md:min-h-[100px] flex items-center suggestion-card`}
+              style={{
+                filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.08))',
+                margin: '0.5rem 0.25rem',
+                transform: 'translateZ(0)',
+                willChange: 'transform',
+              }}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
@@ -348,40 +411,13 @@ function PureSuggestedActions({
                 stiffness: 260,
                 damping: 20,
               }}
-              style={{
-                willChange: 'transform',
-                height: 'auto', // Allow height to adjust to content
-                maxHeight: '100%',
-              }}
             >
-              <p className="text-gray-800 dark:text-gray-200 text-xs sm:text-sm md:text-base line-clamp-3">
+              <p className="text-gray-800 dark:text-gray-200 text-sm md:text-base leading-relaxed w-full">
                 {starter}
               </p>
             </motion.button>
           ),
         )}
-      </div>
-
-      {/* Custom Prompt Section */}
-      <div className="mt-3 sm:mt-4 md:mt-6 text-center animate-fadeIn relative z-10">
-        <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">
-          Or type your own question below
-        </p>
-        <div className="flex items-center justify-center">
-          <svg
-            className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-orange-500 dark:text-orange-400 animate-bounce-slow"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
-        </div>
       </div>
     </div>
   );

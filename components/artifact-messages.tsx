@@ -7,6 +7,7 @@ import type { UIArtifact } from './artifact';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
+import { useMessageActions } from '@/hooks/use-message-actions';
 
 interface ArtifactMessagesProps {
   chatId: string;
@@ -39,6 +40,8 @@ function PureArtifactMessages({
     status,
   });
 
+  const { handlePin, handleReply, isPinned } = useMessageActions({ chatId });
+
   return (
     <div
       ref={messagesContainerRef}
@@ -61,6 +64,20 @@ function PureArtifactMessages({
           requiresScrollPadding={
             hasSentMessage && index === messages.length - 1
           }
+          onPin={handlePin}
+          onReply={(messageId) => {
+            const msg = messages.find((m) => m.id === messageId);
+            if (msg) {
+              const textContent =
+                msg.parts
+                  ?.filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('\n')
+                  .trim() || '';
+              handleReply(messageId, textContent);
+            }
+          }}
+          isPinned={isPinned(message.id)}
         />
       ))}
 

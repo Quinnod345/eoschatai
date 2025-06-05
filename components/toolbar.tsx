@@ -90,8 +90,10 @@ const Tool = ({
     <Tooltip open={isHovered && !isAnimating}>
       <TooltipTrigger asChild>
         <motion.div
-          className={cx('p-3 rounded-full', {
-            'bg-primary !text-primary-foreground': selectedTool === description,
+          className={cx('p-3 rounded-full transition-all duration-200', {
+            'bg-primary !text-primary-foreground shadow-md':
+              selectedTool === description,
+            'hover:bg-muted hover:shadow-sm': selectedTool !== description,
           })}
           onHoverStart={() => {
             setIsHovered(true);
@@ -106,8 +108,11 @@ const Tool = ({
           }}
           initial={{ scale: 1, opacity: 0 }}
           animate={{ opacity: 1, transition: { delay: 0.1 } }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            transition: { duration: 0.2, ease: 'easeOut' },
+          }}
+          whileTap={{ scale: 0.95, transition: { duration: 0.1 } }}
           exit={{
             scale: 0.9,
             opacity: 0,
@@ -198,7 +203,10 @@ const ReadingLevelSelector = ({
               drag="y"
               dragElastic={0}
               dragMomentum={false}
-              whileHover={{ scale: 1.05 }}
+              whileHover={{
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                transition: { duration: 0.2, ease: 'easeOut' },
+              }}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
               dragConstraints={{ top: -dragConstraints, bottom: 0 }}

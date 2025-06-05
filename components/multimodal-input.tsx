@@ -13,6 +13,7 @@ import {
   type ChangeEvent,
   memo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
@@ -25,6 +26,18 @@ import {
   Calendar,
   FileText,
   Image,
+  BarChart,
+  Target,
+  Mountain,
+  Users,
+  Search,
+  TrendingUp,
+  HelpCircle,
+  List,
+  Clock,
+  Command,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
@@ -39,60 +52,186 @@ import type { VisibilityType } from './visibility-selector';
 import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
 import { ModelSelector } from './model-selector';
-import { ProviderSelector } from './provider-selector';
+import { Badge } from './ui/badge';
+import { cn } from '@/lib/utils';
+import {
+  NexusResearchSelector,
+  type ResearchMode,
+} from './nexus-research-selector';
 
-// Interface for @ mention resources
+// Interface for @ mention resources - Enhanced version
 interface MentionResource {
   id: string;
   name: string;
-  type: 'calendar' | 'document' | 'scorecard' | 'vto' | 'rocks' | 'people';
+  type:
+    | 'calendar'
+    | 'document'
+    | 'scorecard'
+    | 'vto'
+    | 'rocks'
+    | 'people'
+    | 'event'
+    | 'meeting'
+    | 'availability'
+    | 'team'
+    | 'search'
+    | 'analyze'
+    | 'help'
+    | 'agenda';
+  category?:
+    | 'resource'
+    | 'calendar'
+    | 'person'
+    | 'tool'
+    | 'command'
+    | 'template';
   description: string;
   icon: React.ReactNode;
+  color?: string;
+  aliases?: string[];
+  shortcut?: string;
+  preview?: string;
+  isDynamic?: boolean;
 }
 
-// Define available mention resources
+// Enhanced mention resources with categories
 const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
+  // Calendar category
   {
     id: 'calendar',
     name: 'Calendar',
     type: 'calendar',
-    description: 'Search and interact with your calendar events',
+    category: 'calendar',
+    description: 'Access your calendar events and schedule',
     icon: <Calendar className="size-4" />,
+    color: 'blue',
+    aliases: ['cal', 'schedule', 'events'],
+    shortcut: '@cal',
   },
+  {
+    id: 'availability',
+    name: 'Find Available Time',
+    type: 'availability',
+    category: 'calendar',
+    description: 'Find free time slots in your calendar',
+    icon: <Clock className="size-4" />,
+    color: 'green',
+    aliases: ['free', 'available', 'slots'],
+    shortcut: '@free',
+  },
+  // Resource category
   {
     id: 'documents',
     name: 'Documents',
     type: 'document',
-    description: 'View and retrieve information from your documents',
+    category: 'resource',
+    description: 'Access your documents and files',
     icon: <FileText className="size-4" />,
+    color: 'purple',
+    aliases: ['docs', 'files'],
+    shortcut: '@doc',
+    isDynamic: true,
   },
   {
     id: 'scorecard',
     name: 'Scorecard',
     type: 'scorecard',
-    description: 'Check your EOS Scorecard metrics',
-    icon: <FileText className="size-4" />,
+    category: 'resource',
+    description: 'View your EOS Scorecard metrics',
+    icon: <BarChart className="size-4" />,
+    color: 'orange',
+    aliases: ['metrics', 'kpis'],
+    shortcut: '@score',
   },
   {
     id: 'vto',
     name: 'Vision/Traction Organizer',
     type: 'vto',
-    description: 'Review your V/TO',
-    icon: <FileText className="size-4" />,
+    category: 'resource',
+    description: 'Access your V/TO and strategic vision',
+    icon: <Target className="size-4" />,
+    color: 'indigo',
+    aliases: ['vision', 'traction', 'strategy'],
+    shortcut: '@vto',
   },
   {
     id: 'rocks',
     name: 'Rocks',
     type: 'rocks',
-    description: 'Check your quarterly rocks',
-    icon: <FileText className="size-4" />,
+    category: 'resource',
+    description: 'Check your quarterly rocks and priorities',
+    icon: <Mountain className="size-4" />,
+    color: 'teal',
+    aliases: ['priorities', 'quarterly'],
   },
   {
     id: 'people',
     name: 'People Analyzer',
     type: 'people',
+    category: 'resource',
     description: 'Access your people analyzer data',
-    icon: <FileText className="size-4" />,
+    icon: <Users className="size-4" />,
+    color: 'pink',
+  },
+  // People category
+  {
+    id: 'team',
+    name: 'Team Members',
+    type: 'team',
+    category: 'person',
+    description: 'Mention team members',
+    icon: <Users className="size-4" />,
+    color: 'teal',
+    aliases: ['people', 'members'],
+    shortcut: '@team',
+    isDynamic: true,
+  },
+  // Tool category
+  {
+    id: 'search',
+    name: 'Search',
+    type: 'search',
+    category: 'tool',
+    description: 'Search through all your content',
+    icon: <Search className="size-4" />,
+    color: 'gray',
+    aliases: ['find', 'lookup'],
+    shortcut: '@search',
+  },
+  {
+    id: 'analyze',
+    name: 'Analyze',
+    type: 'analyze',
+    category: 'tool',
+    description: 'Analyze data and provide insights',
+    icon: <TrendingUp className="size-4" />,
+    color: 'red',
+    aliases: ['analytics', 'insights'],
+    shortcut: '@analyze',
+  },
+  // Command category
+  {
+    id: 'help',
+    name: 'Help',
+    type: 'help',
+    category: 'command',
+    description: 'Get help with using the system',
+    icon: <HelpCircle className="size-4" />,
+    color: 'blue',
+    aliases: ['?', 'guide'],
+    shortcut: '@help',
+  },
+  // Template category
+  {
+    id: 'agenda',
+    name: 'Meeting Agenda',
+    type: 'agenda',
+    category: 'template',
+    description: 'Create a meeting agenda template',
+    icon: <List className="size-4" />,
+    color: 'purple',
+    aliases: ['meeting'],
+    shortcut: '@agenda',
   },
 ];
 
@@ -157,6 +296,7 @@ interface SelectedMention {
   type: string;
   name: string;
   icon?: React.ReactNode;
+  category?: string;
 }
 
 function PureMultimodalInput({
@@ -177,6 +317,8 @@ function PureMultimodalInput({
   selectedProviderId,
   session,
   isReadonly,
+  selectedResearchMode,
+  onResearchModeChange,
 }: {
   chatId: string;
   input: UseChatHelpers['input'];
@@ -195,6 +337,8 @@ function PureMultimodalInput({
   selectedProviderId?: string;
   session?: Session;
   isReadonly?: boolean;
+  selectedResearchMode?: ResearchMode;
+  onResearchModeChange?: (mode: ResearchMode) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -224,7 +368,35 @@ function PureMultimodalInput({
   // Add regex to detect mentions in the input
   const mentionRegex = /@(\w+):([^\s]+)/g;
 
-  // Close mentions dropdown when clicking outside
+  // Calculate absolute position for portal-rendered dropdown
+  const calculateCursorPosition = useCallback(() => {
+    if (!textareaRef.current || !inputWrapperRef.current) return null;
+
+    // Get current cursor position for horizontal alignment
+    const cursorPosition = textareaRef.current.selectionStart;
+    const textBeforeCursor = input.substring(0, cursorPosition);
+    const lineBeforeCursor = textBeforeCursor.split('\n').pop() || '';
+
+    // Calculate an approximate horizontal position based on cursor
+    const charWidth = 8.5; // Approximate character width in pixels
+    const padding = 12; // Approximate padding
+
+    // Get absolute position of the input wrapper on the page
+    const inputRect = inputWrapperRef.current.getBoundingClientRect();
+
+    // Calculate position relative to viewport
+    const xPos = Math.min(
+      inputRect.left + padding + lineBeforeCursor.length * charWidth,
+      window.innerWidth - 320 - 20, // Account for dropdown width and margin
+    );
+
+    // Position above the input with some spacing
+    const yPos = inputRect.top - 8; // Position above input with 8px gap
+
+    return { top: yPos, left: xPos };
+  }, [input]);
+
+  // Close mentions dropdown when clicking outside and handle scroll
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -235,47 +407,74 @@ function PureMultimodalInput({
       }
     };
 
+    const handleScroll = () => {
+      if (showMentions) {
+        // Recalculate position on scroll
+        setCursorPosition(calculateCursorPosition());
+      }
+    };
+
+    const handleResize = () => {
+      if (showMentions) {
+        // Recalculate position on resize
+        setCursorPosition(calculateCursorPosition());
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [showMentions, calculateCursorPosition]);
 
-  // Filter mention resources based on user input
-  const filteredMentionResources = mentionResources.filter(
-    (resource) =>
-      resource.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
-      resource.type.toLowerCase().includes(mentionFilter.toLowerCase()),
-  );
+  // Enhanced filtering with alias support and scoring
+  const filteredMentionResources = mentionResources
+    .map((resource) => {
+      const query = mentionFilter.toLowerCase();
+      let score = 0;
+      let matchType = '';
 
-  // Update the function to position the dropdown above the input
-  const calculateCursorPosition = useCallback(() => {
-    if (!textareaRef.current || !inputWrapperRef.current) return null;
+      // Check shortcut match (highest priority)
+      if (
+        resource.shortcut &&
+        resource.shortcut.toLowerCase() === `@${query}`
+      ) {
+        score = 1.0;
+        matchType = 'shortcut';
+      }
+      // Check name match
+      else if (resource.name.toLowerCase().includes(query)) {
+        score = 0.8;
+        matchType = 'name';
+      }
+      // Check alias match
+      else if (
+        resource.aliases?.some((alias) => alias.toLowerCase().includes(query))
+      ) {
+        score = 0.7;
+        matchType = 'alias';
+      }
+      // Check type match
+      else if (resource.type.toLowerCase().includes(query)) {
+        score = 0.6;
+        matchType = 'type';
+      }
+      // Check description match
+      else if (resource.description.toLowerCase().includes(query)) {
+        score = 0.5;
+        matchType = 'description';
+      }
 
-    // Get input wrapper position
-    const inputRect = inputWrapperRef.current.getBoundingClientRect();
-
-    // Get current cursor position for horizontal alignment only
-    const cursorPosition = textareaRef.current.selectionStart;
-    const textBeforeCursor = input.substring(0, cursorPosition);
-    const lineBeforeCursor = textBeforeCursor.split('\n').pop() || '';
-
-    // Calculate an approximate horizontal position based on cursor
-    const charWidth = 8.5; // Approximate character width in pixels
-    const padding = 12; // Approximate padding
-
-    // Limit the horizontal position to ensure dropdown stays visible
-    const xPos = Math.min(
-      padding + lineBeforeCursor.length * charWidth,
-      inputRect.width - 320,
-    );
-
-    // Position the dropdown ABOVE the input field
-    // Set to negative value to go above the input field
-    const yPos = -10;
-
-    return { top: yPos, left: xPos };
-  }, [input]);
+      return { resource, score, matchType };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.resource);
 
   // Handle @ mention detection
   const handleInputChange = useCallback(
@@ -308,12 +507,28 @@ function PureMultimodalInput({
     [setInput, calculateCursorPosition],
   );
 
-  // Handle selecting a mention - completely revised to remove text and add to separate array
+  // Handle selecting a mention - enhanced with better UX feedback
   const handleSelectMention = useCallback(
     (resource: MentionResource) => {
       if (!textareaRef.current) return;
 
       const cursorPosition = textareaRef.current.selectionStart;
+
+      // Check if this mention type is already selected
+      const isDuplicate = selectedMentions.some(
+        (mention) => mention.type === resource.type,
+      );
+
+      if (isDuplicate) {
+        // Show brief feedback for duplicate
+        const existingMention = selectedMentions.find(
+          (mention) => mention.type === resource.type,
+        );
+        console.log(`${existingMention?.name} is already selected`);
+        setShowMentions(false);
+        textareaRef.current.focus();
+        return;
+      }
 
       // Get text before and after the @ symbol
       const textBeforeMention = input
@@ -321,25 +536,25 @@ function PureMultimodalInput({
         .replace(/@\w*$/, '');
       const textAfterMention = input.substring(cursorPosition);
 
-      // Add to selected mentions with the icon
-      setSelectedMentions((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(36).substring(2, 15),
-          type: resource.type,
-          name: resource.name,
-          icon: resource.icon,
-        },
-      ]);
+      // Add to selected mentions with the icon and category
+      const newMention = {
+        id: Math.random().toString(36).substring(2, 15),
+        type: resource.type,
+        name: resource.name,
+        icon: resource.icon,
+        category: resource.category,
+      };
 
-      // IMPORTANT: Remove the @ mention text entirely, don't insert the special format
+      setSelectedMentions((prev) => [...prev, newMention]);
+
+      // Remove the @ mention text entirely
       const newText = textBeforeMention + textAfterMention;
       setInput(newText);
 
       // Close the dropdown
       setShowMentions(false);
 
-      // Set focus back to textarea
+      // Set focus back to textarea with smooth transition
       textareaRef.current.focus();
       setTimeout(() => {
         if (textareaRef.current) {
@@ -348,7 +563,7 @@ function PureMultimodalInput({
         }
       }, 0);
     },
-    [input, setInput],
+    [input, setInput, selectedMentions],
   );
 
   // Handle removing a selected mention
@@ -815,15 +1030,82 @@ function PureMultimodalInput({
 
     let finalInputContent = input; // Start with current text input
 
-    // Add mention information to the content - this ensures backend still gets the mention data
+    // Enhanced mention processing - create structured mention data
+    let mentionContext = '';
+    let mentionMetadata: any[] = [];
+
     if (selectedMentions.length > 0) {
-      // Add mention tags at the end of the message for processing by the AI
+      // Create structured mention data for backend processing
+      mentionMetadata = selectedMentions.map((mention) => ({
+        type: mention.type,
+        name: mention.name,
+        id: mention.id,
+        category: mention.category,
+        // Add any additional context or metadata
+        timestamp: new Date().toISOString(),
+      }));
+
+      // Create intelligent mention context based on types
+      const mentionsByCategory = selectedMentions.reduce(
+        (acc, mention) => {
+          const category = mention.category || 'other';
+          if (!acc[category]) acc[category] = [];
+          acc[category].push(mention);
+          return acc;
+        },
+        {} as Record<string, typeof selectedMentions>,
+      );
+
+      // Build contextual mention string
+      const contextParts: string[] = [];
+
+      // Calendar mentions
+      if (mentionsByCategory.calendar) {
+        const calendarMentions = mentionsByCategory.calendar;
+        if (calendarMentions.some((m) => m.type === 'availability')) {
+          contextParts.push('[User wants to find available time slots]');
+        }
+        if (calendarMentions.some((m) => m.type === 'calendar')) {
+          contextParts.push('[User is referencing their calendar]');
+        }
+      }
+
+      // Resource mentions
+      if (mentionsByCategory.resource) {
+        const resourceTypes = mentionsByCategory.resource
+          .map((m) => m.type)
+          .join(', ');
+        contextParts.push(`[User is asking about: ${resourceTypes}]`);
+      }
+
+      // Tool mentions
+      if (mentionsByCategory.tool) {
+        const tools = mentionsByCategory.tool;
+        if (tools.some((m) => m.type === 'analyze')) {
+          contextParts.push('[User wants data analysis and insights]');
+        }
+        if (tools.some((m) => m.type === 'search')) {
+          contextParts.push('[User wants to search for information]');
+        }
+      }
+
+      // Add contextual hints
+      if (contextParts.length > 0) {
+        mentionContext = `\n\n${contextParts.join('\n')}`;
+      }
+
+      // Add mention markers for backward compatibility
       const mentionTags = selectedMentions
         .map((mention) => `@${mention.type}:${mention.name}`)
         .join(' ');
 
-      // Append mentions to the end of the message
-      finalInputContent = `${finalInputContent}\n\n${mentionTags}`;
+      // Only add mention tags if there's no other content
+      if (!finalInputContent.trim() && mentionTags) {
+        finalInputContent = `Please help me with: ${mentionTags}`;
+      } else if (mentionTags) {
+        // Add context and tags
+        finalInputContent = `${finalInputContent}${mentionContext}\n\n[Mentions: ${mentionTags}]`;
+      }
     }
 
     let hasProcessedContent = false;
@@ -1347,69 +1629,212 @@ function PureMultimodalInput({
         }
       `}</style>
 
-      {/* @ Mention dropdown */}
-      {showMentions && filteredMentionResources.length > 0 && (
-        <div
-          ref={mentionsRef}
-          className="mention-dropdown absolute bg-white dark:bg-zinc-900 shadow-xl rounded-lg z-50 border border-zinc-200 dark:border-zinc-700 w-80 max-h-80 overflow-y-auto"
-          style={{
-            bottom: '100%', // Position at bottom of container
-            marginBottom: '8px', // Add some space between dropdown and input
-            left: cursorPosition?.left ? `${cursorPosition.left}px` : '0',
-            boxShadow:
-              '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          <div className="p-3 text-sm font-medium border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-t-lg">
-            Linking to:{' '}
-            {mentionQuery ? (
-              <span className="font-semibold text-blue-600 dark:text-blue-400">
-                &quot;{mentionQuery}&quot;
-              </span>
-            ) : (
-              'Resources'
-            )}
-            <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Select a resource to reference in your message
-            </div>
-          </div>
-          {filteredMentionResources.map((resource, index) => (
-            <div
-              key={resource.id}
-              className={`mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
-                index === mentionSelectionIndex
-                  ? 'selected bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
-                  : 'border-l-2 border-transparent'
-              }`}
-              onClick={() => handleSelectMention(resource)}
-              onMouseEnter={() => setMentionSelectionIndex(index)}
-            >
-              <div className="text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md">
-                {resource.icon}
+      {/* Enhanced @ Mention dropdown - rendered via Portal to escape stacking context */}
+      {showMentions &&
+        filteredMentionResources.length > 0 &&
+        cursorPosition &&
+        typeof window !== 'undefined' &&
+        createPortal(
+          <div
+            ref={mentionsRef}
+            className="mention-dropdown bg-white dark:bg-zinc-900 shadow-xl rounded-lg border border-zinc-200 dark:border-zinc-700 w-96 max-h-96 overflow-y-auto"
+            style={{
+              position: 'fixed', // Fixed positioning relative to viewport
+              top: `${cursorPosition.top}px`,
+              left: `${cursorPosition.left}px`,
+              transform: 'translateY(-100%)', // Move up by its own height
+              boxShadow:
+                '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
+              zIndex: 999999, // Very high z-index since it's in document body
+            }}
+          >
+            <div className="p-3 text-sm font-medium border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  Searching:{' '}
+                  {mentionQuery ? (
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                      &quot;{mentionQuery}&quot;
+                    </span>
+                  ) : (
+                    'All Resources'
+                  )}
+                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {filteredMentionResources.length} results
+                </Badge>
               </div>
-              <div className="flex flex-col">
-                <span className="font-medium">{resource.name}</span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {resource.description}
-                </span>
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Type to filter • Use shortcuts like @cal, @doc, @free • Click or
+                press Enter to select
               </div>
             </div>
-          ))}
-          <div className="p-2 text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
-            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
-              ↑
-            </kbd>
-            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
-              ↓
-            </kbd>
-            to navigate,
-            <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
-              Enter
-            </kbd>
-            to select
-          </div>
-        </div>
-      )}
+
+            {/* Group resources by category */}
+            {['calendar', 'resource', 'person', 'tool', 'command', 'template']
+              .filter((category) =>
+                filteredMentionResources.some((r) => r.category === category),
+              )
+              .map((category) => {
+                const categoryResources = filteredMentionResources.filter(
+                  (r) => r.category === category,
+                );
+                const categoryColors = {
+                  calendar: 'blue',
+                  resource: 'purple',
+                  person: 'teal',
+                  tool: 'orange',
+                  command: 'gray',
+                  template: 'indigo',
+                };
+                const color =
+                  categoryColors[category as keyof typeof categoryColors] ||
+                  'gray';
+
+                return (
+                  <div key={category}>
+                    <div
+                      className={`px-3 py-1.5 text-xs font-medium text-${color}-600 dark:text-${color}-400 bg-${color}-50 dark:bg-${color}-900/20`}
+                    >
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </div>
+                    {categoryResources.map((resource, index) => {
+                      const globalIndex =
+                        filteredMentionResources.indexOf(resource);
+                      return (
+                        <div
+                          key={resource.id}
+                          className={`mention-item p-3 cursor-pointer flex items-start gap-3 hover:bg-${color}-50 dark:hover:bg-${color}-900/20 transition-colors ${
+                            globalIndex === mentionSelectionIndex
+                              ? `selected bg-${color}-50 dark:bg-${color}-900/20 border-l-2 border-${color}-500`
+                              : 'border-l-2 border-transparent'
+                          }`}
+                          onClick={() => handleSelectMention(resource)}
+                          onMouseEnter={() =>
+                            setMentionSelectionIndex(globalIndex)
+                          }
+                        >
+                          <div
+                            className={cn(
+                              'p-2 rounded-md',
+                              `bg-${resource.color || color}-100 dark:bg-${resource.color || color}-900/30`,
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                'size-4',
+                                `text-${resource.color || color}-600 dark:text-${resource.color || color}-400`,
+                              )}
+                            >
+                              {resource.icon}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                {resource.name}
+                              </span>
+                              {resource.shortcut && (
+                                <code className="text-xs px-1 py-0.5 rounded bg-muted">
+                                  {resource.shortcut}
+                                </code>
+                              )}
+                              {resource.isDynamic && (
+                                <Sparkles className="h-3 w-3 text-yellow-500" />
+                              )}
+                            </div>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {resource.description}
+                            </span>
+                            {resource.preview && (
+                              <p className="text-xs text-muted-foreground mt-1 truncate">
+                                {resource.preview}
+                              </p>
+                            )}
+                          </div>
+                          {globalIndex === mentionSelectionIndex && (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+            {/* No grouped resources fallback */}
+            {![
+              'calendar',
+              'resource',
+              'person',
+              'tool',
+              'command',
+              'template',
+            ].some((category) =>
+              filteredMentionResources.some((r) => r.category === category),
+            ) &&
+              filteredMentionResources.map((resource, index) => (
+                <div
+                  key={resource.id}
+                  className={`mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
+                    index === mentionSelectionIndex
+                      ? 'selected bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
+                      : 'border-l-2 border-transparent'
+                  }`}
+                  onClick={() => handleSelectMention(resource)}
+                  onMouseEnter={() => setMentionSelectionIndex(index)}
+                >
+                  <div className="text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md">
+                    {resource.icon}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{resource.name}</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {resource.description}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+            <div className="p-2 text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-b-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
+                    ↑↓
+                  </kbd>
+                  Navigate
+                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
+                    Enter
+                  </kbd>
+                  Select
+                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
+                    Esc
+                  </kbd>
+                  Close
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleSelectMention({
+                      id: 'help',
+                      name: 'Help',
+                      type: 'help',
+                      description: 'Learn more about mentions',
+                      icon: <HelpCircle className="size-4" />,
+                    });
+                  }}
+                >
+                  <HelpCircle className="h-3 w-3 mr-1" />
+                  Help
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Drag overlay with improved visuals */}
       {isDragging && (
@@ -1641,37 +2066,50 @@ function PureMultimodalInput({
       )}
 
       <div className="relative" ref={inputWrapperRef}>
-        {/* Show selected mentions above the input */}
+        {/* Show selected mentions above the input with helpful context */}
         {selectedMentions.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3 pt-1">
-            {selectedMentions.map((mention) => (
-              <div
-                key={mention.id}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow transition-all"
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
-                    {mention.icon}
-                  </span>
-                  <span className="font-medium">{mention.name}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveMention(mention.id)}
-                  className="ml-1 text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300 focus:outline-none transition-colors p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                  aria-label={`Remove ${mention.name} mention`}
+          <div className="mb-3 pt-1">
+            <div className="flex items-center gap-2 mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Sparkles className="size-3" />
+              <span>
+                Selected resources - these will be included in your message:
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedMentions.map((mention) => (
+                <div
+                  key={mention.id}
+                  className="group inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
                 >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))}
+                  <span className="flex items-center gap-2.5">
+                    <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
+                      {mention.icon}
+                    </span>
+                    <span className="font-medium">{mention.name}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveMention(mention.id)}
+                    className="ml-1 text-blue-400 dark:text-blue-500 hover:text-red-500 dark:hover:text-red-400 focus:outline-none transition-colors p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 group-hover:opacity-100 opacity-60"
+                    aria-label={`Remove ${mention.name} mention`}
+                    title="Remove this mention"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         <Textarea
           data-testid="multimodal-input"
           ref={textareaRef}
-          placeholder="Send a message... use @ to link resources"
+          placeholder={
+            selectedMentions.length > 0
+              ? 'Continue your message...'
+              : 'Send a message... (Type @ to mention calendar, documents, or other resources)'
+          }
           value={input}
           onChange={handleInputChange}
           onPaste={handlePaste}
@@ -1722,22 +2160,6 @@ function PureMultimodalInput({
         <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start gap-1 items-center z-10">
           <AttachmentsButton fileInputRef={fileInputRef} status={status} />
 
-          {!isReadonly && session && selectedProviderId && (
-            <ProviderSelector
-              session={session}
-              selectedProviderId={selectedProviderId}
-              className="h-[30px] text-xs"
-            />
-          )}
-
-          {!isReadonly && session && selectedModelId && (
-            <ModelSelector
-              session={session}
-              selectedModelId={selectedModelId}
-              className="h-[30px] text-xs"
-            />
-          )}
-
           {!isReadonly && (
             <VisibilitySelector
               chatId={chatId}
@@ -1745,6 +2167,17 @@ function PureMultimodalInput({
               className="h-[30px] text-xs"
             />
           )}
+
+          {!isReadonly &&
+            selectedResearchMode !== undefined &&
+            onResearchModeChange && (
+              <NexusResearchSelector
+                chatId={chatId}
+                selectedResearchMode={selectedResearchMode}
+                onResearchModeChange={onResearchModeChange}
+                className="h-[30px] text-xs"
+              />
+            )}
         </div>
 
         <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
@@ -1779,6 +2212,8 @@ export const MultimodalInput = memo(
       return false;
     if (prevProps.selectedModelId !== nextProps.selectedModelId) return false;
     if (prevProps.selectedProviderId !== nextProps.selectedProviderId)
+      return false;
+    if (prevProps.selectedResearchMode !== nextProps.selectedResearchMode)
       return false;
 
     return true;

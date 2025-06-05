@@ -6,6 +6,15 @@ import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
+import { useMessageActions } from '@/hooks/use-message-actions';
+import type { SearchProgress } from '@/hooks/use-web-search-progress';
+
+interface CitationReference {
+  number: number;
+  title: string;
+  url: string;
+  snippet?: string;
+}
 
 interface MessagesProps {
   chatId: string;
@@ -16,6 +25,8 @@ interface MessagesProps {
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
   isArtifactVisible: boolean;
+  citations?: CitationReference[];
+  searchProgress?: SearchProgress;
 }
 
 function PureMessages({
@@ -26,6 +37,8 @@ function PureMessages({
   setMessages,
   reload,
   isReadonly,
+  citations,
+  searchProgress,
 }: MessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -37,6 +50,8 @@ function PureMessages({
     chatId,
     status,
   });
+
+  const { handlePin, handleReply, isPinned } = useMessageActions({ chatId });
 
   return (
     <div
@@ -60,12 +75,29 @@ function PureMessages({
           requiresScrollPadding={
             hasSentMessage && index === messages.length - 1
           }
+          onPin={handlePin}
+          onReply={(messageId) => {
+            const msg = messages.find((m) => m.id === messageId);
+            if (msg) {
+              const textContent =
+                msg.parts
+                  ?.filter((part) => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('\n')
+                  .trim() || '';
+              handleReply(messageId, textContent);
+            }
+          }}
+          isPinned={isPinned(message.id)}
+          citations={citations}
         />
       ))}
 
-      {status === 'submitted' &&
+      {(status === 'submitted' || status === 'streaming') &&
         messages.length > 0 &&
-        messages[messages.length - 1].role === 'user' && <ThinkingMessage />}
+        messages[messages.length - 1].role === 'user' && (
+          <ThinkingMessage searchProgress={searchProgress} />
+        )}
 
       <motion.div
         ref={messagesEndRef}
@@ -85,6 +117,7 @@ export const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.messages.length !== nextProps.messages.length) return false;
   if (!equal(prevProps.messages, nextProps.messages)) return false;
   if (!equal(prevProps.votes, nextProps.votes)) return false;
+  if (!equal(prevProps.searchProgress, nextProps.searchProgress)) return false;
 
   return true;
 });

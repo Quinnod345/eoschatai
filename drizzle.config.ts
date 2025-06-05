@@ -28,7 +28,6 @@ export default {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    connectionString: getDatabaseUrl(),
-    ssl: true,
+    url: getDatabaseUrl(),
   },
 } as unknown as Config;

@@ -14,12 +14,21 @@ import { cn, sanitizeText } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
+import { EnhancedMessageEditor } from './enhanced-message-editor';
 import { DocumentPreview } from './document-preview';
-import { MessageReasoning } from './message-reasoning';
+
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PDFPreview } from './pdf-preview';
 import { DocumentBadge } from './document-badge';
 import { Calendar, FileText, Users } from 'lucide-react';
+import type { SearchProgress } from '@/hooks/use-web-search-progress';
+
+interface CitationReference {
+  number: number;
+  title: string;
+  url: string;
+  snippet?: string;
+}
 
 // Extend UIMessage type to include provider
 interface ExtendedUIMessage extends UIMessage {
@@ -235,6 +244,10 @@ const PurePreviewMessage = ({
   reload,
   isReadonly,
   requiresScrollPadding,
+  onPin,
+  onReply,
+  isPinned,
+  citations,
 }: {
   chatId: string;
   message: ExtendedUIMessage;
@@ -244,6 +257,10 @@ const PurePreviewMessage = ({
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
+  onPin?: (messageId: string) => void;
+  onReply?: (messageId: string) => void;
+  isPinned?: boolean;
+  citations?: CitationReference[];
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -458,339 +475,6 @@ const PurePreviewMessage = ({
               const { type } = part;
               const key = `message-${message.id}-part-${index}`;
 
-              if (type === 'reasoning') {
-                // Split the reasoning and final answer
-                const finalAnswerSeparators = [
-                  '===== FINAL ANSWER =====',
-                  '</think>',
-                  '<\\/think>', // Sometimes the tag might be escaped
-                ];
-
-                // Debug: Log full reasoning content
-                console.log('Full reasoning content:', {
-                  length: part.reasoning.length,
-                  start: part.reasoning.substring(0, 200),
-                  end: part.reasoning.substring(part.reasoning.length - 200),
-                });
-
-                // Analyze the content to find the best split point
-                // This is complex because the model might mention the separator in its thinking
-
-                // First look for think tags to identify the thinking section
-                const thinkStartTag = '<think>';
-                const thinkEndTag = '</think>';
-                const hasThinkStart = part.reasoning.includes(thinkStartTag);
-                const hasThinkEnd = part.reasoning.includes(thinkEndTag);
-
-                let separatorIndex = -1;
-                let usedSeparator = '';
-                let reasoningText = part.reasoning;
-                let finalAnswer = '';
-
-                // Case 1: We have proper think tags
-                if (hasThinkStart && hasThinkEnd) {
-                  // Find the last occurrence of </think>
-                  const thinkEndIndex = part.reasoning.lastIndexOf(thinkEndTag);
-                  if (thinkEndIndex !== -1) {
-                    separatorIndex = thinkEndIndex;
-                    usedSeparator = thinkEndTag;
-
-                    // Extract reasoning and final answer
-                    reasoningText = part.reasoning.substring(
-                      0,
-                      thinkEndIndex + thinkEndTag.length,
-                    );
-                    finalAnswer = part.reasoning
-                      .substring(thinkEndIndex + thinkEndTag.length)
-                      .trim();
-
-                    // Further cleanup for the final answer - remove any "FINAL ANSWER" text at the beginning
-                    finalAnswer = finalAnswer.replace(
-                      /^\s*(?:===+\s*FINAL\s+ANSWER\s*===+)?\s*/i,
-                      '',
-                    );
-
-                    console.log('Split at </think> tag:', {
-                      separatorIndex,
-                      reasoningLength: reasoningText.length,
-                      finalAnswerLength: finalAnswer.length,
-                    });
-                  }
-                }
-                // Case 2: Look for the actual separator, but only after any think tags
-                else if (!hasThinkStart) {
-                  // If no think tags, then look for the separator directly
-                  for (const sep of finalAnswerSeparators) {
-                    // Don't look for </think> if we didn't see <think>
-                    if (
-                      (sep === '</think>' || sep === '<\\/think>') &&
-                      !hasThinkStart
-                    ) {
-                      continue;
-                    }
-
-                    // Find the separator
-                    const index = part.reasoning.indexOf(sep);
-                    if (index !== -1) {
-                      // Only use if it seems like a real separator (not mentioned in thinking)
-                      // Improved heuristics to identify legitimate separators:
-
-                      // Check if it's on its own line
-                      const textBeforeSep = part.reasoning
-                        .substring(0, index)
-                        .trim();
-                      const lastNewline = textBeforeSep.lastIndexOf('\n');
-                      const isOnOwnLine =
-                        lastNewline !== -1 && index - lastNewline < 5;
-
-                      // Is there another newline right after it? (Real separators often have space after)
-                      const textAfterSep = part.reasoning.substring(
-                        index + sep.length,
-                      );
-                      const nextNewlineAfterSep = textAfterSep.indexOf('\n');
-                      const hasNewlineAfter =
-                        nextNewlineAfterSep !== -1 && nextNewlineAfterSep < 5;
-
-                      // Check if we have enough reasoning before it
-                      const hasEnoughReasoning = index > 200;
-
-                      // For the "===== FINAL ANSWER =====" separator specifically
-                      if (sep === '===== FINAL ANSWER =====') {
-                        // Enhanced detection to avoid false positives:
-                        // 1. Check nearby text for contextual clues that might indicate it's being mentioned
-                        // 2. Make sure it's not part of an explanation of the format
-                        const nearbyTextBefore = part.reasoning.substring(
-                          Math.max(0, index - 100),
-                          index,
-                        );
-
-                        // Look for signals that this is NOT a real separator
-                        const negativeSignals = [
-                          // It's mentioned in an explanation
-                          nearbyTextBefore.includes('format'),
-                          nearbyTextBefore.includes('structure'),
-                          nearbyTextBefore.includes('Then'),
-                          nearbyTextBefore.includes('separator'),
-                          nearbyTextBefore.includes('will add'),
-                          nearbyTextBefore.includes('add the'),
-                          nearbyTextBefore.includes('response'),
-                          nearbyTextBefore.includes('example'),
-                          // It appears in a code block or quoted text
-                          nearbyTextBefore.includes('```'),
-                          nearbyTextBefore.includes('`'),
-                          nearbyTextBefore.includes('"'),
-                          // It's in a numbered list item that explains formatting
-                          /\d+\s*\.\s*.*separator/.test(nearbyTextBefore),
-                          // It mentions the response structure
-                          nearbyTextBefore.includes('following this'),
-                        ];
-
-                        // A real separator has these characteristics
-                        const isValidSeparator =
-                          hasEnoughReasoning &&
-                          isOnOwnLine &&
-                          !negativeSignals.some((signal) => signal) &&
-                          (hasNewlineAfter ||
-                            index > part.reasoning.length - 100);
-
-                        if (isValidSeparator) {
-                          separatorIndex = index;
-                          usedSeparator = sep;
-                          break;
-                        }
-                      }
-                      // For think tags, be less strict but still careful
-                      else if (sep === '</think>' || sep === '<\\/think>') {
-                        // For think tags, try to make sure we've actually seen an opening tag
-                        const openingTag = '<think>';
-                        const hasOpening = part.reasoning
-                          .substring(0, index)
-                          .includes(openingTag);
-
-                        // Count occurrences to ensure balanced tags
-                        const openingTagCount = (
-                          part.reasoning
-                            .substring(0, index)
-                            .match(/<think>/g) || []
-                        ).length;
-                        const closingTagCount = (
-                          part.reasoning
-                            .substring(0, index)
-                            .match(/<\/think>/g) || []
-                        ).length;
-
-                        // A valid think tag should:
-                        // 1. Have an opening tag before it
-                        // 2. Not be part of a code example
-                        // 3. Have reasonable content between opening and closing
-                        if (
-                          hasOpening &&
-                          hasEnoughReasoning &&
-                          openingTagCount > closingTagCount
-                        ) {
-                          separatorIndex = index;
-                          usedSeparator = sep;
-                          break;
-                        }
-                      }
-                      // For other separators, be less strict
-                      else if (hasEnoughReasoning && isOnOwnLine) {
-                        separatorIndex = index;
-                        usedSeparator = sep;
-                        break;
-                      }
-                    }
-                  }
-
-                  // If we found a valid separator
-                  if (separatorIndex !== -1) {
-                    reasoningText = part.reasoning.substring(0, separatorIndex);
-                    finalAnswer = part.reasoning
-                      .substring(separatorIndex + usedSeparator.length)
-                      .trim();
-
-                    console.log('Split at explicit separator:', {
-                      usedSeparator,
-                      separatorIndex,
-                      reasoningLength: reasoningText.length,
-                      finalAnswerLength: finalAnswer.length,
-                    });
-                  }
-                }
-
-                // Case 3: Look for a markdown heading after some reasoning
-                if (separatorIndex === -1) {
-                  // Try to find markdown headings that might indicate the start of the final answer
-                  const headingPatterns = [
-                    /\n##?\s+My Thoughts on/i,
-                    /\n##?\s+[A-Z]/, // Any heading that starts with a capital letter
-                    /\n#+\s+[A-Za-z0-9]/, // Any markdown heading
-                  ];
-
-                  for (const pattern of headingPatterns) {
-                    const headingMatch = part.reasoning.match(pattern);
-                    if (
-                      headingMatch &&
-                      headingMatch.index !== undefined &&
-                      headingMatch.index > 300
-                    ) {
-                      // We found a heading that might be the start of the final answer
-                      separatorIndex = headingMatch.index;
-                      usedSeparator = headingMatch[0];
-
-                      reasoningText = part.reasoning.substring(
-                        0,
-                        separatorIndex,
-                      );
-                      finalAnswer = part.reasoning
-                        .substring(separatorIndex)
-                        .trim();
-
-                      console.log('Split at markdown heading:', {
-                        usedSeparator,
-                        separatorIndex,
-                        reasoningLength: reasoningText.length,
-                        finalAnswerLength: finalAnswer.length,
-                      });
-
-                      break;
-                    }
-                  }
-                }
-
-                // If we still don't have a split, look for heuristic patterns
-                if (separatorIndex === -1) {
-                  // Check if it looks like a complete reasoning followed by something else
-                  // This is just a heuristic based on common patterns in Grok's output
-                  const structureMatch = part.reasoning.match(
-                    /\bFinal response structure:|\bFinal response outline:/i,
-                  );
-                  if (
-                    structureMatch &&
-                    structureMatch.index !== undefined &&
-                    structureMatch.index > 300
-                  ) {
-                    // Look for the next paragraph break after this
-                    const textAfterStructure = part.reasoning.substring(
-                      structureMatch.index,
-                    );
-                    const nextParaBreak = textAfterStructure.match(/\n\s*\n/);
-
-                    if (nextParaBreak && nextParaBreak.index !== undefined) {
-                      separatorIndex =
-                        structureMatch.index +
-                        nextParaBreak.index +
-                        nextParaBreak[0].length;
-                      reasoningText = part.reasoning.substring(
-                        0,
-                        separatorIndex,
-                      );
-                      finalAnswer = part.reasoning
-                        .substring(separatorIndex)
-                        .trim();
-
-                      console.log(
-                        'Split based on structure marker and paragraph break:',
-                        {
-                          structureMatch: structureMatch[0],
-                          separatorIndex,
-                          reasoningLength: reasoningText.length,
-                          finalAnswerLength: finalAnswer.length,
-                        },
-                      );
-                    }
-                  }
-                }
-
-                // If we still don't have a split and there are no thinking tags at all,
-                // check if this might be just a final answer with no reasoning
-                if (separatorIndex === -1 && !hasThinkStart) {
-                  const looksLikeFinalAnswer =
-                    !part.reasoning.includes('First, ') &&
-                    !part.reasoning.includes('Step') &&
-                    !part.reasoning.includes('Let me ') &&
-                    !part.reasoning.includes('thinking');
-
-                  if (looksLikeFinalAnswer) {
-                    // Treat the whole thing as the final answer
-                    reasoningText = '';
-                    finalAnswer = part.reasoning;
-                    console.log(
-                      'Content appears to be just the final answer - no reasoning tags',
-                    );
-                  } else {
-                    // If all else fails, just use the whole thing as reasoning
-                    console.log(
-                      'No reliable separator found - treating as pure reasoning',
-                    );
-                    reasoningText = part.reasoning;
-                    finalAnswer = '';
-                  }
-                }
-
-                // Render reasoning component and final answer separately
-                return (
-                  <React.Fragment key={key}>
-                    {reasoningText && (
-                      <MessageReasoning
-                        isLoading={isLoading}
-                        reasoning={reasoningText}
-                        provider={(message as any).provider || 'xai'}
-                      />
-                    )}
-
-                    {finalAnswer && (
-                      <div
-                        data-testid="message-final-answer"
-                        className="flex flex-col gap-4"
-                      >
-                        <Markdown>{sanitizeText(finalAnswer)}</Markdown>
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              }
-
               if (type === 'text') {
                 if (mode === 'view') {
                   // Check if the text contains mentions that need formatting
@@ -806,7 +490,7 @@ const PurePreviewMessage = ({
                             <Button
                               data-testid="message-edit-button"
                               variant="ghost"
-                              className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 transition-opacity"
+                              className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 hover:bg-muted/50 transition-all duration-200"
                               onClick={() => {
                                 setMode('edit');
                               }}
@@ -840,7 +524,9 @@ const PurePreviewMessage = ({
                           </div>
                         ) : (
                           // Regular markdown rendering for text without mentions
-                          <Markdown>{sanitizeText(part.text)}</Markdown>
+                          <Markdown citations={citations}>
+                            {sanitizeText(part.text)}
+                          </Markdown>
                         )}
                       </div>
                     </div>
@@ -849,17 +535,25 @@ const PurePreviewMessage = ({
 
                 if (mode === 'edit') {
                   return (
-                    <div key={key} className="flex flex-row gap-2 items-start">
-                      <div className="size-8" />
+                    <AnimatePresence mode="wait" key={key}>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex flex-row gap-2 items-start"
+                      >
+                        <div className="size-8" />
 
-                      <MessageEditor
-                        key={message.id}
-                        message={message}
-                        setMode={setMode}
-                        setMessages={setMessages}
-                        reload={reload}
-                      />
-                    </div>
+                        <EnhancedMessageEditor
+                          key={message.id}
+                          message={message}
+                          setMode={setMode}
+                          setMessages={setMessages}
+                          reload={reload}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
                   );
                 }
               }
@@ -972,6 +666,9 @@ const PurePreviewMessage = ({
                 message={message}
                 vote={vote}
                 isLoading={isLoading}
+                onPin={onPin}
+                onReply={onReply}
+                isPinned={isPinned}
               />
             )}
           </div>
@@ -995,7 +692,9 @@ export const PreviewMessage = memo(
   },
 );
 
-export const ThinkingMessage = () => {
+export const ThinkingMessage = ({
+  searchProgress,
+}: { searchProgress?: SearchProgress }) => {
   const role = 'assistant';
   const [loadingStage, setLoadingStage] = useState(0);
   const [currentPhase, setCurrentPhase] = useState(0);
@@ -1020,10 +719,10 @@ export const ThinkingMessage = () => {
       'Preparing search parameters...',
     ],
     search: [
-      'Searching knowledge base...',
-      'Generating query embeddings...',
-      'Finding relevant documents...',
-      'Retrieving context information...',
+      'Searching web for relevant information...',
+      'Analyzing search results...',
+      'Gathering comprehensive data...',
+      'Processing research findings...',
     ],
     process: [
       'Analyzing retrieved information...',
@@ -1033,25 +732,38 @@ export const ThinkingMessage = () => {
     ],
     generate: [
       'Formulating response...',
-      'Reasoning about answer...',
+      'Preparing response...',
       'Constructing detailed reply...',
       'Preparing final response...',
     ],
     final: ['Finalizing response...', 'Polishing answer...', 'Almost ready...'],
   };
 
-  // Cycle through phases to simulate the actual AI process
-  useEffect(() => {
-    let phaseIndex = 0;
-    let messageIndex = 0;
+  // Check if we're actively searching based on searchProgress
+  const isActivelySearching =
+    searchProgress?.status === 'searching' ||
+    searchProgress?.status === 'processing';
+  const searchCompleted = searchProgress?.searchesCompleted || 0;
+  const searchTotal = searchProgress?.totalSearches || 0;
 
-    // Start with first phase
-    setCurrentPhase(0);
-    setLoadingStage(0);
+  // Update phase based on search progress
+  useEffect(() => {
+    if (searchProgress?.status === 'searching') {
+      setCurrentPhase(1); // search phase
+    } else if (searchProgress?.status === 'processing') {
+      setCurrentPhase(2); // process phase
+    } else if (searchProgress?.status === 'completed') {
+      setCurrentPhase(3); // generate phase
+    }
+  }, [searchProgress?.status]);
+
+  // Cycle through phase messages
+  useEffect(() => {
+    let messageIndex = 0;
 
     // Function to update the current message
     const updateMessage = () => {
-      const phase = processingPhases[phaseIndex].name;
+      const phase = processingPhases[currentPhase].name;
       const messages = phaseMessages[phase];
 
       // Update the visible message
@@ -1059,23 +771,23 @@ export const ThinkingMessage = () => {
 
       // Move to next message in current phase
       messageIndex = (messageIndex + 1) % messages.length;
-
-      // If we've shown all messages in this phase multiple times, move to next phase
-      if (messageIndex === 0 && Math.random() > 0.5) {
-        phaseIndex = Math.min(phaseIndex + 1, processingPhases.length - 1);
-        setCurrentPhase(phaseIndex);
-      }
     };
 
     // Create interval based on current phase duration
     const interval = setInterval(updateMessage, 1200);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [currentPhase]);
 
   // Get current phase and its messages
   const currentPhaseName = processingPhases[currentPhase]?.name || 'init';
   const currentMessages = phaseMessages[currentPhaseName];
+
+  // Use search-specific message if actively searching
+  const displayMessage =
+    isActivelySearching && searchProgress?.currentSearch
+      ? `Searching: ${searchProgress.currentSearch}`
+      : currentMessages[loadingStage];
 
   return (
     <motion.div
@@ -1099,15 +811,47 @@ export const ThinkingMessage = () => {
 
         <div className="flex flex-col gap-2 w-full">
           <div className="flex flex-col gap-4">
-            <motion.span
-              key={loadingStage}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-muted-foreground"
-            >
-              {currentMessages[loadingStage]}
-            </motion.span>
+            <div className="flex items-center gap-3">
+              <motion.span
+                key={loadingStage}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-zinc-600 dark:text-zinc-400"
+              >
+                {displayMessage}
+              </motion.span>
+
+              {/* Show search progress indicator when searching */}
+              {isActivelySearching && searchTotal > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="flex items-center gap-2"
+                >
+                  <div className="flex items-center gap-1">
+                    {/* Progress dots */}
+                    {Array.from({ length: searchTotal }, (_, i) => i).map(
+                      (dotIndex) => (
+                        <div
+                          key={`search-dot-${searchTotal}-${dotIndex}`}
+                          className={cn(
+                            'size-1.5 rounded-full transition-all duration-300',
+                            dotIndex < searchCompleted
+                              ? 'bg-purple-500'
+                              : 'bg-zinc-400 dark:bg-zinc-600',
+                          )}
+                        />
+                      ),
+                    )}
+                  </div>
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                    {searchCompleted}/{searchTotal}
+                  </span>
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
       </div>

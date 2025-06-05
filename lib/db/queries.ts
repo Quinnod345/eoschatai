@@ -30,6 +30,7 @@ import {
   stream,
   userSettings,
   type Document,
+  pinnedMessage,
 } from './schema';
 import type { ArtifactKind } from '@/components/artifact';
 import { generateUUID } from '../utils';
@@ -122,11 +123,15 @@ export async function saveChat({
   userId,
   title,
   visibility,
+  personaId,
+  profileId,
 }: {
   id: string;
   userId: string;
   title: string;
   visibility: VisibilityType;
+  personaId?: string;
+  profileId?: string;
 }) {
   try {
     return await db.insert(chat).values({
@@ -135,6 +140,8 @@ export async function saveChat({
       userId,
       title,
       visibility,
+      personaId: personaId || null,
+      profileId: profileId || null,
     });
   } catch (error) {
     console.error('Failed to save chat in database');
@@ -489,12 +496,24 @@ export async function deleteMessagesByChatIdAfterTimestamp({
     const messageIds = messagesToDelete.map((message) => message.id);
 
     if (messageIds.length > 0) {
+      // First delete any pinned messages
+      await db
+        .delete(pinnedMessage)
+        .where(
+          and(
+            eq(pinnedMessage.chatId, chatId),
+            inArray(pinnedMessage.messageId, messageIds),
+          ),
+        );
+
+      // Then delete votes
       await db
         .delete(vote)
         .where(
           and(eq(vote.chatId, chatId), inArray(vote.messageId, messageIds)),
         );
 
+      // Finally delete the messages
       return await db
         .delete(message)
         .where(
@@ -591,8 +610,32 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 export async function getUserSettings({ userId }: { userId: string }) {
   try {
     const settings = await db
-      .select()
+      .select({
+        id: userSettings.id,
+        userId: userSettings.userId,
+        notificationsEnabled: userSettings.notificationsEnabled,
+        language: userSettings.language,
+        fontSize: userSettings.fontSize,
+        displayName: userSettings.displayName,
+        companyName: userSettings.companyName,
+        companyType: userSettings.companyType,
+        companyDescription: userSettings.companyDescription,
+        profilePicture: userSettings.profilePicture,
+        dailyMessageCount: userSettings.dailyMessageCount,
+        lastMessageCountReset: userSettings.lastMessageCountReset,
+        isPremium: userSettings.isPremium,
+        createdAt: userSettings.createdAt,
+        updatedAt: userSettings.updatedAt,
+        selectedChatModel: userSettings.selectedChatModel,
+        selectedProvider: userSettings.selectedProvider,
+        selectedVisibilityType: userSettings.selectedVisibilityType,
+        selectedPersonaId: userSettings.selectedPersonaId,
+        selectedProfileId: userSettings.selectedProfileId,
+        selectedResearchMode: userSettings.selectedResearchMode,
+        lastFeaturesVersion: user.lastFeaturesVersion,
+      })
       .from(userSettings)
+      .leftJoin(user, eq(userSettings.userId, user.id))
       .where(eq(userSettings.userId, userId));
 
     if (settings.length === 0) {
@@ -606,7 +649,16 @@ export async function getUserSettings({ userId }: { userId: string }) {
         })
         .returning();
 
-      return newSettings;
+      // Get the user's lastFeaturesVersion
+      const userData = await db
+        .select({ lastFeaturesVersion: user.lastFeaturesVersion })
+        .from(user)
+        .where(eq(user.id, userId));
+
+      return {
+        ...newSettings,
+        lastFeaturesVersion: userData[0]?.lastFeaturesVersion,
+      };
     }
 
     return settings[0];
@@ -630,9 +682,30 @@ export async function updateUserSettings({
     companyType?: string;
     companyDescription?: string;
     profilePicture?: string;
+    isPremium?: boolean;
+    lastFeaturesVersion?: string;
+    selectedChatModel?: string;
+    selectedProvider?: string;
+    selectedVisibilityType?: string;
+    selectedPersonaId?: string;
+    selectedProfileId?: string;
+    selectedResearchMode?: string;
   };
 }) {
   try {
+    // Extract lastFeaturesVersion from settings
+    const { lastFeaturesVersion, ...userSettingsData } = settings;
+
+    // Update user table if lastFeaturesVersion is provided
+    if (lastFeaturesVersion !== undefined) {
+      await db
+        .update(user)
+        .set({
+          lastFeaturesVersion: new Date(lastFeaturesVersion),
+        })
+        .where(eq(user.id, userId));
+    }
+
     // Check if settings exist for this user
     const existingSettings = await db
       .select()
@@ -645,28 +718,102 @@ export async function updateUserSettings({
         .insert(userSettings)
         .values({
           userId,
-          ...settings,
+          ...userSettingsData,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning();
 
-      return newSettings;
+      return {
+        ...newSettings,
+        lastFeaturesVersion: lastFeaturesVersion
+          ? new Date(lastFeaturesVersion)
+          : null,
+      };
     } else {
       // Update existing settings
       const [updatedSettings] = await db
         .update(userSettings)
         .set({
-          ...settings,
+          ...userSettingsData,
           updatedAt: new Date(),
         })
         .where(eq(userSettings.userId, userId))
         .returning();
 
-      return updatedSettings;
+      return {
+        ...updatedSettings,
+        lastFeaturesVersion: lastFeaturesVersion
+          ? new Date(lastFeaturesVersion)
+          : updatedSettings.lastFeaturesVersion,
+      };
     }
   } catch (error) {
     console.error('Failed to update user settings in database', error);
+    throw error;
+  }
+}
+
+// Add optimized batch loading functions
+export async function getChatsByUserIdWithMessages({
+  userId,
+  limit = 10,
+}: {
+  userId: string;
+  limit: number;
+}) {
+  try {
+    // Get chats with message counts in a single query
+    const chatsWithCounts = await db
+      .select({
+        chat: chat,
+        messageCount: sql<number>`count(${message.id})`,
+        lastMessageAt: sql<Date>`max(${message.createdAt})`,
+      })
+      .from(chat)
+      .leftJoin(message, eq(chat.id, message.chatId))
+      .where(eq(chat.userId, userId))
+      .groupBy(chat.id)
+      .orderBy(desc(chat.createdAt))
+      .limit(limit);
+
+    return chatsWithCounts;
+  } catch (error) {
+    console.error('Failed to get chats with messages from database');
+    throw error;
+  }
+}
+
+// Batch load messages for multiple chats
+export async function getMessagesByMultipleChatIds({
+  chatIds,
+}: {
+  chatIds: string[];
+}) {
+  try {
+    if (chatIds.length === 0) return [];
+
+    const messages = await db
+      .select()
+      .from(message)
+      .where(inArray(message.chatId, chatIds))
+      .orderBy(asc(message.createdAt));
+
+    // Group messages by chatId for easier consumption
+    const messagesByChatId = messages.reduce(
+      (acc, msg) => {
+        if (!acc[msg.chatId]) {
+          acc[msg.chatId] = [];
+        }
+        acc[msg.chatId].push(msg);
+        return acc;
+      },
+      {} as Record<string, typeof messages>,
+    );
+
+    return messagesByChatId;
+  } catch (error) {
+    console.error('Failed to batch load messages from database', error);
     throw error;
   }
 }

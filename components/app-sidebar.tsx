@@ -21,8 +21,10 @@ import {
   SidebarMenu,
   SidebarInput,
   useSidebar,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { AnimatedSidebarWrapper } from '@/components/ui/animated-sidebar';
+import { AdvancedSearch } from '@/components/advanced-search';
 
 // Spring transition settings
 const springTransition = {
@@ -35,8 +37,6 @@ const springTransition = {
 export function AppSidebar({ user }: { user: User | undefined }) {
   const router = useRouter();
   const { setOpenMobile, state } = useSidebar();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -98,122 +98,93 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   };
 
   return (
-    <Sidebar className="group-data-[side=left]:border-r-0">
-      <motion.div
-        initial={false}
-        animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-        variants={headerVariants}
-      >
-        <SidebarHeader className="py-4">
-          <SidebarMenu>
-            <div className="flex flex-row justify-between items-center px-2">
-              {!isSearchOpen ? (
-                <>
-                  <Link
-                    href="/"
-                    onClick={() => {
-                      setOpenMobile(false);
-                    }}
-                    className="flex flex-row gap-3 items-center"
-                  >
-                    <motion.div
-                      className="px-3 py-1.5 hover:bg-muted rounded-md cursor-pointer"
-                      whileHover={{
-                        backgroundColor: 'rgba(var(--primary-rgb), 0.1)',
-                        transition: { duration: 0.2 },
-                      }}
-                    >
-                      <img
-                        src={logoSrc}
-                        alt="EOS Logo"
-                        className="w-24 h-auto"
-                        style={{
-                          display: mounted ? 'block' : 'none', // Prevent flash of wrong theme logo
-                          objectFit: 'contain',
-                        }}
-                      />
-                    </motion.div>
-                  </Link>
-                  <div className="flex gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          type="button"
-                          className="p-2 h-fit"
-                          onClick={() => {
-                            setOpenMobile(false);
-                            setIsSearchOpen(true);
-                          }}
-                        >
-                          <Search size={18} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent align="end">Search Chats</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          type="button"
-                          className="p-2 h-fit"
-                          onClick={() => {
-                            setOpenMobile(false);
-                            // Check if we're already at the root path to avoid unnecessary navigation
-                            // that could lose the current chat context on reload
-                            if (window.location.pathname === '/') {
-                              // If already at root, just refresh the page
-                              router.refresh();
-                            } else {
-                              // If in a specific chat, navigate to root for new chat
-                              router.push('/');
-                            }
-                          }}
-                        >
-                          <PlusIcon />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent align="end">New Chat</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </>
-              ) : (
-                <div className="flex w-full items-center gap-1">
-                  <SidebarInput
-                    placeholder="Search chats..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoFocus
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setSearchQuery('');
-                    }}
-                  >
-                    <X size={16} />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </SidebarMenu>
-        </SidebarHeader>
-      </motion.div>
-
-      <SidebarContent className="pt-2 flex-1">
+    <>
+      <Sidebar className="group-data-[side=left]:border-r-0">
         <motion.div
           initial={false}
           animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-          variants={contentVariants}
-          className="h-full"
+          variants={headerVariants}
         >
-          <SidebarHistory user={user} searchQuery={searchQuery} />
+          <SidebarHeader className="py-4">
+            <SidebarMenu>
+              <div className="flex flex-row justify-between items-center px-2">
+                <Link
+                  href="/chat"
+                  onClick={() => {
+                    setOpenMobile(false);
+                  }}
+                  className="flex flex-row gap-3 items-center"
+                >
+                  <motion.div
+                    className="px-3 py-1.5 hover:bg-muted rounded-md cursor-pointer"
+                    whileHover={{
+                      backgroundColor: 'rgba(var(--primary-rgb), 0.1)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      transition: { duration: 0.2, ease: 'easeOut' },
+                    }}
+                  >
+                    <Image
+                      src={logoSrc}
+                      alt="EOS Logo"
+                      width={96}
+                      height={40}
+                      className="w-24 h-auto"
+                      style={{
+                        display: mounted ? 'block' : 'none', // Prevent flash of wrong theme logo
+                        objectFit: 'contain',
+                      }}
+                    />
+                  </motion.div>
+                </Link>
+                <div className="flex gap-1 items-center">
+                  {/* Advanced Search Component */}
+                  <AdvancedSearch />
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        className="p-2 h-fit"
+                        onClick={() => {
+                          setOpenMobile(false);
+                          // Force a clean navigation to /chat without any search parameters
+                          const url = new URL('/chat', window.location.origin);
+                          router.replace(url.pathname);
+                        }}
+                      >
+                        <PlusIcon />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent align="end">New Chat</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </SidebarMenu>
+          </SidebarHeader>
         </motion.div>
-      </SidebarContent>
-    </Sidebar>
+
+        <SidebarContent className="pt-2 flex-1">
+          <motion.div
+            initial={false}
+            animate={state === 'expanded' ? 'expanded' : 'collapsed'}
+            variants={contentVariants}
+            className="h-full"
+          >
+            <SidebarHistory user={user} />
+          </motion.div>
+        </SidebarContent>
+
+        {user && (
+          <motion.div
+            initial={false}
+            animate={state === 'expanded' ? 'expanded' : 'collapsed'}
+            variants={footerVariants}
+          >
+            <SidebarFooter />
+          </motion.div>
+        )}
+      </Sidebar>
+    </>
   );
 }

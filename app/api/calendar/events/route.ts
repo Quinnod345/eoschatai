@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
     const defaultTimeMax = new Date();
     defaultTimeMax.setDate(defaultTimeMax.getDate() + 7); // Default to 7 days from now
     const timeMax = searchParams.get('timeMax') || defaultTimeMax.toISOString();
-    const maxResults = Number.parseInt(searchParams.get('maxResults') || '10', 10);
+    const maxResults = Number.parseInt(
+      searchParams.get('maxResults') || '10',
+      10,
+    );
 
     // Get the token directly from the database
     const tokens = await db

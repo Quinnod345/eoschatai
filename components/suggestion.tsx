@@ -34,7 +34,11 @@ export const Suggestion = ({
           onClick={() => {
             setIsExpanded(true);
           }}
-          whileHover={{ scale: 1.1, rotate: 5 }}
+          whileHover={{
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            rotate: 5,
+            transition: { duration: 0.2, ease: 'easeOut' },
+          }}
           transition={{ type: 'spring', stiffness: 400, damping: 17 }}
         >
           <MessageIcon size={windowWidth && windowWidth < 768 ? 16 : 14} />
@@ -48,9 +52,8 @@ export const Suggestion = ({
           animate={{ opacity: 1, y: -20, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           whileHover={{
-            scale: 1.05,
-            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-            transition: { duration: 0.2 },
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            transition: { duration: 0.2, ease: 'easeOut' },
           }}
         >
           <div className="flex flex-row items-center justify-between">

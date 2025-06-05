@@ -22,6 +22,14 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       colors: {
+        eos: {
+          navy: '#002e5d',
+          orange: '#ff7600',
+          navyLight: '#1e4d7b',
+          orangeLight: '#ff9033',
+          navyDark: '#00213d',
+          orangeDark: '#e56b00',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {

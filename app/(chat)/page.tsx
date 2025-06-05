@@ -34,6 +34,7 @@ export default async function Page() {
           isReadonly={false}
           session={session}
           autoResume={false}
+          initialPersonaId={undefined}
         />
         <DataStreamHandler id={id} />
       </>
@@ -52,6 +53,7 @@ export default async function Page() {
         isReadonly={false}
         session={session}
         autoResume={false}
+        initialPersonaId={undefined}
       />
       <DataStreamHandler id={id} />
     </>

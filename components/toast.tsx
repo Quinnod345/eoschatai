@@ -6,12 +6,16 @@ import { motion } from 'framer-motion';
 import { CheckCircleFillIcon, WarningIcon } from './icons';
 import { cn } from '@/lib/utils';
 
+// Re-export the enhanced toast system
+export { toast, toastUtils } from '@/lib/toast-system';
+
 const iconsByType: Record<'success' | 'error', ReactNode> = {
   success: <CheckCircleFillIcon />,
   error: <WarningIcon />,
 };
 
-export function toast(props: Omit<ToastProps, 'id'>) {
+// Legacy toast function for backward compatibility
+export function legacyToast(props: Omit<ToastProps, 'id'>) {
   return sonnerToast.custom((id) => (
     <Toast id={id} type={props.type} description={props.description} />
   ));
@@ -20,56 +24,56 @@ export function toast(props: Omit<ToastProps, 'id'>) {
 // Toast animation variants
 const toastVariants = {
   initial: { opacity: 0, y: 20, scale: 0.95 },
-  animate: { 
-    opacity: 1, 
-    y: 0, 
+  animate: {
+    opacity: 1,
+    y: 0,
     scale: 1,
-    transition: { 
+    transition: {
       type: 'spring',
       damping: 20,
-      stiffness: 300
-    }
+      stiffness: 300,
+    },
   },
-  exit: { 
-    opacity: 0, 
-    y: -20, 
+  exit: {
+    opacity: 0,
+    y: -20,
     scale: 0.95,
-    transition: { 
+    transition: {
       type: 'spring',
       damping: 20,
-      stiffness: 300
-    }
-  }
+      stiffness: 300,
+    },
+  },
 };
 
 // Icon animation variants
 const iconVariants = {
   initial: { scale: 0.8, opacity: 0 },
-  animate: { 
-    scale: 1, 
+  animate: {
+    scale: 1,
     opacity: 1,
-    transition: { 
+    transition: {
       type: 'spring',
       damping: 10,
       stiffness: 300,
-      delay: 0.1
-    }
-  }
+      delay: 0.1,
+    },
+  },
 };
 
 // Text animation variants
 const textVariants = {
   initial: { opacity: 0, x: -5 },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     x: 0,
-    transition: { 
+    transition: {
       type: 'spring',
       damping: 20,
       stiffness: 300,
-      delay: 0.15
-    }
-  }
+      delay: 0.15,
+    },
+  },
 };
 
 function Toast(props: ToastProps) {
@@ -108,7 +112,10 @@ function Toast(props: ToastProps) {
         initial="initial"
         animate="animate"
         exit="exit"
-        whileHover={{ scale: 1.02 }}
+        whileHover={{
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          transition: { duration: 0.2, ease: 'easeOut' },
+        }}
         layout
       >
         <motion.div
@@ -121,8 +128,8 @@ function Toast(props: ToastProps) {
         >
           {iconsByType[type]}
         </motion.div>
-        <motion.div 
-          ref={descriptionRef} 
+        <motion.div
+          ref={descriptionRef}
           className="text-zinc-950 text-sm"
           variants={textVariants}
         >

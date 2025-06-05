@@ -1,7 +1,7 @@
 import { smoothStream, streamText } from 'ai';
 import { myProvider } from '@/lib/ai/providers';
 import { createDocumentHandler } from '@/lib/artifacts/server';
-import { updateDocumentPrompt } from '@/lib/ai/prompts';
+import { inlineEditPrompt } from '@/lib/ai/prompts';
 
 export const textDocumentHandler = createDocumentHandler<'text'>({
   kind: 'text',
@@ -38,9 +38,9 @@ export const textDocumentHandler = createDocumentHandler<'text'>({
 
     const { fullStream } = streamText({
       model: myProvider.languageModel('artifact-model'),
-      system: updateDocumentPrompt(document.content, 'text'),
+      system: inlineEditPrompt(document.content || '', description, 'text'),
       experimental_transform: smoothStream({ chunking: 'word' }),
-      prompt: description,
+      prompt: `Please apply the requested edit: ${description}`,
       experimental_providerMetadata: {
         openai: {
           prediction: {

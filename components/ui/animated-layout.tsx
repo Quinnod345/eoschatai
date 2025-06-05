@@ -32,42 +32,46 @@ const variants = {
     initial: { opacity: 0 },
     animate: { opacity: 1 },
     exit: { opacity: 0 },
-    transition: { type: 'spring', damping: 20, stiffness: 300 }
+    transition: { type: 'spring', damping: 20, stiffness: 300 },
   },
   slideUp: {
     initial: { y: 20, opacity: 0 },
     animate: { y: 0, opacity: 1 },
     exit: { y: -20, opacity: 0 },
-    transition: { type: 'spring', damping: 25, stiffness: 350 }
+    transition: { type: 'spring', damping: 25, stiffness: 350 },
   },
   slideDown: {
     initial: { y: -20, opacity: 0 },
     animate: { y: 0, opacity: 1 },
     exit: { y: 20, opacity: 0 },
-    transition: { type: 'spring', damping: 25, stiffness: 350 }
+    transition: { type: 'spring', damping: 25, stiffness: 350 },
   },
   staggered: {
     initial: { opacity: 0 },
-    animate: { 
+    animate: {
       opacity: 1,
-      transition: { staggerChildren: 0.1 }
+      transition: { staggerChildren: 0.1 },
     },
     exit: { opacity: 0 },
-    transition: { type: 'spring', damping: 20, stiffness: 300 }
+    transition: { type: 'spring', damping: 20, stiffness: 300 },
   },
   none: {
     initial: {},
     animate: {},
     exit: {},
-    transition: {}
-  }
+    transition: {},
+  },
 };
 
 // Staggered child variants
 const childVariants = {
   initial: { y: 20, opacity: 0 },
-  animate: { y: 0, opacity: 1, transition: { type: 'spring', damping: 20, stiffness: 300 } },
-  exit: { y: 20, opacity: 0 }
+  animate: {
+    y: 0,
+    opacity: 1,
+    transition: { type: 'spring', damping: 20, stiffness: 300 },
+  },
+  exit: { y: 20, opacity: 0 },
 };
 
 export const AnimatedLayout: React.FC<AnimatedLayoutProps> = ({
@@ -83,22 +87,23 @@ export const AnimatedLayout: React.FC<AnimatedLayoutProps> = ({
   const variant = variants[animation];
 
   // Configure staggering if requested
-  const staggerVariants = staggerChildren && animation === 'staggered'
-    ? {
-        animate: {
-          ...variant.animate,
-          transition: {
-            ...variant.transition,
-            staggerChildren: staggerDelay,
-          }
+  const staggerVariants =
+    staggerChildren && animation === 'staggered'
+      ? {
+          animate: {
+            ...variant.animate,
+            transition: {
+              ...variant.transition,
+              staggerChildren: staggerDelay,
+            },
+          },
         }
-      }
-    : {};
+      : {};
 
   // Combine variants with any stagger options
   const combinedVariants = {
     ...variant,
-    ...staggerVariants
+    ...staggerVariants,
   };
 
   return (
@@ -129,4 +134,4 @@ export const AnimatedLayout: React.FC<AnimatedLayoutProps> = ({
   );
 };
 
-export default AnimatedLayout; 
+export default AnimatedLayout;

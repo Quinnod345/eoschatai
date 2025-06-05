@@ -14,11 +14,19 @@ import type { VisibilityType } from './visibility-selector';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
-import { toast } from './toast';
+import { toast } from '@/lib/toast-system';
 import type { Session } from 'next-auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
+import { MessageLimitIndicator } from './message-limit-indicator';
+import { useMessageActions } from '@/hooks/use-message-actions';
+import { VisibilitySelector } from './visibility-selector';
+import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
+import { useArtifactVisibility } from '@/hooks/use-artifact-visibility';
+import { useProviderTransition } from '@/hooks/use-provider-transition';
+import type { ResearchMode } from './nexus-research-selector';
+import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 
 export function Chat({
   id,
@@ -29,6 +37,9 @@ export function Chat({
   isReadonly,
   session,
   autoResume,
+  initialPersonaId,
+  initialProfileId,
+  documentContext,
 }: {
   id: string;
   initialMessages: Array<UIMessage>;
@@ -38,11 +49,80 @@ export function Chat({
   isReadonly: boolean;
   session: Session;
   autoResume: boolean;
+  initialPersonaId?: string;
+  initialProfileId?: string;
+  documentContext?: {
+    type: 'ai-document' | 'user-document';
+    id: string;
+    title: string;
+    message: string;
+  } | null;
 }) {
   const { mutate } = useSWRConfig();
   const router = useRouter();
   const [activeProvider, setActiveProvider] = useState(initialProvider);
   const [activeModel, setActiveModel] = useState(initialChatModel);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<
+    string | undefined
+  >(initialPersonaId);
+  const [selectedProfileId, setSelectedProfileId] = useState<
+    string | undefined
+  >(initialProfileId);
+
+  // Add research mode state
+  const [selectedResearchMode, setSelectedResearchMode] =
+    useState<ResearchMode>('off');
+
+  // Add logging for research mode changes
+  useEffect(() => {
+    console.log(
+      '[Chat] selectedResearchMode changed to:',
+      selectedResearchMode,
+    );
+    console.log('[Chat] Research mode state update completed');
+  }, [selectedResearchMode]);
+
+  // Add web search progress tracking
+  const { searchProgress, citations, processDataStreamMessage } =
+    useWebSearchProgress();
+
+  // Log initial state
+  useEffect(() => {
+    console.log('PERSONA_CLIENT: Chat component initialized', {
+      chatId: id,
+      initialPersonaId: initialPersonaId,
+      initialProfileId: initialProfileId,
+      selectedPersonaId: selectedPersonaId,
+      selectedProfileId: selectedProfileId,
+      hasInitialMessages: hasInitialMessages,
+      isEOSImplementer:
+        initialPersonaId === '00000000-0000-0000-0000-000000000001',
+      timestamp: new Date().toISOString(),
+    });
+  }, []);
+
+  // Log persona state changes
+  useEffect(() => {
+    console.log('PERSONA_CLIENT: selectedPersonaId state changed', {
+      chatId: id,
+      previousPersonaId: 'tracked_separately',
+      newPersonaId: selectedPersonaId,
+      isEOSImplementer:
+        selectedPersonaId === '00000000-0000-0000-0000-000000000001',
+      timestamp: new Date().toISOString(),
+    });
+  }, [selectedPersonaId]);
+
+  // Log profile state changes
+  useEffect(() => {
+    console.log('PROFILE_CLIENT: selectedProfileId state changed', {
+      chatId: id,
+      previousProfileId: 'tracked_separately',
+      newProfileId: selectedProfileId,
+      timestamp: new Date().toISOString(),
+    });
+  }, [selectedProfileId]);
+
   const previousProviderRef = useRef(initialProvider);
   const previousModelRef = useRef(initialChatModel);
   const [hasInitialMessages] = useState(initialMessages.length > 0);
@@ -66,6 +146,7 @@ export function Chat({
     stop,
     reload,
     experimental_resume,
+    data,
   } = useChat({
     id,
     initialMessages,
@@ -77,10 +158,16 @@ export function Chat({
       responseStartTimeRef.current = performance.now();
       responseSizeRef.current = 0;
 
-      // Log the request for debugging
-      console.log(
-        `Preparing request with provider: ${activeProvider}, model: ${activeModel}`,
-      );
+      console.log('PERSONA_CLIENT: Preparing request body', {
+        chatId: id,
+        provider: activeProvider,
+        model: activeModel,
+        selectedPersonaId: selectedPersonaId,
+        selectedProfileId: selectedProfileId,
+        hasPersona: !!selectedPersonaId,
+        hasProfile: !!selectedProfileId,
+        timestamp: new Date().toISOString(),
+      });
 
       // Throw an error if we're in the middle of a provider transition
       if (providerTransitioning) {
@@ -90,13 +177,27 @@ export function Chat({
         );
       }
 
-      return {
+      const requestBody = {
         id,
         message: body.messages.at(-1),
         selectedChatModel: activeModel,
         selectedProvider: activeProvider, // Use the current active provider
         selectedVisibilityType: visibilityType,
+        selectedPersonaId: selectedPersonaId,
+        selectedProfileId: selectedProfileId,
+        selectedResearchMode: selectedResearchMode,
       };
+
+      console.log('PERSONA_CLIENT: Request body prepared', {
+        chatId: id,
+        requestBody: requestBody,
+        personaIncluded: !!requestBody.selectedPersonaId,
+        profileIncluded: !!requestBody.selectedProfileId,
+        researchMode: selectedResearchMode,
+        researchModeInBody: requestBody.selectedResearchMode,
+      });
+
+      return requestBody;
     },
     onFinish: (message) => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -138,11 +239,9 @@ export function Chat({
         console.log(
           'Error during provider transition - skipping fallback logic',
         );
-        toast({
-          type: 'error',
-          description:
-            'Provider is changing. Please wait a moment before trying again.',
-        });
+        toast.error(
+          'Provider is changing. Please wait a moment before trying again.',
+        );
         return;
       }
 
@@ -175,10 +274,7 @@ export function Chat({
           // Set the transition state to prevent immediate API calls
           setProviderTransitioning(true);
 
-          toast({
-            type: 'error',
-            description: `Error with ${activeProvider === 'xai' ? 'Grok' : 'OpenAI'}. Falling back to ${fallbackProvider === 'xai' ? 'Grok' : 'OpenAI'}.`,
-          });
+          toast.error(`Error with OpenAI. Please try again.`);
 
           // Switch to fallback provider
           setActiveProvider(fallbackProvider);
@@ -200,7 +296,7 @@ export function Chat({
               {
                 id: generateUUID(),
                 role: 'system',
-                content: `Provider error detected. Switched to ${fallbackProvider === 'xai' ? 'Grok' : 'OpenAI'} as a fallback. Please try again.`,
+                content: `Provider error detected. Using OpenAI. Please try again.`,
                 createdAt: new Date(),
               },
             ]);
@@ -211,10 +307,9 @@ export function Chat({
           console.warn(
             'Already attempted a fallback recently, not trying again to prevent loops',
           );
-          toast({
-            type: 'error',
-            description: `Multiple provider errors detected. Please try refreshing the page.`,
-          });
+          toast.error(
+            'Multiple provider errors detected. Please try refreshing the page.',
+          );
 
           // Reset provider transitioning if it's stuck
           if (providerTransitioning) {
@@ -227,12 +322,19 @@ export function Chat({
       }
 
       // Show general error message for other errors
-      toast({
-        type: 'error',
-        description: error.message,
-      });
+      toast.error(error.message);
     },
   });
+
+  // Process data stream for web search events
+  useEffect(() => {
+    if (!data) return;
+
+    // Process each data item in the stream
+    data.forEach((item: any) => {
+      processDataStreamMessage(item);
+    });
+  }, [data, processDataStreamMessage]);
 
   // Listen for provider change events
   useEffect(() => {
@@ -262,10 +364,7 @@ export function Chat({
         }, 3000);
 
         // Add a toast indicating the provider is being switched
-        toast({
-          type: 'success',
-          description: `Switching to ${newProvider === 'xai' ? 'Grok' : 'OpenAI'}...`,
-        });
+        toast.success(`Switching to OpenAI...`);
 
         try {
           // First, unload the current provider (allow time for cleanup)
@@ -278,19 +377,13 @@ export function Chat({
           // Now set the new provider
           setActiveProvider(newProvider);
 
-          toast({
-            type: 'success',
-            description: `Using ${newProvider === 'xai' ? 'Grok' : 'OpenAI'} for chat`,
-          });
+          toast.success(`Using OpenAI for chat`);
 
           // Wait a bit longer to ensure the new provider is fully initialized
           await new Promise((resolve) => setTimeout(resolve, 300));
         } catch (error) {
           console.error('Error during provider transition:', error);
-          toast({
-            type: 'error',
-            description: 'Error switching providers. Please try again.',
-          });
+          toast.error('Error switching providers. Please try again.');
         } finally {
           // Clear the safety timeout
           if (transitionTimeoutRef.current) {
@@ -316,10 +409,7 @@ export function Chat({
       console.log(`Found provider in sessionStorage: ${storedProvider}`);
       setActiveProvider(storedProvider);
 
-      toast({
-        type: 'success',
-        description: `Using ${storedProvider === 'xai' ? 'Grok' : 'OpenAI'} for chat`,
-      });
+      toast.success(`Using OpenAI for chat`);
     }
 
     // Cleanup
@@ -337,10 +427,7 @@ export function Chat({
         console.log(`Model change event received: ${newModel}`);
         setActiveModel(newModel);
 
-        toast({
-          type: 'success',
-          description: `Switched to model: ${newModel}`,
-        });
+        toast.success(`Switched to model: ${newModel}`);
       }
     };
 
@@ -353,10 +440,7 @@ export function Chat({
       console.log(`Found model in sessionStorage: ${storedModel}`);
       setActiveModel(storedModel);
 
-      toast({
-        type: 'success',
-        description: `Using model: ${storedModel}`,
-      });
+      toast.success(`Using model: ${storedModel}`);
     }
 
     // Cleanup
@@ -391,7 +475,7 @@ export function Chat({
           {
             id: generateUUID(),
             role: 'system',
-            content: `Provider switched to ${activeProvider === 'xai' ? 'Grok' : 'OpenAI'}. Your next message will use the new provider.`,
+            content: `Provider switched to OpenAI. Your next message will use the new provider.`,
             createdAt: new Date(),
           },
         ]);
@@ -399,18 +483,16 @@ export function Chat({
 
       // For medium-length conversations, suggest starting a new chat
       if (messages.length > 2 && messages.length <= 6) {
-        toast({
-          type: 'success',
-          description: `For best results with ${activeProvider === 'xai' ? 'Grok' : 'OpenAI'}, consider starting a new chat.`,
-        });
+        toast.success(
+          `For best results with OpenAI, consider starting a new chat.`,
+        );
       }
 
       // For longer conversations, strongly recommend starting a new chat
       if (messages.length > 6) {
-        toast({
-          type: 'error',
-          description: `Switching providers in long conversations may cause errors. Please start a new chat.`,
-        });
+        toast.error(
+          'Switching providers in long conversations may cause errors. Please start a new chat.',
+        );
 
         // Add an additional system message with clearer instructions
         if (!providerTransitioning) {
@@ -444,10 +526,9 @@ export function Chat({
     if (messages.length > 0) {
       if (messages.length > 2) {
         // For longer conversations, recommend starting a new chat
-        toast({
-          type: 'success',
-          description: `Model changed to ${activeModel}. For best results, please start a new chat.`,
-        });
+        toast.success(
+          `Model changed to ${activeModel}. For best results, please start a new chat.`,
+        );
       }
 
       // Add a system message directly instead of using append to avoid API calls
@@ -466,7 +547,8 @@ export function Chat({
   }, [activeModel, messages.length, providerTransitioning]);
 
   useEffect(() => {
-    if (autoResume) {
+    // Don't auto-resume if we're navigating to scroll to a message
+    if (autoResume && !scrollToMessageId) {
       experimental_resume();
     }
 
@@ -476,8 +558,10 @@ export function Chat({
 
   const searchParams = useSearchParams();
   const query = searchParams.get('query');
+  const scrollToMessageId = searchParams.get('scrollTo');
 
   const [hasAppendedQuery, setHasAppendedQuery] = useState(false);
+  const [hasScrolledToMessage, setHasScrolledToMessage] = useState(false);
 
   useEffect(() => {
     if (query && !hasAppendedQuery) {
@@ -490,6 +574,44 @@ export function Chat({
       window.history.replaceState({}, '', `/chat/${id}`);
     }
   }, [query, append, hasAppendedQuery, id]);
+
+  // Handle scrollTo query parameter
+  useEffect(() => {
+    if (scrollToMessageId && !hasScrolledToMessage && messages.length > 0) {
+      // Try multiple times with increasing delays to ensure message is rendered
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      const tryScroll = () => {
+        const messageElement = document.querySelector(
+          `[data-testid="message-${scrollToMessageId}"]`,
+        );
+
+        if (messageElement) {
+          // Success - scroll to the message
+          messageElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+          // Add a highlight effect
+          messageElement.classList.add('bg-eos-orange/20', 'transition-colors');
+          setTimeout(() => {
+            messageElement.classList.remove('bg-eos-orange/20');
+          }, 2000);
+          setHasScrolledToMessage(true);
+          // Clean up the URL
+          window.history.replaceState({}, '', `/chat/${id}`);
+        } else if (attempts < maxAttempts) {
+          // Try again with a longer delay
+          attempts++;
+          setTimeout(tryScroll, 200 * attempts);
+        }
+      };
+
+      // Start trying after a short initial delay
+      setTimeout(tryScroll, 300);
+    }
+  }, [scrollToMessageId, hasScrolledToMessage, messages.length, id]);
 
   const { data: votes } = useSWR<Array<Vote>>(
     messages.length >= 2 ? `/api/vote?chatId=${id}` : null,
@@ -507,65 +629,375 @@ export function Chat({
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Custom submit handler with intelligent timeout
-  const handleSubmitWithTimeout = useCallback(
-    (e: React.FormEvent<HTMLFormElement>) => {
-      try {
-        // Set a dynamic timeout based on message complexity with safety checks
-        const messageLength = (input || '').length;
-        // Longer timeout for complex requests
-        const timeoutDuration = Math.min(
-          35000, // Maximum 35 seconds
-          Math.max(
-            15000, // Minimum 15 seconds
-            messageLength * 40, // 40ms per character as a rough estimate
-          ),
+  const { pinnedMessages, handlePin } = useMessageActions({ chatId: id });
+
+  const handleScrollToMessage = (messageId: string) => {
+    const messageElement = document.querySelector(
+      `[data-testid="message-${messageId}"]`,
+    );
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add a highlight effect
+      messageElement.classList.add('bg-eos-orange/10');
+      setTimeout(() => {
+        messageElement.classList.remove('bg-eos-orange/10');
+      }, 2000);
+    }
+  };
+
+  // Handle persona changes
+  const handlePersonaChange = useCallback(
+    async (personaId: string | null) => {
+      console.log('PERSONA_CLIENT: handlePersonaChange called', {
+        chatId: id,
+        currentPersonaId: selectedPersonaId,
+        newPersonaId: personaId,
+        hasInitialMessages,
+        isNewChat: !hasInitialMessages,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Update state immediately for instant UI feedback
+      setSelectedPersonaId(personaId || undefined);
+      console.log('PERSONA_CLIENT: State updated immediately', {
+        chatId: id,
+        newSelectedPersonaId: personaId || undefined,
+      });
+
+      // Clear profile selection when persona changes
+      if (personaId !== selectedPersonaId) {
+        setSelectedProfileId(undefined);
+        console.log(
+          'PERSONA_CLIENT: Cleared profile selection due to persona change',
+        );
+      }
+
+      // Store in localStorage only when user explicitly selects a persona
+      // This will be used for future new chats, but current new chats start with default
+      if (personaId) {
+        localStorage.setItem('selectedPersonaId', personaId);
+        console.log(
+          'PERSONA_CLIENT: Stored persona in localStorage for future new chats',
+          {
+            personaId: personaId,
+          },
+        );
+      } else {
+        localStorage.removeItem('selectedPersonaId');
+        console.log(
+          'PERSONA_CLIENT: Removed persona from localStorage - future new chats will use default',
+        );
+      }
+
+      // For existing chats (with messages), update the chat record immediately
+      if (hasInitialMessages) {
+        console.log(
+          'PERSONA_CLIENT: Existing chat detected, updating database',
+          {
+            chatId: id,
+            personaId: personaId,
+          },
         );
 
-        // Only log if safe
         try {
           console.log(
-            `Setting response timeout to ${timeoutDuration}ms based on message length of ${messageLength} chars`,
+            'PERSONA_CLIENT: Making API request to update existing chat',
+            {
+              chatId: id,
+              url: `/api/chat/${id}`,
+              personaId: personaId,
+            },
           );
-        } catch (e) {
-          // Ignore logging errors
-        }
 
-        // Set timeout with error handling
-        try {
-          responseTimeoutRef.current = setTimeout(() => {
-            try {
-              // Use log instead of error
-              console.log('Response timeout detected on client side');
-              // If we're still in loading state after timeout, show error and force stop
-              if (status === 'streaming') {
-                toast({
-                  type: 'error',
-                  description:
-                    'The response is taking too long. Please stop and try again.',
-                });
-              }
-            } catch (timeoutError) {
-              // Prevent errors in timeout callback
-            }
-          }, timeoutDuration);
-        } catch (timeoutSetError) {
-          // Handle timeout setting errors
-        }
+          const response = await fetch(`/api/chat/${id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              personaId: personaId,
+              profileId: null, // Clear profile when persona changes
+            }),
+          });
 
-        // Call the original submit handler with error handling
-        try {
-          handleSubmit(e);
-        } catch (submitError) {
-          console.log('Error during submission:', submitError);
+          console.log('PERSONA_CLIENT: API response received', {
+            chatId: id,
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('PERSONA_CLIENT: API request failed', {
+              chatId: id,
+              status: response.status,
+              statusText: response.statusText,
+              errorText: errorText,
+            });
+            throw new Error(
+              `HTTP error! status: ${response.status}, message: ${errorText}`,
+            );
+          }
+
+          const responseData = await response.json();
+          console.log('PERSONA_CLIENT: API request successful', {
+            chatId: id,
+            responseData: responseData,
+            updatedPersonaId: responseData.personaId,
+          });
+
+          console.log(
+            'PERSONA_CLIENT: Existing chat persona updated successfully',
+            {
+              chatId: id,
+              personaId: personaId,
+            },
+          );
+        } catch (error) {
+          console.error(
+            'PERSONA_CLIENT: Error updating existing chat persona:',
+            {
+              chatId: id,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+              personaId: personaId,
+              initialPersonaId: initialPersonaId,
+            },
+          );
+
+          // Revert the state if the API call failed
+          console.log('PERSONA_CLIENT: Reverting state due to error', {
+            chatId: id,
+            revertingTo: initialPersonaId,
+          });
+          setSelectedPersonaId(initialPersonaId);
+          return; // Exit early on error
         }
-      } catch (error) {
-        // Global error handler
-        console.log('Error in handleSubmitWithTimeout:', error);
+      } else {
+        console.log(
+          'PERSONA_CLIENT: New chat detected, persona will be applied when first message is sent',
+          {
+            chatId: id,
+            personaId: personaId,
+            storedInLocalStorage: true,
+          },
+        );
       }
+
+      // Dispatch a custom event to notify other components
+      console.log('PERSONA_CLIENT: Dispatching personaChanged event', {
+        chatId: id,
+        personaId: personaId,
+        isNewChat: !hasInitialMessages,
+      });
+      window.dispatchEvent(
+        new CustomEvent('personaChanged', {
+          detail: { personaId },
+        }),
+      );
+
+      console.log('PERSONA_CLIENT: Persona change completed successfully', {
+        chatId: id,
+        personaId: personaId,
+        method: hasInitialMessages ? 'database_update' : 'localStorage_storage',
+      });
     },
-    [handleSubmit, input, status],
+    [id, initialPersonaId, selectedPersonaId, hasInitialMessages],
   );
+
+  // Handle profile changes
+  const handleProfileChange = useCallback(
+    async (profileId: string | null) => {
+      console.log('PROFILE_CLIENT: handleProfileChange called', {
+        chatId: id,
+        currentProfileId: selectedProfileId,
+        newProfileId: profileId,
+        hasInitialMessages,
+        isNewChat: !hasInitialMessages,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Update state immediately for instant UI feedback
+      setSelectedProfileId(profileId || undefined);
+      console.log('PROFILE_CLIENT: State updated immediately', {
+        chatId: id,
+        newSelectedProfileId: profileId || undefined,
+      });
+
+      // Store in localStorage for future new chats
+      if (profileId) {
+        localStorage.setItem('selectedProfileId', profileId);
+        console.log(
+          'PROFILE_CLIENT: Stored profile in localStorage for future new chats',
+          {
+            profileId: profileId,
+          },
+        );
+      } else {
+        localStorage.removeItem('selectedProfileId');
+        console.log(
+          'PROFILE_CLIENT: Removed profile from localStorage - future new chats will use default',
+        );
+      }
+
+      // For existing chats (with messages), update the chat record immediately
+      if (hasInitialMessages) {
+        console.log(
+          'PROFILE_CLIENT: Existing chat detected, updating database',
+          {
+            chatId: id,
+            profileId: profileId,
+          },
+        );
+
+        try {
+          console.log(
+            'PROFILE_CLIENT: Making API request to update existing chat',
+            {
+              chatId: id,
+              url: `/api/chat/${id}`,
+              profileId: profileId,
+            },
+          );
+
+          const response = await fetch(`/api/chat/${id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              profileId: profileId,
+            }),
+          });
+
+          console.log('PROFILE_CLIENT: API response received', {
+            chatId: id,
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('PROFILE_CLIENT: API request failed', {
+              chatId: id,
+              status: response.status,
+              statusText: response.statusText,
+              errorText: errorText,
+            });
+            throw new Error(
+              `HTTP error! status: ${response.status}, message: ${errorText}`,
+            );
+          }
+
+          const responseData = await response.json();
+          console.log('PROFILE_CLIENT: API request successful', {
+            chatId: id,
+            responseData: responseData,
+            updatedProfileId: responseData.profileId,
+          });
+
+          console.log(
+            'PROFILE_CLIENT: Existing chat profile updated successfully',
+            {
+              chatId: id,
+              profileId: profileId,
+            },
+          );
+        } catch (error) {
+          console.error(
+            'PROFILE_CLIENT: Error updating existing chat profile:',
+            {
+              chatId: id,
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined,
+              profileId: profileId,
+              initialProfileId: initialProfileId,
+            },
+          );
+
+          // Revert the state if the API call failed
+          console.log('PROFILE_CLIENT: Reverting state due to error', {
+            chatId: id,
+            revertingTo: initialProfileId,
+          });
+          setSelectedProfileId(initialProfileId);
+          return; // Exit early on error
+        }
+      } else {
+        console.log(
+          'PROFILE_CLIENT: New chat detected, profile will be applied when first message is sent',
+          {
+            chatId: id,
+            profileId: profileId,
+            storedInLocalStorage: true,
+          },
+        );
+      }
+
+      // Dispatch a custom event to notify other components
+      console.log('PROFILE_CLIENT: Dispatching profileChanged event', {
+        chatId: id,
+        profileId: profileId,
+        isNewChat: !hasInitialMessages,
+      });
+      window.dispatchEvent(
+        new CustomEvent('profileChanged', {
+          detail: { profileId },
+        }),
+      );
+
+      console.log('PROFILE_CLIENT: Profile change completed successfully', {
+        chatId: id,
+        profileId: profileId,
+        method: hasInitialMessages ? 'database_update' : 'localStorage_storage',
+      });
+    },
+    [id, initialProfileId, selectedProfileId, hasInitialMessages],
+  );
+
+  // Initialize persona for new chats - always default to Default EOS AI
+  useEffect(() => {
+    console.log(
+      'PERSONA_CLIENT: Checking for new chat persona initialization',
+      {
+        chatId: id,
+        initialPersonaId: initialPersonaId,
+        hasInitialMessages: hasInitialMessages,
+        shouldInitialize: !initialPersonaId && !hasInitialMessages,
+        userEmail: session?.user?.email,
+      },
+    );
+
+    if (!initialPersonaId && !hasInitialMessages) {
+      console.log(
+        'PERSONA_CLIENT: New chat detected, defaulting to Default EOS AI',
+        {
+          chatId: id,
+          userEmail: session?.user?.email,
+        },
+      );
+
+      // All new chats default to Default EOS AI (no persona selected)
+      setSelectedPersonaId(undefined);
+
+      // Clear any stored persona preference for new chats
+      localStorage.removeItem('selectedPersonaId');
+
+      console.log('PERSONA_CLIENT: New chat persona initialization completed', {
+        chatId: id,
+        defaultPersona: 'Default EOS AI (null)',
+      });
+    } else {
+      console.log('PERSONA_CLIENT: Skipping new chat persona initialization', {
+        chatId: id,
+        reason: initialPersonaId
+          ? 'has_initial_persona'
+          : 'has_initial_messages',
+      });
+    }
+  }, [initialPersonaId, hasInitialMessages, session?.user?.email]);
 
   // Create an adapter function for the multimodal input component with improved error handling
   const handleSubmitAdapter = useCallback(
@@ -581,11 +1013,9 @@ export function Chat({
         // Check if provider is transitioning and block submission
         if (providerTransitioning) {
           console.log('Blocking submission during provider transition');
-          toast({
-            type: 'error',
-            description:
-              'Provider is currently changing. Please wait a moment before sending a message.',
-          });
+          toast.error(
+            'Provider is currently changing. Please wait a moment before sending a message.',
+          );
           return;
         }
 
@@ -629,11 +1059,9 @@ export function Chat({
 
                 // Only show toast if we're still in streaming state
                 if (status === 'streaming') {
-                  toast({
-                    type: 'error',
-                    description:
-                      'The response is taking too long. Please stop and try again.',
-                  });
+                  toast.error(
+                    'The response is taking too long. Please stop and try again.',
+                  );
                 }
               } catch (timeoutError) {
                 // Prevent any errors in the timeout callback from bubbling up
@@ -652,6 +1080,38 @@ export function Chat({
     [handleSubmit, status, providerTransitioning, input],
   );
 
+  // Handle document context auto-submission
+  useEffect(() => {
+    if (documentContext && messages.length === 0 && status !== 'streaming') {
+      // Auto-submit the document context message when the chat is empty
+      const submitMessage = async () => {
+        try {
+          console.log(
+            'Auto-submitting document context message:',
+            documentContext,
+          );
+
+          // Add the message with document context
+          const messageToSend = {
+            role: 'user' as const,
+            content: documentContext.message,
+            ...(documentContext.type === 'ai-document'
+              ? { documentId: documentContext.id }
+              : { userDocumentId: documentContext.id }),
+          };
+
+          await append(messageToSend);
+        } catch (error) {
+          console.error('Error auto-submitting document context:', error);
+        }
+      };
+
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(submitMessage, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [documentContext, messages.length, status, append]);
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
@@ -662,7 +1122,15 @@ export function Chat({
           selectedVisibilityType={initialVisibilityType}
           isReadonly={isReadonly}
           session={session}
+          selectedPersonaId={selectedPersonaId}
+          selectedProfileId={selectedProfileId}
+          onPersonaChange={handlePersonaChange}
+          onProfileChange={handleProfileChange}
+          messages={messages}
+          onScrollToMessage={handleScrollToMessage}
         />
+
+        {/* PinnedMessagesBar is now integrated into ChatHeader via SavedContentDropdown */}
 
         <Messages
           chatId={id}
@@ -673,6 +1141,8 @@ export function Chat({
           reload={reload}
           isReadonly={isReadonly}
           isArtifactVisible={isArtifactVisible}
+          citations={citations}
+          searchProgress={searchProgress}
         />
 
         <form className="absolute bottom-0 left-0 right-0 flex mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
@@ -694,9 +1164,13 @@ export function Chat({
               selectedProviderId={activeProvider}
               session={session}
               isReadonly={isReadonly}
+              selectedResearchMode={selectedResearchMode}
+              onResearchModeChange={setSelectedResearchMode}
             />
           )}
         </form>
+
+        <MessageLimitIndicator />
       </div>
 
       <Artifact

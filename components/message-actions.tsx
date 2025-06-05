@@ -14,160 +14,250 @@ import {
 } from './ui/tooltip';
 import { memo } from 'react';
 import equal from 'fast-deep-equal';
-import { toast } from 'sonner';
+import { toast, toastUtils } from '@/lib/toast-system';
+import { Pin, MessageCircle, Share } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function PureMessageActions({
   chatId,
   message,
   vote,
   isLoading,
+  onPin,
+  onReply,
+  isPinned,
 }: {
   chatId: string;
   message: Message;
   vote: Vote | undefined;
   isLoading: boolean;
+  onPin?: (messageId: string) => void;
+  onReply?: (messageId: string) => void;
+  isPinned?: boolean;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
 
+  const handleCopy = async () => {
+    const textFromParts = message.parts
+      ?.filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+      .trim();
+
+    if (!textFromParts) {
+      toastUtils.copyError();
+      return;
+    }
+
+    await copyToClipboard(textFromParts);
+    toastUtils.copySuccess();
+  };
+
+  const handleShare = () => {
+    const textFromParts = message.parts
+      ?.filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+      .trim();
+
+    if (navigator.share && textFromParts) {
+      navigator
+        .share({
+          title: 'EOS Chat AI Message',
+          text: textFromParts,
+        })
+        .catch(() => {
+          // Fallback to copy
+          handleCopy();
+        });
+    } else {
+      // Fallback to copy
+      handleCopy();
+    }
+  };
+
   if (isLoading) return null;
-  if (message.role === 'user') return null;
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex flex-row gap-2">
+      <div className="flex flex-row gap-1 opacity-0 group-hover/message:opacity-100 transition-opacity duration-200">
+        {/* Enhanced actions for all messages */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              className="py-1 px-2 h-fit text-muted-foreground"
-              variant="outline"
-              onClick={async () => {
-                const textFromParts = message.parts
-                  ?.filter((part) => part.type === 'text')
-                  .map((part) => part.text)
-                  .join('\n')
-                  .trim();
+              className={cn(
+                'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
+                isPinned && 'text-eos-orange',
+              )}
+              variant="ghost"
+              size="sm"
+              onClick={() => onPin?.(message.id)}
+            >
+              <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isPinned ? 'Unpin message' : 'Pin message'}
+          </TooltipContent>
+        </Tooltip>
 
-                if (!textFromParts) {
-                  toast.error("There's no text to copy!");
-                  return;
-                }
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+              variant="ghost"
+              size="sm"
+              onClick={() => onReply?.(message.id, message.content)}
+            >
+              <MessageCircle className="h-3 w-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Reply to message</TooltipContent>
+        </Tooltip>
 
-                await copyToClipboard(textFromParts);
-                toast.success('Copied to clipboard!');
-              }}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
             >
               <CopyIcon />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Copy</TooltipContent>
+          <TooltipContent>Copy message</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              data-testid="message-upvote"
-              className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto"
-              disabled={vote?.isUpvoted}
-              variant="outline"
-              onClick={async () => {
-                const upvote = fetch('/api/vote', {
-                  method: 'PATCH',
-                  body: JSON.stringify({
-                    chatId,
-                    messageId: message.id,
-                    type: 'up',
-                  }),
-                });
-
-                toast.promise(upvote, {
-                  loading: 'Upvoting Response...',
-                  success: () => {
-                    mutate<Array<Vote>>(
-                      `/api/vote?chatId=${chatId}`,
-                      (currentVotes) => {
-                        if (!currentVotes) return [];
-
-                        const votesWithoutCurrent = currentVotes.filter(
-                          (vote) => vote.messageId !== message.id,
-                        );
-
-                        return [
-                          ...votesWithoutCurrent,
-                          {
-                            chatId,
-                            messageId: message.id,
-                            isUpvoted: true,
-                          },
-                        ];
-                      },
-                      { revalidate: false },
-                    );
-
-                    return 'Upvoted Response!';
-                  },
-                  error: 'Failed to upvote response.',
-                });
-              }}
+              className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
             >
-              <ThumbUpIcon />
+              <Share className="h-3 w-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Upvote Response</TooltipContent>
+          <TooltipContent>Share message</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              data-testid="message-downvote"
-              className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto"
-              variant="outline"
-              disabled={vote && !vote.isUpvoted}
-              onClick={async () => {
-                const downvote = fetch('/api/vote', {
-                  method: 'PATCH',
-                  body: JSON.stringify({
-                    chatId,
-                    messageId: message.id,
-                    type: 'down',
-                  }),
-                });
+        {/* Voting actions for assistant messages only */}
+        {message.role === 'assistant' && (
+          <>
+            <div className="w-px h-6 bg-border mx-1" />
 
-                toast.promise(downvote, {
-                  loading: 'Downvoting Response...',
-                  success: () => {
-                    mutate<Array<Vote>>(
-                      `/api/vote?chatId=${chatId}`,
-                      (currentVotes) => {
-                        if (!currentVotes) return [];
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  data-testid="message-upvote"
+                  className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
+                  disabled={vote?.isUpvoted}
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    const upvote = fetch('/api/vote', {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        chatId,
+                        messageId: message.id,
+                        type: 'up',
+                      }),
+                    });
 
-                        const votesWithoutCurrent = currentVotes.filter(
-                          (vote) => vote.messageId !== message.id,
+                    toast.promise(upvote, {
+                      loading: 'Upvoting Response...',
+                      success: () => {
+                        mutate<Array<Vote>>(
+                          `/api/vote?chatId=${chatId}`,
+                          (currentVotes) => {
+                            if (!currentVotes) return [];
+
+                            const votesWithoutCurrent = currentVotes.filter(
+                              (vote) => vote.messageId !== message.id,
+                            );
+
+                            return [
+                              ...votesWithoutCurrent,
+                              {
+                                chatId,
+                                messageId: message.id,
+                                isUpvoted: true,
+                              },
+                            ];
+                          },
+                          { revalidate: false },
                         );
 
-                        return [
-                          ...votesWithoutCurrent,
-                          {
-                            chatId,
-                            messageId: message.id,
-                            isUpvoted: false,
-                          },
-                        ];
+                        return 'Upvoted Response!';
                       },
-                      { revalidate: false },
-                    );
+                      error: 'Failed to upvote response.',
+                    });
+                  }}
+                >
+                  <ThumbUpIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Upvote Response</TooltipContent>
+            </Tooltip>
 
-                    return 'Downvoted Response!';
-                  },
-                  error: 'Failed to downvote response.',
-                });
-              }}
-            >
-              <ThumbDownIcon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Downvote Response</TooltipContent>
-        </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  data-testid="message-downvote"
+                  className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
+                  variant="ghost"
+                  size="sm"
+                  disabled={vote && !vote.isUpvoted}
+                  onClick={async () => {
+                    const downvote = fetch('/api/vote', {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        chatId,
+                        messageId: message.id,
+                        type: 'down',
+                      }),
+                    });
+
+                    toast.promise(downvote, {
+                      loading: 'Downvoting Response...',
+                      success: () => {
+                        mutate<Array<Vote>>(
+                          `/api/vote?chatId=${chatId}`,
+                          (currentVotes) => {
+                            if (!currentVotes) return [];
+
+                            const votesWithoutCurrent = currentVotes.filter(
+                              (vote) => vote.messageId !== message.id,
+                            );
+
+                            return [
+                              ...votesWithoutCurrent,
+                              {
+                                chatId,
+                                messageId: message.id,
+                                isUpvoted: false,
+                              },
+                            ];
+                          },
+                          { revalidate: false },
+                        );
+
+                        return 'Downvoted Response!';
+                      },
+                      error: 'Failed to downvote response.',
+                    });
+                  }}
+                >
+                  <ThumbDownIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Downvote Response</TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </div>
     </TooltipProvider>
   );
@@ -178,6 +268,9 @@ export const MessageActions = memo(
   (prevProps, nextProps) => {
     if (!equal(prevProps.vote, nextProps.vote)) return false;
     if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (prevProps.onPin !== nextProps.onPin) return false;
+    if (prevProps.onReply !== nextProps.onReply) return false;
+    if (prevProps.isPinned !== nextProps.isPinned) return false;
 
     return true;
   },
