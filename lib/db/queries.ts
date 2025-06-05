@@ -609,7 +609,37 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
 
 export async function getUserSettings({ userId }: { userId: string }) {
   try {
-    const settings = await db
+    // First, try to get existing settings
+    const existingSettings = await db
+      .select()
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId));
+
+    if (existingSettings.length === 0) {
+      // Create default settings if none exist
+      const [newSettings] = await db
+        .insert(userSettings)
+        .values({
+          userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      // Get the user's lastFeaturesVersion separately
+      const userData = await db
+        .select({ lastFeaturesVersion: user.lastFeaturesVersion })
+        .from(user)
+        .where(eq(user.id, userId));
+
+      return {
+        ...newSettings,
+        lastFeaturesVersion: userData[0]?.lastFeaturesVersion,
+      };
+    }
+
+    // If settings exist, get them with the user's lastFeaturesVersion
+    const settingsWithUser = await db
       .select({
         id: userSettings.id,
         userId: userSettings.userId,
@@ -623,7 +653,6 @@ export async function getUserSettings({ userId }: { userId: string }) {
         profilePicture: userSettings.profilePicture,
         dailyMessageCount: userSettings.dailyMessageCount,
         lastMessageCountReset: userSettings.lastMessageCountReset,
-        isPremium: userSettings.isPremium,
         createdAt: userSettings.createdAt,
         updatedAt: userSettings.updatedAt,
         selectedChatModel: userSettings.selectedChatModel,
@@ -638,30 +667,12 @@ export async function getUserSettings({ userId }: { userId: string }) {
       .leftJoin(user, eq(userSettings.userId, user.id))
       .where(eq(userSettings.userId, userId));
 
-    if (settings.length === 0) {
-      // Create default settings if none exist
-      const [newSettings] = await db
-        .insert(userSettings)
-        .values({
-          userId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning();
-
-      // Get the user's lastFeaturesVersion
-      const userData = await db
-        .select({ lastFeaturesVersion: user.lastFeaturesVersion })
-        .from(user)
-        .where(eq(user.id, userId));
-
-      return {
-        ...newSettings,
-        lastFeaturesVersion: userData[0]?.lastFeaturesVersion,
-      };
+    const result = settingsWithUser[0];
+    if (!result) {
+      throw new Error('Failed to fetch user settings');
     }
 
-    return settings[0];
+    return result;
   } catch (error) {
     console.error('Failed to get user settings from database', error);
     throw error;
@@ -682,7 +693,6 @@ export async function updateUserSettings({
     companyType?: string;
     companyDescription?: string;
     profilePicture?: string;
-    isPremium?: boolean;
     lastFeaturesVersion?: string;
     selectedChatModel?: string;
     selectedProvider?: string;
