@@ -2,6 +2,7 @@ import { expect, test } from '../fixtures';
 import { AuthPage } from '../pages/auth';
 import { generateRandomTestUser } from '../helpers';
 import { ChatPage } from '../pages/chat';
+import type { Request } from '@playwright/test';
 
 test.describe
   .serial('Guest Session', () => {

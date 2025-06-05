@@ -41,7 +41,9 @@
       "Bash(npm run:*)",
       "Bash(^C)",
       "Bash(pnpm run:*)",
-      "Bash(ESLINT_NO_DEV_ERRORS=true npx next build)"
+      "Bash(ESLINT_NO_DEV_ERRORS=true npx next build)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(mv:*)"
     ]
   },
   "enableAllProjectMcpServers": false
