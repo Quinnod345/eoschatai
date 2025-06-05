@@ -243,7 +243,9 @@ export async function systemRagContextPrompt(
       return '';
     }
 
-    const namespaces = [personaData.knowledgeNamespace].filter(Boolean);
+    const namespaces: string[] = [personaData.knowledgeNamespace].filter(
+      (ns): ns is string => Boolean(ns),
+    );
 
     // If a profile is selected, add its namespace
     if (profileId) {
