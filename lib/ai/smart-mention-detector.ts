@@ -1,4 +1,4 @@
-import type { MentionType } from './mention-processor';
+import type { MentionType } from '@/lib/mentions/types';
 
 interface DetectedMention {
   type: MentionType;
@@ -27,7 +27,8 @@ export class SmartMentionDetector {
     if (SmartMentionDetector.hasAvailabilityIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'availability',
-        confidence: SmartMentionDetector.getAvailabilityConfidence(lowerMessage),
+        confidence:
+          SmartMentionDetector.getAvailabilityConfidence(lowerMessage),
         trigger: SmartMentionDetector.extractAvailabilityTrigger(lowerMessage),
         context: 'User wants to find free time',
       });
@@ -228,7 +229,8 @@ export class SmartMentionDetector {
 
   // Check if message would benefit from explicit mentions
   static shouldSuggestMentions(message: string): boolean {
-    const implicitMentions = SmartMentionDetector.detectImplicitMentions(message);
+    const implicitMentions =
+      SmartMentionDetector.detectImplicitMentions(message);
     return implicitMentions.length > 0 && !message.includes('@');
   }
 }
