@@ -1,11 +1,10 @@
 import {
-  generateEmbedding,
   findRelevantContent,
   processDocument,
 } from './embeddings';
 import { generateUUID } from '../utils';
 import { document } from '../db/schema';
-import { safeParseJson, safeFetch } from '../fetch-utils';
+import { safeParseJson, } from '../fetch-utils';
 import { z } from 'zod';
 
 // Helper function to check if environment variables are set correctly

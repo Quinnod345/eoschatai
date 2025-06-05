@@ -9,7 +9,7 @@ import { eq, and, inArray } from 'drizzle-orm';
  */
 export const personaRagContextPrompt = async (
   personaId: string,
-  query = '',
+  query,
   userId: string,
 ) => {
   if (!personaId || !query) {

@@ -101,7 +101,7 @@ class ToastManager {
           break;
         case 'loading':
           toastId = sonnerToast.loading(message, {
-            duration: Infinity,
+            duration: Number.POSITIVE_INFINITY,
             ...options,
           });
           break;
@@ -258,7 +258,7 @@ export const toastUtils = {
     toast.error(`Failed to ${operation} file. Please try again.`),
 
   // Copy operations
-  copySuccess: (item: string = 'content') =>
+  copySuccess: (item = 'content') =>
     toast.success(`${item} copied to clipboard`),
 
   copyError: () => toast.error('Failed to copy to clipboard'),

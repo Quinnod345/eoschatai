@@ -1,5 +1,4 @@
 import type { ArtifactKind } from '@/components/artifact';
-import type { Geo } from '@vercel/functions';
 
 // Define RequestHints interface
 export interface RequestHints {

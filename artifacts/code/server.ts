@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { streamObject } from 'ai';
-import { myProvider } from '@/lib/ai/providers';
+import { createCustomProvider } from '@/lib/ai/providers';
 import { codePrompt, inlineEditPrompt } from '@/lib/ai/prompts';
 import { createDocumentHandler } from '@/lib/artifacts/server';
 
@@ -9,8 +9,9 @@ export const codeDocumentHandler = createDocumentHandler<'code'>({
   onCreateDocument: async ({ title, dataStream }) => {
     let draftContent = '';
 
+    const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: myProvider.languageModel('artifact-model'),
+      model: provider.languageModel('artifact-model'),
       system: codePrompt,
       prompt: title,
       schema: z.object({
@@ -41,8 +42,9 @@ export const codeDocumentHandler = createDocumentHandler<'code'>({
   onUpdateDocument: async ({ document, description, dataStream }) => {
     let draftContent = '';
 
+    const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: myProvider.languageModel('artifact-model'),
+      model: provider.languageModel('artifact-model'),
       system: inlineEditPrompt(document.content || '', description, 'code'),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({

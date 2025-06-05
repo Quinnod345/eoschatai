@@ -1,7 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
-import { pgSchema } from 'drizzle-orm/pg-core';
 
 // Get the database URL from either POSTGRES_URL or DATABASE_URL
 const getDatabaseUrl = () => {

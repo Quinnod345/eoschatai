@@ -4,7 +4,6 @@ import { persona, personaDocument } from '@/lib/db/schema';
 import { eq, or, isNull, and, ne } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { hasEOSAccess } from '@/lib/utils/eos-access';
 
 export async function GET() {
   const session = await auth();
@@ -119,7 +118,7 @@ export async function POST(request: NextRequest) {
         documentCount: documentIds.length,
       });
 
-      const personaDocuments = documentIds.map((documentId) => ({
+      const personaDocuments = documentIds.map((documentId: string) => ({
         personaId: newPersona.id,
         documentId,
       }));

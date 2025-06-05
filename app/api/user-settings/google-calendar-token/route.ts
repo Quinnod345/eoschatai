@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { generateUUID } from '@/lib/utils';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { googleCalendarToken, user } from '@/lib/db/schema';
 
 /**

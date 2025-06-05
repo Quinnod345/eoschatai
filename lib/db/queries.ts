@@ -37,10 +37,6 @@ import { generateUUID } from '../utils';
 import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
 import { processDocument } from '../ai/embeddings';
-import type {
-  Stream as StreamType,
-  Suggestion as SuggestionType,
-} from '@/artifacts/suggestions/types';
 
 // Get the database URL from either POSTGRES_URL or DATABASE_URL
 const getDatabaseUrl = () => {
@@ -325,54 +321,27 @@ export async function saveDocument({
   userId: string;
 }) {
   try {
-    let documents: Document[] | any;
+    // Use PostgreSQL's ON CONFLICT for upsert behavior
+    const documents = await db.execute(sql`
+      INSERT INTO "Document" (id, title, kind, content, "userId", "createdAt")
+      VALUES (${id}, ${title}, ${kind}, ${content}, ${userId}, ${new Date().toISOString()})
+      ON CONFLICT (id) 
+      DO UPDATE SET 
+        title = ${title},
+        kind = ${kind}, 
+        content = ${content}
+      RETURNING *
+    `);
 
-    try {
-      // Try to insert first
-      documents = await db
-        .insert(document)
-        .values({
-          id,
-          title,
-          kind,
-          content,
-          userId,
-          createdAt: new Date(),
-        })
-        .returning();
-
-      console.log(`Created new document with ID: ${id}`);
-    } catch (insertError: any) {
-      // Log the entire error for debugging
-      console.log(
-        'Insert error details:',
-        JSON.stringify(insertError, null, 2),
-      );
-
-      // If we got a duplicate key error, try updating instead
-      if (insertError.code === '23505') {
-        console.log(`Document ${id} already exists, updating instead`);
-        // Update existing document
-        const result = await db.execute(sql`
-          UPDATE "Document" 
-          SET title = ${title}, "text" = ${kind}, content = ${content}
-          WHERE id = ${id}
-          RETURNING *
-        `);
-        // Handle the return value safely with type assertion
-        documents = Array.isArray(result) ? result : (result as any).rows;
-      } else {
-        // Not a duplicate key error, rethrow
-        throw insertError;
-      }
-    }
+    console.log(`Document saved/updated with ID: ${id}`);
+    const documentsResult = Array.isArray(documents) ? documents : (documents as any).rows;
 
     // Process the document for embeddings (only for text kind)
     if (kind === 'text' && content) {
       await processDocument(id, content);
     }
 
-    return documents;
+    return documentsResult;
   } catch (error) {
     console.error('Failed to save document in database:', error);
     throw error;

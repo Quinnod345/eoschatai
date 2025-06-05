@@ -43,7 +43,7 @@ export default function Page() {
       const redirectedFrom = getCookie('redirected_from');
 
       // If we have a redirected_from cookie, use that path
-      if (redirectedFrom && redirectedFrom.startsWith('/')) {
+      if (redirectedFrom?.startsWith('/')) {
         setRedirectPath(redirectedFrom);
 
         // Clear the cookie by setting it to expire immediately

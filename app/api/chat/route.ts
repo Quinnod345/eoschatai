@@ -19,19 +19,18 @@ import {
   saveMessages,
 } from '@/lib/db/queries';
 import { generateUUID, getTrailingMessageId } from '@/lib/utils';
-import { generateTitleFromUserMessage } from '../../actions';
+import { generateTitleFromUserMessage } from '@/app/(chat)/actions';
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { isProductionEnvironment } from '@/lib/constants';
+import { DEFAULT_PROVIDER, createCustomProvider } from '@/lib/ai/providers';
+import { entitlementsByUserType } from '@/lib/ai/entitlements';
 import {
-  myProvider,
-  DEFAULT_PROVIDER,
-  createCustomProvider,
-} from '@/lib/ai/providers';
-import { entitlementsByUserType, getActiveTools } from '@/lib/ai/entitlements';
-import { postRequestBodySchema, type PostRequestBody } from './schema';
+  postRequestBodySchema,
+  type PostRequestBody,
+} from '@/app/(chat)/api/chat/schema';
 import { geolocation } from '@vercel/functions';
 import {
   createResumableStreamContext,
@@ -48,7 +47,6 @@ import {
   getInformationTool,
   getCalendarEventsTool,
   createCalendarEventTool,
-  enhancedCalendarTools,
 } from '@/lib/ai/tools';
 import { z } from 'zod';
 import { MentionProcessor } from '@/lib/ai/mention-processor';

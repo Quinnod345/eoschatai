@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/card';
 import { Calendar, Clock, AlertCircle, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 
 interface CalendarEvent {

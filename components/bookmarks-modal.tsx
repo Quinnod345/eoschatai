@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Bookmark, ExternalLink, Trash2 } from 'lucide-react';
+import { Bookmark, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { cn } from '@/lib/utils';
 import type { BookmarkedChat, Chat } from '@/lib/db/schema';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from 'sonner';
-import { fetcher } from '@/lib/utils';
 import useSWR from 'swr';
 import { format } from 'date-fns';
 import { ScrollArea } from './ui/scroll-area';

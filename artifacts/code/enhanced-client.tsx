@@ -24,7 +24,7 @@ declare global {
 }
 
 interface CodeArtifactMetadata {
-  language: 'python' | 'javascript' | 'typescript' | 'html' | 'css' | 'json';
+  language: 'python' | 'javascript' | 'html' | 'css' | 'json';
   aiMode: boolean;
   suggestions: any[];
 }
@@ -160,26 +160,7 @@ export const enhancedCodeArtifact = new Artifact<'code', CodeArtifactMetadata>({
       },
     },
   ],
-  toolbar: [
-    {
-      label: 'Language',
-      type: 'select',
-      options: [
-        { value: 'python', label: 'Python' },
-        { value: 'javascript', label: 'JavaScript' },
-        { value: 'html', label: 'HTML' },
-        { value: 'css', label: 'CSS' },
-        { value: 'json', label: 'JSON' },
-      ],
-      value: 'python',
-      onChange: (value, { setMetadata }) => {
-        setMetadata((prev: CodeArtifactMetadata) => ({
-          ...prev,
-          language: value as CodeArtifactMetadata['language'],
-        }));
-      },
-    },
-  ],
+  toolbar: [],
   content: ({
     mode,
     status,

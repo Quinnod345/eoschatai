@@ -14,7 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { PlusIcon, PencilEditIcon, SettingsIcon } from '@/components/icons';
+import { SettingsIcon } from '@/components/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PersonaProfile, Persona } from '@/lib/db/schema';
 import {
@@ -307,10 +307,9 @@ export function ProfilesDropdown({
                     <div
                       className={`w-10 h-10 rounded-xl ${PROFILE_THEMES.default.iconBg} flex items-center justify-center shadow-lg`}
                     >
-                      <SettingsIcon
-                        size={20}
-                        className={PROFILE_THEMES.default.iconColor}
-                      />
+                      <div className={PROFILE_THEMES.default.iconColor}>
+                        <SettingsIcon size={20} />
+                      </div>
                     </div>
                     {!selectedProfileId && (
                       <motion.div
@@ -417,7 +416,9 @@ export function ProfilesDropdown({
 
               {profiles.length === 0 && !isLoading && (
                 <div className="text-center py-4 text-muted-foreground">
-                  <SettingsIcon size={24} className="mx-auto mb-2 opacity-50" />
+                  <div className="mx-auto mb-2 opacity-50">
+                    <SettingsIcon size={24} />
+                  </div>
                   <p className="text-sm">No profiles available</p>
                   <p className="text-xs">
                     Profiles are managed by system administrators

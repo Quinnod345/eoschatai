@@ -1,6 +1,4 @@
 'use client';
-
-import { useEffect } from 'react';
 import { useFeatures } from '@/hooks/use-features';
 import { WhatsNewModal } from '@/components/whats-new-modal';
 import { WhatsNewBanner } from '@/components/whats-new-banner';

@@ -1,7 +1,7 @@
 'use client';
 
 import { EditorView } from '@codemirror/view';
-import { EditorState, Transaction, SelectionRange } from '@codemirror/state';
+import { EditorState, Transaction, } from '@codemirror/state';
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';
@@ -12,7 +12,7 @@ import { basicSetup } from 'codemirror';
 import React, { memo, useEffect, useRef, useState, useCallback } from 'react';
 import type { Suggestion } from '@/lib/db/schema';
 import { Button } from './ui/button';
-import { SparklesIcon, CodeIcon, BugIcon, OptimizeIcon } from './icons';
+import { SparklesIcon, CodeIcon, WarningIcon, RocketIcon } from './icons';
 import { toast } from 'sonner';
 
 type EnhancedCodeEditorProps = {
@@ -236,7 +236,7 @@ function PureEnhancedCodeEditor({
       suggestions.push({
         label: 'Optimize code',
         prompt: 'Optimize this code for better performance and readability',
-        icon: <OptimizeIcon size={12} />,
+        icon: <RocketIcon size={12} />,
       });
       suggestions.push({
         label: 'Add comments',
@@ -246,7 +246,7 @@ function PureEnhancedCodeEditor({
       suggestions.push({
         label: 'Fix bugs',
         prompt: 'Review this code for potential bugs and fix them',
-        icon: <BugIcon size={12} />,
+        icon: <WarningIcon size={12} />,
       });
     }
 
@@ -263,7 +263,7 @@ function PureEnhancedCodeEditor({
         suggestions.push({
           label: 'Optimize loop',
           prompt: 'Optimize this Python loop for better performance',
-          icon: <OptimizeIcon size={12} />,
+          icon: <RocketIcon size={12} />,
         });
       }
     }
@@ -281,7 +281,7 @@ function PureEnhancedCodeEditor({
           label: 'Replace console.log',
           prompt:
             'Replace console.log with proper logging or remove debug statements',
-          icon: <BugIcon size={12} />,
+          icon: <WarningIcon size={12} />,
         });
       }
     }

@@ -4,23 +4,34 @@ import { LoaderIcon } from './icons';
 // Loading component for lazy-loaded components
 const LoadingComponent = () => (
   <div className="flex items-center justify-center p-8">
-    <LoaderIcon className="h-6 w-6 animate-spin" />
+    <LoaderIcon size={24} />
   </div>
 );
 
 // Lazy load heavy components
-export const LazyPersonaWizard = dynamic(() => import('./persona-wizard'), {
-  loading: LoadingComponent,
-  ssr: false,
-});
+export const LazyPersonaWizard = dynamic(
+  () =>
+    import('./persona-wizard').then((mod) => ({ default: mod.PersonaWizard })),
+  {
+    loading: LoadingComponent,
+    ssr: false,
+  },
+);
 
-export const LazySettingsModal = dynamic(() => import('./settings-modal'), {
-  loading: LoadingComponent,
-  ssr: false,
-});
+export const LazySettingsModal = dynamic(
+  () =>
+    import('./settings-modal').then((mod) => ({ default: mod.SettingsModal })),
+  {
+    loading: LoadingComponent,
+    ssr: false,
+  },
+);
 
 export const LazyDocumentContextModal = dynamic(
-  () => import('./document-context-modal'),
+  () =>
+    import('./document-context-modal').then((mod) => ({
+      default: mod.DocumentContextModal,
+    })),
   {
     loading: LoadingComponent,
     ssr: false,
@@ -28,15 +39,22 @@ export const LazyDocumentContextModal = dynamic(
 );
 
 export const LazyEnhancedArtifact = dynamic(
-  () => import('./enhanced-artifact'),
+  () =>
+    import('./enhanced-artifact').then((mod) => ({
+      default: mod.EnhancedArtifact,
+    })),
   {
     loading: LoadingComponent,
   },
 );
 
-export const LazyChartRenderer = dynamic(() => import('./chart-renderer'), {
-  loading: LoadingComponent,
-});
+export const LazyChartRenderer = dynamic(
+  () =>
+    import('./chart-renderer').then((mod) => ({ default: mod.ChartRenderer })),
+  {
+    loading: LoadingComponent,
+  },
+);
 
 export const LazySpreadsheetEditor = dynamic(
   () =>
@@ -49,13 +67,22 @@ export const LazySpreadsheetEditor = dynamic(
   },
 );
 
-export const LazyAdvancedSearch = dynamic(() => import('./advanced-search'), {
-  loading: LoadingComponent,
-  ssr: false,
-});
+export const LazyAdvancedSearch = dynamic(
+  () =>
+    import('./advanced-search').then((mod) => ({
+      default: mod.AdvancedSearch,
+    })),
+  {
+    loading: LoadingComponent,
+    ssr: false,
+  },
+);
 
 export const LazyKeyboardShortcutsModal = dynamic(
-  () => import('./keyboard-shortcuts-modal'),
+  () =>
+    import('./keyboard-shortcuts-modal').then((mod) => ({
+      default: mod.KeyboardShortcutsModal,
+    })),
   {
     loading: LoadingComponent,
     ssr: false,

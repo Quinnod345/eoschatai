@@ -1,4 +1,4 @@
-import { type MentionType } from '@/lib/mentions/types';
+import type { MentionType } from '@/lib/mentions/types';
 
 export interface ProcessedMention {
   type: MentionType;
@@ -39,7 +39,7 @@ export class MentionProcessor {
     );
 
     // Analyze user intent based on mentions and message
-    const userIntent = this.analyzeUserIntent(mentions, originalMessage);
+    const userIntent = MentionProcessor.analyzeUserIntent(mentions, originalMessage);
 
     // Process each mention type with intent awareness
     const instructions: string[] = [];
@@ -301,17 +301,18 @@ IMPORTANT:
         params.documentId = mention.id;
         break;
 
-      case 'availability':
+      case 'availability': {
         // Extract duration from query if possible
         const durationMatch = userQuery.match(/(\d+)\s*(hour|minute|min)/i);
         if (durationMatch) {
-          const value = parseInt(durationMatch[1]);
+          const value = Number.parseInt(durationMatch[1]);
           const unit = durationMatch[2].toLowerCase();
           params.duration = unit.includes('hour') ? value * 60 : value;
         } else {
           params.duration = 60; // Default 1 hour
         }
         break;
+      }
 
       case 'analyze':
         params.days = 30; // Default analysis period
@@ -392,21 +393,22 @@ IMPORTANT:
     userQuery: string,
     context?: any,
   ): Record<string, any> {
-    const params = this.generateToolParameters(mention, userQuery);
+    const params = MentionProcessor.generateToolParameters(mention, userQuery);
 
     // Enhance parameters based on context
     switch (mention.type) {
       case 'calendar':
-      case 'event':
+      case 'event': {
         // If user mentions "today", "tomorrow", "this week", etc.
-        const timeContext = this.extractTimeContext(userQuery);
+        const timeContext = MentionProcessor.extractTimeContext(userQuery);
         if (timeContext) {
           params.timeMin = timeContext.start;
           params.timeMax = timeContext.end;
         }
         break;
+      }
 
-      case 'availability':
+      case 'availability': {
         // Extract meeting context (duration, participants, etc.)
         const meetingContext = MentionProcessor.extractMeetingContext(userQuery);
         if (meetingContext.duration) {
@@ -416,10 +418,11 @@ IMPORTANT:
           params.preferredTimes = meetingContext.preferredTimes;
         }
         break;
+      }
 
-      case 'analyze':
+      case 'analyze': {
         // Extract analysis period and focus areas
-        const analysisContext = this.extractAnalysisContext(userQuery);
+        const analysisContext = MentionProcessor.extractAnalysisContext(userQuery);
         if (analysisContext.period) {
           params.days = analysisContext.period;
         }
@@ -427,6 +430,7 @@ IMPORTANT:
           params.focus = analysisContext.focus;
         }
         break;
+      }
     }
 
     return params;
@@ -489,7 +493,7 @@ IMPORTANT:
     // Extract duration
     const durationMatch = query.match(/(\d+)\s*(hour|hr|minute|min)/i);
     if (durationMatch) {
-      const value = parseInt(durationMatch[1]);
+      const value = Number.parseInt(durationMatch[1]);
       const unit = durationMatch[2].toLowerCase();
       context.duration = unit.includes('hour') ? value * 60 : value;
     } else {
@@ -526,7 +530,7 @@ IMPORTANT:
     if (/last\s+(\d+)\s*(day|week|month)/i.test(query)) {
       const match = query.match(/last\s+(\d+)\s*(day|week|month)/i);
       if (match) {
-        const value = parseInt(match[1]);
+        const value = Number.parseInt(match[1]);
         const unit = match[2].toLowerCase();
         context.period =
           unit === 'day' ? value : unit === 'week' ? value * 7 : value * 30;

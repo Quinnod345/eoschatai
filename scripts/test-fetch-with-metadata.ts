@@ -48,7 +48,7 @@ async function testFetchWithMetadata() {
 
         console.log(`Result:`, JSON.stringify(result, null, 2));
 
-        if (result && result[0]) {
+        if (result?.[0]) {
           const vector = result[0];
           console.log(`ID: ${vector.id}`);
           console.log(`Has vector: ${vector.vector ? 'Yes' : 'No'}`);
@@ -81,7 +81,7 @@ async function testFetchWithMetadata() {
         },
       );
 
-      if (sampleVector && sampleVector[0] && sampleVector[0].vector) {
+      if (sampleVector?.[0]?.vector) {
         console.log('Using actual vector for similarity search...');
 
         const queryResult = await client.query({

@@ -13,7 +13,6 @@ import equal from 'fast-deep-equal';
 import { cn, sanitizeText } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { MessageEditor } from './message-editor';
 import { EnhancedMessageEditor } from './enhanced-message-editor';
 import { DocumentPreview } from './document-preview';
 

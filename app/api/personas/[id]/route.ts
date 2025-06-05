@@ -180,10 +180,10 @@ export async function PUT(
 
       // Find documents to add and remove
       const docsToAdd = documentIds.filter(
-        (docId) => !currentDocIdsSet.has(docId),
+        (docId: string) => !currentDocIdsSet.has(docId),
       );
       const docsToRemove = currentDocIds.filter(
-        (docId) => !newDocIds.has(docId),
+        (docId: string) => !newDocIds.has(docId),
       );
 
       console.log('PERSONA_API: Document changes', {
@@ -207,7 +207,7 @@ export async function PUT(
 
       // Add new associations
       if (docsToAdd.length > 0) {
-        const newPersonaDocuments = docsToAdd.map((documentId) => ({
+        const newPersonaDocuments = docsToAdd.map((documentId: string) => ({
           personaId: id,
           documentId,
         }));

@@ -21,10 +21,6 @@ import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { MessageLimitIndicator } from './message-limit-indicator';
 import { useMessageActions } from '@/hooks/use-message-actions';
-import { VisibilitySelector } from './visibility-selector';
-import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
-import { useArtifactVisibility } from '@/hooks/use-artifact-visibility';
-import { useProviderTransition } from '@/hooks/use-provider-transition';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 

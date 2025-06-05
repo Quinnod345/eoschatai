@@ -1,7 +1,7 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
+
 import postgres from 'postgres';
 import { config } from 'dotenv';
-import { join } from 'path';
+import { join } from 'node:path';
 
 config({ path: join(__dirname, '..', '.env.local') }); // Load environment variables
 

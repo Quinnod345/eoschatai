@@ -29,11 +29,17 @@ export default async function ChatPage({
   const params = await searchParams;
 
   // Handle document context if provided - we'll pass this as a prop to trigger auto-submission
-  let documentContext = null;
+  let documentContext: {
+    type: 'ai-document' | 'user-document';
+    id: string;
+    title: string;
+    message: string;
+  } | null = null;
+
   if (params.documentId && params.documentTitle) {
     // AI-generated document
     documentContext = {
-      type: 'ai-document',
+      type: 'ai-document' as const,
       id: params.documentId,
       title: params.documentTitle,
       message: `I'd like to discuss the document "${params.documentTitle}". Please help me understand and work with this document.`,
@@ -41,7 +47,7 @@ export default async function ChatPage({
   } else if (params.userDocumentId && params.documentTitle) {
     // User-uploaded document
     documentContext = {
-      type: 'user-document',
+      type: 'user-document' as const,
       id: params.userDocumentId,
       title: params.documentTitle,
       message: `I'd like to discuss the document "${params.documentTitle}". This is a document I uploaded. Please help me understand and work with this document.`,

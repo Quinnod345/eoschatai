@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { google } from 'googleapis';
-import { addDays, format, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { addDays, format, startOfDay, endOfDay, } from 'date-fns';
 import type { calendar_v3 } from 'googleapis';
 
 // Type definitions
@@ -67,7 +67,7 @@ async function checkConflicts(
 async function findFreeSlots(
   calendar: calendar_v3.Calendar,
   duration: number, // in minutes
-  searchDays: number = 7,
+  searchDays = 7,
 ): Promise<TimeSlot[]> {
   const now = new Date();
   const endSearch = addDays(now, searchDays);
@@ -530,7 +530,7 @@ export const parseNaturalLanguageEventTool = {
 
     // Parse duration
     if (durationMatch) {
-      const value = parseInt(durationMatch[1]);
+      const value = Number.parseInt(durationMatch[1]);
       const unit = durationMatch[2].toLowerCase();
       parsed.durationMinutes = unit.includes('hour') ? value * 60 : value;
     }

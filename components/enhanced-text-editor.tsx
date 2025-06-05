@@ -2,14 +2,13 @@
 
 import { exampleSetup } from 'prosemirror-example-setup';
 import { inputRules } from 'prosemirror-inputrules';
-import { EditorState, Selection, TextSelection } from 'prosemirror-state';
+import { EditorState, } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import React, { memo, useEffect, useRef, useState, useCallback } from 'react';
 
 import type { Suggestion } from '@/lib/db/schema';
 import {
   documentSchema,
-  handleTransaction,
   headingRule,
 } from '@/lib/editor/config';
 import {
@@ -23,7 +22,7 @@ import {
   suggestionsPluginKey,
 } from '@/lib/editor/suggestions';
 import { Button } from './ui/button';
-import { EditIcon, SparklesIcon, UndoIcon, RedoIcon } from './icons';
+import { SparklesIcon, } from './icons';
 import { toast } from 'sonner';
 
 type EnhancedEditorProps = {

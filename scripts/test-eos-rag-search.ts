@@ -16,7 +16,7 @@ const getUpstashClient = () => {
     throw new Error('Missing UPSTASH_USER_RAG credentials');
   }
 
-  console.log('Using Upstash URL:', url.substring(0, 30) + '...');
+  console.log('Using Upstash URL:', `${url.substring(0, 30)}...`);
 
   return new Index({
     url,

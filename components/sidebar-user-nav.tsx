@@ -1,14 +1,12 @@
 'use client';
 
-import { ChevronUp, User, FileText, Globe, Sparkles } from 'lucide-react';
-import Image from 'next/image';
+import { User, Globe, Sparkles } from 'lucide-react';
 import type { User as NextAuthUser } from 'next-auth';
-import { signOut, useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-system';
-import { LoaderIcon, SettingsIcon } from './icons';
 import { guestRegex } from '@/lib/constants';
 import { SettingsModal } from './settings-modal';
 import { DocumentContextModal } from './document-context-modal';
@@ -35,10 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  CreditCard,
-  Github,
   Keyboard,
-  LifeBuoy,
   LogOut,
   Settings,
 } from 'lucide-react';

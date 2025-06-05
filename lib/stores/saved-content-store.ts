@@ -187,26 +187,30 @@ export const useSavedContentStore = create<SavedContentState>()(
 
             // Rollback based on operation type
             switch (operation.type) {
-              case 'pin':
+              case 'pin': {
                 // Remove the optimistically added pin
                 const { chatId, messageId } = operation.rollbackData;
                 get().removePin(chatId, messageId);
                 break;
-              case 'unpin':
+              }
+              case 'unpin': {
                 // Re-add the optimistically removed pin
                 const { chatId: unpinChatId, pin } = operation.rollbackData;
                 get().addPin(unpinChatId, pin);
                 break;
-              case 'bookmark':
+              }
+              case 'bookmark': {
                 // Remove the optimistically added bookmark
                 const { chatId: bookmarkChatId } = operation.rollbackData;
                 get().removeBookmark(bookmarkChatId);
                 break;
-              case 'unbookmark':
+              }
+              case 'unbookmark': {
                 // Re-add the optimistically removed bookmark
                 const { bookmark } = operation.rollbackData;
                 get().addBookmark(bookmark);
                 break;
+              }
             }
 
             state.optimisticOperations.delete(id);

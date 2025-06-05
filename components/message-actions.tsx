@@ -108,7 +108,7 @@ export function PureMessageActions({
               className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
               variant="ghost"
               size="sm"
-              onClick={() => onReply?.(message.id, message.content)}
+              onClick={() => onReply?.(message.id)}
             >
               <MessageCircle className="h-3 w-3" />
             </Button>

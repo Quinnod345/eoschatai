@@ -123,7 +123,7 @@ function renderBarChart(canvas: HTMLCanvasElement, chartData: ChartData) {
     // Add gradient effect
     const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
     gradient.addColorStop(0, fillColor);
-    gradient.addColorStop(1, fillColor + '80'); // Add transparency
+    gradient.addColorStop(1, `${fillColor}80`); // Add transparency
 
     ctx.fillStyle = gradient;
     ctx.strokeStyle = strokeColor;
@@ -351,7 +351,7 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   const fillColor =
     typeof dataset.backgroundColor === 'string'
       ? dataset.backgroundColor
-      : defaultColors[0] + '20'; // Add transparency
+      : `${defaultColors[0]}20`; // Add transparency
 
   // Draw area fill if needed
   if (dataset.fill) {
@@ -575,8 +575,8 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   
   canvas.width = displayWidth * devicePixelRatio;
   canvas.height = displayHeight * devicePixelRatio;
-  canvas.style.width = displayWidth + 'px';
-  canvas.style.height = displayHeight + 'px';
+  canvas.style.width = `${displayWidth}px`;
+  canvas.style.height = `${displayHeight}px`;
   
   const ctx = canvas.getContext('2d');
   if (ctx) {

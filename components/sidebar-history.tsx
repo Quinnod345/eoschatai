@@ -23,7 +23,6 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
-  AnimatedSidebarGroup,
   AnimatedSidebarWrapper,
   AnimatedSidebarItem,
 } from '@/components/ui/animated-sidebar';

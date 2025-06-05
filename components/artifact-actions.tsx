@@ -11,7 +11,7 @@ interface ArtifactActionsProps {
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
   currentVersionIndex: number;
   isCurrentVersion: boolean;
-  mode: 'edit' | 'diff';
+  mode: 'edit' | 'diff' | 'changes';
   metadata: any;
   setMetadata: Dispatch<SetStateAction<any>>;
 }

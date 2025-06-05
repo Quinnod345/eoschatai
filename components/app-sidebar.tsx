@@ -6,7 +6,6 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { Search, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 
@@ -19,11 +18,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarInput,
   useSidebar,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { AnimatedSidebarWrapper } from '@/components/ui/animated-sidebar';
 import { AdvancedSearch } from '@/components/advanced-search';
 
 // Spring transition settings

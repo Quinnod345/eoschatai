@@ -1,17 +1,18 @@
 import { auth } from '@/app/(auth)/auth';
-import { createCustomProvider } from '@/lib/ai/providers';
+import { createCustomProvider, DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { chatModels } from '@/lib/ai/models';
 import { systemPrompt } from '@/lib/ai/prompts';
 import {
-  deleteChatById,
-  getChatById,
-  saveChat,
   saveMessages,
 } from '@/lib/db/queries';
-import { generateUUID, getTrailingMessageId } from '@/lib/utils';
-import { convertToCoreMessages, streamText, appendResponseMessages } from 'ai';
+import { generateUUID, } from '@/lib/utils';
+import { convertToCoreMessages, streamText, } from 'ai';
 import { z } from 'zod';
-import type { ArtifactContext } from '@/lib/ai/artifact-context';
+import { createDocument } from '@/lib/ai/tools/create-document';
+import { updateDocument } from '@/lib/ai/tools/update-document';
+import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
+import { getWeather } from '@/lib/ai/tools/get-weather';
+import { createDataStream } from 'ai';
 
 export const maxDuration = 60;
 
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
 
   // Enhanced system prompt with artifact awareness
   let enhancedSystemPrompt = await systemPrompt({
-    selectedProvider: model.provider,
+    selectedProvider: DEFAULT_PROVIDER,
     requestHints: {},
     ragContext: [],
     userId: session.user.id,
@@ -171,71 +172,73 @@ ARTIFACT EDITING RULES:
   }
 
   // Create a provider based on selected provider
-  const provider = createCustomProvider(model.provider);
+  const provider = createCustomProvider(DEFAULT_PROVIDER);
 
-  const result = await streamText({
-    model: provider(model.apiIdentifier),
-    system: enhancedSystemPrompt,
-    messages: coreMessages,
-    maxSteps: 5,
-    experimental_activeTools: [
-      'createDocument',
-      'updateDocument',
-      'requestSuggestions',
-      'getWeather',
-      'createCalendarEvent',
-    ],
-    experimental_telemetry: {
-      isEnabled: true,
-      functionId: 'stream-text',
-    },
-    onFinish: async ({ response }) => {
-      if (session.user?.id) {
-        try {
-          const assistantId = getTrailingMessageId({
-            messages: response.messages.filter(
-              (message) => message.role === 'assistant',
-            ),
-          });
+  // Create data stream for tool responses
+  const dataStream = createDataStream({
+    execute: async (dataStream) => {
+      const result = await streamText({
+        model: provider.languageModel(model.id),
+        system: enhancedSystemPrompt,
+        messages: coreMessages,
+        maxSteps: 5,
+        experimental_activeTools: [
+          'createDocument',
+          'updateDocument',
+          'requestSuggestions',
+          'getWeather',
+        ],
+        tools: {
+          getWeather,
+          createDocument: createDocument({ session, dataStream }),
+          updateDocument: updateDocument({ session, dataStream }),
+          requestSuggestions: requestSuggestions({ session, dataStream }),
+        },
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: 'stream-text',
+        },
+        onFinish: async ({ response }) => {
+          if (session.user?.id) {
+            try {
+              const assistantId = generateUUID();
 
-          if (!assistantId) {
-            throw new Error('No assistant message found!');
+              const assistantMessage =
+                response.messages[response.messages.length - 1];
+
+              if (assistantMessage && assistantMessage.role === 'assistant') {
+                await saveMessages({
+                  messages: [
+                    {
+                      id: assistantId,
+                      chatId: id,
+                      role: assistantMessage.role,
+                      parts: assistantMessage.content
+                        ? [{ type: 'text', text: assistantMessage.content }]
+                        : [],
+                      attachments: [],
+                      createdAt: new Date(),
+                      provider: DEFAULT_PROVIDER,
+                    },
+                  ],
+                });
+              }
+            } catch (error) {
+              console.error('Failed to save chat:', error);
+            }
           }
+        },
+      });
 
-          const [, assistantMessage] = appendResponseMessages({
-            messages: coreMessages,
-            responseMessages: response.messages,
-          });
-
-          await saveMessages({
-            messages: [
-              {
-                id: assistantId,
-                chatId: id,
-                role: assistantMessage.role,
-                parts: assistantMessage.parts,
-                attachments: assistantMessage.experimental_attachments ?? [],
-                createdAt: new Date(),
-                provider: model.provider,
-              },
-            ],
-          });
-        } catch (error) {
-          console.error('Failed to save chat:', error);
-        }
-      }
-    },
-    experimental_transform: {
-      wrapCallbackAsync: async (callback) => {
-        return callback();
-      },
+      result.mergeIntoDataStream(dataStream);
     },
   });
 
-  return result.toDataStreamResponse({
-    data: {
-      artifactContext: data?.artifactContext,
-      shouldEditArtifact: data?.shouldEditArtifact,
+  return new Response(dataStream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
     },
   });
 }

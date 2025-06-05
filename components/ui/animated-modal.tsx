@@ -5,14 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertDialog,
   AlertDialogContent,
-  AlertDialogPortal,
-  AlertDialogOverlay,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // Animation variants for the modal

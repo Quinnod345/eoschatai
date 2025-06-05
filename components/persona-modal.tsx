@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { LoaderIcon, UserIcon, ImageIcon } from '@/components/icons';
+import { UserIcon, ImageIcon } from '@/components/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageCropper } from '@/components/image-cropper';
 import { toast } from '@/lib/toast-system';
@@ -416,7 +416,7 @@ export function PersonaModal({
                             }}
                           />
                         ) : (
-                          <UserIcon className="h-8 w-8 text-muted-foreground/60" />
+                          <UserIcon size={32} />
                         )}
                       </div>
                       {uploadingIcon && (
@@ -431,13 +431,13 @@ export function PersonaModal({
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingIcon || (!isEditing && !persona?.id)}
+                        disabled={uploadingIcon || !isEditing}
                         className="flex items-center gap-2 hover:bg-accent/50 transition-colors duration-200"
                       >
-                        <ImageIcon className="h-4 w-4" />
+                        <ImageIcon size={16} />
                         {formData.iconUrl ? 'Change Icon' : 'Upload Icon'}
                       </Button>
-                      {!isEditing && !persona?.id && (
+                      {!isEditing && (
                         <p className="text-xs text-muted-foreground">
                           Save the persona first to upload an icon
                         </p>

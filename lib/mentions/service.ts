@@ -1,4 +1,4 @@
-import {
+import type {
   MentionResource,
   MentionInstance,
   MentionContext,
@@ -227,7 +227,7 @@ export class MentionService {
   async getSuggestions(
     query: string,
     context: MentionContext,
-    limit: number = 10,
+    limit = 10,
   ): Promise<MentionSuggestion[]> {
     const suggestions: MentionSuggestion[] = [];
 
@@ -375,7 +375,7 @@ export class MentionService {
     const instances: MentionInstance[] = [];
 
     switch (resource.type) {
-      case 'calendar':
+      case 'calendar': {
         // Fetch upcoming events
         const events = await this.fetchCalendarEvents(
           context.userId,
@@ -391,8 +391,9 @@ export class MentionService {
           });
         });
         break;
+      }
 
-      case 'document':
+      case 'document': {
         // Fetch user documents
         const docs = await this.fetchUserDocuments(context.userId, searchTerm);
         docs.forEach((doc) => {
@@ -405,8 +406,9 @@ export class MentionService {
           });
         });
         break;
+      }
 
-      case 'team':
+      case 'team': {
         // Fetch team members
         const members = await this.fetchTeamMembers(context.userId, searchTerm);
         members.forEach((member) => {
@@ -419,6 +421,7 @@ export class MentionService {
           });
         });
         break;
+      }
     }
 
     return instances;

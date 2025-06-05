@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, } from 'react';
 import { Pin, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
-import type { PinnedMessage, Message } from '@/lib/db/schema';
+import type { PinnedMessage, } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
@@ -43,7 +43,7 @@ export function PinnedMessagesBar({
         role: message.role,
       };
     })
-    .filter(Boolean);
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
   if (pinnedWithContent.length === 0) return null;
 
@@ -77,7 +77,7 @@ export function PinnedMessagesBar({
               <div className="flex items-center gap-1 text-xs text-muted-foreground truncate">
                 <span className="font-medium">Latest:</span>
                 <span className="truncate max-w-[300px]">
-                  {pinnedWithContent[0].content}
+                  {pinnedWithContent[0]?.content}
                 </span>
               </div>
             </div>
@@ -118,7 +118,7 @@ export function PinnedMessagesBar({
 
 interface PinnedWithContent extends PinnedMessage {
   content: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'data';
 }
 
 export function PinnedMessagesBarExpanded({

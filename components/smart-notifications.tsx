@@ -1,13 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   Bell,
-  FileText,
-  Users,
   AlertCircle,
   CheckCircle,
-  Calendar,
-  Target,
 } from 'lucide-react';
 
 interface Notification {

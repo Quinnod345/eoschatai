@@ -1,5 +1,4 @@
 import { createDocumentHandler } from '@/lib/artifacts/server';
-import { DataStreamWriter } from 'ai';
 
 interface ChartData {
   type: string;

@@ -18,14 +18,12 @@ import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
 import {
-  ArrowDown,
   ArrowUp,
   Paperclip,
   X,
   Square,
   Calendar,
   FileText,
-  Image,
   BarChart,
   Target,
   Mountain,
@@ -35,7 +33,6 @@ import {
   HelpCircle,
   List,
   Clock,
-  Command,
   Sparkles,
   ChevronRight,
 } from 'lucide-react';
@@ -51,7 +48,6 @@ import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import type { VisibilityType } from './visibility-selector';
 import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
-import { ModelSelector } from './model-selector';
 import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
 import {

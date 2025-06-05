@@ -12,7 +12,6 @@ import {
   bookmarkedChat,
 } from '@/lib/db/schema';
 import { desc, eq, and, or, like, gte, sql, inArray } from 'drizzle-orm';
-import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 export async function GET(request: NextRequest) {
   const session = await auth();

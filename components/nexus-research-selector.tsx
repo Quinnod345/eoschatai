@@ -12,10 +12,9 @@ import { cn } from '@/lib/utils';
 import {
   CheckCircleFillIcon,
   ChevronDownIcon,
-  BrainIcon,
   SearchIcon,
 } from './icons';
-import { Sparkles, Telescope, Compass, Microscope } from 'lucide-react';
+import { Telescope, } from 'lucide-react';
 
 export type ResearchMode = 'off' | 'nexus';
 

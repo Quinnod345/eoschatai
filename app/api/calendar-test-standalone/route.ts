@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 
 /**
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       // If we got HTML, log it
       if (response.headers.get('content-type')?.includes('text/html')) {
         const text = await response.text();
-        console.log('Received HTML response:', text.substring(0, 500) + '...');
+        console.log('Received HTML response:', `${text.substring(0, 500)}...`);
         return NextResponse.json(
           {
             error: 'Received HTML instead of JSON',

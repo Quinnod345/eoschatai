@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import { safeParseJson } from '@/lib/fetch-utils';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { googleCalendarToken, user } from '@/lib/db/schema';

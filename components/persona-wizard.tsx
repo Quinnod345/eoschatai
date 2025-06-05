@@ -23,10 +23,8 @@ import {
   ChevronRightIcon,
   ChevronLeftIcon,
   CheckIcon,
-  SparklesIcon,
   BrainIcon,
   FileTextIcon,
-  RocketIcon,
   WandIcon,
 } from '@/components/icons';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -853,7 +851,7 @@ export function PersonaWizard({
 
             {isLoadingDocuments ? (
               <div className="flex items-center gap-2 py-8 justify-center">
-                <LoaderIcon size={16} className="animate-spin text-primary" />
+                <div className="animate-spin text-primary"><LoaderIcon size={16} /></div>
                 <span className="text-sm text-muted-foreground">
                   Loading documents...
                 </span>
@@ -933,10 +931,9 @@ export function PersonaWizard({
                     className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-all duration-200 group"
                     onClick={() => documentFileInputRef.current?.click()}
                   >
-                    <FileTextIcon
-                      size={24}
-                      className="mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors"
-                    />
+                    <div className="mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors">
+                      <FileTextIcon size={24} />
+                    </div>
                     <p className="text-sm font-medium text-foreground">
                       Click to upload files
                     </p>
@@ -955,19 +952,17 @@ export function PersonaWizard({
                             className="flex items-center justify-between p-2 bg-muted/30 rounded-md text-sm"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <FileTextIcon
-                                size={14}
-                                className="text-primary"
-                              />
+                              <div className="text-primary">
+                                <FileTextIcon size={14} />
+                              </div>
                               <span className="truncate text-xs font-medium">
                                 {file.name}
                               </span>
                             </div>
                             {processingFiles.has(file.name) ? (
-                              <LoaderIcon
-                                size={14}
-                                className="animate-spin text-primary"
-                              />
+                              <div className="animate-spin text-primary">
+                                <LoaderIcon size={14} />
+                              </div>
                             ) : (
                               <Button
                                 type="button"
@@ -995,15 +990,16 @@ export function PersonaWizard({
                         >
                           {uploadingDocuments ? (
                             <>
-                              <LoaderIcon
-                                size={14}
-                                className="animate-spin mr-2"
-                              />
+                              <span className="animate-spin mr-2">
+                                <LoaderIcon size={14} />
+                              </span>
                               Processing...
                             </>
                           ) : (
                             <>
-                              <FileTextIcon size={14} className="mr-2" />
+                              <span className="mr-2">
+                                <FileTextIcon size={14} />
+                              </span>
                               Process Documents
                             </>
                           )}
@@ -1045,15 +1041,16 @@ export function PersonaWizard({
                           className="object-cover"
                         />
                       ) : (
-                        <UserIcon size={32} className="text-muted-foreground" />
+                        <div className="text-muted-foreground">
+                          <UserIcon size={32} />
+                        </div>
                       )}
                     </div>
                     {uploadingIcon && (
                       <div className="absolute inset-0 bg-background/80 rounded-full flex items-center justify-center">
-                        <LoaderIcon
-                          size={16}
-                          className="animate-spin text-primary"
-                        />
+                        <div className="animate-spin text-primary">
+                          <LoaderIcon size={16} />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1066,7 +1063,9 @@ export function PersonaWizard({
                       size="sm"
                       className="hover:border-primary/50"
                     >
-                      <ImageIcon size={14} className="mr-2" />
+                      <span className="mr-2">
+                        <ImageIcon size={14} />
+                      </span>
                       {tempIconUrl || formData.iconUrl
                         ? 'Change Icon'
                         : 'Upload Icon'}
@@ -1107,7 +1106,9 @@ export function PersonaWizard({
                         className="object-cover"
                       />
                     ) : (
-                      <UserIcon size={24} className="text-muted-foreground" />
+                      <div className="text-muted-foreground">
+                        <UserIcon size={24} />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1">
@@ -1297,7 +1298,9 @@ export function PersonaWizard({
               'Cancel'
             ) : (
               <>
-                <ChevronLeftIcon size={14} className="mr-1" />
+                <span className="mr-1">
+                  <ChevronLeftIcon size={14} />
+                </span>
                 Previous
               </>
             )}
@@ -1307,7 +1310,9 @@ export function PersonaWizard({
             {currentStep < WIZARD_STEPS.length - 1 ? (
               <Button onClick={handleNext} size="sm" className="shadow-sm">
                 Next
-                <ChevronRightIcon size={14} className="ml-1" />
+                <span className="ml-1">
+                  <ChevronRightIcon size={14} />
+                </span>
               </Button>
             ) : (
               <Button
@@ -1318,7 +1323,9 @@ export function PersonaWizard({
               >
                 {isLoading ? (
                   <>
-                    <LoaderIcon size={14} className="mr-2 animate-spin" />
+                    <span className="mr-2 animate-spin">
+                      <LoaderIcon size={14} />
+                    </span>
                     {isEditing ? 'Updating...' : 'Creating...'}
                   </>
                 ) : (

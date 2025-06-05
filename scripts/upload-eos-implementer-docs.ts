@@ -1,7 +1,6 @@
 import * as dotenv from 'dotenv';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 
 // Load environment variables from .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });

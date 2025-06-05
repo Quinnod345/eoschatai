@@ -30,10 +30,7 @@ export function EnhancedToastProvider() {
         },
         className: 'enhanced-toast',
         descriptionClassName: 'toast-description',
-        actionButtonClassName: 'toast-action',
-        cancelButtonClassName: 'toast-cancel',
       }}
-      cn={(classes) => `${classes} group`}
       icons={{
         success: <CheckCircle className="h-4 w-4 text-green-600" />,
         error: <X className="h-4 w-4 text-red-600" />,

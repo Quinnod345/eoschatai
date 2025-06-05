@@ -1,5 +1,5 @@
 import * as dotenv from 'dotenv';
-import path from 'path';
+import path from 'node:path';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -9,12 +9,12 @@ console.log('----------------------------');
 console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
 console.log(
   'DATABASE_URL value:',
-  process.env.DATABASE_URL?.substring(0, 50) + '...',
+  `${process.env.DATABASE_URL?.substring(0, 50)}...`,
 );
 console.log('POSTGRES_URL exists:', !!process.env.POSTGRES_URL);
 console.log(
   'POSTGRES_URL value:',
-  process.env.POSTGRES_URL?.substring(0, 50) + '...',
+  `${process.env.POSTGRES_URL?.substring(0, 50)}...`,
 );
 console.log('\nOther DB vars:');
 console.log('PGHOST:', process.env.PGHOST);
@@ -35,7 +35,7 @@ async function testConnection() {
 
     console.log(
       '\nAttempting connection with URL:',
-      dbUrl.substring(0, 50) + '...',
+      `${dbUrl.substring(0, 50)}...`,
     );
 
     // Create connection with explicit config

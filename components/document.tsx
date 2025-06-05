@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import Link from 'next/link';
 
 import type { ArtifactKind } from './artifact';
 import {

@@ -10,7 +10,6 @@ import {
   Copy,
   Share,
   Bookmark,
-  ThumbsUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 

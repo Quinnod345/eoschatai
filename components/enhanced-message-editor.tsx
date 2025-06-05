@@ -1,31 +1,27 @@
 'use client';
 
-import { ChatRequestOptions, Message } from 'ai';
+import type { Message } from 'ai';
 import { Button } from './ui/button';
 import {
-  Dispatch,
-  SetStateAction,
+  type Dispatch,
+  type SetStateAction,
   useEffect,
   useRef,
   useState,
   useCallback,
-  useMemo,
 } from 'react';
 import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
-import { UseChatHelpers } from '@ai-sdk/react';
-import { motion, AnimatePresence } from 'framer-motion';
+import type { UseChatHelpers } from '@ai-sdk/react';
+import { motion, } from 'framer-motion';
 import {
-  Save,
   X,
   Check,
   Undo2,
   Redo2,
   Type,
-  Sparkles,
   AlertCircle,
   Loader2,
-  Command,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';

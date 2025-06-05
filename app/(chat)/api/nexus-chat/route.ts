@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { createDataStream } from 'ai';
 import { searchWeb } from '@/lib/web-search';
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
           // Execute searches with progress tracking
           for (let i = 0; i < searchQueries.length; i++) {
             const searchQuery = searchQueries[i];
-            
+
             writer.writeData({
               type: 'nexus-search-progress',
               currentSearch: searchQuery,
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
                   searchIndex: i,
                   query: searchQuery,
                   status: progress.status,
-                  sitesFound: progress.sitesFound,
-                  error: progress.error,
+                  sitesFound: progress.sitesFound ?? 0,
+                  error: progress.error ?? null,
                 });
               });
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
                 writer.writeData({
                   type: 'nexus-sites-found',
                   searchIndex: i,
-                  sites: results.map(r => ({
+                  sites: results.map((r) => ({
                     url: r.url,
                     title: r.title,
                   })),
@@ -60,7 +60,10 @@ export async function POST(request: NextRequest) {
               allResults.push(...results);
               completedSearches++;
             } catch (error) {
-              console.error(`[Nexus] Search failed for "${searchQuery}":`, error);
+              console.error(
+                `[Nexus] Search failed for "${searchQuery}":`,
+                error,
+              );
               writer.writeData({
                 type: 'nexus-search-error',
                 searchIndex: i,
@@ -95,13 +98,19 @@ export async function POST(request: NextRequest) {
         return error instanceof Error ? error.message : 'Unknown error';
       },
     });
-    
-    return stream.toDataStreamResponse();
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
   } catch (error) {
     console.error('[Nexus] Request error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to process request' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
     );
   }
 }

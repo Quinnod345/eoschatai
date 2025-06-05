@@ -1,4 +1,4 @@
-import { type MentionType } from './mention-processor';
+import type { MentionType } from './mention-processor';
 
 interface DetectedMention {
   type: MentionType;
@@ -14,51 +14,51 @@ export class SmartMentionDetector {
     const lowerMessage = message.toLowerCase();
 
     // Calendar-related detection
-    if (this.hasCalendarIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasCalendarIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'calendar',
-        confidence: this.getCalendarConfidence(lowerMessage),
-        trigger: this.extractCalendarTrigger(lowerMessage),
+        confidence: SmartMentionDetector.getCalendarConfidence(lowerMessage),
+        trigger: SmartMentionDetector.extractCalendarTrigger(lowerMessage),
         context: 'User is discussing calendar/scheduling',
       });
     }
 
     // Availability detection
-    if (this.hasAvailabilityIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasAvailabilityIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'availability',
-        confidence: this.getAvailabilityConfidence(lowerMessage),
-        trigger: this.extractAvailabilityTrigger(lowerMessage),
+        confidence: SmartMentionDetector.getAvailabilityConfidence(lowerMessage),
+        trigger: SmartMentionDetector.extractAvailabilityTrigger(lowerMessage),
         context: 'User wants to find free time',
       });
     }
 
     // Analysis detection
-    if (this.hasAnalysisIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasAnalysisIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'analyze',
-        confidence: this.getAnalysisConfidence(lowerMessage),
-        trigger: this.extractAnalysisTrigger(lowerMessage),
+        confidence: SmartMentionDetector.getAnalysisConfidence(lowerMessage),
+        trigger: SmartMentionDetector.extractAnalysisTrigger(lowerMessage),
         context: 'User wants data analysis',
       });
     }
 
     // Document detection
-    if (this.hasDocumentIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasDocumentIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'document',
-        confidence: this.getDocumentConfidence(lowerMessage),
-        trigger: this.extractDocumentTrigger(lowerMessage),
+        confidence: SmartMentionDetector.getDocumentConfidence(lowerMessage),
+        trigger: SmartMentionDetector.extractDocumentTrigger(lowerMessage),
         context: 'User is asking about documents',
       });
     }
 
     // EOS-specific detections
-    if (this.hasScorecardIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasScorecardIntent(lowerMessage)) {
       detectedMentions.push({
         type: 'scorecard',
-        confidence: this.getScorecardConfidence(lowerMessage),
-        trigger: this.extractScorecardTrigger(lowerMessage),
+        confidence: SmartMentionDetector.getScorecardConfidence(lowerMessage),
+        trigger: SmartMentionDetector.extractScorecardTrigger(lowerMessage),
         context: 'User is asking about EOS Scorecard',
       });
     }
@@ -200,7 +200,7 @@ export class SmartMentionDetector {
     const lowerMessage = message.toLowerCase();
 
     // Calendar suggestions
-    if (this.hasCalendarIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasCalendarIntent(lowerMessage)) {
       if (!message.includes('@')) {
         suggestions.push('💡 Tip: Use @cal to quickly access your calendar');
       }
@@ -210,14 +210,14 @@ export class SmartMentionDetector {
     }
 
     // Analysis suggestions
-    if (this.hasAnalysisIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasAnalysisIntent(lowerMessage)) {
       if (!message.includes('@')) {
         suggestions.push('💡 Tip: Use @analyze for detailed insights');
       }
     }
 
     // Document suggestions
-    if (this.hasDocumentIntent(lowerMessage)) {
+    if (SmartMentionDetector.hasDocumentIntent(lowerMessage)) {
       if (!message.includes('@')) {
         suggestions.push('💡 Tip: Use @doc to search your documents');
       }
@@ -228,7 +228,7 @@ export class SmartMentionDetector {
 
   // Check if message would benefit from explicit mentions
   static shouldSuggestMentions(message: string): boolean {
-    const implicitMentions = this.detectImplicitMentions(message);
+    const implicitMentions = SmartMentionDetector.detectImplicitMentions(message);
     return implicitMentions.length > 0 && !message.includes('@');
   }
 }

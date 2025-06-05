@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   MentionService,
   type MentionResource,
@@ -60,11 +60,10 @@ export function useEnhancedMentions({
         case 'calendar':
           try {
             const response = await fetch(
-              `/api/calendar/events?` +
-                new URLSearchParams({
+              `/api/calendar/events?${new URLSearchParams({
                   searchTerm,
                   maxResults: '5',
-                }),
+                })}`,
             );
             if (response.ok) {
               const events = await response.json();
@@ -84,11 +83,10 @@ export function useEnhancedMentions({
         case 'document':
           try {
             const response = await fetch(
-              `/api/documents?` +
-                new URLSearchParams({
+              `/api/documents?${new URLSearchParams({
                   search: searchTerm,
                   limit: '5',
-                }),
+                })}`,
             );
             if (response.ok) {
               const docs = await response.json();
@@ -96,7 +94,7 @@ export function useEnhancedMentions({
                 id: `doc-${doc.id}`,
                 name: doc.title,
                 description: doc.kind,
-                preview: doc.content?.substring(0, 100) + '...',
+                preview: `${doc.content?.substring(0, 100)}...`,
                 metadata: { document: doc },
               }));
             }
@@ -129,7 +127,7 @@ export function useEnhancedMentions({
         // Apply category filter
         if (activeCategory !== 'all') {
           baseSuggestions = baseSuggestions.filter(
-            (s) => s.resource.category === activeCategory,
+            (s) => 'category' in s.resource && s.resource.category === activeCategory,
           );
         }
 
@@ -144,20 +142,20 @@ export function useEnhancedMentions({
         // Enhance with dynamic data for top suggestions
         const enhancedSuggestions = await Promise.all(
           baseSuggestions.slice(0, 3).map(async (suggestion) => {
-            if (suggestion.resource.isDynamic) {
+            if ('isDynamic' in suggestion.resource && suggestion.resource.isDynamic) {
               const dynamicInstances = await fetchDynamicData(
                 suggestion.resource.type,
                 searchQuery,
               );
 
               // Add dynamic instances as separate suggestions
-              const instanceSuggestions = dynamicInstances.map((instance) => ({
+              const instanceSuggestions = dynamicInstances.map((instance: any) => ({
                 resource: {
                   ...instance,
-                  type: suggestion.resource.type,
-                  category: suggestion.resource.category,
-                  icon: suggestion.resource.icon,
-                  color: suggestion.resource.color,
+                  type: ('type' in suggestion.resource ? suggestion.resource.type : 'document'),
+                  category: ('category' in suggestion.resource ? suggestion.resource.category : 'resource'),
+                  icon: ('icon' in suggestion.resource ? suggestion.resource.icon : 'document'),
+                  color: ('color' in suggestion.resource ? suggestion.resource.color : undefined),
                 } as MentionInstance,
                 relevanceScore: suggestion.relevanceScore * 0.9,
                 reason: 'Specific item',
@@ -247,7 +245,7 @@ export function useEnhancedMentions({
           e.preventDefault();
           setIsOpen(false);
           break;
-        case 'Tab':
+        case 'Tab': {
           e.preventDefault();
           // Cycle through categories
           const categories = [
@@ -258,6 +256,7 @@ export function useEnhancedMentions({
           const nextIndex = (currentIndex + 1) % categories.length;
           setActiveCategory(categories[nextIndex] as MentionCategory | 'all');
           break;
+        }
       }
     },
     [isOpen, suggestions, selectedIndex, selectMention, activeCategory],
@@ -303,14 +302,14 @@ export function useEnhancedMentions({
 
       selectedMentions.forEach((mention) => {
         // Add mention marker to text if not already present
-        const mentionMarker = `@${mention.type}:${mention.id}`;
+        const mentionMarker = `@${(mention as any).type || 'unknown'}:${mention.id}`;
         if (!formattedText.includes(mentionMarker)) {
           formattedText += ` ${mentionMarker}`;
         }
 
         // Collect mention data
         mentionData.push({
-          type: mention.type,
+          type: (mention as any).type || 'unknown',
           id: mention.id,
           name: mention.name,
         });

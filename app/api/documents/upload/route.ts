@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth } from '@/app/(auth)/auth';
-import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
-import { z } from 'zod';
 import * as XLSX from 'xlsx';
-import { Readable } from 'node:stream';
 import JSZip from 'jszip';
 import { sql } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';

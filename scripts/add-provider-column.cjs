@@ -1,6 +1,6 @@
 const postgres = require('postgres');
 const dotenv = require('dotenv');
-const fs = require('fs');
+const fs = require('node:fs');
 
 // Load env vars
 dotenv.config({ path: '.env.local' });

@@ -12,18 +12,15 @@ import {
   useState,
 } from 'react';
 
-import { sanitizeUIMessages } from '@/lib/utils';
-
 import {
   ArrowUpIcon,
   PaperclipIcon,
   StopIcon,
-  EditIcon,
+  PencilEditIcon,
   SparklesIcon,
 } from './icons';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { useEnhancedChat } from '@/hooks/use-enhanced-chat';
 import { useArtifact } from '@/hooks/use-artifact';
 import {
   detectEditIntent,
@@ -106,7 +103,7 @@ function PureEnhancedMultimodalInput({
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
 
-        if (status === 'in_progress') {
+        if (status === 'streaming') {
           stop();
         } else {
           handleSubmit(event);
@@ -153,7 +150,6 @@ function PureEnhancedMultimodalInput({
       setAttachments((currentAttachments) => [
         ...currentAttachments,
         ...files.map((file) => ({
-          id: file.name,
           name: file.name,
           url: '',
           contentType: file.type,
@@ -200,7 +196,6 @@ function PureEnhancedMultimodalInput({
           setAttachments((currentAttachments) => [
             ...currentAttachments,
             ...files.map((file) => ({
-              id: file.name,
               name: file.name,
               url: '',
               contentType: file.type,
@@ -213,7 +208,9 @@ function PureEnhancedMultimodalInput({
               const uploadedAttachment = await uploadFile(file);
               setAttachments((currentAttachments) =>
                 currentAttachments.map((attachment) =>
-                  attachment.id === file.name ? uploadedAttachment : attachment,
+                  attachment.name === file.name
+                    ? uploadedAttachment
+                    : attachment,
                 ),
               );
             } catch (error) {
@@ -231,7 +228,7 @@ function PureEnhancedMultimodalInput({
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      if (status === 'in_progress') {
+      if (status === 'streaming') {
         stop();
         return;
       }
@@ -258,7 +255,7 @@ function PureEnhancedMultimodalInput({
           };
         case 'modify':
           return {
-            icon: <EditIcon size={14} />,
+            icon: <PencilEditIcon size={14} />,
             text: 'Will modify artifact',
             color: 'text-orange-600 dark:text-orange-400',
             bgColor: 'bg-orange-50 dark:bg-orange-950',
@@ -274,7 +271,7 @@ function PureEnhancedMultimodalInput({
           };
         case 'fix':
           return {
-            icon: <EditIcon size={14} />,
+            icon: <PencilEditIcon size={14} />,
             text: 'Will fix artifact',
             color: 'text-red-600 dark:text-red-400',
             bgColor: 'bg-red-50 dark:bg-red-950',
@@ -282,7 +279,7 @@ function PureEnhancedMultimodalInput({
           };
         default:
           return {
-            icon: <EditIcon size={14} />,
+            icon: <PencilEditIcon size={14} />,
             text: 'Will edit artifact',
             color: 'text-purple-600 dark:text-purple-400',
             bgColor: 'bg-purple-50 dark:bg-purple-950',
@@ -360,7 +357,7 @@ function PureEnhancedMultimodalInput({
           <div className="flex flex-row gap-2 absolute bottom-2 left-2">
             {attachments.map((attachment) => (
               <div
-                key={attachment.id}
+                key={attachment.name}
                 className="flex flex-col items-center justify-center w-16 h-16 bg-muted rounded-md relative"
               >
                 {attachment.contentType?.startsWith('image/') ? (
@@ -379,7 +376,7 @@ function PureEnhancedMultimodalInput({
                   className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs"
                   onClick={() => {
                     setAttachments((prev) =>
-                      prev.filter((a) => a.id !== attachment.id),
+                      prev.filter((a) => a.name !== attachment.name),
                     );
                   }}
                 >
@@ -397,7 +394,7 @@ function PureEnhancedMultimodalInput({
             size="icon"
             className="size-8 rounded-full"
             onClick={() => fileInputRef.current?.click()}
-            disabled={status === 'in_progress'}
+            disabled={status === 'streaming'}
           >
             <PaperclipIcon size={14} />
           </Button>
@@ -405,10 +402,10 @@ function PureEnhancedMultimodalInput({
           <Button
             type="submit"
             size="icon"
-            disabled={input.length === 0 || status === 'in_progress'}
+            disabled={input.length === 0 || status === 'streaming'}
             className="size-8 rounded-full"
           >
-            {status === 'in_progress' ? (
+            {status === 'streaming' ? (
               <StopIcon size={14} />
             ) : (
               <ArrowUpIcon size={14} />

@@ -1,6 +1,6 @@
 import { embed, embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { Index, type QueryResult } from '@upstash/vector';
+import { Index, } from '@upstash/vector';
 import dotenv from 'dotenv';
 import path from 'node:path';
 

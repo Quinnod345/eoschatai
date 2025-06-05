@@ -10,7 +10,6 @@ import {
   useCallback,
   useEffect,
   useState,
-  useRef,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -33,7 +32,7 @@ import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
 import { Button } from './ui/button';
-import { UndoIcon, RedoIcon, SaveIcon, EditIcon } from './icons';
+import { UndoIcon, RedoIcon, ShareIcon, PencilEditIcon } from './icons';
 import { toast } from 'sonner';
 
 export const artifactDefinitions = [
@@ -540,7 +539,7 @@ function PureEnhancedArtifact({
         disabled={!enhancedState.isDirty}
         className="flex items-center gap-1"
       >
-        <SaveIcon size={14} />
+        <ShareIcon size={14} />
         Save
       </Button>
 
@@ -578,7 +577,7 @@ function PureEnhancedArtifact({
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <EditIcon size={14} />
+                <PencilEditIcon size={14} />
                 <span className="text-sm font-medium">
                   {change.description}
                 </span>

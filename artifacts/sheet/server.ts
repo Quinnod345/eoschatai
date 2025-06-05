@@ -1,4 +1,4 @@
-import { myProvider } from '@/lib/ai/providers';
+import { createCustomProvider } from '@/lib/ai/providers';
 import { sheetPrompt, inlineEditPrompt } from '@/lib/ai/prompts';
 import { createDocumentHandler } from '@/lib/artifacts/server';
 import { streamObject } from 'ai';
@@ -9,8 +9,9 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
   onCreateDocument: async ({ title, dataStream }) => {
     let draftContent = '';
 
+    const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: myProvider.languageModel('artifact-model'),
+      model: provider.languageModel('artifact-model'),
       system: sheetPrompt,
       prompt: title,
       schema: z.object({
@@ -46,8 +47,9 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
   onUpdateDocument: async ({ document, description, dataStream }) => {
     let draftContent = '';
 
+    const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: myProvider.languageModel('artifact-model'),
+      model: provider.languageModel('artifact-model'),
       system: inlineEditPrompt(document.content || '', description, 'sheet'),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({

@@ -107,7 +107,7 @@ export const findRelevantUserContentWorkaround = async (
             includeVectors: true,
           });
 
-          if (vectorResult && vectorResult[0] && vectorResult[0].vector) {
+          if (vectorResult?.[0]?.vector) {
             const vector = vectorResult[0];
             foundChunks++;
 

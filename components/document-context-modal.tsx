@@ -2,17 +2,12 @@
 
 import * as React from 'react';
 import {
-  AlertDialog,
-  AlertDialogContent,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogCancel,
   AlertDialogDescription,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from '@/lib/toast-system';
 import { useSession } from 'next-auth/react';
@@ -22,9 +17,6 @@ import {
   Upload,
   Trash2,
   FileText,
-  ArrowUp,
-  Check,
-  X,
   FileSpreadsheet,
   FileImage,
   File,

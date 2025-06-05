@@ -1,13 +1,11 @@
 'use client';
-
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useWindowSize } from 'usehooks-ts';
 import { useState, useEffect } from 'react';
 
 import { SidebarToggle } from '@/components/sidebar-toggle';
 import { Button } from '@/components/ui/button';
-import { PlusIcon, VercelIcon } from './icons';
+import { PlusIcon, } from './icons';
 import { useSidebar } from './ui/sidebar';
 import { memo } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
@@ -23,7 +21,6 @@ import { Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SavedContentDropdown } from '@/components/saved-content-dropdown';
-import type { PinnedMessage } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 
 function PureChatHeader({
@@ -238,8 +235,8 @@ function PureChatHeader({
 
         {/* EOS Profiles Dropdown - only show when a persona is selected */}
         <ProfilesDropdown
-          selectedPersonaId={selectedPersonaId}
-          selectedProfileId={selectedProfileId}
+          selectedPersonaId={selectedPersonaId || null}
+          selectedProfileId={selectedProfileId || null}
           onProfileSelect={handleProfileSelect}
           onCreateProfile={handleCreateProfile}
           onEditProfile={handleEditProfile}

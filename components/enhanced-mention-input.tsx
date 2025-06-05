@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, } from 'react';
 import {
   Calendar,
   FileText,
@@ -19,7 +19,6 @@ import {
   Sparkles,
   X,
   ChevronRight,
-  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -158,7 +157,13 @@ export function EnhancedMentionInput({
       const filtered =
         activeCategory === 'all'
           ? results
-          : results.filter((s) => s.resource.category === activeCategory);
+          : results.filter((s) => {
+              // Only MentionResource has category, not MentionInstance
+              if ('category' in s.resource) {
+                return s.resource.category === activeCategory;
+              }
+              return false;
+            });
 
       setSuggestions(filtered);
       setSelectedIndex(0);
@@ -180,7 +185,11 @@ export function EnhancedMentionInput({
     mentionService.current.recordMentionUsage(userId, resource);
 
     // Handle special commands
-    if (resource.type === 'help' && resource.id.startsWith('@')) {
+    if (
+      'type' in resource &&
+      resource.type === 'help' &&
+      resource.id.startsWith('@')
+    ) {
       // Execute command instead of adding as mention
       handleCommand(resource.id);
       return;
@@ -263,7 +272,7 @@ export function EnhancedMentionInput({
         e.preventDefault();
         closeMentions();
         break;
-      case 'Tab':
+      case 'Tab': {
         e.preventDefault();
         // Cycle through categories
         const categories = ['all', ...mentionService.current.getCategories()];
@@ -271,6 +280,7 @@ export function EnhancedMentionInput({
         const nextIndex = (currentIndex + 1) % categories.length;
         setActiveCategory(categories[nextIndex] as MentionCategory | 'all');
         break;
+      }
     }
   };
 
@@ -301,14 +311,14 @@ export function EnhancedMentionInput({
       {selectedMentions.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {selectedMentions.map((mention, index) => {
-            const Icon = getIcon(mention.icon || 'FileText');
+            const Icon = getIcon('icon' in mention ? mention.icon : 'FileText');
             return (
               <Badge
                 key={`${mention.id}-${index}`}
                 variant="secondary"
                 className={cn(
                   'flex items-center gap-1.5 pr-1',
-                  `text-${mention.color || 'gray'}-600 dark:text-${mention.color || 'gray'}-400`,
+                  `text-${'color' in mention && mention.color ? mention.color : 'gray'}-600 dark:text-${'color' in mention && mention.color ? mention.color : 'gray'}-400`,
                 )}
               >
                 <Icon className="h-3 w-3" />
@@ -400,15 +410,23 @@ export function EnhancedMentionInput({
             ) : (
               <div className="py-1">
                 {suggestions.map((suggestion, index) => {
-                  const Icon = getIcon(suggestion.resource.icon || 'FileText');
+                  const Icon = getIcon(
+                    'icon' in suggestion.resource
+                      ? suggestion.resource.icon
+                      : 'FileText',
+                  );
                   const isSelected = index === selectedIndex;
                   const color =
-                    suggestion.resource.color ||
-                    getCategoryColor(suggestion.resource.category);
+                    ('color' in suggestion.resource &&
+                      suggestion.resource.color) ||
+                    ('category' in suggestion.resource
+                      ? getCategoryColor(suggestion.resource.category)
+                      : 'gray');
 
                   return (
                     <button
                       key={suggestion.resource.id}
+                      type="button"
                       className={cn(
                         'w-full px-3 py-2 text-left flex items-start gap-3',
                         'hover:bg-accent transition-colors',
@@ -435,17 +453,20 @@ export function EnhancedMentionInput({
                           <span className="font-medium text-sm">
                             {suggestion.resource.name}
                           </span>
-                          {suggestion.resource.shortcut && (
-                            <code className="text-xs px-1 py-0.5 rounded bg-muted">
-                              {suggestion.resource.shortcut}
-                            </code>
-                          )}
+                          {'shortcut' in suggestion.resource &&
+                            suggestion.resource.shortcut && (
+                              <code className="text-xs px-1 py-0.5 rounded bg-muted">
+                                {suggestion.resource.shortcut}
+                              </code>
+                            )}
                           {suggestion.relevanceScore > 0.8 && (
                             <Sparkles className="h-3 w-3 text-yellow-500" />
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {suggestion.resource.description}
+                          {'description' in suggestion.resource
+                            ? suggestion.resource.description
+                            : ''}
                         </p>
                         {suggestion.reason && (
                           <p className="text-xs text-muted-foreground mt-1 italic">
