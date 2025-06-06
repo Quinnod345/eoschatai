@@ -622,11 +622,11 @@ export const FEATURES: Feature[] = [
     isNew: true,
     icon: 'Sparkles',
     detailedDescription:
-      'Comprehensive animation system using GSAP, Framer Motion, and Locomotive Scroll to create smooth, professional interactions that enhance the user experience.',
+      'Comprehensive animation system using Framer Motion to create smooth, professional interactions that enhance the user experience.',
     benefits: [
-      'GSAP-powered entrance animations and transitions',
+      'Smooth entrance animations and transitions',
       'Framer Motion components for interactive elements',
-      'Locomotive Scroll for smooth scrolling experiences',
+      'Smooth scrolling experiences',
       'Performance-optimized animations with lazy loading',
       'Accessibility-friendly with reduced motion support',
       'Consistent animation language across the app',
@@ -647,7 +647,6 @@ export const FEATURES: Feature[] = [
     tags: [
       'animations',
       'ui',
-      'gsap',
       'framer-motion',
       'transitions',
       'polish',

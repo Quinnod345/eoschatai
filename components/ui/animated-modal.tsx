@@ -1,12 +1,21 @@
 'use client';
 
 import * as React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertDialog,
   AlertDialogContent,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+
+// Conditional imports to avoid SSR issues
+let motion: any;
+let AnimatePresence: any;
+
+if (typeof window !== 'undefined') {
+  const framerMotion = require('framer-motion');
+  motion = framerMotion.motion;
+  AnimatePresence = framerMotion.AnimatePresence;
+}
 
 // Animation variants for the modal
 const modalVariants = {
@@ -85,6 +94,32 @@ export function AnimatedModal({
       setIsClosing(true);
     }
   };
+
+  // Fallback for SSR
+  if (typeof window === 'undefined' || !motion || !AnimatePresence) {
+    return (
+      <AlertDialog
+        open={!isClosing && isOpen}
+        onOpenChange={handleOpenChange}
+      >
+        <AlertDialogContent
+          className={cn(
+            'p-0 border-none bg-transparent shadow-none max-h-[95vh] max-w-screen-md w-[95vw] sm:w-auto',
+            className,
+          )}
+        >
+          <div
+            className="w-full max-h-[90vh] mx-auto bg-background rounded-lg border shadow-md overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
+            style={{
+              overscrollBehavior: 'contain',
+            }}
+          >
+            {children}
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
 
   return (
     <AnimatePresence>

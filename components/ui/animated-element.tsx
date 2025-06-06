@@ -1,6 +1,19 @@
+'use client';
+
 import React from 'react';
-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { cn } from '@/lib/utils';
+
+// Conditional import to avoid SSR issues
+let motion: any;
+let HTMLMotionProps: any;
+let Variants: any;
+
+if (typeof window !== 'undefined') {
+  const framerMotion = require('framer-motion');
+  motion = framerMotion.motion;
+  HTMLMotionProps = framerMotion.HTMLMotionProps;
+  Variants = framerMotion.Variants;
+}
 
 // Animation presets using spring physics
 export const ANIMATION_PRESETS = {
@@ -103,8 +116,8 @@ export const HOVER_EFFECTS = {
   },
 };
 
-export interface AnimatedElementProps extends HTMLMotionProps<'div'> {
-  children: React.ReactNode;
+export interface AnimatedElementProps {
+  children?: React.ReactNode;
   className?: string;
   preset?: keyof typeof ANIMATION_PRESETS;
   hoverEffect?: keyof typeof HOVER_EFFECTS;
@@ -113,6 +126,7 @@ export interface AnimatedElementProps extends HTMLMotionProps<'div'> {
   as?: React.ElementType;
   staggerChildren?: boolean;
   staggerDelay?: number;
+  [key: string]: any; // Allow for any additional props
 }
 
 export const AnimatedElement: React.FC<AnimatedElementProps> = ({
@@ -127,6 +141,16 @@ export const AnimatedElement: React.FC<AnimatedElementProps> = ({
   staggerDelay = 0.05,
   ...props
 }) => {
+  // Fallback to regular elements during SSR
+  if (typeof window === 'undefined' || !motion) {
+    const Component = as as any;
+    return (
+      <Component className={cn(className)} {...props}>
+        {children}
+      </Component>
+    );
+  }
+
   // Use type assertion to properly handle the motion component
   const Component = (motion[as as keyof typeof motion] ||
     motion.div) as typeof motion.div;
@@ -145,7 +169,7 @@ export const AnimatedElement: React.FC<AnimatedElementProps> = ({
     : customTransition;
 
   // Set up children staggering if enabled
-  const staggerVariants: Variants = staggerChildren
+  const staggerVariants: any = staggerChildren
     ? {
         animate: {
           transition: {

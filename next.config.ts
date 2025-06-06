@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     ppr: true,
     optimizePackageImports: [
       'lucide-react',
-      'framer-motion',
       '@radix-ui/react-icons',
       'react-markdown',
       'codemirror',
@@ -41,7 +40,22 @@ const nextConfig: NextConfig = {
         : false,
   },
   productionBrowserSourceMaps: false,
-  webpack: (config, { isServer, dev }) => {
+  webpack: (config, { isServer, dev, webpack }) => {
+    // Handle self reference for server-side builds
+    if (isServer) {
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          self: 'undefined',
+        }),
+      );
+      
+      // Externalize framer-motion for server builds
+      if (!config.externals) {
+        config.externals = [];
+      }
+      config.externals.push('framer-motion');
+    }
+    
     if (!dev) {
       if (!config.externals) {
         config.externals = [];

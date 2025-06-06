@@ -4,33 +4,19 @@ import { useEffect, useRef } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
 export default function ChatAnimationContainer() {
-  // Create references
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const heroTextRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mobileVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Create context ref to store the gsap context
-  const ctxRef = useRef<any>(null);
-
-  // Detect if mobile - MUST be called every render
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Always call useEffect regardless of mobile or desktop
   useEffect(() => {
-    // Skip GSAP initialization for mobile
-    if (isMobile) {
-      // Simple initialization for mobile video
-      if (mobileVideoRef.current) {
-        mobileVideoRef.current.play().catch((err) => {
-          console.log('Mobile video autoplay prevented:', err);
-        });
-      }
-      return;
+    // Handle video autoplay
+    const currentVideoRef = isMobile ? mobileVideoRef : videoRef;
+    if (currentVideoRef.current) {
+      currentVideoRef.current.play().catch((err) => {
+        console.log('Video autoplay prevented:', err);
+      });
     }
-
-    // GSAP animations temporarily disabled for build
-    console.log('GSAP animations disabled temporarily');
   }, [isMobile]);
 
   if (isMobile) {
