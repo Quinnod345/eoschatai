@@ -34,22 +34,22 @@ export function useWebSearchProgress() {
 
   const [citations, setCitations] = useState<CitationReference[]>([]);
 
-  // Listen for nexus-clear events to reset all search-related state
+  // Listen for mode-clear events to reset all search-related state
   useEffect(() => {
-    const handleNexusClear = (event: Event) => {
+    const handleModeClear = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { previousMode, newMode } = customEvent.detail || {};
 
-      console.log('[WebSearchProgress] Nexus clear event received:', {
+      console.log('[WebSearchProgress] Mode clear event received:', {
         previousMode,
         newMode,
         timestamp: new Date().toISOString(),
       });
 
-      // Only clear if switching from nexus to standard mode
-      if (previousMode === 'nexus' && newMode === 'off') {
+      // Clear search state for any mode transition to ensure clean slate
+      if (previousMode !== newMode) {
         console.log(
-          '[WebSearchProgress] Clearing all search progress and citations',
+          `[WebSearchProgress] Clearing all search progress and citations for ${previousMode} → ${newMode} transition`,
         );
 
         // Reset search progress to initial state
@@ -70,11 +70,11 @@ export function useWebSearchProgress() {
     };
 
     // Add the event listener
-    window.addEventListener('nexus-clear', handleNexusClear);
+    window.addEventListener('mode-clear', handleModeClear);
 
     // Cleanup
     return () => {
-      window.removeEventListener('nexus-clear', handleNexusClear);
+      window.removeEventListener('mode-clear', handleModeClear);
     };
   }, []);
 

@@ -92,9 +92,9 @@ export function Chat({
     });
   }, [selectedResearchMode, id]);
 
-  // Listen for nexus-clear events to ensure complete state reset
+  // Listen for mode-clear events to ensure complete state reset
   useEffect(() => {
-    const handleNexusClear = (event: Event) => {
+    const handleModeClear = (event: Event) => {
       const customEvent = event as CustomEvent;
       const {
         chatId: eventChatId,
@@ -102,7 +102,7 @@ export function Chat({
         newMode,
       } = customEvent.detail || {};
 
-      console.log('[Chat] Nexus clear event received:', {
+      console.log('[Chat] Mode clear event received:', {
         eventChatId,
         currentChatId: id,
         previousMode,
@@ -112,7 +112,9 @@ export function Chat({
 
       // Only process if this is for our chat
       if (eventChatId === id) {
-        console.log('[Chat] Processing nexus clear for this chat');
+        console.log(
+          `[Chat] Processing mode clear for this chat: ${previousMode} → ${newMode}`,
+        );
 
         // Force re-render by updating a state that doesn't affect functionality
         // This ensures any stale state is completely refreshed
@@ -123,7 +125,7 @@ export function Chat({
           // Clear any component-specific state that might persist
           console.log('[Chat] Performing additional component cleanup');
 
-          // Reset any message-specific state that might have nexus context
+          // Reset any message-specific state that might have mode-specific context
           // This is a safety measure to ensure complete clean slate
         } catch (cleanupError) {
           console.warn('[Chat] Error in additional cleanup:', cleanupError);
@@ -132,11 +134,11 @@ export function Chat({
     };
 
     // Add the event listener
-    window.addEventListener('nexus-clear', handleNexusClear);
+    window.addEventListener('mode-clear', handleModeClear);
 
     // Cleanup
     return () => {
-      window.removeEventListener('nexus-clear', handleNexusClear);
+      window.removeEventListener('mode-clear', handleModeClear);
     };
   }, [id]);
 
@@ -1205,36 +1207,46 @@ export function Chat({
         // Set loading state
         setResearchModeChanging(true);
 
-        // CRITICAL: When switching from Nexus to Standard mode, clear all caches
-        if (previousMode === 'nexus' && mode === 'off') {
+        // CRITICAL: Clear all mode-specific caches and state when switching modes
+        if (previousMode !== mode) {
           console.log(
-            '[Chat] Switching from Nexus to Standard - clearing all caches and state',
+            `[Chat] Mode transition detected: ${previousMode} → ${mode} - clearing all caches and state`,
           );
 
-          // Clear browser storage related to research/nexus data
+          // Clear browser storage that might interfere with the new mode
           try {
-            // Clear any nexus-related data from localStorage
+            // Clear mode-specific data from localStorage
             const allKeys = Object.keys(localStorage);
-            const nexusKeys = allKeys.filter(
-              (key) =>
-                key.toLowerCase().includes('nexus') ||
-                key.toLowerCase().includes('research') ||
-                key.toLowerCase().includes('search'),
-            );
-            nexusKeys.forEach((key) => {
+            const modeKeys = allKeys.filter((key) => {
+              const lowerKey = key.toLowerCase();
+              return (
+                lowerKey.includes('nexus') ||
+                lowerKey.includes('research') ||
+                lowerKey.includes('search') ||
+                lowerKey.includes('mode') ||
+                lowerKey.includes('context') ||
+                lowerKey.includes('cache')
+              );
+            });
+            modeKeys.forEach((key) => {
               console.log('[Chat] Clearing localStorage key:', key);
               localStorage.removeItem(key);
             });
 
-            // Clear any nexus-related data from sessionStorage
+            // Clear mode-specific data from sessionStorage
             const sessionKeys = Object.keys(sessionStorage);
-            const nexusSessionKeys = sessionKeys.filter(
-              (key) =>
-                key.toLowerCase().includes('nexus') ||
-                key.toLowerCase().includes('research') ||
-                key.toLowerCase().includes('search'),
-            );
-            nexusSessionKeys.forEach((key) => {
+            const modeSessionKeys = sessionKeys.filter((key) => {
+              const lowerKey = key.toLowerCase();
+              return (
+                lowerKey.includes('nexus') ||
+                lowerKey.includes('research') ||
+                lowerKey.includes('search') ||
+                lowerKey.includes('mode') ||
+                lowerKey.includes('context') ||
+                lowerKey.includes('cache')
+              );
+            });
+            modeSessionKeys.forEach((key) => {
               console.log('[Chat] Clearing sessionStorage key:', key);
               sessionStorage.removeItem(key);
             });
@@ -1254,16 +1266,66 @@ export function Chat({
               console.log('[Chat] Clearing SWR cache');
               mutate(() => true, undefined, { revalidate: false });
             }
+
+            // Clear any fetch caches that might contain mode-specific responses
+            if ('caches' in window) {
+              console.log('[Chat] Attempting to clear browser caches');
+              caches
+                .keys()
+                .then((cacheNames) => {
+                  cacheNames.forEach((cacheName) => {
+                    if (
+                      cacheName.includes('nexus') ||
+                      cacheName.includes('chat') ||
+                      cacheName.includes('api')
+                    ) {
+                      caches.delete(cacheName);
+                      console.log('[Chat] Cleared cache:', cacheName);
+                    }
+                  });
+                })
+                .catch((err) =>
+                  console.warn('[Chat] Error clearing browser caches:', err),
+                );
+            }
           } catch (cacheError) {
             console.warn('[Chat] Error clearing cache:', cacheError);
           }
 
+          // Clear any URL state or hash that might affect mode behavior
+          try {
+            // Check if there are any URL parameters that might interfere
+            const currentUrl = new URL(window.location.href);
+            let urlChanged = false;
+
+            // Remove any mode-related URL parameters
+            if (currentUrl.searchParams.has('research')) {
+              currentUrl.searchParams.delete('research');
+              urlChanged = true;
+            }
+            if (currentUrl.searchParams.has('nexus')) {
+              currentUrl.searchParams.delete('nexus');
+              urlChanged = true;
+            }
+            if (currentUrl.searchParams.has('mode')) {
+              currentUrl.searchParams.delete('mode');
+              urlChanged = true;
+            }
+
+            if (urlChanged) {
+              console.log('[Chat] Clearing URL parameters');
+              window.history.replaceState({}, '', currentUrl.toString());
+            }
+          } catch (urlError) {
+            console.warn('[Chat] Error clearing URL state:', urlError);
+          }
+
           // Clear any data stream contexts
           try {
-            // Dispatch custom event to clear nexus-related contexts
-            console.log('[Chat] Dispatching nexus-clear event');
+            // Dispatch custom event to clear mode-specific contexts
+            console.log('[Chat] Dispatching mode-clear event');
             window.dispatchEvent(
-              new CustomEvent('nexus-clear', {
+              new CustomEvent('mode-clear', {
                 detail: {
                   chatId: id,
                   previousMode,
@@ -1277,7 +1339,7 @@ export function Chat({
           }
 
           console.log(
-            '[Chat] All caches and state cleared for Nexus → Standard transition',
+            `[Chat] All caches and state cleared for ${previousMode} → ${mode} transition`,
           );
         }
 
@@ -1313,16 +1375,10 @@ export function Chat({
         );
 
         // Show enhanced success feedback with clearing confirmation
-        if (previousMode === 'nexus' && mode === 'off') {
-          toast.success(
-            'Switched to Standard mode - All Nexus caches cleared',
-            { duration: 3000 },
-          );
-        } else {
-          toast.success(
-            `Switched to ${mode === 'off' ? 'Standard' : 'Nexus'} mode`,
-          );
-        }
+        toast.success(
+          `Switched to ${mode === 'off' ? 'Standard' : 'Nexus'} mode - All caches cleared`,
+          { duration: 3000 },
+        );
       } catch (error) {
         console.error('[Chat] Error saving research mode preference:', error);
 
