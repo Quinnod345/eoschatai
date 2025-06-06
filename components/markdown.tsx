@@ -142,7 +142,7 @@ function EnhancedTable({ children, ...props }: any) {
       const tableText = rows
         .map((row) => {
           const cells = Array.from(row.querySelectorAll('th, td'));
-          return cells.map((cell) => cell.textContent?.trim() || '').join('\t');
+          return cells.map((cell) => cell.textContent?.trim() ?? '').join('\t');
         })
         .join('\n');
 
@@ -347,7 +347,7 @@ function EnhancedTableBody({ children, ...props }: any) {
       {React.Children.map(children, (child, index) => {
         if (React.isValidElement(child) && child.type === EnhancedTableRow) {
           return React.cloneElement(child as React.ReactElement<any>, {
-            className: `${(child.props as any).className || ''} ${
+            className: `${(child.props as any).className ?? ''} ${
               index % 2 === 0
                 ? 'bg-white dark:bg-zinc-900'
                 : 'bg-zinc-50/50 dark:bg-zinc-800/50'
@@ -382,9 +382,9 @@ function EnhancedTableCell({ children, ...props }: any) {
       ? children
       : React.Children.toArray(children).join('');
 
-  const isNumeric = /^[\d,.-]+$/.test(content?.toString().trim() || '');
+  const isNumeric = /^[\d,.-]+$/.test(content?.toString().trim() ?? '');
   const isStatus = /^(pending|complete|active|inactive)$/i.test(
-    content?.toString().trim() || '',
+    content?.toString().trim() ?? '',
   );
 
   return (
@@ -428,17 +428,54 @@ const components: Partial<Components> = {
   th: EnhancedTableHeader,
   td: EnhancedTableCell,
   p: ({ children }) => {
-    // Check if children contains a pre, div, or other block element
-    const hasBlockChild = React.Children.toArray(children).some(
-      (child) =>
-        React.isValidElement(child) &&
-        (child.type === 'pre' ||
+    // Check if children contains any block elements or components that render divs
+    const hasBlockChild = React.Children.toArray(children).some((child) => {
+      if (React.isValidElement(child)) {
+        // Check for HTML block elements
+        if (
+          child.type === 'pre' ||
           child.type === 'div' ||
           child.type === 'ol' ||
           child.type === 'ul' ||
-          (typeof child.type === 'function' &&
-            child.type.name === 'CodeBlock')),
-    );
+          child.type === 'table' ||
+          child.type === 'form' ||
+          child.type === 'section' ||
+          child.type === 'article' ||
+          child.type === 'aside' ||
+          child.type === 'header' ||
+          child.type === 'footer' ||
+          child.type === 'nav' ||
+          child.type === 'main'
+        ) {
+          return true;
+        }
+
+        // Check for React components that might render block elements
+        if (typeof child.type === 'function') {
+          const componentType = child.type as React.ComponentType<any>;
+          const componentName =
+            componentType.displayName ?? componentType.name ?? '';
+          // Common patterns for components that render block elements
+          if (
+            componentName.includes('Block') ||
+            componentName.includes('Table') ||
+            componentName.includes('Chart') ||
+            componentName.includes('Tooltip') ||
+            componentName.includes('Modal') ||
+            componentName.includes('Dialog') ||
+            componentName.includes('Citation')
+          ) {
+            return true;
+          }
+        }
+
+        // Check if the child has props that suggest it renders a div/block element
+        if (child.props && child.props.className) {
+          return true; // Most React components with className render divs
+        }
+      }
+      return false;
+    });
 
     // If it has any block children, render without wrapping in a paragraph
     if (hasBlockChild) {

@@ -43,6 +43,13 @@
       "when": 1748489855490,
       "tag": "0005_slim_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1749175681342,
+      "tag": "0006_crazy_roughhouse",
+      "breakpoints": true
     }
   ]
 }

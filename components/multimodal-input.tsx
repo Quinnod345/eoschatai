@@ -315,6 +315,7 @@ function PureMultimodalInput({
   isReadonly,
   selectedResearchMode,
   onResearchModeChange,
+  isChanging,
 }: {
   chatId: string;
   input: UseChatHelpers['input'];
@@ -335,6 +336,7 @@ function PureMultimodalInput({
   isReadonly?: boolean;
   selectedResearchMode?: ResearchMode;
   onResearchModeChange?: (mode: ResearchMode) => void;
+  isChanging?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();

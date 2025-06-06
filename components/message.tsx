@@ -247,6 +247,7 @@ const PurePreviewMessage = ({
   onReply,
   isPinned,
   citations,
+  searchProgress,
 }: {
   chatId: string;
   message: ExtendedUIMessage;
@@ -260,6 +261,7 @@ const PurePreviewMessage = ({
   onReply?: (messageId: string) => void;
   isPinned?: boolean;
   citations?: CitationReference[];
+  searchProgress?: SearchProgress;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -469,6 +471,7 @@ const PurePreviewMessage = ({
                   ))}
                 </div>
               )}
+
 
             {parts?.map((part, index) => {
               const { type } = part;
@@ -715,27 +718,26 @@ export const ThinkingMessage = ({
     init: [
       'Initializing...',
       'Processing your query...',
-      'Preparing search parameters...',
+      'Analyzing request...',
     ],
     search: [
-      'Searching web for relevant information...',
-      'Analyzing search results...',
-      'Gathering comprehensive data...',
-      'Processing research findings...',
+      'Searching the web...',
+      'Gathering web results...',
+      'Processing search findings...',
+      'Analyzing web content...',
     ],
     process: [
-      'Analyzing retrieved information...',
-      'Evaluating document relevance...',
-      'Integrating knowledge sources...',
-      'Synthesizing information...',
+      'Using RAG system...',
+      'Retrieving knowledge base...',
+      'Processing documents...',
+      'Integrating context...',
     ],
     generate: [
-      'Formulating response...',
-      'Preparing response...',
-      'Constructing detailed reply...',
+      'Generating response...',
+      'Formulating answer...',
       'Preparing final response...',
     ],
-    final: ['Finalizing response...', 'Polishing answer...', 'Almost ready...'],
+    final: ['Finalizing response...', 'Almost ready...'],
   };
 
   // Check if we're actively searching based on searchProgress
@@ -782,10 +784,12 @@ export const ThinkingMessage = ({
   const currentPhaseName = processingPhases[currentPhase]?.name || 'init';
   const currentMessages = phaseMessages[currentPhaseName];
 
-  // Use search-specific message if actively searching
+  // Use search-specific message if actively searching, otherwise show appropriate phase message
   const displayMessage =
     isActivelySearching && searchProgress?.currentSearch
-      ? `Searching: ${searchProgress.currentSearch}`
+      ? `Searching the web: ${searchProgress.currentSearch}`
+      : isActivelySearching
+      ? 'Searching the web...'
       : currentMessages[loadingStage];
 
   return (

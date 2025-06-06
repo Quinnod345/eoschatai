@@ -46,9 +46,9 @@ const getModelConfig = () => {
     console.log('Using OpenAI provider models');
 
     return {
-      'chat-model': openai('gpt-4o-mini'),
-      'title-model': openai('gpt-4o-mini'),
-      'artifact-model': openai('gpt-4o-mini'),
+      'chat-model': openai('gpt-4.1'),
+      'title-model': openai('gpt-4.1-nano'),
+      'artifact-model': openai('gpt-4.1'),
       'small-model': openai('dall-e-3'),
     };
   } catch (error) {

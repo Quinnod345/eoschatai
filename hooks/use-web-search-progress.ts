@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 // Define SearchProgress interface locally
 export interface SearchProgress {
@@ -33,6 +33,50 @@ export function useWebSearchProgress() {
   });
 
   const [citations, setCitations] = useState<CitationReference[]>([]);
+
+  // Listen for nexus-clear events to reset all search-related state
+  useEffect(() => {
+    const handleNexusClear = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { previousMode, newMode } = customEvent.detail || {};
+
+      console.log('[WebSearchProgress] Nexus clear event received:', {
+        previousMode,
+        newMode,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Only clear if switching from nexus to standard mode
+      if (previousMode === 'nexus' && newMode === 'off') {
+        console.log(
+          '[WebSearchProgress] Clearing all search progress and citations',
+        );
+
+        // Reset search progress to initial state
+        setSearchProgress({
+          status: 'idle',
+          searchesCompleted: 0,
+          totalSearches: 0,
+          sitesVisited: [],
+        });
+
+        // Clear all citations
+        setCitations([]);
+
+        console.log(
+          '[WebSearchProgress] Search progress and citations cleared successfully',
+        );
+      }
+    };
+
+    // Add the event listener
+    window.addEventListener('nexus-clear', handleNexusClear);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('nexus-clear', handleNexusClear);
+    };
+  }, []);
 
   const handleSearchStart = useCallback((totalSearches: number) => {
     console.log(

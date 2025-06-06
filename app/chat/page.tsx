@@ -7,6 +7,8 @@ import { generateUUID } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { auth } from '../(auth)/auth';
 import { redirect } from 'next/navigation';
+import { getUserSettings } from '@/lib/db/queries';
+import type { ResearchMode } from '@/components/nexus-research-selector';
 
 export default async function ChatPage({
   searchParams,
@@ -27,6 +29,32 @@ export default async function ChatPage({
 
   // Await searchParams as required by Next.js 15
   const params = await searchParams;
+
+  // Get user settings to retrieve research mode preference
+  let userResearchMode: ResearchMode = 'off';
+  try {
+    const userSettings = await getUserSettings({ userId: session.user.id });
+    console.log('[NewChat] User settings fetched:', {
+      userId: session.user.id,
+      selectedResearchMode: userSettings?.selectedResearchMode,
+      allSettings: userSettings,
+    });
+
+    if (userSettings?.selectedResearchMode) {
+      const rawMode = userSettings.selectedResearchMode;
+      // Ensure we only accept valid research modes
+      userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
+      console.log('[NewChat] Research mode set:', {
+        rawMode,
+        validatedMode: userResearchMode,
+      });
+    }
+  } catch (error) {
+    console.error(
+      '[NewChat] Error fetching user settings for research mode:',
+      error,
+    );
+  }
 
   // Handle document context if provided - we'll pass this as a prop to trigger auto-submission
   let documentContext: {
@@ -73,6 +101,7 @@ export default async function ChatPage({
           autoResume={false}
           initialPersonaId={undefined}
           documentContext={documentContext}
+          initialResearchMode={userResearchMode}
         />
         <DataStreamHandler id={id} />
       </>
@@ -93,6 +122,7 @@ export default async function ChatPage({
         autoResume={false}
         initialPersonaId={undefined}
         documentContext={documentContext}
+        initialResearchMode={userResearchMode}
       />
       <DataStreamHandler id={id} />
     </>

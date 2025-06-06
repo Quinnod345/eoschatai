@@ -36,6 +36,7 @@ export function Chat({
   initialPersonaId,
   initialProfileId,
   documentContext,
+  initialResearchMode = 'off',
 }: {
   id: string;
   initialMessages: Array<UIMessage>;
@@ -53,6 +54,7 @@ export function Chat({
     title: string;
     message: string;
   } | null;
+  initialResearchMode?: ResearchMode;
 }) {
   const { mutate } = useSWRConfig();
   const router = useRouter();
@@ -65,18 +67,78 @@ export function Chat({
     string | undefined
   >(initialProfileId);
 
-  // Add research mode state
+  // Add research mode state with proper validation
   const [selectedResearchMode, setSelectedResearchMode] =
-    useState<ResearchMode>('off');
+    useState<ResearchMode>(() => {
+      // Validate and sanitize initial research mode
+      const validMode = initialResearchMode === 'nexus' ? 'nexus' : 'off';
+      console.log('[Chat] Initializing research mode:', {
+        initialResearchMode,
+        validatedMode: validMode,
+        chatId: id,
+      });
+      return validMode;
+    });
+
+  // Add loading state for research mode changes
+  const [researchModeChanging, setResearchModeChanging] = useState(false);
 
   // Add logging for research mode changes
   useEffect(() => {
-    console.log(
-      '[Chat] selectedResearchMode changed to:',
-      selectedResearchMode,
-    );
-    console.log('[Chat] Research mode state update completed');
-  }, [selectedResearchMode]);
+    console.log('[Chat] selectedResearchMode state changed:', {
+      newMode: selectedResearchMode,
+      chatId: id,
+      timestamp: new Date().toISOString(),
+    });
+  }, [selectedResearchMode, id]);
+
+  // Listen for nexus-clear events to ensure complete state reset
+  useEffect(() => {
+    const handleNexusClear = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const {
+        chatId: eventChatId,
+        previousMode,
+        newMode,
+      } = customEvent.detail || {};
+
+      console.log('[Chat] Nexus clear event received:', {
+        eventChatId,
+        currentChatId: id,
+        previousMode,
+        newMode,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Only process if this is for our chat
+      if (eventChatId === id) {
+        console.log('[Chat] Processing nexus clear for this chat');
+
+        // Force re-render by updating a state that doesn't affect functionality
+        // This ensures any stale state is completely refreshed
+        setResearchModeChanging(false);
+
+        // Additional cleanup specific to this chat
+        try {
+          // Clear any component-specific state that might persist
+          console.log('[Chat] Performing additional component cleanup');
+
+          // Reset any message-specific state that might have nexus context
+          // This is a safety measure to ensure complete clean slate
+        } catch (cleanupError) {
+          console.warn('[Chat] Error in additional cleanup:', cleanupError);
+        }
+      }
+    };
+
+    // Add the event listener
+    window.addEventListener('nexus-clear', handleNexusClear);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('nexus-clear', handleNexusClear);
+    };
+  }, [id]);
 
   // Add web search progress tracking
   const { searchProgress, citations, processDataStreamMessage } =
@@ -184,13 +246,19 @@ export function Chat({
         selectedResearchMode: selectedResearchMode,
       };
 
-      console.log('PERSONA_CLIENT: Request body prepared', {
+      console.log('[Chat] Request body prepared with research mode:', {
+        chatId: id,
+        selectedResearchMode: selectedResearchMode,
+        researchModeInBody: requestBody.selectedResearchMode,
+        initialResearchMode: initialResearchMode,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log('PERSONA_CLIENT: Full request body:', {
         chatId: id,
         requestBody: requestBody,
         personaIncluded: !!requestBody.selectedPersonaId,
         profileIncluded: !!requestBody.selectedProfileId,
-        researchMode: selectedResearchMode,
-        researchModeInBody: requestBody.selectedResearchMode,
       });
 
       return requestBody;
@@ -1108,6 +1176,170 @@ export function Chat({
     }
   }, [documentContext, messages.length, status, append]);
 
+  // Handle research mode changes and save to user settings
+  const handleResearchModeChange = useCallback(
+    async (mode: ResearchMode) => {
+      // Prevent multiple simultaneous changes
+      if (researchModeChanging) {
+        console.log(
+          '[Chat] Research mode change already in progress, ignoring',
+        );
+        return;
+      }
+
+      // Prevent redundant changes
+      if (mode === selectedResearchMode) {
+        console.log('[Chat] Research mode is already', mode, ', ignoring');
+        return;
+      }
+
+      console.log('[Chat] Research mode change requested:', {
+        from: selectedResearchMode,
+        to: mode,
+        chatId: id,
+      });
+
+      const previousMode = selectedResearchMode;
+
+      try {
+        // Set loading state
+        setResearchModeChanging(true);
+
+        // CRITICAL: When switching from Nexus to Standard mode, clear all caches
+        if (previousMode === 'nexus' && mode === 'off') {
+          console.log(
+            '[Chat] Switching from Nexus to Standard - clearing all caches and state',
+          );
+
+          // Clear browser storage related to research/nexus data
+          try {
+            // Clear any nexus-related data from localStorage
+            const allKeys = Object.keys(localStorage);
+            const nexusKeys = allKeys.filter(
+              (key) =>
+                key.toLowerCase().includes('nexus') ||
+                key.toLowerCase().includes('research') ||
+                key.toLowerCase().includes('search'),
+            );
+            nexusKeys.forEach((key) => {
+              console.log('[Chat] Clearing localStorage key:', key);
+              localStorage.removeItem(key);
+            });
+
+            // Clear any nexus-related data from sessionStorage
+            const sessionKeys = Object.keys(sessionStorage);
+            const nexusSessionKeys = sessionKeys.filter(
+              (key) =>
+                key.toLowerCase().includes('nexus') ||
+                key.toLowerCase().includes('research') ||
+                key.toLowerCase().includes('search'),
+            );
+            nexusSessionKeys.forEach((key) => {
+              console.log('[Chat] Clearing sessionStorage key:', key);
+              sessionStorage.removeItem(key);
+            });
+
+            console.log('[Chat] Browser storage cleared successfully');
+          } catch (storageError) {
+            console.warn(
+              '[Chat] Error clearing browser storage:',
+              storageError,
+            );
+          }
+
+          // Clear any cached API responses or contexts
+          try {
+            // Force clear SWR cache for this chat
+            if (typeof mutate === 'function') {
+              console.log('[Chat] Clearing SWR cache');
+              mutate(() => true, undefined, { revalidate: false });
+            }
+          } catch (cacheError) {
+            console.warn('[Chat] Error clearing cache:', cacheError);
+          }
+
+          // Clear any data stream contexts
+          try {
+            // Dispatch custom event to clear nexus-related contexts
+            console.log('[Chat] Dispatching nexus-clear event');
+            window.dispatchEvent(
+              new CustomEvent('nexus-clear', {
+                detail: {
+                  chatId: id,
+                  previousMode,
+                  newMode: mode,
+                  timestamp: new Date().toISOString(),
+                },
+              }),
+            );
+          } catch (eventError) {
+            console.warn('[Chat] Error dispatching clear event:', eventError);
+          }
+
+          console.log(
+            '[Chat] All caches and state cleared for Nexus → Standard transition',
+          );
+        }
+
+        // Update state immediately for UI responsiveness
+        setSelectedResearchMode(mode);
+        console.log('[Chat] Local state updated to:', mode);
+
+        // Save to user settings with proper error handling
+        console.log('[Chat] Saving research mode to database...');
+        const response = await fetch('/api/user-settings', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            selectedResearchMode: mode,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Chat] Failed to save research mode preference:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+          });
+
+          throw new Error(`Failed to save: ${response.status} ${errorText}`);
+        }
+
+        console.log(
+          '[Chat] Research mode preference saved successfully to database',
+        );
+
+        // Show enhanced success feedback with clearing confirmation
+        if (previousMode === 'nexus' && mode === 'off') {
+          toast.success(
+            'Switched to Standard mode - All Nexus caches cleared',
+            { duration: 3000 },
+          );
+        } else {
+          toast.success(
+            `Switched to ${mode === 'off' ? 'Standard' : 'Nexus'} mode`,
+          );
+        }
+      } catch (error) {
+        console.error('[Chat] Error saving research mode preference:', error);
+
+        // Revert state on error
+        console.log('[Chat] Reverting research mode due to error');
+        setSelectedResearchMode(previousMode);
+
+        // Show user feedback
+        toast.error('Failed to save research mode preference');
+      } finally {
+        // Always clear loading state
+        setResearchModeChanging(false);
+      }
+    },
+    [selectedResearchMode, researchModeChanging, id, mutate],
+  );
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
@@ -1161,7 +1393,8 @@ export function Chat({
               session={session}
               isReadonly={isReadonly}
               selectedResearchMode={selectedResearchMode}
-              onResearchModeChange={setSelectedResearchMode}
+              onResearchModeChange={handleResearchModeChange}
+              isChanging={researchModeChanging}
             />
           )}
         </form>

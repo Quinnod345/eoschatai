@@ -861,6 +861,38 @@ Avoid:
 
 Be helpful, direct, and conversational while still being comprehensive enough to be useful.
 `;
+    } else {
+      // Add enhanced instructions for Nexus mode
+      enhancedSystemPrompt += `
+
+NEXUS MODE - ENHANCED OUTPUT INSTRUCTIONS:
+You are in NEXUS MODE with significantly increased token limits. You MUST:
+
+1. **MAXIMIZE OUTPUT LENGTH**: 
+   - You have up to ${selectedChatModel.includes('gpt-4o-mini') ? '16,000' : selectedChatModel.includes('gpt-4o') ? '4,000' : '8,000'} tokens available
+   - Generate comprehensive, detailed responses that fully utilize this capacity
+   - Aim for responses that are 10-20x longer than standard mode
+
+2. **COMPREHENSIVE COVERAGE**:
+   - Provide exhaustive analysis from multiple perspectives
+   - Include detailed examples, case studies, and scenarios
+   - Generate extensive step-by-step guides and frameworks
+   - Create multiple sections with in-depth exploration of each topic
+
+3. **RICH FORMATTING**:
+   - Use extensive markdown formatting with multiple heading levels
+   - Create detailed tables, lists, and structured content
+   - Include code examples, diagrams (in markdown), and visual representations
+   - Generate comprehensive comparisons and analyses
+
+4. **DEPTH OVER BREVITY**:
+   - Explore nuances, edge cases, and advanced considerations
+   - Provide historical context and future projections
+   - Include expert insights and best practices
+   - Generate actionable recommendations with detailed implementation steps
+
+Remember: In Nexus mode, MORE is BETTER. Users expect and want comprehensive, detailed responses.
+`;
     }
 
     // Add special case for integrator questions
@@ -1391,12 +1423,33 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
 
         // Log the mode being used
         const isNexusMode = selectedResearchMode === 'nexus';
-        const tokenLimit = isNexusMode ? 4000 : 1500;
+
+        // Set token limits based on model and mode
+        // GPT-4o-mini supports up to 16,384 output tokens
+        // GPT-4o supports up to 4,096 output tokens
+        const getTokenLimit = () => {
+          if (isNexusMode) {
+            // For Nexus mode, use maximum available tokens based on model
+            if (selectedChatModel.includes('gpt-4o-mini')) {
+              return 16000; // Leave some buffer from the 16,384 limit
+            } else if (selectedChatModel.includes('gpt-4o')) {
+              return 4000; // Leave some buffer from the 4,096 limit
+            }
+            // Default for other models in Nexus mode
+            return 8000;
+          } else {
+            // Standard mode - keep responses concise
+            return 1500;
+          }
+        };
+
+        const tokenLimit = getTokenLimit();
         const temperature = isNexusMode ? 0.7 : 0.8;
 
         console.log(
           `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
           {
+            model: selectedChatModel,
             tokenLimit,
             temperature,
             hasNexusResearch: !!nexusResearchContext,

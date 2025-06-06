@@ -280,7 +280,7 @@ export const userSettings = pgTable('UserSettings', {
   selectedVisibilityType: text('selectedVisibilityType').default('private'),
   selectedPersonaId: uuid('selectedPersonaId'),
   selectedProfileId: uuid('selectedProfileId'),
-  selectedResearchMode: text('selectedResearchMode').default('standard'),
+  selectedResearchMode: text('selectedResearchMode').default('off'),
 });
 
 export const userDocuments = pgTable('UserDocuments', {

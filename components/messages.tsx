@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai';
 import { PreviewMessage, ThinkingMessage } from './message';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
@@ -53,17 +53,81 @@ function PureMessages({
 
   const { handlePin, handleReply, isPinned } = useMessageActions({ chatId });
 
+  // Memoize the thinking state to avoid infinite loops
+  const shouldShowThinking = useMemo(() => {
+    if (messages.length === 0) return false;
+
+    // Show thinking if we're actively searching
+    if (
+      searchProgress?.status === 'searching' ||
+      searchProgress?.status === 'processing'
+    ) {
+      return true;
+    }
+
+    // Show thinking if status is submitted
+    if (status === 'submitted') {
+      return messages[messages.length - 1].role === 'user';
+    }
+
+    // Show thinking if status is streaming but last assistant message has no content yet
+    if (status === 'streaming') {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'user') {
+        return true; // No assistant response yet
+      }
+      if (lastMessage.role === 'assistant') {
+        // Check if message has text content
+        const textContent = lastMessage.parts
+          ?.filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+          .trim();
+
+        return !textContent || textContent.length === 0;
+      }
+    }
+
+    return false;
+  }, [messages, searchProgress?.status, status]);
+
+  // Memoize filtered messages to avoid recalculating on every render
+  const filteredMessages = useMemo(() => {
+    return messages.filter((message, index) => {
+      // Don't render empty assistant messages when we should be showing thinking instead
+      if (
+        message.role === 'assistant' &&
+        index === messages.length - 1 &&
+        shouldShowThinking
+      ) {
+        const textContent = message.parts
+          ?.filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+          .trim();
+
+        // If this is an empty assistant message and we should show thinking, don't render it
+        return textContent && textContent.length > 0;
+      }
+      return true;
+    });
+  }, [messages, shouldShowThinking]);
+
   return (
     <div
       ref={messagesContainerRef}
       className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
     >
-      {messages.map((message, index) => (
+      {filteredMessages.map((message, index) => (
         <PreviewMessage
           key={message.id}
           chatId={chatId}
           message={message}
-          isLoading={status === 'streaming' && messages.length - 1 === index}
+          isLoading={
+            status === 'streaming' &&
+            filteredMessages.length - 1 === index &&
+            !shouldShowThinking
+          }
           vote={
             votes
               ? votes.find((vote) => vote.messageId === message.id)
@@ -73,7 +137,7 @@ function PureMessages({
           reload={reload}
           isReadonly={isReadonly}
           requiresScrollPadding={
-            hasSentMessage && index === messages.length - 1
+            hasSentMessage && index === filteredMessages.length - 1
           }
           onPin={handlePin}
           onReply={(messageId) => {
@@ -90,14 +154,13 @@ function PureMessages({
           }}
           isPinned={isPinned(message.id)}
           citations={citations}
+          searchProgress={searchProgress}
         />
       ))}
 
-      {(status === 'submitted' || status === 'streaming') &&
-        messages.length > 0 &&
-        messages[messages.length - 1].role === 'user' && (
-          <ThinkingMessage searchProgress={searchProgress} />
-        )}
+      {shouldShowThinking && (
+        <ThinkingMessage searchProgress={searchProgress} />
+      )}
 
       <motion.div
         ref={messagesEndRef}

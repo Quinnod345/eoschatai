@@ -3,13 +3,18 @@ import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/app/(auth)/auth';
 import { Chat } from '@/components/chat';
-import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
+import {
+  getChatById,
+  getMessagesByChatId,
+  getUserSettings,
+} from '@/lib/db/queries';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { getDisplayTitle, getEOSMetadata } from '@/lib/utils/chat-utils';
 import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
 import type { Attachment, UIMessage } from 'ai';
+import type { ResearchMode } from '@/components/nexus-research-selector';
 
 // Silent logger to prevent errors from showing on screen during development
 const silentLog = {
@@ -141,6 +146,33 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const chatModelFromCookie = cookieStore.get('chat-model');
   const providerFromCookie = cookieStore.get('ai-provider');
 
+  // Get user settings to retrieve research mode preference
+  let userResearchMode: ResearchMode = 'off';
+  try {
+    const userSettings = await getUserSettings({ userId: session.user.id });
+    console.log('[ExistingChat] User settings fetched:', {
+      chatId: id,
+      userId: session.user.id,
+      selectedResearchMode: userSettings?.selectedResearchMode,
+    });
+
+    if (userSettings?.selectedResearchMode) {
+      const rawMode = userSettings.selectedResearchMode;
+      // Ensure we only accept valid research modes
+      userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
+      console.log('[ExistingChat] Research mode set:', {
+        chatId: id,
+        rawMode,
+        validatedMode: userResearchMode,
+      });
+    }
+  } catch (error) {
+    console.error(
+      '[ExistingChat] Error fetching user settings for research mode:',
+      error,
+    );
+  }
+
   // Check if this is an EOS Implementer chat from metadata in title
   let initialPersonaId = chat.personaId || undefined;
   let initialProfileId = chat.profileId || undefined;
@@ -151,12 +183,12 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   if (eosMetadata && eosMetadata.persona === 'eos-implementer') {
     initialPersonaId = '00000000-0000-0000-0000-000000000001';
     initialProfileId = eosMetadata.profile || undefined;
-    
+
     console.log('CHAT_PAGE: Restored EOS Implementer from metadata', {
       personaId: initialPersonaId,
       profileId: initialProfileId,
       originalTitle: chat.title,
-      displayTitle: displayTitle
+      displayTitle: displayTitle,
     });
   }
 
@@ -174,6 +206,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
           autoResume={true}
           initialPersonaId={initialPersonaId}
           initialProfileId={initialProfileId}
+          initialResearchMode={userResearchMode}
         />
         <DataStreamHandler id={id} />
       </>
@@ -193,6 +226,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         autoResume={true}
         initialPersonaId={initialPersonaId}
         initialProfileId={initialProfileId}
+        initialResearchMode={userResearchMode}
       />
       <DataStreamHandler id={id} />
     </>
