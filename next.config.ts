@@ -40,17 +40,6 @@ const nextConfig: NextConfig = {
         : false,
   },
   productionBrowserSourceMaps: false,
-  webpack: (config, { isServer }) => {
-    // Minimal configuration to handle server-side issues
-    if (isServer) {
-      // Externalize framer-motion for server builds to avoid SSR issues
-      if (!config.externals) {
-        config.externals = [];
-      }
-      config.externals.push('framer-motion');
-    }
-    return config;
-  },
   async headers() {
     return [
       {

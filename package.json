@@ -33,7 +33,8 @@
     "migrate-user-rag": "tsx scripts/migrate-to-user-rag.ts",
     "redis:setup": "node scripts/add-redis-config.js",
     "redis:test": "node scripts/test-redis-connection.js",
-    "fix-db-columns": "node scripts/fix-db-columns.js"
+    "fix-db-columns": "node scripts/fix-db-columns.js",
+    "fix-manifests": "node scripts/fix-client-manifests.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.21",
