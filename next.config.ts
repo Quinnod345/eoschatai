@@ -40,92 +40,15 @@ const nextConfig: NextConfig = {
         : false,
   },
   productionBrowserSourceMaps: false,
-  webpack: (config, { isServer, dev, webpack }) => {
-    // Handle self reference for server-side builds
+  webpack: (config, { isServer }) => {
+    // Minimal configuration to handle server-side issues
     if (isServer) {
-      config.plugins.push(
-        new webpack.DefinePlugin({
-          self: 'undefined',
-        }),
-      );
-      
-      // Externalize framer-motion for server builds
+      // Externalize framer-motion for server builds to avoid SSR issues
       if (!config.externals) {
         config.externals = [];
       }
       config.externals.push('framer-motion');
     }
-    
-    if (!dev) {
-      if (!config.externals) {
-        config.externals = [];
-      }
-
-      config.module = {
-        ...config.module,
-        rules: [
-          ...(config.module?.rules || []),
-          {
-            test: /\.test\.(tsx|ts|js|jsx|mjs)$/,
-            use: 'null-loader',
-          },
-        ],
-      };
-
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '.+\\.test\\.(tsx|ts|js|jsx|mjs)$': path.resolve(
-          __dirname,
-          './empty-module.js',
-        ),
-      };
-
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            default: false,
-            vendors: false,
-            framework: {
-              name: 'framework',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
-              priority: 40,
-              enforce: true,
-            },
-            commons: {
-              name: 'commons',
-              chunks: 'all',
-              minChunks: 2,
-              priority: 20,
-            },
-            lib: {
-              test: /[\\/]node_modules[\\/]/,
-              chunks: 'all',
-              name(module: any) {
-                const packageName = module.context.match(
-                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/,
-                )?.[1];
-                return `lib-${packageName?.replace('@', '')}`;
-              },
-              priority: 30,
-              minChunks: 1,
-              reuseExistingChunk: true,
-            },
-          },
-        },
-      };
-    }
-
-    if (!isServer && !dev) {
-      config.performance = {
-        hints: 'warning',
-        maxAssetSize: 512000,
-        maxEntrypointSize: 512000,
-      };
-    }
-
     return config;
   },
   async headers() {
