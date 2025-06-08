@@ -841,37 +841,61 @@ SPECIAL INSTRUCTIONS FOR CORE PROCESS QUESTIONS:
 `;
     }
 
+    // Define token guidance settings early
+    const isNexusMode = selectedResearchMode === 'nexus';
+
+    const getSoftTokenGuidance = () => {
+      if (isNexusMode) {
+        // For Nexus mode, use maximum available tokens based on model
+        if (selectedChatModel.includes('gpt-4o-mini')) {
+          return 16000; // Leave some buffer from the 16,384 limit
+        } else if (selectedChatModel.includes('gpt-4o')) {
+          return 4000; // Leave some buffer from the 4,096 limit
+        }
+        // Default for other models in Nexus mode
+        return 8000;
+      } else {
+        // Standard mode - keep responses concise
+        return 1500;
+      }
+    };
+
+    const softTokenGuidance = getSoftTokenGuidance();
+
     // Add conversational instructions when NOT in Nexus mode
     if (selectedResearchMode !== 'nexus') {
       enhancedSystemPrompt += `
 
 CONVERSATIONAL MODE INSTRUCTIONS:
 Since Nexus mode is not enabled, keep your responses:
-- CONCISE and to the point (aim for 200-500 words unless more detail is specifically requested)
+- CONCISE and to the point (target ~${Math.round(softTokenGuidance * 0.75)} words, approximately ${softTokenGuidance} tokens)
 - CONVERSATIONAL and friendly in tone
 - FOCUSED on directly answering the user's question
 - PRACTICAL with actionable advice
 - ENGAGING without being overly verbose
+- COMPLETE - always finish your thoughts naturally, even if approaching the target length
 
 Avoid:
 - Extremely long explanations unless specifically requested
 - Overly formal or academic language
 - Excessive detail that wasn't asked for
 - Multiple lengthy sections unless the question requires it
+- Stopping mid-sentence or mid-thought
 
-Be helpful, direct, and conversational while still being comprehensive enough to be useful.
+Be helpful, direct, and conversational while still being comprehensive enough to be useful. Complete your response naturally rather than cutting off abruptly.
 `;
     } else {
       // Add enhanced instructions for Nexus mode
       enhancedSystemPrompt += `
 
 NEXUS MODE - ENHANCED OUTPUT INSTRUCTIONS:
-You are in NEXUS MODE with significantly increased token limits. You MUST:
+You are in NEXUS MODE with significantly increased response capacity. You MUST:
 
-1. **MAXIMIZE OUTPUT LENGTH**: 
-   - You have up to ${selectedChatModel.includes('gpt-4o-mini') ? '16,000' : selectedChatModel.includes('gpt-4o') ? '4,000' : '8,000'} tokens available
-   - Generate comprehensive, detailed responses that fully utilize this capacity
+1. **COMPREHENSIVE RESPONSE TARGET**: 
+   - Target approximately ${softTokenGuidance} tokens in your response (~${Math.round(softTokenGuidance * 0.75)} words)
+   - Generate comprehensive, detailed responses that approach but don't exceed this target
    - Aim for responses that are 10-20x longer than standard mode
+   - IMPORTANT: Complete your thoughts naturally - don't stop mid-sentence even if approaching the target
 
 2. **COMPREHENSIVE COVERAGE**:
    - Provide exhaustive analysis from multiple perspectives
@@ -891,7 +915,13 @@ You are in NEXUS MODE with significantly increased token limits. You MUST:
    - Include expert insights and best practices
    - Generate actionable recommendations with detailed implementation steps
 
-Remember: In Nexus mode, MORE is BETTER. Users expect and want comprehensive, detailed responses.
+5. **NATURAL COMPLETION**:
+   - Always complete your thoughts and sentences naturally
+   - If you're approaching the target length, conclude with a proper summary
+   - Never stop mid-sentence or mid-thought
+   - Quality and completeness over strict length adherence
+
+Remember: In Nexus mode, MORE is BETTER, but COMPLETE thoughts are ESSENTIAL. Users expect comprehensive, detailed responses that feel complete and natural.
 `;
     }
 
@@ -1421,36 +1451,22 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
           nexusResearchContext +
           toolResponseInstructions;
 
-        // Log the mode being used
-        const isNexusMode = selectedResearchMode === 'nexus';
+        // Log the mode being used (variables already defined earlier)
 
-        // Set token limits based on model and mode
-        // GPT-4o-mini supports up to 16,384 output tokens
-        // GPT-4o supports up to 4,096 output tokens
-        const getTokenLimit = () => {
-          if (isNexusMode) {
-            // For Nexus mode, use maximum available tokens based on model
-            if (selectedChatModel.includes('gpt-4o-mini')) {
-              return 16000; // Leave some buffer from the 16,384 limit
-            } else if (selectedChatModel.includes('gpt-4o')) {
-              return 4000; // Leave some buffer from the 4,096 limit
-            }
-            // Default for other models in Nexus mode
-            return 8000;
-          } else {
-            // Standard mode - keep responses concise
-            return 1500;
-          }
-        };
-
-        const tokenLimit = getTokenLimit();
+        // Set a high hard limit that we should never reach, allowing natural completion
+        const safeHardLimit = selectedChatModel.includes('gpt-4o-mini')
+          ? 15000
+          : selectedChatModel.includes('gpt-4o')
+            ? 3800
+            : 7500;
         const temperature = isNexusMode ? 0.7 : 0.8;
 
         console.log(
           `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
           {
             model: selectedChatModel,
-            tokenLimit,
+            softTokenGuidance,
+            safeHardLimit,
             temperature,
             hasNexusResearch: !!nexusResearchContext,
             systemPromptLength: finalSystemPrompt.length,
@@ -1478,7 +1494,7 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
             experimental_generateMessageId: generateUUID,
             // Dynamic settings based on Nexus mode
             temperature: temperature, // Use the variable we defined
-            maxTokens: tokenLimit, // Use the variable we defined
+            maxTokens: safeHardLimit, // High safety limit to prevent hard cutoffs
             tools: {
               getWeather,
               createDocument: createDocument({ session, dataStream }),

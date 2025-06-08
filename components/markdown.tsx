@@ -470,7 +470,7 @@ const components: Partial<Components> = {
         }
 
         // Check if the child has props that suggest it renders a div/block element
-        if (child.props && child.props.className) {
+        if (child.props?.className) {
           return true; // Most React components with className render divs
         }
       }

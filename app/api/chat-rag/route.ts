@@ -98,8 +98,8 @@ export async function POST(req: Request) {
     const result = streamText({
       model: myProvider.languageModel(modelId as 'chat-model'),
       messages,
-      system: `${baseSystemPrompt}\n\nALWAYS use the getInformation tool when you don't have enough context from the retrieved information above!\n\nIMPORTANT RAG RESPONSE INSTRUCTIONS:\n1. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses\n2. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points\n3. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting\n4. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base`,
-      maxTokens: 1500,
+      system: `${baseSystemPrompt}\n\nALWAYS use the getInformation tool when you don't have enough context from the retrieved information above!\n\nIMPORTANT RAG RESPONSE INSTRUCTIONS:\n1. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses\n2. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points\n3. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting\n4. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base\n5. TARGET RESPONSE LENGTH: Aim for approximately 1500 tokens (~1125 words) but always complete your thoughts naturally\n6. NATURAL COMPLETION: Never stop mid-sentence or mid-thought - complete your response naturally even if approaching the target length`,
+      maxTokens: 2500, // High safety limit to prevent hard cutoffs while keeping responses reasonable
       temperature: 0.7,
       tools: {
         // Add Resource tool - saves information to knowledge base
