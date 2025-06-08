@@ -18,7 +18,7 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
     hideModal,
   } = useFeatures({
     userId: user?.id,
-    autoShow: false, // Temporarily disable auto-show to prevent auth conflicts
+    autoShow: false, // Disabled to prevent auth conflicts and reduce hook execution
   });
 
   return (
