@@ -9,7 +9,7 @@ import './globals.css';
 import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://eosbot.ai'),
+  metadataBase: new URL('https://app.eosbot.ai'),
   title: 'EOS AI',
   description: 'AI-powered chat assistant for EOS Worldwide.',
   icons: {
