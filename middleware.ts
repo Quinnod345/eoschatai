@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
     secureCookie: !isDevelopmentEnvironment,
   });
 
-  // If no token (logged out) and trying to access a protected route, redirect to homepage
+  // If no token (logged out) and trying to access a protected route, redirect to login
   if (!token) {
     if (
       pathname.startsWith('/chat') ||
@@ -50,8 +50,11 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/api/suggestions') ||
       pathname.startsWith('/account')
     ) {
-      // Redirect to homepage instead of login page
-      return NextResponse.redirect(new URL('/', request.url));
+      // Redirect to login page instead of homepage for protected routes
+      const url = new URL('/login', request.url);
+      // Store the original path to redirect back after login
+      url.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(url);
     }
 
     // All other non-authenticated paths are handled by returning Next.js's response

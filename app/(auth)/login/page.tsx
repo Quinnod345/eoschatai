@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 import { toast } from '@/lib/toast-system';
 
@@ -23,6 +23,7 @@ function getCookie(name: string): string | null {
 
 export default function Page() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [isSuccessful, setIsSuccessful] = useState(false);
@@ -38,8 +39,12 @@ export default function Page() {
   const { update: updateSession } = useSession();
 
   useEffect(() => {
-    // Check for redirect path in cookies
-    if (typeof window !== 'undefined') {
+    // Check for callbackUrl in search params first
+    const callbackUrl = searchParams?.get('callbackUrl');
+    if (callbackUrl?.startsWith('/')) {
+      setRedirectPath(callbackUrl);
+    } else if (typeof window !== 'undefined') {
+      // Check for redirect path in cookies as fallback
       const redirectedFrom = getCookie('redirected_from');
 
       // If we have a redirected_from cookie, use that path
@@ -58,7 +63,7 @@ export default function Page() {
         sessionStorage.removeItem('signout-redirect');
       }
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (state.status === 'failed') {
@@ -88,7 +93,11 @@ export default function Page() {
             Use your email and password to sign in
           </p>
         </div>
-        <AuthForm action={handleSubmit} defaultEmail={email}>
+        <AuthForm
+          action={handleSubmit}
+          defaultEmail={email}
+          callbackUrl={redirectPath}
+        >
           <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
           <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
             {"Don't have an account? "}

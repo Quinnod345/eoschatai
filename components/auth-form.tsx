@@ -3,12 +3,14 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 
-export function GoogleSignInButton() {
+export function GoogleSignInButton({
+  callbackUrl = '/chat',
+}: { callbackUrl?: string }) {
   return (
     <Button
       variant="outline"
       className="w-full flex items-center justify-center gap-2 py-5"
-      onClick={() => signIn('google', { callbackUrl: '/' })}
+      onClick={() => signIn('google', { callbackUrl })}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -43,6 +45,7 @@ export function AuthForm({
   children,
   defaultEmail = '',
   showSocial = true,
+  callbackUrl = '/chat',
 }: {
   action: NonNullable<
     string | ((formData: FormData) => void | Promise<void>) | undefined
@@ -50,6 +53,7 @@ export function AuthForm({
   children: React.ReactNode;
   defaultEmail?: string;
   showSocial?: boolean;
+  callbackUrl?: string;
 }) {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -67,7 +71,7 @@ export function AuthForm({
     >
       {showSocial && (
         <>
-          <GoogleSignInButton />
+          <GoogleSignInButton callbackUrl={callbackUrl} />
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-zinc-700" />

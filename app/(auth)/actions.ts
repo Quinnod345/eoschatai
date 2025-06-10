@@ -32,7 +32,7 @@ export const login = async (
         email: validatedData.email,
         password: validatedData.password,
         redirect: true,
-        callbackUrl: '/',
+        callbackUrl: '/chat',
       });
 
       return { status: 'success' };
@@ -92,7 +92,7 @@ export const register = async (
         email: validatedData.email,
         password: validatedData.password,
         redirect: true,
-        callbackUrl: '/',
+        callbackUrl: '/chat',
       });
 
       return { status: 'success' };
