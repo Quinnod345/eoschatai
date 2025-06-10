@@ -26,9 +26,9 @@ export default function TermsOfService() {
         </h2>
         <p>
           By accessing or using EOS Bot AI services (&ldquo;Service&rdquo;) at
-          https://eosbot.ai, you agree to be bound by these Terms of Service. If
-          you disagree with any part of the terms, you may not access the
-          Service.
+          https://app.eosbot.ai, you agree to be bound by these Terms of
+          Service. If you disagree with any part of the terms, you may not
+          access the Service.
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">
@@ -152,7 +152,7 @@ export default function TermsOfService() {
         <p>
           If you have any questions about these Terms, please contact us at:
           <br />
-          Email: legal@eosbot.ai
+          Email: legal@app.eosbot.ai
           <br />
           Address: 123 EOS Way, Suite 456, Tech City, TC 78901
         </p>

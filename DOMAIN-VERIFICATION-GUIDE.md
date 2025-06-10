@@ -1,6 +1,6 @@
-# Domain Verification Guide for eosbot.ai
+# Domain Verification Guide for app.eosbot.ai
 
-This guide will help you verify ownership of your domain (https://eosbot.ai) in Google Search Console, which is required for Google's app verification process.
+This guide will help you verify ownership of your domain (https://app.eosbot.ai) in Google Search Console, which is required for Google's app verification process.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ This guide will help you verify ownership of your domain (https://eosbot.ai) in 
 
 1. Click the "Add property" button in the top left of the dashboard
 2. Select "URL prefix" as your property type
-3. Enter your website URL: `https://eosbot.ai/`
+3. Enter your website URL: `https://app.eosbot.ai/`
 4. Click "Continue"
 
 ## Step 3: Choose Verification Method
@@ -27,7 +27,7 @@ Google offers several verification methods. The recommended methods are:
 
 1. Download the HTML verification file provided by Google
 2. Upload this file to the root directory of your website (public folder in your Next.js app)
-3. Verify that the file is accessible by visiting `https://eosbot.ai/[filename].html`
+3. Verify that the file is accessible by visiting `https://app.eosbot.ai/[filename].html`
 4. Click "Verify" in Google Search Console
 
 ### Option 2: HTML Tag (Good for Next.js sites)

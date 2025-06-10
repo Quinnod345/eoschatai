@@ -4,7 +4,7 @@ This guide walks you through implementing the changes required to satisfy Google
 
 ## Issues Identified by Google
 
-1. **Domain Ownership**: The website (https://eosbot.ai) needs to be verified as owned by you
+1. **Domain Ownership**: The website (https://app.eosbot.ai) needs to be verified as owned by you
 2. **Privacy Policy Link**: The homepage needs to include a link to the privacy policy
 3. **Privacy Policy Content**: The privacy policy URL must be accessible and contain actual content
 
@@ -17,7 +17,7 @@ We've made the following changes to address these issues:
 3. Added redirects to handle different privacy policy URL formats (e.g., `/privacy=policy`)
 4. Added Google site verification meta tags for domain ownership verification
 5. Created a terms of service page for completeness
-6. Updated metadata across the site to match the eosbot.ai domain
+6. Updated metadata across the site to match the app.eosbot.ai domain
 
 ## What You Need to Update
 
@@ -50,7 +50,7 @@ After making these updates:
 
 1. Commit and push your changes
 2. Deploy to your hosting environment
-3. Ensure the site is accessible at https://eosbot.ai
+3. Ensure the site is accessible at https://app.eosbot.ai
 4. Verify that:
    - The homepage displays correctly with a privacy policy link in the footer
    - The privacy policy page (/privacy-policy) is accessible and contains content
@@ -67,7 +67,7 @@ Once all changes are implemented and verified, reply to Google's email confirmin
 
 1. You've added a homepage with an easily accessible privacy policy link
 2. You've created a comprehensive privacy policy at the URL
-3. You've verified ownership of the eosbot.ai domain
+3. You've verified ownership of the app.eosbot.ai domain
 
 Include screenshots or links demonstrating the changes.
 

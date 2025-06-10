@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
           &ldquo;us&rdquo;). We respect your privacy and are committed to
           protecting your personal data. This privacy policy will inform you
           about how we look after your personal data when you visit our website
-          (https://eosbot.ai) and tell you about your privacy rights.
+          (https://app.eosbot.ai) and tell you about your privacy rights.
         </p>
 
         <p className="mb-4">
@@ -180,7 +180,7 @@ export default function PrivacyPolicy() {
           If you have any questions about this Privacy Policy, please contact us
           at:
           <br />
-          Email: privacy@eosbot.ai
+          Email: privacy@app.eosbot.ai
           <br />
           Address: 123 EOS Way, Suite 456, Tech City, TC 78901
         </p>
