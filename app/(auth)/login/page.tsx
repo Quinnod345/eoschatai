@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, Suspense } from 'react';
 import { toast } from '@/lib/toast-system';
 
 import { AuthForm } from '@/components/auth-form';
@@ -21,7 +21,7 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-export default function Page() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -112,5 +112,23 @@ export default function Page() {
         </AuthForm>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-dvh w-screen items-center justify-center bg-background">
+          <div className="text-center">
+            <p className="text-sm text-gray-500 dark:text-zinc-400">
+              Loading...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
