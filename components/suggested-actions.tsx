@@ -1,152 +1,50 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { memo } from 'react';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
 import React, { useState, useEffect } from 'react';
 import '../styles/animations.css';
 
-// Conversation starters organized by category
-const CONVERSATION_STARTERS = [
-  {
-    category: 'EOS Model & Tools',
-    starters: [
-      'What are the Six Key Components® of EOS?',
-      'How do I fill out a Vision/Traction Organizer™?',
-      'What should go in the "Core Focus™" section of our V/TO™?',
-      'Can you help me create an Accountability Chart™?',
-      "What's the difference between Rocks and To-Dos?",
-      'How does the Issues Solving Track™ (IDS) work?',
-      "What's a good example of a measurable for my Scorecard?",
-      'How do I structure a Level 10 Meeting™ agenda?',
-      'What are the best measurables for a sales team?',
-      'What do the terms "right person, right seat" really mean?',
-    ],
-  },
-  {
-    category: 'Implementation & Coaching',
-    starters: [
-      'How do I start implementing EOS in my company?',
-      'What should we do in our first 90 days of EOS?',
-      "How do I know if I'm ready for a Professional EOS Implementer™?",
-      'Can you walk me through the 90 Minute Meeting™ agenda?',
-      "What's the best way to cascade the Vision to the team?",
-    ],
-  },
-  {
-    category: 'People Tools',
-    starters: [
-      'How do I use the People Analyzer™?',
-      'What does GWC™ mean and how do I use it?',
-      'Can you help me conduct a Quarterly Conversation?',
-      "What's the LMA™ concept in EOS?",
-      "What if someone doesn't fit our Core Values?",
-    ],
-  },
-  {
-    category: 'Data & Scorecards',
-    starters: [
-      'How do I build a 13-week Scorecard?',
-      "What's a good Scorecard for an operations team?",
-      'Can you help me track our Rocks more effectively?',
-      'What is the difference between a Rock and a KPI?',
-      'How should I review Scorecard numbers in a Level 10?',
-    ],
-  },
-  {
-    category: 'Meetings & Cadence',
-    starters: [
-      'What is a Weekly Level 10 Meeting™?',
-      'How long should a Level 10 take?',
-      "What's the EOS Meeting Pulse™?",
-      'What should go on our Issues List?',
-      'Can you help me prepare for our Quarterly Session?',
-    ],
-  },
-  {
-    category: 'EOS Books & Philosophy',
-    starters: [
-      'What book should I start with in the Traction Library?',
-      'What is EOS Life®?',
-      'How is Get A Grip different from Traction?',
-      "What's the Visionary-Integrator™ relationship?",
-      'What does "delegate and elevate" mean in EOS?',
-    ],
-  },
-  {
-    category: 'Leadership, Culture & EOS Life®',
-    starters: [
-      'How do I know if someone is a Visionary or Integrator?',
-      'Can you help me clarify our 10-Year Target™?',
-      'What are some sample Core Values from other companies?',
-      'How do I introduce EOS to my leadership team?',
-      'How can EOS help us run a healthier business?',
-    ],
-  },
-];
-
 // Time-based greeting options - conversational and warm
 const MORNING_GREETINGS = [
-  "Good morning! I'm excited to help you with your EOS journey today. What's on your mind?",
+  "Good morning! I'm ready to help with your EOS journey.",
   'Rise and shine! Ready to tackle some EOS challenges together?',
-  'Morning! What EOS questions are you thinking about as you start your day?',
-  'Early bird gets the Rocks done! How can I support your business today?',
-  'Good morning! What would you like to explore about EOS over your coffee?',
+  'Morning! How can I support your business today?',
+  'Good morning! What would you like to explore about EOS?',
 ];
 
 const AFTERNOON_GREETINGS = [
-  'Good afternoon! What EOS topic would you like to dive into?',
-  'Hope your day is going well! What EOS questions can I help you with?',
-  "Afternoon! What's the biggest EOS challenge you're working on right now?",
-  "Back from lunch? Let's make some progress on your EOS implementation!",
-  'Good afternoon! What aspect of your business would you like to strengthen with EOS?',
+  'Good afternoon! How can I help with your EOS implementation?',
+  'Hope your day is going well! What can I assist you with?',
+  'Good afternoon! What EOS topic would you like to explore?',
+  'Afternoon! How can I support your business growth?',
 ];
 
 const EVENING_GREETINGS = [
-  'Good evening! What EOS topics would you like to explore tonight?',
-  "Evening reflection time! What's been on your mind about your business lately?",
-  "Wrapping up your day? Let's work through some EOS concepts together!",
-  'Evening! What EOS challenge would you like to tackle before tomorrow?',
-  'Good evening! What questions about your business can I help you think through?',
+  'Good evening! What EOS topics would you like to explore?',
+  'Evening! How can I help with your business planning?',
+  'Good evening! Ready to work on your EOS implementation?',
+  'Evening! What can I assist you with today?',
 ];
 
-// Define type for conversation starter category
-interface ConversationStarterCategory {
-  category: string;
-  starters: string[];
-  randomStarters?: string[];
-}
-
-// Keep the original interface for backward compatibility
 interface SuggestedActionsProps {
   chatId: string;
   append: UseChatHelpers['append'];
   selectedVisibilityType: VisibilityType;
 }
 
-// Replace old implementation with new functionality
 function PureSuggestedActions({
   chatId,
   append,
   selectedVisibilityType,
 }: SuggestedActionsProps) {
-  const [activeCategory, setActiveCategory] = useState(0);
-  const [animateOut, setAnimateOut] = useState(false);
-  const [displayedCategory, setDisplayedCategory] = useState(0);
   const [greeting, setGreeting] = useState('');
-  const [randomizedStarters, setRandomizedStarters] = useState<
-    ConversationStarterCategory[]
-  >([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Set time-appropriate random greeting
   useEffect(() => {
     const getRandomGreeting = () => {
-      // Get current date
       const date = new Date();
-
-      // Get hour in local timezone
       const hour: number = date.getHours();
 
       let greetings: string[];
@@ -166,108 +64,39 @@ function PureSuggestedActions({
     setGreeting(getRandomGreeting());
   }, []);
 
-  // Randomize starters for each category
-  useEffect(() => {
-    // Function to get 4 random items from an array
-    const getRandomItems = (array: string[], count = 4) => {
-      // Clone the array to avoid modifying the original
-      const shuffled = [...array];
-
-      // Fisher-Yates shuffle algorithm
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-
-      // Return the first 'count' items or all if fewer
-      return shuffled.slice(0, Math.min(count, shuffled.length));
-    };
-
-    // Create randomized versions of each category's starters
-    const randomized = CONVERSATION_STARTERS.map((category) => ({
-      ...category,
-      randomStarters: getRandomItems(
-        category.starters,
-        typeof window !== 'undefined' && window.innerWidth < 768 ? 3 : 4,
-      ), // Fewer items on mobile
-    }));
-
-    setRandomizedStarters(randomized);
-  }, []); // Only run once on mount
-
-  // Handle category change with animation
-  const handleCategoryChange = (index: number) => {
-    if (index === activeCategory) return;
-
-    // Immediately update the active category for visual feedback
-    setActiveCategory(index);
-    setDropdownOpen(false);
-
-    // Start the content animation
-    setAnimateOut(true);
-
-    // Update the displayed content after animation starts
-    setTimeout(() => {
-      setDisplayedCategory(index);
-
-      // Small delay before starting the fade-in animation
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          setAnimateOut(false);
-        }, 50);
-      });
-    }, 200); // Reduced timeout for faster content transition
-  };
-
-  // Handle dropdown toggle
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
-  };
-
-  // Handle starter click with the original append functionality
-  const handleStarterClick = (starter: string) => {
-    window.history.replaceState({}, '', `/chat/${chatId}`);
-
-    append({
-      role: 'user',
-      content: starter,
-    });
-  };
-
   return (
     <div
       data-testid="suggested-actions"
-      className="flex flex-col w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 animate-fadeIn suggestions-container"
+      className="flex items-center justify-center min-h-[50vh] w-full p-4"
       style={{
-        overflow: 'visible',
-        minHeight: 'min-content',
-        maxWidth: 'min(100vw - 2rem, 1200px)',
+        // Ensure we take up appropriate space but don't cause overflow
+        minHeight: 'max(50vh, 300px)',
+        maxHeight: '80vh',
       }}
     >
-      {/* Header section with improved responsive sizing */}
-      <div className="flex flex-col items-center justify-center mb-2 sm:mb-3 md:mb-4 lg:mb-6 pt-4 sm:pt-6 md:pt-8">
-        <h2 className="font-bold text-center text-orange-500 dark:text-orange-400 mb-3 sm:mb-4 md:mb-6 lg:mb-8 w-full px-2 sm:px-4 responsive-title-adaptive">
-          <span className="inline-block animate-blur-in-text whitespace-nowrap-words">
-            {greeting.split(' ').map((word, wordIndex) => (
+      <div className="text-center max-w-4xl mx-auto">
+        <h1 className="font-bold text-orange-500 dark:text-orange-400 animate-blur-in-text">
+          <span
+            className="inline-block text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl leading-tight"
+            style={{
+              // Responsive text sizing based on viewport
+              fontSize: 'clamp(1.5rem, 4vw + 1rem, 4rem)',
+              lineHeight: '1.2',
+            }}
+          >
+            {greeting.split(' ').map((word) => (
               <span
-                key={`word-${wordIndex}`}
-                className="inline-block mr-1 sm:mr-2 whitespace-nowrap"
+                key={`word-${word}-${Math.random()}`}
+                className="inline-block mr-2 sm:mr-3 whitespace-nowrap"
               >
-                {word.split('').map((char, charIndex) => {
-                  const globalIndex = greeting
-                    .split('')
-                    .slice(
-                      0,
-                      greeting.split(' ').slice(0, wordIndex).join(' ').length +
-                        (wordIndex > 0 ? 1 : 0) +
-                        charIndex,
-                    ).length;
+                {word.split('').map((char) => {
+                  const uniqueKey = `char-${word}-${char}-${Math.random()}`;
                   return (
                     <span
-                      key={`${wordIndex}-${charIndex}`}
+                      key={uniqueKey}
                       className="inline-block animate-blur-in-char"
                       style={{
-                        animationDelay: `${globalIndex * 0.015}s`,
+                        animationDelay: '0.5s',
                         filter: 'blur(8px)',
                         opacity: 0,
                       }}
@@ -279,154 +108,24 @@ function PureSuggestedActions({
               </span>
             ))}
           </span>
-        </h2>
+        </h1>
 
-        {/* Visual separator with responsive sizing */}
-        <div className="w-full max-w-sm sm:max-w-md md:max-w-lg mx-auto mb-3 sm:mb-4 md:mb-6">
-          <hr
-            className="border-none h-[2px] sm:h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
-            style={{
-              backgroundImage:
-                'linear-gradient(to right, rgba(209, 213, 219, 0.5) 50%, transparent 50%)',
-              backgroundSize: 'clamp(10px, 2vw, 15px) 100%',
-            }}
-          />
-        </div>
-
-        {/* Mobile Dropdown with improved sizing */}
-        <div
-          className="lg:hidden w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4 animate-slideUp relative z-30"
-          style={{ overflow: 'visible' }}
+        {/* Subtle subtitle that's responsive */}
+        <p
+          className="text-muted-foreground mt-4 sm:mt-6 md:mt-8 animate-fadeIn opacity-70"
+          style={{
+            fontSize: 'clamp(0.875rem, 2vw + 0.5rem, 1.125rem)',
+            animationDelay: '1s',
+            animationFillMode: 'both',
+          }}
         >
-          <div className="relative" style={{ overflow: 'visible' }}>
-            <button
-              type="button"
-              onClick={toggleDropdown}
-              className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100 text-sm sm:text-base"
-            >
-              <span className="text-left flex-1 mr-2 truncate">
-                {randomizedStarters[activeCategory]?.category ||
-                  'Select a category'}
-              </span>
-              <svg
-                className={`flex-shrink-0 h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform duration-300 ${dropdownOpen ? 'transform rotate-180' : ''}`}
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-
-            {dropdownOpen && (
-              <div
-                className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 rounded-modern border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-48 sm:max-h-60 overflow-auto"
-                style={{
-                  boxShadow:
-                    '0 20px 50px -10px rgba(0, 0, 0, 0.15), 0 8px 16px -4px rgba(0, 0, 0, 0.1)',
-                  filter: 'drop-shadow(0 10px 20px rgba(0, 0, 0, 0.1))',
-                  margin: '0.5rem 0',
-                }}
-              >
-                {randomizedStarters.map((category, index) => (
-                  <button
-                    key={`category-${category.category}-${index}`}
-                    type="button"
-                    onClick={() => handleCategoryChange(index)}
-                    className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-sm ${
-                      activeCategory === index
-                        ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-medium'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    } break-words`}
-                  >
-                    {category.category}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Desktop Category Tabs with improved responsive layout */}
-        <div
-          className="hidden lg:flex flex-wrap gap-2 xl:gap-3 justify-center animate-slideUp px-2 sm:px-4 py-3 max-w-full category-tabs-container-adaptive"
-          style={{ overflow: 'visible' }}
-        >
-          {randomizedStarters.map((category, index) => (
-            <button
-              key={`desktop-category-${category.category}-${index}`}
-              type="button"
-              onClick={() => handleCategoryChange(index)}
-              className={`px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-modern text-xs sm:text-sm lg:text-base font-medium transition-all duration-300 hover:shadow-md ${
-                activeCategory === index
-                  ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30 scale-105'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700 hover:scale-102'
-              } min-w-fit flex-shrink-0 whitespace-nowrap`}
-              style={{
-                filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1))',
-                margin: '0.125rem',
-                transform: 'translateZ(0)',
-              }}
-            >
-              {category.category}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Starters Grid with adaptive sizing and improved responsive behavior */}
-      <div
-        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-5 transition-all duration-300 ease-in-out ${
-          animateOut ? 'opacity-0' : 'opacity-100'
-        } relative z-10`}
-        style={{
-          minHeight: 'min-content',
-          willChange: 'opacity, transform',
-          overflow: 'visible',
-          padding: 'clamp(0.5rem, 2vw, 2rem) clamp(0.25rem, 1vw, 1rem)',
-          maxWidth: '100%',
-        }}
-      >
-        {randomizedStarters[displayedCategory]?.randomStarters?.map(
-          (starter, index) => (
-            <motion.button
-              key={`starter-${index}-${starter.substring(0, 10)}`}
-              type="button"
-              onClick={() => handleStarterClick(starter)}
-              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-3 sm:px-4 md:px-5 py-3 sm:py-4 md:py-5 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 hover:border-orange-200 dark:hover:border-orange-700 hover:scale-102 animate-scaleIn ${`stagger-${(index % 4) + 1}`} min-h-[clamp(70px, 8vh, 120px)] flex items-center suggestion-card-adaptive`}
-              style={{
-                filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.08))',
-                margin: 'clamp(0.25rem, 0.5vw, 0.5rem)',
-                transform: 'translateZ(0)',
-                willChange: 'transform',
-                fontSize: 'clamp(0.8rem, 1.8vw, 1rem)',
-                lineHeight: 'clamp(1.2, 1.4, 1.6)',
-              }}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                delay: index * 0.1,
-                type: 'spring',
-                stiffness: 260,
-                damping: 20,
-              }}
-            >
-              <p className="text-gray-800 dark:text-gray-200 leading-relaxed w-full">
-                {starter}
-              </p>
-            </motion.button>
-          ),
-        )}
+          Your AI assistant for EOS implementation
+        </p>
       </div>
     </div>
   );
 }
 
-// Keep the same export name for backward compatibility
 export const SuggestedActions = memo(
   PureSuggestedActions,
   (prevProps, nextProps) => {
