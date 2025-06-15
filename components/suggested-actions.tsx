@@ -237,20 +237,21 @@ function PureSuggestedActions({
   return (
     <div
       data-testid="suggested-actions"
-      className="flex flex-col max-w-3xl mx-auto px-4 sm:px-6 animate-fadeIn suggestions-container"
+      className="flex flex-col w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6 lg:px-8 animate-fadeIn suggestions-container"
       style={{
         overflow: 'visible',
-        minHeight: 'fit-content',
+        minHeight: 'min-content',
+        maxWidth: 'min(100vw - 2rem, 1200px)',
       }}
     >
-      {/* Header section */}
-      <div className="flex flex-col items-center justify-center mb-2 sm:mb-4 md:mb-6 pt-4 md:pt-6">
-        <h2 className="font-bold text-center text-orange-500 dark:text-orange-400 mb-4 sm:mb-6 md:mb-8 w-full px-4 responsive-title">
+      {/* Header section with improved responsive sizing */}
+      <div className="flex flex-col items-center justify-center mb-2 sm:mb-3 md:mb-4 lg:mb-6 pt-4 sm:pt-6 md:pt-8">
+        <h2 className="font-bold text-center text-orange-500 dark:text-orange-400 mb-3 sm:mb-4 md:mb-6 lg:mb-8 w-full px-2 sm:px-4 responsive-title-adaptive">
           <span className="inline-block animate-blur-in-text whitespace-nowrap-words">
             {greeting.split(' ').map((word, wordIndex) => (
               <span
                 key={`word-${wordIndex}`}
-                className="inline-block mr-2 whitespace-nowrap"
+                className="inline-block mr-1 sm:mr-2 whitespace-nowrap"
               >
                 {word.split('').map((char, charIndex) => {
                   const globalIndex = greeting
@@ -280,30 +281,30 @@ function PureSuggestedActions({
           </span>
         </h2>
 
-        {/* Visual separator */}
-        <div className="w-full max-w-md mx-auto mb-3 sm:mb-4 md:mb-6">
+        {/* Visual separator with responsive sizing */}
+        <div className="w-full max-w-sm sm:max-w-md md:max-w-lg mx-auto mb-3 sm:mb-4 md:mb-6">
           <hr
-            className="border-none h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
+            className="border-none h-[2px] sm:h-[3px] bg-gray-300 opacity-70 dark:bg-gray-700 dark:opacity-50"
             style={{
               backgroundImage:
                 'linear-gradient(to right, rgba(209, 213, 219, 0.5) 50%, transparent 50%)',
-              backgroundSize: '15px 3px',
+              backgroundSize: 'clamp(10px, 2vw, 15px) 100%',
             }}
           />
         </div>
 
-        {/* Mobile Dropdown */}
+        {/* Mobile Dropdown with improved sizing */}
         <div
-          className="md:hidden w-full max-w-[90%] mx-auto mb-3 animate-slideUp relative z-30"
+          className="lg:hidden w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4 animate-slideUp relative z-30"
           style={{ overflow: 'visible' }}
         >
           <div className="relative" style={{ overflow: 'visible' }}>
             <button
               type="button"
               onClick={toggleDropdown}
-              className="w-full flex items-center justify-between px-4 py-2 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100"
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 rounded-modern bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-modern-dark dark:text-gray-100 text-sm sm:text-base"
             >
-              <span className="text-left flex-1 mr-2">
+              <span className="text-left flex-1 mr-2 truncate">
                 {randomizedStarters[activeCategory]?.category ||
                   'Select a category'}
               </span>
@@ -323,7 +324,7 @@ function PureSuggestedActions({
 
             {dropdownOpen && (
               <div
-                className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 rounded-modern border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-60 overflow-auto"
+                className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 rounded-modern border border-gray-200 dark:border-gray-700 animate-fadeIn max-h-48 sm:max-h-60 overflow-auto"
                 style={{
                   boxShadow:
                     '0 20px 50px -10px rgba(0, 0, 0, 0.15), 0 8px 16px -4px rgba(0, 0, 0, 0.1)',
@@ -336,7 +337,7 @@ function PureSuggestedActions({
                     key={`category-${category.category}-${index}`}
                     type="button"
                     onClick={() => handleCategoryChange(index)}
-                    className={`w-full text-left px-4 py-2 text-sm ${
+                    className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-sm ${
                       activeCategory === index
                         ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400 font-medium'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -350,9 +351,9 @@ function PureSuggestedActions({
           </div>
         </div>
 
-        {/* Desktop Category Tabs */}
+        {/* Desktop Category Tabs with improved responsive layout */}
         <div
-          className="hidden md:flex flex-wrap gap-2 justify-center animate-slideUp px-4 py-3 max-w-full category-tabs-container"
+          className="hidden lg:flex flex-wrap gap-2 xl:gap-3 justify-center animate-slideUp px-2 sm:px-4 py-3 max-w-full category-tabs-container-adaptive"
           style={{ overflow: 'visible' }}
         >
           {randomizedStarters.map((category, index) => (
@@ -360,14 +361,14 @@ function PureSuggestedActions({
               key={`desktop-category-${category.category}-${index}`}
               type="button"
               onClick={() => handleCategoryChange(index)}
-              className={`px-4 py-2 rounded-modern text-sm font-medium transition-all duration-300 hover:shadow-md ${
+              className={`px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 rounded-modern text-xs sm:text-sm lg:text-base font-medium transition-all duration-300 hover:shadow-md ${
                 activeCategory === index
-                  ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700'
-              } min-w-fit flex-shrink-0`}
+                  ? 'bg-orange-500 dark:bg-orange-600 text-white shadow-modern shadow-orange-500/50 dark:shadow-orange-600/30 scale-105'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-500 dark:hover:text-orange-400 border border-gray-100 dark:border-gray-700 hover:scale-102'
+              } min-w-fit flex-shrink-0 whitespace-nowrap`}
               style={{
                 filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1))',
-                margin: '0.25rem',
+                margin: '0.125rem',
                 transform: 'translateZ(0)',
               }}
             >
@@ -377,16 +378,17 @@ function PureSuggestedActions({
         </div>
       </div>
 
-      {/* Starters Grid - Compact with shadow protection */}
+      {/* Starters Grid with adaptive sizing and improved responsive behavior */}
       <div
-        className={`grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 transition-all duration-300 ease-in-out ${
+        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-5 transition-all duration-300 ease-in-out ${
           animateOut ? 'opacity-0' : 'opacity-100'
         } relative z-10`}
         style={{
-          minHeight: 'fit-content',
+          minHeight: 'min-content',
           willChange: 'opacity, transform',
           overflow: 'visible',
-          padding: '1rem 0.5rem 2rem 0.5rem',
+          padding: 'clamp(0.5rem, 2vw, 2rem) clamp(0.25rem, 1vw, 1rem)',
+          maxWidth: '100%',
         }}
       >
         {randomizedStarters[displayedCategory]?.randomStarters?.map(
@@ -395,12 +397,14 @@ function PureSuggestedActions({
               key={`starter-${index}-${starter.substring(0, 10)}`}
               type="button"
               onClick={() => handleStarterClick(starter)}
-              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-4 py-3 md:px-5 md:py-4 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 hover:border-orange-200 dark:hover:border-orange-700 animate-scaleIn ${`stagger-${(index % 4) + 1}`} min-h-[80px] md:min-h-[100px] flex items-center suggestion-card`}
+              className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 px-3 sm:px-4 md:px-5 py-3 sm:py-4 md:py-5 rounded-modern shadow-sm md:shadow-modern dark:shadow-modern-dark hover:shadow-card dark:hover:shadow-card-dark border border-gray-100 dark:border-gray-700 text-left transition-all duration-300 hover:border-orange-200 dark:hover:border-orange-700 hover:scale-102 animate-scaleIn ${`stagger-${(index % 4) + 1}`} min-h-[clamp(70px, 8vh, 120px)] flex items-center suggestion-card-adaptive`}
               style={{
                 filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.08))',
-                margin: '0.5rem 0.25rem',
+                margin: 'clamp(0.25rem, 0.5vw, 0.5rem)',
                 transform: 'translateZ(0)',
                 willChange: 'transform',
+                fontSize: 'clamp(0.8rem, 1.8vw, 1rem)',
+                lineHeight: 'clamp(1.2, 1.4, 1.6)',
               }}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -411,7 +415,7 @@ function PureSuggestedActions({
                 damping: 20,
               }}
             >
-              <p className="text-gray-800 dark:text-gray-200 text-sm md:text-base leading-relaxed w-full">
+              <p className="text-gray-800 dark:text-gray-200 leading-relaxed w-full">
                 {starter}
               </p>
             </motion.button>

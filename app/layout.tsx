@@ -28,6 +28,15 @@ export const metadata: Metadata = {
 
 export const viewport = {
   maximumScale: 1, // Disable auto-zoom on mobile Safari
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  userScalable: 'yes', // Allow manual zoom for accessibility
+  minimumScale: 0.5,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
 };
 
 const geist = Geist({
