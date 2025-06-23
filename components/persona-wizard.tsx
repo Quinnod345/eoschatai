@@ -851,7 +851,9 @@ export function PersonaWizard({
 
             {isLoadingDocuments ? (
               <div className="flex items-center gap-2 py-8 justify-center">
-                <div className="animate-spin text-primary"><LoaderIcon size={16} /></div>
+                <div className="animate-spin text-primary">
+                  <LoaderIcon size={16} />
+                </div>
                 <span className="text-sm text-muted-foreground">
                   Loading documents...
                 </span>

@@ -29,7 +29,11 @@ export default function EntranceAnimation({
         <div className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 blur-xl opacity-30" />
         <div className="relative z-10">
           <Image
-            src={theme === 'dark' ? '/eos-logo-dark-mode.png' : '/images/eos-logo.png'}
+            src={
+              theme === 'dark'
+                ? '/eos-logo-dark-mode.png'
+                : '/images/eos-logo.png'
+            }
             alt="EOS Logo"
             width={120}
             height={120}

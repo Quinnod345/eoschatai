@@ -8,7 +8,10 @@ interface UseFeaturesOptions {
   autoShow?: boolean;
 }
 
-export function useFeatures({ userId, autoShow = true }: UseFeaturesOptions = {}) {
+export function useFeatures({
+  userId,
+  autoShow = true,
+}: UseFeaturesOptions = {}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [lastSeenVersion, setLastSeenVersion] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -53,28 +56,31 @@ export function useFeatures({ userId, autoShow = true }: UseFeaturesOptions = {}
     }
   }, [isLoading, lastSeenVersion, autoShow]);
 
-  const markAsSeen = useCallback(async (version: string) => {
-    try {
-      if (userId) {
-        // Update via API
-        await fetch('/api/user-settings', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            lastFeaturesVersion: version,
-          }),
-        });
-      } else {
-        // For guests, use localStorage
-        localStorage.setItem('lastFeaturesVersion', version);
+  const markAsSeen = useCallback(
+    async (version: string) => {
+      try {
+        if (userId) {
+          // Update via API
+          await fetch('/api/user-settings', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              lastFeaturesVersion: version,
+            }),
+          });
+        } else {
+          // For guests, use localStorage
+          localStorage.setItem('lastFeaturesVersion', version);
+        }
+        setLastSeenVersion(version);
+      } catch (error) {
+        console.error('Failed to update last seen features version:', error);
       }
-      setLastSeenVersion(version);
-    } catch (error) {
-      console.error('Failed to update last seen features version:', error);
-    }
-  }, [userId]);
+    },
+    [userId],
+  );
 
   const showModal = useCallback(() => {
     setIsModalOpen(true);
@@ -84,7 +90,8 @@ export function useFeatures({ userId, autoShow = true }: UseFeaturesOptions = {}
     setIsModalOpen(false);
   }, []);
 
-  const hasNewFeatures = !isLoading && getNewFeatures(lastSeenVersion).length > 0;
+  const hasNewFeatures =
+    !isLoading && getNewFeatures(lastSeenVersion).length > 0;
 
   return {
     isModalOpen,

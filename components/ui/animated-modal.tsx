@@ -1,10 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import {
-  AlertDialog,
-  AlertDialogContent,
-} from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 // Conditional imports to avoid SSR issues
@@ -98,10 +95,7 @@ export function AnimatedModal({
   // Fallback for SSR
   if (typeof window === 'undefined' || !motion || !AnimatePresence) {
     return (
-      <AlertDialog
-        open={!isClosing && isOpen}
-        onOpenChange={handleOpenChange}
-      >
+      <AlertDialog open={!isClosing && isOpen} onOpenChange={handleOpenChange}>
         <AlertDialogContent
           className={cn(
             'p-0 border-none bg-transparent shadow-none max-h-[95vh] max-w-screen-md w-[95vw] sm:w-auto',

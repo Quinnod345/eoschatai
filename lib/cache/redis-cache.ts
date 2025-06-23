@@ -5,7 +5,7 @@ let redisClient: any = null;
 try {
   // Try to import Redis if available
   Redis = require('@upstash/redis').Redis;
-  
+
   // Initialize Redis client if URL is available
   if (
     process.env.UPSTASH_REDIS_REST_URL &&

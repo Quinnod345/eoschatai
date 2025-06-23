@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, } from 'react';
+import { useState } from 'react';
 import {
   ChevronRight,
   Copy,
@@ -122,13 +122,17 @@ export function SavedContentDropdown({
 
   // Filter content based on search
   const filteredPinned = pinnedWithContent.filter((item) =>
-    'content' in item && typeof item.content === 'string' 
-      ? item.content.toLowerCase().includes(searchQuery.toLowerCase()) 
+    'content' in item && typeof item.content === 'string'
+      ? item.content.toLowerCase().includes(searchQuery.toLowerCase())
       : true,
   );
 
-  const filteredBookmarks = bookmarks.filter((chat) =>
-    searchQuery === '' || ('title' in chat && typeof chat.title === 'string' && chat.title.toLowerCase().includes(searchQuery.toLowerCase())),
+  const filteredBookmarks = bookmarks.filter(
+    (chat) =>
+      searchQuery === '' ||
+      ('title' in chat &&
+        typeof chat.title === 'string' &&
+        chat.title.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   const handleCopyMessage = (content: string, e: React.MouseEvent) => {
@@ -301,23 +305,35 @@ export function SavedContentDropdown({
                                 variant="outline"
                                 className="text-[10px] px-1.5 py-0"
                               >
-                                {getDisplayTitle(('chatTitle' in pinned && typeof pinned.chatTitle === 'string' ? pinned.chatTitle : '') || '') || 'Untitled Chat'}
+                                {getDisplayTitle(
+                                  ('chatTitle' in pinned &&
+                                  typeof pinned.chatTitle === 'string'
+                                    ? pinned.chatTitle
+                                    : '') || '',
+                                ) || 'Untitled Chat'}
                               </Badge>
                             )}
                             <Badge
                               variant={
-                                ('role' in pinned && pinned.role === 'user') ? 'default' : 'secondary'
+                                'role' in pinned && pinned.role === 'user'
+                                  ? 'default'
+                                  : 'secondary'
                               }
                               className="text-[10px] px-1.5 py-0"
                             >
-                              {('role' in pinned && pinned.role === 'user') ? 'You' : 'AI'}
+                              {'role' in pinned && pinned.role === 'user'
+                                ? 'You'
+                                : 'AI'}
                             </Badge>
                             <span className="text-[11px] text-muted-foreground">
                               {new Date(pinned.pinnedAt).toLocaleDateString()}
                             </span>
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2">
-                            {'content' in pinned && typeof pinned.content === 'string' ? pinned.content : 'No content available'}
+                            {'content' in pinned &&
+                            typeof pinned.content === 'string'
+                              ? pinned.content
+                              : 'No content available'}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -326,7 +342,13 @@ export function SavedContentDropdown({
                             size="sm"
                             className="h-6 w-6 p-0"
                             onClick={(e) =>
-                              handleCopyMessage(('content' in pinned && typeof pinned.content === 'string' ? pinned.content : ''), e)
+                              handleCopyMessage(
+                                'content' in pinned &&
+                                  typeof pinned.content === 'string'
+                                  ? pinned.content
+                                  : '',
+                                e,
+                              )
                             }
                           >
                             <Copy className="h-3 w-3" />
@@ -382,22 +404,40 @@ export function SavedContentDropdown({
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate mb-1">
-                              {getDisplayTitle(('title' in chat && typeof chat.title === 'string' ? chat.title : '')) || 'Untitled Chat'}
+                              {getDisplayTitle(
+                                'title' in chat &&
+                                  typeof chat.title === 'string'
+                                  ? chat.title
+                                  : '',
+                              ) || 'Untitled Chat'}
                             </p>
                             <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 {(() => {
-                                  if ('lastMessageAt' in chat && chat.lastMessageAt) {
-                                    return new Date(chat.lastMessageAt as string | Date).toLocaleDateString();
+                                  if (
+                                    'lastMessageAt' in chat &&
+                                    chat.lastMessageAt
+                                  ) {
+                                    return new Date(
+                                      chat.lastMessageAt as string | Date,
+                                    ).toLocaleDateString();
                                   }
                                   if ('createdAt' in chat && chat.createdAt) {
-                                    return new Date(chat.createdAt as string | Date).toLocaleDateString();
+                                    return new Date(
+                                      chat.createdAt as string | Date,
+                                    ).toLocaleDateString();
                                   }
                                   return new Date().toLocaleDateString();
                                 })()}
                               </span>
-                              <span>{('messageCount' in chat && typeof chat.messageCount === 'number' ? chat.messageCount : 0)} messages</span>
+                              <span>
+                                {'messageCount' in chat &&
+                                typeof chat.messageCount === 'number'
+                                  ? chat.messageCount
+                                  : 0}{' '}
+                                messages
+                              </span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

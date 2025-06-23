@@ -516,7 +516,9 @@ export const debugUserNamespace = async (
     return {
       totalVectors: 0,
       sampleVectors: [],
-      namespaceInfo: { error: error instanceof Error ? error.message : String(error) },
+      namespaceInfo: {
+        error: error instanceof Error ? error.message : String(error),
+      },
     };
   }
 };

@@ -35,6 +35,7 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
+  AudioWaveform,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
@@ -48,6 +49,7 @@ import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import type { VisibilityType } from './visibility-selector';
 import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
+import VoiceFAB from './voice-fab';
 import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -311,6 +313,8 @@ function PureMultimodalInput({
   selectedVisibilityType,
   selectedModelId,
   selectedProviderId,
+  selectedPersonaId,
+  selectedProfileId,
   session,
   isReadonly,
   selectedResearchMode,
@@ -332,6 +336,8 @@ function PureMultimodalInput({
   selectedVisibilityType: VisibilityType;
   selectedModelId?: string;
   selectedProviderId?: string;
+  selectedPersonaId?: string;
+  selectedProfileId?: string;
   session?: Session;
   isReadonly?: boolean;
   selectedResearchMode?: ResearchMode;
@@ -2178,21 +2184,36 @@ function PureMultimodalInput({
             )}
         </div>
 
-        <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+        <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end gap-1">
           {status === 'submitted' ? (
             <StopButton stop={stop} setMessages={setMessages} />
           ) : (
-            <SendButton
-              input={input}
-              submitForm={submitForm}
-              uploadQueue={uploadQueue}
-              attachmentsCount={attachmentsCount}
-              pdfCount={pdfCount}
-              docCount={docCount}
-              imgCount={imgCount}
-              handleSubmit={handleSubmit}
-              attachments={attachments}
-            />
+            <>
+              {session?.user && (
+                <VoiceFAB
+                  variant="inline"
+                  size="sm"
+                  selectedModelId={selectedModelId}
+                  selectedProviderId={selectedProviderId}
+                  selectedPersonaId={selectedPersonaId || undefined}
+                  selectedProfileId={selectedProfileId || undefined}
+                  chatId={chatId}
+                  onAppendMessage={append}
+                  onUpdateMessages={setMessages}
+                />
+              )}
+              <SendButton
+                input={input}
+                submitForm={submitForm}
+                uploadQueue={uploadQueue}
+                attachmentsCount={attachmentsCount}
+                pdfCount={pdfCount}
+                docCount={docCount}
+                imgCount={imgCount}
+                handleSubmit={handleSubmit}
+                attachments={attachments}
+              />
+            </>
           )}
         </div>
       </div>
@@ -2210,6 +2231,10 @@ export const MultimodalInput = memo(
       return false;
     if (prevProps.selectedModelId !== nextProps.selectedModelId) return false;
     if (prevProps.selectedProviderId !== nextProps.selectedProviderId)
+      return false;
+    if (prevProps.selectedPersonaId !== nextProps.selectedPersonaId)
+      return false;
+    if (prevProps.selectedProfileId !== nextProps.selectedProfileId)
       return false;
     if (prevProps.selectedResearchMode !== nextProps.selectedResearchMode)
       return false;

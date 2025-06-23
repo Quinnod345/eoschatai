@@ -1,7 +1,7 @@
 'use client';
 
 import { EditorView } from '@codemirror/view';
-import { EditorState, Transaction, } from '@codemirror/state';
+import { EditorState, Transaction } from '@codemirror/state';
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';

@@ -61,9 +61,9 @@ export function useEnhancedMentions({
           try {
             const response = await fetch(
               `/api/calendar/events?${new URLSearchParams({
-                  searchTerm,
-                  maxResults: '5',
-                })}`,
+                searchTerm,
+                maxResults: '5',
+              })}`,
             );
             if (response.ok) {
               const events = await response.json();
@@ -84,9 +84,9 @@ export function useEnhancedMentions({
           try {
             const response = await fetch(
               `/api/documents?${new URLSearchParams({
-                  search: searchTerm,
-                  limit: '5',
-                })}`,
+                search: searchTerm,
+                limit: '5',
+              })}`,
             );
             if (response.ok) {
               const docs = await response.json();
@@ -127,7 +127,9 @@ export function useEnhancedMentions({
         // Apply category filter
         if (activeCategory !== 'all') {
           baseSuggestions = baseSuggestions.filter(
-            (s) => 'category' in s.resource && s.resource.category === activeCategory,
+            (s) =>
+              'category' in s.resource &&
+              s.resource.category === activeCategory,
           );
         }
 
@@ -142,25 +144,42 @@ export function useEnhancedMentions({
         // Enhance with dynamic data for top suggestions
         const enhancedSuggestions = await Promise.all(
           baseSuggestions.slice(0, 3).map(async (suggestion) => {
-            if ('isDynamic' in suggestion.resource && suggestion.resource.isDynamic) {
+            if (
+              'isDynamic' in suggestion.resource &&
+              suggestion.resource.isDynamic
+            ) {
               const dynamicInstances = await fetchDynamicData(
                 suggestion.resource.type,
                 searchQuery,
               );
 
               // Add dynamic instances as separate suggestions
-              const instanceSuggestions = dynamicInstances.map((instance: any) => ({
-                resource: {
-                  ...instance,
-                  type: ('type' in suggestion.resource ? suggestion.resource.type : 'document'),
-                  category: ('category' in suggestion.resource ? suggestion.resource.category : 'resource'),
-                  icon: ('icon' in suggestion.resource ? suggestion.resource.icon : 'document'),
-                  color: ('color' in suggestion.resource ? suggestion.resource.color : undefined),
-                } as MentionInstance,
-                relevanceScore: suggestion.relevanceScore * 0.9,
-                reason: 'Specific item',
-                context: instance.preview,
-              }));
+              const instanceSuggestions = dynamicInstances.map(
+                (instance: any) => ({
+                  resource: {
+                    ...instance,
+                    type:
+                      'type' in suggestion.resource
+                        ? suggestion.resource.type
+                        : 'document',
+                    category:
+                      'category' in suggestion.resource
+                        ? suggestion.resource.category
+                        : 'resource',
+                    icon:
+                      'icon' in suggestion.resource
+                        ? suggestion.resource.icon
+                        : 'document',
+                    color:
+                      'color' in suggestion.resource
+                        ? suggestion.resource.color
+                        : undefined,
+                  } as MentionInstance,
+                  relevanceScore: suggestion.relevanceScore * 0.9,
+                  reason: 'Specific item',
+                  context: instance.preview,
+                }),
+              );
 
               return [suggestion, ...instanceSuggestions];
             }

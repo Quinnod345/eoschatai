@@ -37,6 +37,9 @@ export function Chat({
   initialProfileId,
   documentContext,
   initialResearchMode = 'off',
+  pendingMessage,
+  onPendingMessageSent,
+  meetingMetadata,
 }: {
   id: string;
   initialMessages: Array<UIMessage>;
@@ -55,6 +58,9 @@ export function Chat({
     message: string;
   } | null;
   initialResearchMode?: ResearchMode;
+  pendingMessage?: string | null;
+  onPendingMessageSent?: () => void;
+  meetingMetadata?: any;
 }) {
   const { mutate } = useSWRConfig();
   const router = useRouter();
@@ -613,8 +619,8 @@ export function Chat({
   }, [activeModel, messages.length, providerTransitioning]);
 
   useEffect(() => {
-    // Don't auto-resume if we're navigating to scroll to a message
-    if (autoResume && !scrollToMessageId) {
+    // Don't auto-resume if we're navigating to scroll to a message or if there are no messages
+    if (autoResume && !scrollToMessageId && messages.length > 0) {
       experimental_resume();
     }
 
@@ -694,6 +700,7 @@ export function Chat({
 
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingMessageSentRef = useRef<boolean>(false);
 
   const { pinnedMessages, handlePin } = useMessageActions({ chatId: id });
 
@@ -1180,221 +1187,80 @@ export function Chat({
 
   // Handle research mode changes and save to user settings
   const handleResearchModeChange = useCallback(
-    async (mode: ResearchMode) => {
-      // Prevent multiple simultaneous changes
-      if (researchModeChanging) {
-        console.log(
-          '[Chat] Research mode change already in progress, ignoring',
-        );
-        return;
-      }
-
-      // Prevent redundant changes
-      if (mode === selectedResearchMode) {
-        console.log('[Chat] Research mode is already', mode, ', ignoring');
-        return;
-      }
-
-      console.log('[Chat] Research mode change requested:', {
-        from: selectedResearchMode,
-        to: mode,
+    (mode: ResearchMode) => {
+      console.log('[Chat] handleResearchModeChange called:', {
+        currentMode: selectedResearchMode,
+        newMode: mode,
         chatId: id,
       });
 
-      const previousMode = selectedResearchMode;
-
-      try {
-        // Set loading state
-        setResearchModeChanging(true);
-
-        // CRITICAL: Clear all mode-specific caches and state when switching modes
-        if (previousMode !== mode) {
-          console.log(
-            `[Chat] Mode transition detected: ${previousMode} → ${mode} - clearing all caches and state`,
-          );
-
-          // Clear browser storage that might interfere with the new mode
-          try {
-            // Clear mode-specific data from localStorage
-            const allKeys = Object.keys(localStorage);
-            const modeKeys = allKeys.filter((key) => {
-              const lowerKey = key.toLowerCase();
-              return (
-                lowerKey.includes('nexus') ||
-                lowerKey.includes('research') ||
-                lowerKey.includes('search') ||
-                lowerKey.includes('mode') ||
-                lowerKey.includes('context') ||
-                lowerKey.includes('cache')
-              );
-            });
-            modeKeys.forEach((key) => {
-              console.log('[Chat] Clearing localStorage key:', key);
-              localStorage.removeItem(key);
-            });
-
-            // Clear mode-specific data from sessionStorage
-            const sessionKeys = Object.keys(sessionStorage);
-            const modeSessionKeys = sessionKeys.filter((key) => {
-              const lowerKey = key.toLowerCase();
-              return (
-                lowerKey.includes('nexus') ||
-                lowerKey.includes('research') ||
-                lowerKey.includes('search') ||
-                lowerKey.includes('mode') ||
-                lowerKey.includes('context') ||
-                lowerKey.includes('cache')
-              );
-            });
-            modeSessionKeys.forEach((key) => {
-              console.log('[Chat] Clearing sessionStorage key:', key);
-              sessionStorage.removeItem(key);
-            });
-
-            console.log('[Chat] Browser storage cleared successfully');
-          } catch (storageError) {
-            console.warn(
-              '[Chat] Error clearing browser storage:',
-              storageError,
-            );
-          }
-
-          // Clear any cached API responses or contexts
-          try {
-            // Force clear SWR cache for this chat
-            if (typeof mutate === 'function') {
-              console.log('[Chat] Clearing SWR cache');
-              mutate(() => true, undefined, { revalidate: false });
-            }
-
-            // Clear any fetch caches that might contain mode-specific responses
-            if ('caches' in window) {
-              console.log('[Chat] Attempting to clear browser caches');
-              caches
-                .keys()
-                .then((cacheNames) => {
-                  cacheNames.forEach((cacheName) => {
-                    if (
-                      cacheName.includes('nexus') ||
-                      cacheName.includes('chat') ||
-                      cacheName.includes('api')
-                    ) {
-                      caches.delete(cacheName);
-                      console.log('[Chat] Cleared cache:', cacheName);
-                    }
-                  });
-                })
-                .catch((err) =>
-                  console.warn('[Chat] Error clearing browser caches:', err),
-                );
-            }
-          } catch (cacheError) {
-            console.warn('[Chat] Error clearing cache:', cacheError);
-          }
-
-          // Clear any URL state or hash that might affect mode behavior
-          try {
-            // Check if there are any URL parameters that might interfere
-            const currentUrl = new URL(window.location.href);
-            let urlChanged = false;
-
-            // Remove any mode-related URL parameters
-            if (currentUrl.searchParams.has('research')) {
-              currentUrl.searchParams.delete('research');
-              urlChanged = true;
-            }
-            if (currentUrl.searchParams.has('nexus')) {
-              currentUrl.searchParams.delete('nexus');
-              urlChanged = true;
-            }
-            if (currentUrl.searchParams.has('mode')) {
-              currentUrl.searchParams.delete('mode');
-              urlChanged = true;
-            }
-
-            if (urlChanged) {
-              console.log('[Chat] Clearing URL parameters');
-              window.history.replaceState({}, '', currentUrl.toString());
-            }
-          } catch (urlError) {
-            console.warn('[Chat] Error clearing URL state:', urlError);
-          }
-
-          // Clear any data stream contexts
-          try {
-            // Dispatch custom event to clear mode-specific contexts
-            console.log('[Chat] Dispatching mode-clear event');
-            window.dispatchEvent(
-              new CustomEvent('mode-clear', {
-                detail: {
-                  chatId: id,
-                  previousMode,
-                  newMode: mode,
-                  timestamp: new Date().toISOString(),
-                },
-              }),
-            );
-          } catch (eventError) {
-            console.warn('[Chat] Error dispatching clear event:', eventError);
-          }
-
-          console.log(
-            `[Chat] All caches and state cleared for ${previousMode} → ${mode} transition`,
-          );
-        }
-
-        // Update state immediately for UI responsiveness
-        setSelectedResearchMode(mode);
-        console.log('[Chat] Local state updated to:', mode);
-
-        // Save to user settings with proper error handling
-        console.log('[Chat] Saving research mode to database...');
-        const response = await fetch('/api/user-settings', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            selectedResearchMode: mode,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[Chat] Failed to save research mode preference:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorText,
-          });
-
-          throw new Error(`Failed to save: ${response.status} ${errorText}`);
-        }
-
-        console.log(
-          '[Chat] Research mode preference saved successfully to database',
-        );
-
-        // Show enhanced success feedback with clearing confirmation
-        toast.success(
-          `Switched to ${mode === 'off' ? 'Standard' : 'Nexus'} mode - All caches cleared`,
-          { duration: 3000 },
-        );
-      } catch (error) {
-        console.error('[Chat] Error saving research mode preference:', error);
-
-        // Revert state on error
-        console.log('[Chat] Reverting research mode due to error');
-        setSelectedResearchMode(previousMode);
-
-        // Show user feedback
-        toast.error('Failed to save research mode preference');
-      } finally {
-        // Always clear loading state
-        setResearchModeChanging(false);
+      // Prevent unnecessary updates
+      if (mode === selectedResearchMode) {
+        console.log('[Chat] Research mode unchanged, skipping update', mode);
+        return;
       }
+
+      setResearchModeChanging(true);
+      setSelectedResearchMode(mode);
+
+      // Update user preference in the database
+      fetch('/api/user-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedResearchMode: mode }),
+      })
+        .then(() => {
+          console.log('[Chat] Research mode saved to database:', mode);
+        })
+        .catch((error) => {
+          console.error('[Chat] Failed to save research mode:', error);
+        })
+        .finally(() => {
+          setResearchModeChanging(false);
+        });
     },
-    [selectedResearchMode, researchModeChanging, id, mutate],
+    [selectedResearchMode, id],
   );
+
+  // Auto-submit pending message
+  useEffect(() => {
+    if (
+      pendingMessage &&
+      !isReadonly &&
+      status === 'ready' &&
+      !pendingMessageSentRef.current
+    ) {
+      // Mark as sent immediately to prevent duplicates
+      pendingMessageSentRef.current = true;
+
+      // Use append to send the message and get AI response
+      const sendMessage = async () => {
+        try {
+          await append({
+            role: 'user',
+            content: pendingMessage,
+          });
+          // Clear the pending message after sending to prevent duplicates
+          if (onPendingMessageSent) {
+            onPendingMessageSent();
+          }
+        } catch (error) {
+          console.error('Error sending pending message:', error);
+          // Reset the flag if there was an error so it can be retried
+          pendingMessageSentRef.current = false;
+        }
+      };
+
+      setTimeout(sendMessage, 500);
+    }
+  }, [pendingMessage, isReadonly, status, append, onPendingMessageSent]);
+
+  // Reset the sent flag when pendingMessage changes
+  useEffect(() => {
+    if (!pendingMessage) {
+      pendingMessageSentRef.current = false;
+    }
+  }, [pendingMessage]);
 
   return (
     <>
@@ -1427,6 +1293,7 @@ export function Chat({
           isArtifactVisible={isArtifactVisible}
           citations={citations}
           searchProgress={searchProgress}
+          meetingMetadata={meetingMetadata}
         />
 
         <form className="absolute bottom-0 left-0 right-0 flex mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
@@ -1446,6 +1313,8 @@ export function Chat({
               selectedVisibilityType={visibilityType}
               selectedModelId={activeModel}
               selectedProviderId={activeProvider}
+              selectedPersonaId={selectedPersonaId}
+              selectedProfileId={selectedProfileId}
               session={session}
               isReadonly={isReadonly}
               selectedResearchMode={selectedResearchMode}

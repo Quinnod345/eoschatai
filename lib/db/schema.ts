@@ -39,6 +39,7 @@ export const chat = pgTable('Chat', {
     .default('private'),
   personaId: uuid('personaId').references(() => persona.id),
   profileId: uuid('profileId').references(() => personaProfile.id),
+  metadata: json('metadata').$type<{ isVoiceChat?: boolean }>(),
 });
 
 export type Chat = InferSelectModel<typeof chat>;
@@ -397,3 +398,36 @@ export const profileDocument = pgTable(
 );
 
 export type ProfileDocument = InferSelectModel<typeof profileDocument>;
+
+// Voice recordings table for storing meeting recordings
+export const voiceRecording = pgTable('VoiceRecording', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  audioUrl: text('audioUrl').notNull(), // URL to the audio file in blob storage
+  duration: integer('duration'), // Duration in seconds
+  fileSize: integer('fileSize'), // Size in bytes
+  mimeType: varchar('mimeType', { length: 64 }).default('audio/webm'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export type VoiceRecording = InferSelectModel<typeof voiceRecording>;
+
+// Voice transcripts table for storing analyzed transcripts
+export const voiceTranscript = pgTable('VoiceTranscript', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  recordingId: uuid('recordingId')
+    .notNull()
+    .references(() => voiceRecording.id, { onDelete: 'cascade' }),
+  fullTranscript: text('fullTranscript').notNull(),
+  segments: json('segments').notNull(), // Array of { speaker: number, text: string, start?: number, end?: number }
+  speakerCount: integer('speakerCount').notNull().default(1),
+  summary: text('summary'), // AI-generated summary
+  keywords: json('keywords'), // Array of extracted keywords
+  analyzedAt: timestamp('analyzedAt').notNull().defaultNow(),
+});
+
+export type VoiceTranscript = InferSelectModel<typeof voiceTranscript>;

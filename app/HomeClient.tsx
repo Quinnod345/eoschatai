@@ -27,7 +27,7 @@ import {
   Award,
   BookOpen,
   Workflow,
-  Settings
+  Settings,
 } from 'lucide-react';
 
 export default function HomeClient() {
@@ -41,23 +41,24 @@ export default function HomeClient() {
   const benefitsRef = useRef<HTMLDivElement>(null);
   const integrationRef = useRef<HTMLDivElement>(null);
 
-
   // Function to handle animation completion
   const handleAnimationComplete = () => {
     setShowEntrance(false);
   };
-
 
   return (
     <>
       {showEntrance && (
         <EntranceAnimation onAnimationComplete={handleAnimationComplete} />
       )}
-      
-      <div className="flex min-h-screen flex-col bg-gradient-to-b from-background via-background/98 to-background/95 relative overflow-hidden" ref={containerRef}>
+
+      <div
+        className="flex min-h-screen flex-col bg-gradient-to-b from-background via-background/98 to-background/95 relative overflow-hidden"
+        ref={containerRef}
+      >
         {/* Global noise texture */}
         <div className="noise-texture" />
-        
+
         {/* Navigation with glassmorphism */}
         <header className="sticky top-0 z-50 glass-morphism border-b border-border/20">
           <div className="container mx-auto px-4 md:px-6">
@@ -73,27 +74,46 @@ export default function HomeClient() {
                 />
               </div>
               <nav className="hidden md:flex items-center gap-8">
-                <Link href="#features" className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105">
+                <Link
+                  href="#features"
+                  className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105"
+                >
                   Features
                 </Link>
-                <Link href="#benefits" className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105">
+                <Link
+                  href="#benefits"
+                  className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105"
+                >
                   Benefits
                 </Link>
-                <Link href="#how-it-works" className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105">
+                <Link
+                  href="#how-it-works"
+                  className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105"
+                >
                   How It Works
                 </Link>
-                <Link href="#pricing" className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105">
+                <Link
+                  href="#pricing"
+                  className="text-sm font-medium hover:text-eos-orange transition-all duration-300 hover:scale-105"
+                >
                   Pricing
                 </Link>
               </nav>
               <div className="flex items-center gap-4">
                 <Link href="/login">
-                  <Button variant="ghost" size="sm" className="hidden md:inline-flex glass-button">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden md:inline-flex glass-button"
+                  >
                     Sign In
                   </Button>
                 </Link>
                 <Link href="/register">
-                  <Button size="sm" className="bg-eos-orange hover:bg-eos-orange/90 shadow-glow">
+                  <Button
+                    size="sm"
+                    className="bg-eos-orange hover:bg-eos-orange/90 shadow-glow"
+                  >
                     Get Started
                   </Button>
                 </Link>
@@ -104,13 +124,16 @@ export default function HomeClient() {
 
         <main className="flex-1">
           {/* Hero Section with enhanced visuals */}
-          <section className="relative overflow-hidden py-20 md:py-32" ref={heroRef}>
+          <section
+            className="relative overflow-hidden py-20 md:py-32"
+            ref={heroRef}
+          >
             <div className="parallax-bg absolute inset-0 -z-10">
               <div className="absolute top-20 left-10 w-72 h-72 bg-eos-orange/20 rounded-full blur-3xl animate-pulse" />
               <div className="absolute bottom-20 right-10 w-96 h-96 bg-eos-navy/20 rounded-full blur-3xl animate-pulse animation-delay-2000" />
               <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-gradient-radial from-eos-orange/10 to-transparent rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
             </div>
-            
+
             <div className="container mx-auto px-4 md:px-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="space-y-8">
@@ -118,27 +141,35 @@ export default function HomeClient() {
                     <Sparkles className="w-4 h-4" />
                     Powered by Advanced AI
                   </div>
-                  
+
                   <h1 className="hero-title text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight blur-text">
                     Your AI Assistant for{' '}
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-eos-orange to-eos-orange/70">
                       EOS Implementation
                     </span>
                   </h1>
-                  
+
                   <p className="hero-subtitle text-lg md:text-xl text-muted-foreground max-w-lg blur-text">
-                    Transform your business with AI-powered guidance on the Entrepreneurial Operating System. 
-                    Get instant answers, automate processes, and achieve better results.
+                    Transform your business with AI-powered guidance on the
+                    Entrepreneurial Operating System. Get instant answers,
+                    automate processes, and achieve better results.
                   </p>
-                  
+
                   <div className="hero-buttons flex flex-col sm:flex-row gap-4">
                     <Link href="/register">
-                      <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2 shadow-glow group">
+                      <Button
+                        size="lg"
+                        className="bg-eos-orange hover:bg-eos-orange/90 gap-2 shadow-glow group"
+                      >
                         Start Free Trial
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </Button>
                     </Link>
-                    <Button size="lg" variant="outline" className="gap-2 glass-button group">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="gap-2 glass-button group"
+                    >
                       Watch Demo
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </Button>
@@ -155,7 +186,7 @@ export default function HomeClient() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="hero-image relative" style={{ opacity: 1 }}>
                   <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border border-border/50 glass-morphism-dark bg-muted/50">
                     <Image
@@ -166,11 +197,13 @@ export default function HomeClient() {
                       priority
                       style={{ opacity: 1 }}
                       onError={() => console.log('Hero image failed to load')}
-                      onLoad={() => console.log('Hero image loaded successfully')}
+                      onLoad={() =>
+                        console.log('Hero image loaded successfully')
+                      }
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
                   </div>
-                  
+
                   {/* Floating elements with glass morphism */}
                   <div className="floating-element absolute -top-4 -right-4 glass-morphism rounded-lg shadow-xl p-3 animate-float">
                     <div className="flex items-center gap-2">
@@ -178,11 +211,13 @@ export default function HomeClient() {
                       <span className="text-sm font-medium">AI Assistant</span>
                     </div>
                   </div>
-                  
+
                   <div className="floating-element absolute -bottom-4 -left-4 glass-morphism rounded-lg shadow-xl p-3 animate-float-delayed">
                     <div className="flex items-center gap-2">
                       <Brain className="w-5 h-5 text-eos-navy dark:text-eos-orange" />
-                      <span className="text-sm font-medium">Smart Analysis</span>
+                      <span className="text-sm font-medium">
+                        Smart Analysis
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -199,25 +234,33 @@ export default function HomeClient() {
                   <div className="stat-number text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-eos-orange to-eos-orange/70 mb-2">
                     500+
                   </div>
-                  <p className="text-sm text-muted-foreground">Companies Using EOS AI</p>
+                  <p className="text-sm text-muted-foreground">
+                    Companies Using EOS AI
+                  </p>
                 </div>
                 <div className="stat-item text-center glass-morphism rounded-xl p-6 shadow-lg">
                   <div className="stat-number text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-eos-orange to-eos-orange/70 mb-2">
                     10,000+
                   </div>
-                  <p className="text-sm text-muted-foreground">Hours Saved Monthly</p>
+                  <p className="text-sm text-muted-foreground">
+                    Hours Saved Monthly
+                  </p>
                 </div>
                 <div className="stat-item text-center glass-morphism rounded-xl p-6 shadow-lg">
                   <div className="stat-number text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-eos-orange to-eos-orange/70 mb-2">
                     95%
                   </div>
-                  <p className="text-sm text-muted-foreground">% User Satisfaction</p>
+                  <p className="text-sm text-muted-foreground">
+                    % User Satisfaction
+                  </p>
                 </div>
                 <div className="stat-item text-center glass-morphism rounded-xl p-6 shadow-lg">
                   <div className="stat-number text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-eos-orange to-eos-orange/70 mb-2">
                     24/7
                   </div>
-                  <p className="text-sm text-muted-foreground">Support Available</p>
+                  <p className="text-sm text-muted-foreground">
+                    Support Available
+                  </p>
                 </div>
               </div>
             </div>
@@ -231,8 +274,9 @@ export default function HomeClient() {
                   Everything You Need for EOS Success
                 </h2>
                 <p className="section-subtitle text-lg text-muted-foreground max-w-2xl mx-auto blur-text">
-                  Our AI assistant provides comprehensive tools and guidance to help you implement 
-                  and master the Entrepreneurial Operating System.
+                  Our AI assistant provides comprehensive tools and guidance to
+                  help you implement and master the Entrepreneurial Operating
+                  System.
                 </p>
               </div>
 
@@ -240,17 +284,20 @@ export default function HomeClient() {
                 {/* Feature cards with glass morphism */}
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-orange/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-orange/10 text-eos-orange shadow-glow-sm">
                       <Lightbulb className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">EOS Expertise</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      EOS Expertise
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Deep knowledge of all Six Key Components® and EOS Tools® to guide your implementation.
+                      Deep knowledge of all Six Key Components® and EOS Tools®
+                      to guide your implementation.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -270,17 +317,20 @@ export default function HomeClient() {
 
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-navy/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-navy/10 text-eos-navy dark:text-eos-orange shadow-glow-sm">
                       <FileText className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">Smart Documents</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      Smart Documents
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Automatically generate and maintain all your EOS documents with AI precision.
+                      Automatically generate and maintain all your EOS documents
+                      with AI precision.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -300,17 +350,20 @@ export default function HomeClient() {
 
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-orange/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-orange/10 text-eos-orange shadow-glow-sm">
                       <Brain className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">Personalized AI</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      Personalized AI
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      AI that learns your company&apos;s unique context and provides tailored guidance.
+                      AI that learns your company&apos;s unique context and
+                      provides tailored guidance.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -330,17 +383,20 @@ export default function HomeClient() {
 
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-navy/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-navy/10 text-eos-navy dark:text-eos-orange shadow-glow-sm">
                       <Calendar className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">Calendar Integration</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      Calendar Integration
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Sync with Google Calendar for meeting prep and intelligent scheduling.
+                      Sync with Google Calendar for meeting prep and intelligent
+                      scheduling.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -360,17 +416,20 @@ export default function HomeClient() {
 
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-orange/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-orange/10 text-eos-orange shadow-glow-sm">
                       <BarChart className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">Analytics & Insights</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      Analytics & Insights
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Track progress and get AI-powered insights to optimize your EOS implementation.
+                      Track progress and get AI-powered insights to optimize
+                      your EOS implementation.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -390,17 +449,20 @@ export default function HomeClient() {
 
                 <div className="feature-card glass-morphism rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 group depth-shadow">
                   <div className="absolute inset-0 bg-gradient-to-br from-eos-navy/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <div className="relative z-10">
                     <div className="mb-4 inline-flex p-3 rounded-lg bg-eos-navy/10 text-eos-navy dark:text-eos-orange shadow-glow-sm">
                       <Users className="w-6 h-6" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold mb-2">Team Collaboration</h3>
+
+                    <h3 className="text-xl font-semibold mb-2">
+                      Team Collaboration
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Break down silos and improve communication with shared AI assistance.
+                      Break down silos and improve communication with shared AI
+                      assistance.
                     </p>
-                    
+
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -422,19 +484,24 @@ export default function HomeClient() {
           </section>
 
           {/* Benefits Section - New */}
-          <section id="benefits" className="py-20 md:py-32 relative" ref={benefitsRef}>
+          <section
+            id="benefits"
+            className="py-20 md:py-32 relative"
+            ref={benefitsRef}
+          >
             <div className="parallax-bg absolute inset-0 -z-10">
               <div className="absolute bottom-0 left-0 w-96 h-96 bg-eos-orange/10 rounded-full blur-3xl" />
               <div className="absolute top-0 right-0 w-72 h-72 bg-eos-navy/10 rounded-full blur-3xl" />
             </div>
-            
+
             <div className="container mx-auto px-4 md:px-6">
               <div className="text-center mb-16">
                 <h2 className="section-title text-3xl md:text-4xl font-bold mb-4 blur-text">
                   Transform Your Business with EOS AI
                 </h2>
                 <p className="section-subtitle text-lg text-muted-foreground max-w-2xl mx-auto blur-text">
-                  Experience the power of AI-driven implementation and see measurable results in weeks, not months.
+                  Experience the power of AI-driven implementation and see
+                  measurable results in weeks, not months.
                 </p>
               </div>
 
@@ -443,9 +510,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-orange/20 to-eos-orange/10 shadow-glow">
                     <Zap className="w-8 h-8 text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">10x Faster Implementation</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    10x Faster Implementation
+                  </h3>
                   <p className="text-muted-foreground">
-                    Accelerate your EOS journey with AI that guides you through every step, reducing implementation time by 90%.
+                    Accelerate your EOS journey with AI that guides you through
+                    every step, reducing implementation time by 90%.
                   </p>
                 </div>
 
@@ -453,9 +523,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-navy/20 to-eos-navy/10 shadow-glow">
                     <Target className="w-8 h-8 text-eos-navy dark:text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">Perfect Alignment</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Perfect Alignment
+                  </h3>
                   <p className="text-muted-foreground">
-                    Keep your entire team aligned with real-time updates, automated reminders, and crystal-clear accountability.
+                    Keep your entire team aligned with real-time updates,
+                    automated reminders, and crystal-clear accountability.
                   </p>
                 </div>
 
@@ -463,9 +536,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-orange/20 to-eos-orange/10 shadow-glow">
                     <TrendingUp className="w-8 h-8 text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">Measurable Growth</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Measurable Growth
+                  </h3>
                   <p className="text-muted-foreground">
-                    Track your progress with advanced analytics and see tangible improvements in productivity and profitability.
+                    Track your progress with advanced analytics and see tangible
+                    improvements in productivity and profitability.
                   </p>
                 </div>
 
@@ -473,9 +549,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-navy/20 to-eos-navy/10 shadow-glow">
                     <Shield className="w-8 h-8 text-eos-navy dark:text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">Risk-Free Decisions</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Risk-Free Decisions
+                  </h3>
                   <p className="text-muted-foreground">
-                    Make confident decisions with AI-powered insights that analyze patterns and predict outcomes.
+                    Make confident decisions with AI-powered insights that
+                    analyze patterns and predict outcomes.
                   </p>
                 </div>
 
@@ -483,9 +562,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-orange/20 to-eos-orange/10 shadow-glow">
                     <Award className="w-8 h-8 text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">Expert Guidance 24/7</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Expert Guidance 24/7
+                  </h3>
                   <p className="text-muted-foreground">
-                    Access decades of EOS expertise anytime, anywhere, with an AI assistant that never sleeps.
+                    Access decades of EOS expertise anytime, anywhere, with an
+                    AI assistant that never sleeps.
                   </p>
                 </div>
 
@@ -493,9 +575,12 @@ export default function HomeClient() {
                   <div className="mb-4 inline-flex p-4 rounded-full bg-gradient-to-br from-eos-navy/20 to-eos-navy/10 shadow-glow">
                     <BookOpen className="w-8 h-8 text-eos-navy dark:text-eos-orange" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">Continuous Learning</h3>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Continuous Learning
+                  </h3>
                   <p className="text-muted-foreground">
-                    Stay ahead with an AI that learns from your business and evolves with your needs.
+                    Stay ahead with an AI that learns from your business and
+                    evolves with your needs.
                   </p>
                 </div>
               </div>
@@ -503,14 +588,18 @@ export default function HomeClient() {
           </section>
 
           {/* Integration Section - New */}
-          <section className="py-20 md:py-32 bg-gradient-to-b from-background to-muted/30" ref={integrationRef}>
+          <section
+            className="py-20 md:py-32 bg-gradient-to-b from-background to-muted/30"
+            ref={integrationRef}
+          >
             <div className="container mx-auto px-4 md:px-6">
               <div className="text-center mb-16">
                 <h2 className="section-title text-3xl md:text-4xl font-bold mb-4 blur-text">
                   Seamlessly Integrates with Your Workflow
                 </h2>
                 <p className="section-subtitle text-lg text-muted-foreground max-w-2xl mx-auto blur-text">
-                  Connect EOS AI with your favorite tools and platforms for a unified experience.
+                  Connect EOS AI with your favorite tools and platforms for a
+                  unified experience.
                 </p>
               </div>
 
@@ -536,7 +625,9 @@ export default function HomeClient() {
               </div>
 
               <div className="mt-12 text-center">
-                <p className="text-muted-foreground mb-4">And many more integrations coming soon...</p>
+                <p className="text-muted-foreground mb-4">
+                  And many more integrations coming soon...
+                </p>
                 <Button variant="outline" className="glass-button">
                   View All Integrations
                 </Button>
@@ -545,14 +636,19 @@ export default function HomeClient() {
           </section>
 
           {/* How It Works Section with enhanced styling */}
-          <section id="how-it-works" className="py-20 md:py-32 relative" ref={howItWorksRef}>
+          <section
+            id="how-it-works"
+            className="py-20 md:py-32 relative"
+            ref={howItWorksRef}
+          >
             <div className="container mx-auto px-4 md:px-6">
               <div className="text-center mb-16">
                 <h2 className="section-title text-3xl md:text-4xl font-bold mb-4 blur-text">
                   Get Started in Minutes
                 </h2>
                 <p className="section-subtitle text-lg text-muted-foreground max-w-2xl mx-auto blur-text">
-                  Our simple onboarding process gets you up and running with AI-powered EOS guidance quickly.
+                  Our simple onboarding process gets you up and running with
+                  AI-powered EOS guidance quickly.
                 </p>
               </div>
 
@@ -563,9 +659,12 @@ export default function HomeClient() {
                       <span className="text-2xl font-bold text-white">1</span>
                     </div>
                     <div className="flex-1 glass-morphism rounded-2xl p-6">
-                      <h3 className="text-xl font-semibold mb-2">Create Your Account</h3>
+                      <h3 className="text-xl font-semibold mb-2">
+                        Create Your Account
+                      </h3>
                       <p className="text-muted-foreground">
-                        Sign up in seconds and tell us about your company and EOS journey.
+                        Sign up in seconds and tell us about your company and
+                        EOS journey.
                       </p>
                     </div>
                     <div className="hidden md:block flex-shrink-0">
@@ -580,9 +679,12 @@ export default function HomeClient() {
                       <span className="text-2xl font-bold text-white">2</span>
                     </div>
                     <div className="flex-1 glass-morphism rounded-2xl p-6">
-                      <h3 className="text-xl font-semibold mb-2">Upload Your Documents</h3>
+                      <h3 className="text-xl font-semibold mb-2">
+                        Upload Your Documents
+                      </h3>
                       <p className="text-muted-foreground">
-                        Import your existing EOS documents for personalized AI assistance.
+                        Import your existing EOS documents for personalized AI
+                        assistance.
                       </p>
                     </div>
                     <div className="hidden md:block flex-shrink-0">
@@ -597,9 +699,12 @@ export default function HomeClient() {
                       <span className="text-2xl font-bold text-white">3</span>
                     </div>
                     <div className="flex-1 glass-morphism rounded-2xl p-6">
-                      <h3 className="text-xl font-semibold mb-2">Start Getting Answers</h3>
+                      <h3 className="text-xl font-semibold mb-2">
+                        Start Getting Answers
+                      </h3>
                       <p className="text-muted-foreground">
-                        Ask questions and get instant, expert guidance on your EOS implementation.
+                        Ask questions and get instant, expert guidance on your
+                        EOS implementation.
                       </p>
                     </div>
                     <div className="hidden md:block flex-shrink-0">
@@ -614,14 +719,18 @@ export default function HomeClient() {
           </section>
 
           {/* Testimonials Section with glass morphism */}
-          <section className="py-20 md:py-32 bg-gradient-to-b from-muted/30 to-background" ref={testimonialsRef}>
+          <section
+            className="py-20 md:py-32 bg-gradient-to-b from-muted/30 to-background"
+            ref={testimonialsRef}
+          >
             <div className="container mx-auto px-4 md:px-6">
               <div className="text-center mb-16">
                 <h2 className="section-title text-3xl md:text-4xl font-bold mb-4 blur-text">
                   Trusted by EOS Companies Worldwide
                 </h2>
                 <p className="section-subtitle text-lg text-muted-foreground max-w-2xl mx-auto blur-text">
-                  See how companies are transforming their EOS implementation with AI assistance.
+                  See how companies are transforming their EOS implementation
+                  with AI assistance.
                 </p>
               </div>
 
@@ -635,14 +744,17 @@ export default function HomeClient() {
                     <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   </div>
                   <p className="text-muted-foreground mb-4 italic">
-                    &quot;EOS AI has transformed how we run our Level 10 meetings. The AI prepares agendas, 
-                    tracks our Rocks, and gives us insights we never had before.&quot;
+                    &quot;EOS AI has transformed how we run our Level 10
+                    meetings. The AI prepares agendas, tracks our Rocks, and
+                    gives us insights we never had before.&quot;
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-eos-orange/20 to-eos-orange/10" />
                     <div>
                       <p className="font-medium">Sarah Johnson</p>
-                      <p className="text-sm text-muted-foreground">CEO, TechCorp</p>
+                      <p className="text-sm text-muted-foreground">
+                        CEO, TechCorp
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -656,14 +768,17 @@ export default function HomeClient() {
                     <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   </div>
                   <p className="text-muted-foreground mb-4 italic">
-                    &quot;The personalized guidance is incredible. It&apos;s like having an EOS Implementer 
-                    available 24/7 who knows our company inside and out.&quot;
+                    &quot;The personalized guidance is incredible. It&apos;s
+                    like having an EOS Implementer available 24/7 who knows our
+                    company inside and out.&quot;
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-eos-navy/20 to-eos-navy/10" />
                     <div>
                       <p className="font-medium">Mike Chen</p>
-                      <p className="text-sm text-muted-foreground">COO, Growth Inc</p>
+                      <p className="text-sm text-muted-foreground">
+                        COO, Growth Inc
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -677,14 +792,17 @@ export default function HomeClient() {
                     <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   </div>
                   <p className="text-muted-foreground mb-4 italic">
-                    &quot;We&apos;ve cut our meeting prep time by 80% and our team is more aligned than ever. 
-                    EOS AI is a game-changer for any company serious about EOS.&quot;
+                    &quot;We&apos;ve cut our meeting prep time by 80% and our
+                    team is more aligned than ever. EOS AI is a game-changer for
+                    any company serious about EOS.&quot;
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-eos-orange/20 to-eos-orange/10" />
                     <div>
                       <p className="font-medium">Lisa Park</p>
-                      <p className="text-sm text-muted-foreground">VP Operations, Scale Up</p>
+                      <p className="text-sm text-muted-foreground">
+                        VP Operations, Scale Up
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -696,23 +814,30 @@ export default function HomeClient() {
           <section className="py-20 md:py-32 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-eos-orange/20 via-eos-navy/20 to-eos-orange/20" />
             <div className="absolute inset-0 noise-texture opacity-30" />
-            
+
             <div className="container mx-auto px-4 md:px-6 text-center relative z-10">
               <h2 className="text-3xl md:text-4xl font-bold mb-4 blur-text">
                 Ready to Transform Your EOS Implementation?
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 blur-text">
-                Join hundreds of companies using AI to achieve better results with EOS. 
-                Start your free trial today.
+                Join hundreds of companies using AI to achieve better results
+                with EOS. Start your free trial today.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/register">
-                  <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2 shadow-glow group">
+                  <Button
+                    size="lg"
+                    className="bg-eos-orange hover:bg-eos-orange/90 gap-2 shadow-glow group"
+                  >
                     Start Free Trial
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="gap-2 glass-button group">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="gap-2 glass-button group"
+                >
                   Schedule Demo
                   <Calendar className="w-4 h-4 group-hover:scale-110 transition-transform" />
                 </Button>
@@ -728,41 +853,153 @@ export default function HomeClient() {
               <div>
                 <h3 className="font-semibold mb-4">Product</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><Link href="#features" className="hover:text-foreground transition-colors">Features</Link></li>
-                  <li><Link href="#pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Integrations</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">API</Link></li>
+                  <li>
+                    <Link
+                      href="#features"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Features
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#pricing"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Pricing
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Integrations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      API
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div>
                 <h3 className="font-semibold mb-4">Company</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><Link href="#" className="hover:text-foreground transition-colors">About</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Blog</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Careers</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Contact</Link></li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      About
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Blog
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Careers
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Contact
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div>
                 <h3 className="font-semibold mb-4">Resources</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Documentation</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Help Center</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Community</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Webinars</Link></li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Documentation
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Help Center
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Community
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Webinars
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div>
                 <h3 className="font-semibold mb-4">Legal</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><Link href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-                  <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Security</Link></li>
-                  <li><Link href="#" className="hover:text-foreground transition-colors">Compliance</Link></li>
+                  <li>
+                    <Link
+                      href="/privacy-policy"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Privacy Policy
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/terms"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Terms of Service
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Security
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="#"
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Compliance
+                    </Link>
+                  </li>
                 </ul>
               </div>
             </div>
-            
+
             <div className="border-t border-border/20 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-2">
                 <Image
@@ -776,12 +1013,18 @@ export default function HomeClient() {
                   © {new Date().getFullYear()} EOS AI. All rights reserved.
                 </span>
               </div>
-              
+
               <div className="flex gap-6">
-                <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  href="#"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
                   <Globe className="w-5 h-5" />
                 </Link>
-                <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  href="#"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
                   <MessageSquare className="w-5 h-5" />
                 </Link>
               </div>

@@ -50,6 +50,20 @@
       "when": 1749175681342,
       "tag": "0006_crazy_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1750114816286,
+      "tag": "0007_free_zodiak",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1750145519685,
+      "tag": "0008_funny_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

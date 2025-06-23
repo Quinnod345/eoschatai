@@ -14,10 +14,12 @@ import { Button } from '@/components/ui/button';
 import { SettingsModal } from '@/components/settings-modal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Mail, Calendar } from 'lucide-react';
+import RecordingModal from '@/components/recording-modal';
 
 export function ProfileCard() {
   const { data: session } = useSession();
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isRecordingModalOpen, setIsRecordingModalOpen] = React.useState(false);
   const [settings, setSettings] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -102,13 +104,19 @@ export function ProfileCard() {
             <span>Member since {new Date().toLocaleDateString()}</span>
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col gap-2">
           <Button
             variant="outline"
             className="w-full"
             onClick={() => setIsSettingsOpen(true)}
           >
             Account Settings
+          </Button>
+          <Button
+            className="w-full"
+            onClick={() => setIsRecordingModalOpen(true)}
+          >
+            Voice Recording Suite
           </Button>
         </CardFooter>
       </Card>
@@ -120,6 +128,13 @@ export function ProfileCard() {
             setIsSettingsOpen(false);
             fetchUserSettings();
           }}
+        />
+      )}
+
+      {isRecordingModalOpen && (
+        <RecordingModal
+          isOpen={isRecordingModalOpen}
+          onClose={() => setIsRecordingModalOpen(false)}
         />
       )}
     </>

@@ -2,11 +2,9 @@ import { auth } from '@/app/(auth)/auth';
 import { createCustomProvider, DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { chatModels } from '@/lib/ai/models';
 import { systemPrompt } from '@/lib/ai/prompts';
-import {
-  saveMessages,
-} from '@/lib/db/queries';
-import { generateUUID, } from '@/lib/utils';
-import { convertToCoreMessages, streamText, } from 'ai';
+import { saveMessages } from '@/lib/db/queries';
+import { generateUUID } from '@/lib/utils';
+import { convertToCoreMessages, streamText } from 'ai';
 import { z } from 'zod';
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';

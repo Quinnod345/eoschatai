@@ -24,7 +24,26 @@ export const addUserDocumentTool = {
       .optional()
       .describe('The file type (e.g., pdf, docx, txt)'),
   }),
-  execute: async ({ title, content, category, fileType }: { title: string; content: string; category: 'Scorecard' | 'VTO' | 'Rocks' | 'A/C' | 'Core Process' | 'Other'; fileType?: string }, userId: string) => {
+  execute: async (
+    {
+      title,
+      content,
+      category,
+      fileType,
+    }: {
+      title: string;
+      content: string;
+      category:
+        | 'Scorecard'
+        | 'VTO'
+        | 'Rocks'
+        | 'A/C'
+        | 'Core Process'
+        | 'Other';
+      fileType?: string;
+    },
+    userId: string,
+  ) => {
     try {
       console.log(
         `User RAG Tool: Adding document "${title}" for user ${userId}`,
@@ -73,7 +92,10 @@ export const getUserDocumentsTool = {
       .default(5)
       .describe('Maximum number of results to return'),
   }),
-  execute: async ({ query, limit = 5 }: { query: string; limit?: number }, userId: string) => {
+  execute: async (
+    { query, limit = 5 }: { query: string; limit?: number },
+    userId: string,
+  ) => {
     try {
       console.log(
         `User RAG Tool: Searching user ${userId} documents for: "${query}"`,

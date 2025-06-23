@@ -70,7 +70,9 @@ async function diagnoseEOSRAG() {
           console.log(`  Found specific vector by ID: ${testId}`);
         }
       } catch (error) {
-        console.log(`  Error querying namespace: ${error instanceof Error ? error.message : String(error)}`);
+        console.log(
+          `  Error querying namespace: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       console.log('');
@@ -144,7 +146,9 @@ async function diagnoseEOSRAG() {
       console.log('\nSample vectors with namespace in metadata:');
       withNamespaceMetadata.slice(0, 3).forEach((result, i) => {
         console.log(`  ${i + 1}. ID: ${result.id}`);
-        console.log(`     Namespace in metadata: ${result.metadata?.namespace}`);
+        console.log(
+          `     Namespace in metadata: ${result.metadata?.namespace}`,
+        );
       });
     }
 

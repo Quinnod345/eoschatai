@@ -106,7 +106,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
         return { error: 'Config check failed' };
       }
     },
-    testModel: async (modelId = 'gpt-4o-mini') => {
+    testModel: async (modelId = 'gpt-4.1') => {
       try {
         // Create a test message to verify the model works
         const response = await fetch('/api/chat', {

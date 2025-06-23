@@ -27,6 +27,7 @@ interface MessagesProps {
   isArtifactVisible: boolean;
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
+  meetingMetadata?: any;
 }
 
 function PureMessages({
@@ -39,6 +40,7 @@ function PureMessages({
   isReadonly,
   citations,
   searchProgress,
+  meetingMetadata,
 }: MessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -155,6 +157,7 @@ function PureMessages({
           isPinned={isPinned(message.id)}
           citations={citations}
           searchProgress={searchProgress}
+          meetingMetadata={meetingMetadata}
         />
       ))}
 

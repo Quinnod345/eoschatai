@@ -13,7 +13,7 @@ import {
 import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
 import type { UseChatHelpers } from '@ai-sdk/react';
-import { motion, } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   X,
   Check,

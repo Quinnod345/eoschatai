@@ -180,15 +180,12 @@ class ToastManager {
     },
     options?: ToastOptions,
   ) {
-    return sonnerToast.promise(
-      promise,
-      {
-        loading: loadingMessage,
-        success: successMessage,
-        error: errorMessage,
-        ...options,
-      },
-    );
+    return sonnerToast.promise(promise, {
+      loading: loadingMessage,
+      success: successMessage,
+      error: errorMessage,
+      ...options,
+    });
   }
 
   dismiss(toastId?: string | number) {

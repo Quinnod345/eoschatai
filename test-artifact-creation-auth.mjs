@@ -24,7 +24,7 @@ async function testArtifactCreationWithAuth() {
             'Create a simple text document titled "Test Document" with some sample content about EOS.',
           ],
         },
-        selectedChatModel: 'gpt-4o-mini',
+        selectedChatModel: 'gpt-4.1',
         selectedVisibilityType: 'private',
         selectedProvider: 'openai',
       }),

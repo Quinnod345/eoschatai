@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { google } from 'googleapis';
-import { addDays, format, startOfDay, endOfDay, } from 'date-fns';
+import { addDays, format, startOfDay, endOfDay } from 'date-fns';
 import type { calendar_v3 } from 'googleapis';
 
 // Type definitions
@@ -153,7 +153,13 @@ export const checkCalendarConflictsTool = {
     startDateTime: z.string().describe('Start time in ISO format'),
     endDateTime: z.string().describe('End time in ISO format'),
   }),
-  execute: async ({ startDateTime, endDateTime }: { startDateTime: string; endDateTime: string }, userId: string) => {
+  execute: async (
+    {
+      startDateTime,
+      endDateTime,
+    }: { startDateTime: string; endDateTime: string },
+    userId: string,
+  ) => {
     try {
       const calendar = await getCalendarClient(userId);
       const conflicts = await checkConflicts(
@@ -203,7 +209,10 @@ export const findAvailableTimeSlotsTool = {
       .default(7)
       .describe('Number of days to search ahead'),
   }),
-  execute: async ({ duration, searchDays }: { duration: number; searchDays: number }, userId: string) => {
+  execute: async (
+    { duration, searchDays }: { duration: number; searchDays: number },
+    userId: string,
+  ) => {
     try {
       const calendar = await getCalendarClient(userId);
       const freeSlots = await findFreeSlots(calendar, duration, searchDays);
@@ -383,7 +392,10 @@ export const getDailyBriefingTool = {
       .default(true)
       .describe('Include preparation suggestions'),
   }),
-  execute: async ({ includePrep }: { includePrep: boolean }, userId: string) => {
+  execute: async (
+    { includePrep }: { includePrep: boolean },
+    userId: string,
+  ) => {
     try {
       const calendar = await getCalendarClient(userId);
 
@@ -496,7 +508,10 @@ export const parseNaturalLanguageEventTool = {
       .optional()
       .describe('Current date for relative date parsing'),
   }),
-  execute: async ({ text, currentDate }: { text: string; currentDate?: string }, userId: string) => {
+  execute: async (
+    { text, currentDate }: { text: string; currentDate?: string },
+    userId: string,
+  ) => {
     // This is a simplified parser - in production, you'd use a more sophisticated NLP approach
     const patterns = {
       time: /(?:at|@)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i,

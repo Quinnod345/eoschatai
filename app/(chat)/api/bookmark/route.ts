@@ -125,9 +125,9 @@ export async function GET(request: Request) {
       .orderBy(desc(bookmarkedChat.bookmarkedAt));
 
     // Clean chat titles before returning
-    const cleanedBookmarks = bookmarks.map(bookmark => ({
+    const cleanedBookmarks = bookmarks.map((bookmark) => ({
       ...bookmark,
-      title: getDisplayTitle(bookmark.title)
+      title: getDisplayTitle(bookmark.title),
     }));
 
     return new Response(JSON.stringify(cleanedBookmarks), {

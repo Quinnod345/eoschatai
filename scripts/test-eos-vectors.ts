@@ -57,7 +57,10 @@ async function testVectors() {
           console.log(`❌ Not found: ${id}`);
         }
       } catch (err) {
-        console.log(`❌ Error fetching ${id}:`, err instanceof Error ? err.message : String(err));
+        console.log(
+          `❌ Error fetching ${id}:`,
+          err instanceof Error ? err.message : String(err),
+        );
       }
     }
 

@@ -4,13 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  Pin,
-  MessageCircle,
-  Copy,
-  Share,
-  Bookmark,
-} from 'lucide-react';
+import { Pin, MessageCircle, Copy, Share, Bookmark } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MessageActionsProps {

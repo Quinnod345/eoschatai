@@ -31,7 +31,14 @@ export async function GET(request: NextRequest) {
     });
 
     return Response.json(chats);
-  } catch (_) {
-    return Response.json('Failed to fetch chats!', { status: 500 });
+  } catch (error) {
+    console.error('[History API] Error fetching chats:', error);
+    return Response.json(
+      {
+        error: 'Failed to fetch chats',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 },
+    );
   }
 }

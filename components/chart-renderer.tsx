@@ -59,7 +59,8 @@ function renderBarChart(canvas: HTMLCanvasElement, chartData: ChartData) {
 
   // Set up styling
   ctx.fillStyle = '#374151'; // Gray-700
-  ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font =
+    'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'center';
 
   // Draw title if available
@@ -72,26 +73,27 @@ function renderBarChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   ctx.strokeStyle = '#E5E7EB'; // Gray-200
   ctx.lineWidth = 1;
   ctx.fillStyle = '#6B7280'; // Gray-500
-  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font =
+    '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'right';
-  
+
   for (let i = 0; i <= gridLines; i++) {
     const y = padding + (availableHeight / gridLines) * i;
     const value = scaledMax - (scaledMax / gridLines) * i;
-    
+
     // Draw grid line
     ctx.beginPath();
     ctx.moveTo(padding, y);
     ctx.lineTo(width - padding, y);
     ctx.stroke();
-    
+
     // Draw y-axis label
     ctx.fillText(Math.round(value).toString(), padding - 10, y + 4);
   }
 
   // Get default colors if not provided
   const defaultColors = getDefaultColors(values.length);
-  
+
   // Draw bars
   values.forEach((value, index) => {
     const x = padding + spacing + index * (barWidth + spacing);
@@ -138,14 +140,16 @@ function renderBarChart(canvas: HTMLCanvasElement, chartData: ChartData) {
 
     // Draw value on top of bar
     ctx.fillStyle = '#374151'; // Gray-700
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(value.toString(), x + barWidth / 2, y - 8);
 
     // Draw label below x-axis
     if (labels[index]) {
       ctx.fillStyle = '#6B7280'; // Gray-500
-      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.font =
+        '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(labels[index], x + barWidth / 2, height - padding + 20);
     }
@@ -212,7 +216,8 @@ function renderPieChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   // Draw title if available
   if (chartData.options?.plugins?.title?.text) {
     ctx.fillStyle = '#374151'; // Gray-700
-    ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(chartData.options.plugins.title.text, width / 2, 30);
   }
@@ -244,11 +249,13 @@ function renderPieChart(canvas: HTMLCanvasElement, chartData: ChartData) {
 
     // Draw label with percentage
     ctx.fillStyle = '#374151'; // Gray-700
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`${labels[index]}`, labelX, labelY - 6);
     ctx.fillStyle = '#6B7280'; // Gray-500
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.fillText(`${percentage}%`, labelX, labelY + 6);
 
     // Draw line from slice to label
@@ -256,7 +263,7 @@ function renderPieChart(canvas: HTMLCanvasElement, chartData: ChartData) {
     const lineStartY = centerY + Math.sin(labelAngle) * (radius + 5);
     const lineEndX = centerX + Math.cos(labelAngle) * (radius + 20);
     const lineEndY = centerY + Math.sin(labelAngle) * (radius + 20);
-    
+
     ctx.strokeStyle = '#9CA3AF'; // Gray-400
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -310,7 +317,8 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   // Draw title if available
   if (chartData.options?.plugins?.title?.text) {
     ctx.fillStyle = '#374151'; // Gray-700
-    ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(chartData.options.plugins.title.text, width / 2, 30);
   }
@@ -319,29 +327,30 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   const gridLines = 5;
   ctx.strokeStyle = '#E5E7EB'; // Gray-200
   ctx.lineWidth = 1;
-  
+
   // Y-axis grid lines and labels
   ctx.fillStyle = '#6B7280'; // Gray-500
-  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font =
+    '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.textAlign = 'right';
-  
+
   for (let i = 0; i <= gridLines; i++) {
     const y = padding + (availableHeight / gridLines) * i;
     const value = scaledMax - ((scaledMax - scaledMin) / gridLines) * i;
-    
+
     // Draw grid line
     ctx.beginPath();
     ctx.moveTo(padding, y);
     ctx.lineTo(width - padding, y);
     ctx.stroke();
-    
+
     // Draw y-axis label
     ctx.fillText(Math.round(value).toString(), padding - 10, y + 4);
   }
 
   // Get default colors
   const defaultColors = getDefaultColors(1);
-  
+
   // Get colors with improved defaults
   const lineColor =
     typeof dataset.borderColor === 'string'
@@ -358,7 +367,10 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
     ctx.beginPath();
     values.forEach((value, index) => {
       const x = padding + index * pointSpacing;
-      const y = height - padding - ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
+      const y =
+        height -
+        padding -
+        ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
 
       if (index === 0) {
         ctx.moveTo(x, y);
@@ -366,7 +378,11 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
         if (dataset.tension && dataset.tension > 0) {
           // Smooth curves
           const prevX = padding + (index - 1) * pointSpacing;
-          const prevY = height - padding - ((values[index - 1] - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
+          const prevY =
+            height -
+            padding -
+            ((values[index - 1] - scaledMin) / (scaledMax - scaledMin)) *
+              availableHeight;
           const cpX1 = prevX + (x - prevX) * 0.5;
           const cpX2 = prevX + (x - prevX) * 0.5;
           ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y);
@@ -375,13 +391,13 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
         }
       }
     });
-    
+
     // Close the area
     const lastX = padding + (pointCount - 1) * pointSpacing;
     ctx.lineTo(lastX, height - padding);
     ctx.lineTo(padding, height - padding);
     ctx.closePath();
-    
+
     ctx.fillStyle = fillColor;
     ctx.fill();
   }
@@ -390,7 +406,10 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   ctx.beginPath();
   values.forEach((value, index) => {
     const x = padding + index * pointSpacing;
-    const y = height - padding - ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
+    const y =
+      height -
+      padding -
+      ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
 
     if (index === 0) {
       ctx.moveTo(x, y);
@@ -398,7 +417,11 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
       if (dataset.tension && dataset.tension > 0) {
         // Smooth curves
         const prevX = padding + (index - 1) * pointSpacing;
-        const prevY = height - padding - ((values[index - 1] - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
+        const prevY =
+          height -
+          padding -
+          ((values[index - 1] - scaledMin) / (scaledMax - scaledMin)) *
+            availableHeight;
         const cpX1 = prevX + (x - prevX) * 0.5;
         const cpX2 = prevX + (x - prevX) * 0.5;
         ctx.bezierCurveTo(cpX1, prevY, cpX2, y, x, y);
@@ -415,7 +438,10 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   // Draw points and labels
   values.forEach((value, index) => {
     const x = padding + index * pointSpacing;
-    const y = height - padding - ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
+    const y =
+      height -
+      padding -
+      ((value - scaledMin) / (scaledMax - scaledMin)) * availableHeight;
 
     // Draw point with glow effect
     ctx.beginPath();
@@ -428,14 +454,16 @@ function renderLineChart(canvas: HTMLCanvasElement, chartData: ChartData) {
 
     // Draw value above point
     ctx.fillStyle = '#374151'; // Gray-700
-    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font =
+      'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(value.toString(), x, y - 15);
 
     // Draw x-axis label
     if (labels[index]) {
       ctx.fillStyle = '#6B7280'; // Gray-500
-      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.font =
+        '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(labels[index], x, height - padding + 20);
     }
@@ -572,12 +600,12 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   const displayWidth = canvas.offsetWidth || 600;
   const displayHeight = 400;
   const devicePixelRatio = window.devicePixelRatio || 1;
-  
+
   canvas.width = displayWidth * devicePixelRatio;
   canvas.height = displayHeight * devicePixelRatio;
   canvas.style.width = `${displayWidth}px`;
   canvas.style.height = `${displayHeight}px`;
-  
+
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.scale(devicePixelRatio, devicePixelRatio);
@@ -594,7 +622,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = displayWidth;
     tempCanvas.height = displayHeight;
-    
+
     if (chartData.type === 'bar') {
       console.log('Using renderBarChart');
       renderBarChart(tempCanvas, chartData);
@@ -614,7 +642,8 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
       if (tempCtx) {
         tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
         tempCtx.fillStyle = '#374151';
-        tempCtx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        tempCtx.font =
+          '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         tempCtx.textAlign = 'center';
         tempCtx.fillText(
           `Chart type '${chartData.type}' is currently being implemented`,
@@ -623,7 +652,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
         );
       }
     }
-    
+
     // Copy the rendered content to the high-DPI canvas
     if (ctx) {
       ctx.clearRect(0, 0, displayWidth, displayHeight);

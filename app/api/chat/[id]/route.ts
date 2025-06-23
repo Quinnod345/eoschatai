@@ -42,7 +42,7 @@ export async function GET(
 
     return NextResponse.json({
       ...foundChat,
-      title: getDisplayTitle(foundChat.title)
+      title: getDisplayTitle(foundChat.title),
     });
   } catch (error) {
     console.error('Error fetching chat:', error);
@@ -119,45 +119,54 @@ export async function PATCH(
         currentTitle: foundChat.title,
         newPersonaId: personaId,
         newProfileId: profileId,
-        isCurrentlyEOSImplementer: foundChat.title.includes('|||EOS_META:') && foundChat.title.includes('"persona":"eos-implementer"'),
+        isCurrentlyEOSImplementer:
+          foundChat.title.includes('|||EOS_META:') &&
+          foundChat.title.includes('"persona":"eos-implementer"'),
       },
     );
 
     // Prepare update data
-    const updateData: { personaId?: string | null; profileId?: string | null; title?: string } =
-      {};
+    const updateData: {
+      personaId?: string | null;
+      profileId?: string | null;
+      title?: string;
+    } = {};
 
     // Handle title updates for EOS Implementer metadata
     let titleUpdate: string | undefined = undefined;
     let isEOSImplementer = false;
 
     // Check if this is an EOS Implementer update (either setting persona or updating profile for existing EOS Implementer)
-    const isCurrentlyEOSImplementer = foundChat.title.includes('|||EOS_META:') && 
+    const isCurrentlyEOSImplementer =
+      foundChat.title.includes('|||EOS_META:') &&
       foundChat.title.includes('"persona":"eos-implementer"');
-    
-    const isSettingEOSPersona = personaId === 'eos-implementer' || 
+
+    const isSettingEOSPersona =
+      personaId === 'eos-implementer' ||
       personaId === '00000000-0000-0000-0000-000000000001';
 
-    isEOSImplementer = isSettingEOSPersona || (isCurrentlyEOSImplementer && !('personaId' in body));
+    isEOSImplementer =
+      isSettingEOSPersona ||
+      (isCurrentlyEOSImplementer && !('personaId' in body));
 
     // Only update fields that are provided in the request
     if ('personaId' in body) {
       // Handle hardcoded EOS implementer persona - store as null
       if (isSettingEOSPersona) {
         updateData.personaId = null;
-        
+
         // Update title with EOS metadata
-        const currentTitle = foundChat.title.includes('|||EOS_META:') 
-          ? foundChat.title.split('|||EOS_META:')[0] 
+        const currentTitle = foundChat.title.includes('|||EOS_META:')
+          ? foundChat.title.split('|||EOS_META:')[0]
           : foundChat.title;
         const metadata = {
           persona: 'eos-implementer',
-          profile: profileId || null
+          profile: profileId || null,
         };
         titleUpdate = `${currentTitle}|||EOS_META:${JSON.stringify(metadata)}`;
       } else {
         updateData.personaId = personaId || null;
-        
+
         // Remove EOS metadata from title if switching away from EOS Implementer
         if (foundChat.title.includes('|||EOS_META:')) {
           titleUpdate = foundChat.title.split('|||EOS_META:')[0];
@@ -168,24 +177,32 @@ export async function PATCH(
       // If this is an EOS Implementer chat, handle metadata
       if (isEOSImplementer) {
         updateData.profileId = null;
-        
+
         // Update the metadata with new profile - handle both new and existing metadata
-        const currentTitle = foundChat.title.includes('|||EOS_META:') 
-          ? foundChat.title.split('|||EOS_META:')[0] 
+        const currentTitle = foundChat.title.includes('|||EOS_META:')
+          ? foundChat.title.split('|||EOS_META:')[0]
           : foundChat.title;
         const metadata = {
           persona: 'eos-implementer',
-          profile: profileId || null
+          profile: profileId || null,
         };
         titleUpdate = `${currentTitle}|||EOS_META:${JSON.stringify(metadata)}`;
       } else {
         // For regular personas, validate that profileId is a UUID or null
-        if (profileId && !profileId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
+        if (
+          profileId &&
+          !profileId.match(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+          )
+        ) {
           // Invalid UUID format, set to null
-          console.warn('PERSONA_SWITCH: Invalid UUID format for profileId, setting to null', {
-            profileId,
-            chatId: id
-          });
+          console.warn(
+            'PERSONA_SWITCH: Invalid UUID format for profileId, setting to null',
+            {
+              profileId,
+              chatId: id,
+            },
+          );
           updateData.profileId = null;
         } else {
           updateData.profileId = profileId || null;
@@ -202,7 +219,7 @@ export async function PATCH(
       chatId: id,
       updateData,
       isEOSImplementer,
-      titleUpdate
+      titleUpdate,
     });
 
     // Update the chat with the new persona and/or profile

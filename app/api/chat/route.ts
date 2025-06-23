@@ -678,7 +678,19 @@ export async function POST(request: Request) {
     });
 
     const streamId = generateUUID();
-    await createStreamId({ streamId, chatId: id });
+
+    // Only create stream ID if Redis is available
+    const redisContext = getStreamContext();
+    if (redisContext) {
+      try {
+        await createStreamId({ streamId, chatId: id });
+      } catch (error) {
+        console.error('Failed to create stream ID:', error);
+        // Continue without stream ID - chat will still work
+      }
+    } else {
+      console.log('Skipping stream ID creation - no Redis available');
+    }
 
     // Create a provider based on selected provider
     const provider = createCustomProvider(selectedProvider);
@@ -2495,12 +2507,6 @@ ${
 }
 
 export async function GET(request: Request) {
-  const streamContext = getStreamContext();
-
-  if (!streamContext) {
-    return new Response(null, { status: 204 });
-  }
-
   const { searchParams } = new URL(request.url);
   const chatId = searchParams.get('chatId');
 
@@ -2514,12 +2520,37 @@ export async function GET(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  let chat: Chat;
+  let chat: Chat | null = null;
+  let retryCount = 0;
+  const maxRetries = 3;
 
-  try {
-    chat = await getChatById({ id: chatId });
-  } catch {
-    return new Response('Not found', { status: 404 });
+  // Retry logic for getting chat
+  while (!chat && retryCount < maxRetries) {
+    try {
+      chat = await getChatById({ id: chatId });
+      if (!chat && retryCount < maxRetries - 1) {
+        // Wait before retrying (exponential backoff)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (retryCount + 1)),
+        );
+        retryCount++;
+      } else if (!chat) {
+        break;
+      }
+    } catch (error) {
+      console.error(
+        `Error fetching chat ${chatId}, retry ${retryCount + 1}/${maxRetries}:`,
+        error,
+      );
+      if (retryCount < maxRetries - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (retryCount + 1)),
+        );
+        retryCount++;
+      } else {
+        return new Response('Not found', { status: 404 });
+      }
+    }
   }
 
   if (!chat) {
@@ -2530,28 +2561,75 @@ export async function GET(request: Request) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const streamIds = await getStreamIdsByChatId({ chatId });
+  // Only check for streams if Redis is available
+  const streamContext = getStreamContext();
+
+  if (!streamContext) {
+    // If no Redis/stream context, return a minimal success response
+    // This prevents 404 errors when resumable streams aren't available
+    console.log('No stream context available, returning minimal response');
+    return new Response(null, { status: 204 });
+  }
+
+  // Check for stream IDs with retry logic
+  let streamIds: string[] = [];
+  retryCount = 0;
+
+  while (streamIds.length === 0 && retryCount < maxRetries) {
+    try {
+      streamIds = await getStreamIdsByChatId({ chatId });
+      if (streamIds.length === 0 && retryCount < maxRetries - 1) {
+        // Wait before retrying
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        retryCount++;
+      } else if (streamIds.length === 0) {
+        break;
+      }
+    } catch (error) {
+      console.error(`Error fetching stream IDs for chat ${chatId}:`, error);
+      if (retryCount < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        retryCount++;
+      } else {
+        break;
+      }
+    }
+  }
 
   if (!streamIds.length) {
-    return new Response('No streams found', { status: 404 });
+    // No streams found, but chat exists - return minimal response instead of 404
+    console.log(
+      `No streams found for chat ${chatId}, returning minimal response`,
+    );
+    return new Response(null, { status: 204 });
   }
 
   const recentStreamId = streamIds.at(-1);
 
   if (!recentStreamId) {
-    return new Response('No recent stream found', { status: 404 });
+    // No recent stream, but chat exists - return minimal response
+    return new Response(null, { status: 204 });
   }
 
   const emptyDataStream = createDataStream({
     execute: () => {},
   });
 
-  return new Response(
-    await streamContext.resumableStream(recentStreamId, () => emptyDataStream),
-    {
-      status: 200,
-    },
-  );
+  try {
+    return new Response(
+      await streamContext.resumableStream(
+        recentStreamId,
+        () => emptyDataStream,
+      ),
+      {
+        status: 200,
+      },
+    );
+  } catch (error) {
+    console.error('Error creating resumable stream:', error);
+    // Fallback to minimal response if stream creation fails
+    return new Response(null, { status: 204 });
+  }
 }
 
 export async function DELETE(request: Request) {

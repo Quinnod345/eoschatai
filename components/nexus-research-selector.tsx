@@ -9,12 +9,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import {
-  CheckCircleFillIcon,
-  ChevronDownIcon,
-  SearchIcon,
-} from './icons';
-import { Telescope, } from 'lucide-react';
+import { CheckCircleFillIcon, ChevronDownIcon, SearchIcon } from './icons';
+import { Telescope } from 'lucide-react';
 
 export type ResearchMode = 'off' | 'nexus';
 

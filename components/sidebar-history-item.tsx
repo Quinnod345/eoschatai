@@ -119,7 +119,7 @@ const PureChatItem = ({
   };
 
   return (
-    <SidebarMenuItem className="py-1 px-3">
+    <SidebarMenuItem className="py-1 px-1">
       <motion.div
         whileHover={{
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
@@ -135,7 +135,7 @@ const PureChatItem = ({
           asChild
           isActive={isActive}
           className={cn(
-            'rounded-md py-2 px-3 font-medium transition-all duration-200 mr-5',
+            'rounded-md py-2 px-2 font-medium transition-all duration-200 mr-0 !pr-5',
             isActive
               ? 'bg-primary/15 text-primary shadow-sm'
               : 'hover:bg-sidebar-accent/70 hover:shadow-sm',
@@ -146,8 +146,10 @@ const PureChatItem = ({
             onClick={() => setOpenMobile(false)}
             className="flex items-center justify-between w-full"
           >
-            <span className="truncate flex-1">{getDisplayTitle(chat.title)}</span>
-            <div className="flex items-center gap-1.5 ml-2">
+            <span className="truncate flex-1 pr-1">
+              {getDisplayTitle(chat.title)}
+            </span>
+            <div className="flex items-center gap-0.5 ml-0.5 flex-shrink-0">
               {pinnedCount && pinnedCount > 0 && (
                 <div className="flex items-center gap-0.5 text-xs">
                   <Pin className="h-3 w-3 text-eos-orange" />
@@ -170,7 +172,7 @@ const PureChatItem = ({
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction
             className={cn(
-              'data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground mr-1.5 ml-0.5 transition-all duration-200 hover:bg-sidebar-accent/50',
+              'data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground !right-0.5 mr-0 -ml-1 transition-all duration-200 hover:bg-sidebar-accent/50',
               isActive && 'text-primary',
             )}
             showOnHover={!isActive}

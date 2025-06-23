@@ -19,8 +19,18 @@ import { DocumentPreview } from './document-preview';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PDFPreview } from './pdf-preview';
 import { DocumentBadge } from './document-badge';
-import { Calendar, FileText, Users } from 'lucide-react';
+import {
+  Calendar,
+  FileText,
+  Users,
+  Mic,
+  Clock,
+  MessageSquare,
+  FileAudio,
+} from 'lucide-react';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface CitationReference {
   number: number;
@@ -248,6 +258,7 @@ const PurePreviewMessage = ({
   isPinned,
   citations,
   searchProgress,
+  meetingMetadata,
 }: {
   chatId: string;
   message: ExtendedUIMessage;
@@ -262,6 +273,7 @@ const PurePreviewMessage = ({
   isPinned?: boolean;
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
+  meetingMetadata?: any;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -472,13 +484,58 @@ const PurePreviewMessage = ({
                 </div>
               )}
 
-
             {parts?.map((part, index) => {
               const { type } = part;
               const key = `message-${message.id}-part-${index}`;
 
               if (type === 'text') {
                 if (mode === 'view') {
+                  // Check if this is a meeting transcript
+                  const transcriptInfo = isMeetingTranscript(part.text);
+
+                  if (transcriptInfo.isTranscript && message.role === 'user') {
+                    // Render meeting transcript with special UI
+                    return (
+                      <div
+                        key={key}
+                        className="flex flex-row gap-2 items-start justify-end"
+                      >
+                        {!isReadonly && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                data-testid="message-edit-button"
+                                variant="ghost"
+                                className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 hover:bg-muted/50 transition-all duration-200"
+                                onClick={() => {
+                                  setMode('edit');
+                                }}
+                              >
+                                <PencilEditIcon />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit message</TooltipContent>
+                          </Tooltip>
+                        )}
+
+                        <MeetingTranscriptCard
+                          speakers={
+                            meetingMetadata?.speakers ||
+                            transcriptInfo.speakers ||
+                            1
+                          }
+                          summary={
+                            meetingMetadata?.summary || transcriptInfo.summary
+                          }
+                          duration={meetingMetadata?.duration}
+                          createdAt={meetingMetadata?.createdAt}
+                          meetingMetadata={meetingMetadata}
+                          fullTranscript={transcriptInfo.fullTranscript}
+                        />
+                      </div>
+                    );
+                  }
+
                   // Check if the text contains mentions that need formatting
                   const containsMentions = MENTION_REGEX.test(part.text);
                   // Reset regex state
@@ -659,6 +716,37 @@ const PurePreviewMessage = ({
                   );
                 }
               }
+
+              if ((part as any).type === 'recording') {
+                const rec = part as any;
+                return (
+                  <div key={key} className="flex flex-row gap-2 items-start">
+                    <div className="flex items-center justify-center size-8 rounded-full bg-purple-500/20 text-purple-600 shrink-0">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="size-4"
+                      >
+                        <path d="M12 1.75a3.25 3.25 0 0 0-3.25 3.25v7a3.25 3.25 0 0 0 6.5 0v-7A3.25 3.25 0 0 0 12 1.75Z" />
+                        <path d="M6.5 10.25a.75.75 0 0 0-1.5 0 7 7 0 0 0 6.25 6.97v2.03H8a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5h-3.25v-2.03A7 7 0 0 0 19 10.25a.75.75 0 0 0-1.5 0 5.5 5.5 0 0 1-11 0Z" />
+                      </svg>
+                    </div>
+                    <div className="flex flex-col gap-2 bg-muted px-3 py-2 rounded-xl max-w-full">
+                      <div className="text-sm font-medium text-muted-foreground">
+                        Voice Recording ({rec.meta?.speakers || 1} speaker
+                        {rec.meta?.speakers === 1 ? '' : 's'})
+                      </div>
+                      <details className="text-sm whitespace-pre-wrap break-words">
+                        <summary className="cursor-pointer select-none">
+                          Transcript
+                        </summary>
+                        {rec.text}
+                      </details>
+                    </div>
+                  </div>
+                );
+              }
             })}
 
             {!isReadonly && (
@@ -789,8 +877,8 @@ export const ThinkingMessage = ({
     isActivelySearching && searchProgress?.currentSearch
       ? `Searching the web: ${searchProgress.currentSearch}`
       : isActivelySearching
-      ? 'Searching the web...'
-      : currentMessages[loadingStage];
+        ? 'Searching the web...'
+        : currentMessages[loadingStage];
 
   return (
     <motion.div
@@ -861,3 +949,195 @@ export const ThinkingMessage = ({
     </motion.div>
   );
 };
+
+// Meeting transcript component
+interface MeetingTranscriptCardProps {
+  speakers: number;
+  summary?: string | null;
+  duration?: number | null;
+  createdAt?: number | null;
+  meetingMetadata?: any;
+  fullTranscript?: string;
+}
+
+function MeetingTranscriptCard({
+  speakers,
+  summary,
+  duration,
+  createdAt,
+  meetingMetadata,
+  fullTranscript,
+}: MeetingTranscriptCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  // Create a one-sentence summary from the full summary or transcript
+  const createOneSentenceSummary = (text: string): string => {
+    if (!text) return 'Meeting discussion recorded and ready for analysis.';
+
+    // If we have a summary, extract the first meaningful sentence
+    if (summary) {
+      // Remove markdown formatting and get first sentence
+      const cleanSummary = summary.replace(/[*_#`]/g, '').trim();
+      const sentences = cleanSummary
+        .split(/[.!?]+/)
+        .filter((s) => s.trim().length > 10);
+      if (sentences.length > 0) {
+        const firstSentence = sentences[0].trim();
+        return firstSentence.endsWith('.')
+          ? firstSentence
+          : `${firstSentence}.`;
+      }
+    }
+
+    // Fallback to a generic summary
+    return `${speakers}-speaker meeting discussion covering key topics and decisions.`;
+  };
+
+  const oneSentenceSummary = createOneSentenceSummary(
+    summary || fullTranscript || '',
+  );
+
+  return (
+    <Card
+      className="max-w-md bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer"
+      onClick={() => setIsExpanded(!isExpanded)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex-shrink-0">
+            <Mic className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
+                Meeting Transcript
+              </h4>
+              <Badge
+                variant="secondary"
+                className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+              >
+                <Mic className="h-3 w-3 mr-1" />
+                Recording
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs text-blue-700 dark:text-blue-300 mb-3">
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span>
+                  {speakers} speaker{speakers !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {duration && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>{formatDuration(duration)}</span>
+                </div>
+              )}
+
+              {createdAt && (
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  <span>{formatDate(createdAt)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* One-sentence summary */}
+            <div className="bg-white/50 dark:bg-blue-950/20 rounded-md p-3 border border-blue-200/50 dark:border-blue-800/50 mb-3">
+              <div className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                <Markdown>{oneSentenceSummary}</Markdown>
+              </div>
+            </div>
+
+            {/* Expanded transcript view */}
+            {isExpanded && fullTranscript && (
+              <div className="bg-white/70 dark:bg-blue-950/30 rounded-md p-3 border border-blue-200/50 dark:border-blue-800/50 mb-3 max-h-48 overflow-y-auto">
+                <h5 className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  Full Transcript:
+                </h5>
+                <div className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed whitespace-pre-wrap">
+                  {fullTranscript}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                <MessageSquare className="h-3 w-3" />
+                <span>Analyzing with EOS AI...</span>
+              </div>
+
+              {fullTranscript && (
+                <div className="text-xs text-blue-600 dark:text-blue-400">
+                  Click to {isExpanded ? 'hide' : 'view'} transcript
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Function to detect if a message is a meeting transcript
+function isMeetingTranscript(content: string): {
+  isTranscript: boolean;
+  speakers?: number;
+  summary?: string;
+  fullTranscript?: string;
+} {
+  // Check if the message starts with the meeting transcript pattern
+  const transcriptPattern =
+    /^Please analyze this (\d+)-speaker meeting transcript:/;
+  const match = content.match(transcriptPattern);
+
+  if (match) {
+    const speakers = Number.parseInt(match[1], 10);
+
+    // Extract summary if present
+    const summaryMatch = content.match(/Meeting Summary:\n(.*?)\n\n---/s);
+    const summary = summaryMatch ? summaryMatch[1].trim() : undefined;
+
+    // Extract full transcript (everything after "Full Transcript:" or the whole content)
+    const transcriptMatch = content.match(
+      /Full Transcript:\n\n([\s\S]*?)(?:\n\nProvide a comprehensive analysis|$)/,
+    );
+    const fullTranscript = transcriptMatch
+      ? transcriptMatch[1].trim()
+      : content
+          .replace(
+            /^Please analyze this \d+-speaker meeting transcript:\n\n/,
+            '',
+          )
+          .trim();
+
+    return {
+      isTranscript: true,
+      speakers,
+      summary,
+      fullTranscript,
+    };
+  }
+
+  return { isTranscript: false };
+}

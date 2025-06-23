@@ -1,11 +1,11 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useWindowSize } from 'usehooks-ts';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { SidebarToggle } from '@/components/sidebar-toggle';
 import { Button } from '@/components/ui/button';
-import { PlusIcon, } from './icons';
+import { PlusIcon } from './icons';
 import { useSidebar } from './ui/sidebar';
 import { memo } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
@@ -106,7 +106,7 @@ function PureChatHeader({
     };
   }, [chatId]);
 
-  const handleBookmarkToggle = async () => {
+  const handleBookmarkToggle = useCallback(async () => {
     if (!chatId || !session?.user || isBookmarkLoading) return;
 
     setIsBookmarkLoading(true);
@@ -141,7 +141,7 @@ function PureChatHeader({
     } finally {
       setIsBookmarkLoading(false);
     }
-  };
+  }, [chatId, session?.user, isBookmarkLoading]);
 
   const handlePersonaSelect = (personaId: string | null) => {
     console.log('CHAT_HEADER: handlePersonaSelect called', {
@@ -220,88 +220,109 @@ function PureChatHeader({
     window.dispatchEvent(new CustomEvent('profilesUpdated'));
   };
 
+  // Memoize expensive conditional checks for better performance
+  const shouldShowCenterTools = useMemo(
+    () => !open || windowWidth < 768,
+    [open, windowWidth],
+  );
+  const shouldShowBookmark = useMemo(
+    () => Boolean(chatId && session?.user && messages && messages.length > 0),
+    [chatId, session?.user, messages],
+  );
+  const isUserAuthenticated = useMemo(
+    () => Boolean(session?.user),
+    [session?.user],
+  );
+
   return (
     <>
-      <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-2">
-        <SidebarToggle />
+      <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-1 md:gap-2 z-10">
+        {/* Left Section - Navigation */}
+        <div className="flex items-center gap-1 md:gap-2">
+          <SidebarToggle />
 
-        {/* EOS Personas Dropdown */}
-        <PersonasDropdown
-          selectedPersonaId={selectedPersonaId}
-          onPersonaSelect={handlePersonaSelect}
-          onCreatePersona={handleCreatePersona}
-          onEditPersona={handleEditPersona}
-        />
-
-        {/* EOS Profiles Dropdown - only show when a persona is selected */}
-        <ProfilesDropdown
-          selectedPersonaId={selectedPersonaId || null}
-          selectedProfileId={selectedProfileId || null}
-          onProfileSelect={handleProfileSelect}
-          onCreateProfile={handleCreateProfile}
-          onEditProfile={handleEditProfile}
-          disabled={!selectedPersonaId}
-        />
-
-        {/* Advanced Search - only show when sidebar is closed or on mobile */}
-        {(!open || windowWidth < 768) && <AdvancedSearch />}
-
-        {(!open || windowWidth < 768) && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                className="order-2 md:order-1 md:px-2 px-2 md:h-fit"
-                onClick={() => {
-                  router.push('/');
-                  router.refresh();
-                }}
-              >
-                <PlusIcon />
-                <span className="md:sr-only">New Chat</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New Chat</TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Saved Content Dropdown */}
-        {session?.user && (
-          <SavedContentDropdown
-            currentChatId={chatId}
-            messages={messages || []}
-            onScrollToMessage={onScrollToMessage || (() => {})}
+          {/* EOS Personas Dropdown */}
+          <PersonasDropdown
+            selectedPersonaId={selectedPersonaId}
+            onPersonaSelect={handlePersonaSelect}
+            onCreatePersona={handleCreatePersona}
+            onEditPersona={handleEditPersona}
           />
+
+          {/* EOS Profiles Dropdown - only show when a persona is selected */}
+          <ProfilesDropdown
+            selectedPersonaId={selectedPersonaId || null}
+            selectedProfileId={selectedProfileId || null}
+            onProfileSelect={handleProfileSelect}
+            onCreateProfile={handleCreateProfile}
+            onEditProfile={handleEditProfile}
+            disabled={!selectedPersonaId}
+          />
+        </div>
+
+        {/* Center Section - Tools (only when sidebar closed or mobile) */}
+        {shouldShowCenterTools && (
+          <div className="flex items-center gap-1 md:gap-2">
+            <AdvancedSearch />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-2 md:px-3"
+                  onClick={() => {
+                    router.push('/chat');
+                    router.refresh();
+                  }}
+                >
+                  <PlusIcon size={16} />
+                  <span className="hidden md:inline ml-1">New Chat</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>New Chat</TooltipContent>
+            </Tooltip>
+          </div>
         )}
 
-        {/* Separate Bookmark Button */}
-        {chatId && session?.user && messages && messages.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn('h-9 w-9 p-0', isBookmarked && 'text-blue-500')}
-                onClick={handleBookmarkToggle}
-                disabled={isBookmarkLoading}
-              >
-                <Bookmark
-                  className={cn(
-                    'h-5 w-5 transition-all',
-                    isBookmarked && 'fill-current',
-                  )}
-                />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {/* Right Section - Actions */}
+        <div className="flex items-center gap-1 md:gap-2 ml-auto">
+          {/* Saved Content Dropdown */}
+          {isUserAuthenticated && (
+            <SavedContentDropdown
+              currentChatId={chatId}
+              messages={messages || []}
+              onScrollToMessage={onScrollToMessage || (() => {})}
+            />
+          )}
 
-        {/* User account button in top right */}
-        <div className="ml-auto">
-          {session?.user && (
+          {/* Bookmark Button */}
+          {shouldShowBookmark && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-9 w-9 p-0', isBookmarked && 'text-blue-500')}
+                  onClick={handleBookmarkToggle}
+                  disabled={isBookmarkLoading}
+                >
+                  <Bookmark
+                    className={cn(
+                      'h-4 w-4 transition-all',
+                      isBookmarked && 'fill-current',
+                    )}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* User account button */}
+          {isUserAuthenticated && (
             <SidebarUserNav user={session.user} className="header-user-nav" />
           )}
         </div>
@@ -328,12 +349,23 @@ function PureChatHeader({
 }
 
 export const ChatHeader = memo(PureChatHeader, (prevProps, nextProps) => {
-  return (
-    prevProps.selectedModelId === nextProps.selectedModelId &&
-    prevProps.selectedProviderId === nextProps.selectedProviderId &&
-    prevProps.selectedPersonaId === nextProps.selectedPersonaId &&
-    prevProps.selectedProfileId === nextProps.selectedProfileId &&
-    prevProps.chatId === nextProps.chatId &&
-    prevProps.messages?.length === nextProps.messages?.length
-  );
+  // Only re-render if essential props change
+  if (prevProps.chatId !== nextProps.chatId) return false;
+  if (prevProps.selectedModelId !== nextProps.selectedModelId) return false;
+  if (prevProps.selectedProviderId !== nextProps.selectedProviderId)
+    return false;
+  if (prevProps.selectedPersonaId !== nextProps.selectedPersonaId) return false;
+  if (prevProps.selectedProfileId !== nextProps.selectedProfileId) return false;
+  if (prevProps.isReadonly !== nextProps.isReadonly) return false;
+
+  // Check message length changes (for bookmark button visibility)
+  const prevMessageCount = prevProps.messages?.length || 0;
+  const nextMessageCount = nextProps.messages?.length || 0;
+  if (prevMessageCount !== nextMessageCount) return false;
+
+  // Session changes
+  if (prevProps.session?.user?.id !== nextProps.session?.user?.id) return false;
+
+  // All checks passed, component can skip re-render
+  return true;
 });

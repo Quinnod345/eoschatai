@@ -2,13 +2,12 @@ import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/app/(auth)/auth';
-import { Chat } from '@/components/chat';
+import { ChatClientWrapper } from '@/components/chat-client-wrapper';
 import {
   getChatById,
   getMessagesByChatId,
   getUserSettings,
 } from '@/lib/db/queries';
-import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { getDisplayTitle, getEOSMetadata } from '@/lib/utils/chat-utils';
@@ -80,7 +79,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const session = await auth();
 
   if (!session) {
-    return redirect('/');
+    return redirect('/login');
   }
 
   if (chat.visibility === 'private') {
@@ -192,43 +191,42 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     });
   }
 
+  // Check if this is a voice chat - disable auto-resume for voice chats
+  const isVoiceChat =
+    chat.metadata?.isVoiceChat || chat.title?.includes('🎤 Voice Chat');
+  const shouldAutoResume = !isVoiceChat && messagesFromDb.length > 0;
+
   if (!chatModelFromCookie || !providerFromCookie) {
     return (
-      <>
-        <Chat
-          id={chat.id}
-          initialMessages={convertToUIMessages(messagesFromDb)}
-          initialChatModel={DEFAULT_CHAT_MODEL}
-          initialProvider={DEFAULT_PROVIDER}
-          initialVisibilityType={chat.visibility}
-          isReadonly={session?.user?.id !== chat.userId}
-          session={session}
-          autoResume={true}
-          initialPersonaId={initialPersonaId}
-          initialProfileId={initialProfileId}
-          initialResearchMode={userResearchMode}
-        />
-        <DataStreamHandler id={id} />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Chat
+      <ChatClientWrapper
         id={chat.id}
         initialMessages={convertToUIMessages(messagesFromDb)}
-        initialChatModel={chatModelFromCookie.value}
-        initialProvider={providerFromCookie.value}
+        initialChatModel={DEFAULT_CHAT_MODEL}
+        initialProvider={DEFAULT_PROVIDER}
         initialVisibilityType={chat.visibility}
         isReadonly={session?.user?.id !== chat.userId}
         session={session}
-        autoResume={true}
+        autoResume={shouldAutoResume}
         initialPersonaId={initialPersonaId}
         initialProfileId={initialProfileId}
         initialResearchMode={userResearchMode}
       />
-      <DataStreamHandler id={id} />
-    </>
+    );
+  }
+
+  return (
+    <ChatClientWrapper
+      id={chat.id}
+      initialMessages={convertToUIMessages(messagesFromDb)}
+      initialChatModel={chatModelFromCookie.value}
+      initialProvider={providerFromCookie.value}
+      initialVisibilityType={chat.visibility}
+      isReadonly={session?.user?.id !== chat.userId}
+      session={session}
+      autoResume={shouldAutoResume}
+      initialPersonaId={initialPersonaId}
+      initialProfileId={initialProfileId}
+      initialResearchMode={userResearchMode}
+    />
   );
 }

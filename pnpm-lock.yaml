@@ -202,7 +202,7 @@ importers:
         version: 2.7.0
       openai:
         specifier: ^4.97.0
-        version: 4.97.0(ws@8.18.1(bufferutil@4.0.9))(zod@3.24.2)
+        version: 4.97.0(ws@8.18.2(bufferutil@4.0.9))(zod@3.24.2)
       orderedmap:
         specifier: ^2.1.1
         version: 2.1.1
@@ -314,6 +314,9 @@ importers:
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
+      ws:
+        specifier: ^8.18.2
+        version: 8.18.2(bufferutil@4.0.9)
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -5712,8 +5715,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.18.1:
-    resolution: {integrity: sha512-RKW2aJZMXeMxVpnZ6bck+RswznaxmzdULiBr6KY7XkTnW8uvt0iT9H5DkHUChXrc+uurzwa0rVI16n/Xzjdz1w==}
+  ws@8.18.2:
+    resolution: {integrity: sha512-DMricUmwGZUVr++AEAe2uiVM7UoO9MAVZMDu05UQOaUII0lp+zOzLLU4Xqh/JvTqklB1T4uELaaPBKyjE1r4fQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -8193,7 +8196,7 @@ snapshots:
     dependencies:
       '@neondatabase/serverless': 0.9.5
       bufferutil: 4.0.9
-      ws: 8.18.1(bufferutil@4.0.9)
+      ws: 8.18.2(bufferutil@4.0.9)
     transitivePeerDependencies:
       - utf-8-validate
 
@@ -10561,7 +10564,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@4.97.0(ws@8.18.1(bufferutil@4.0.9))(zod@3.24.2):
+  openai@4.97.0(ws@8.18.2(bufferutil@4.0.9))(zod@3.24.2):
     dependencies:
       '@types/node': 18.19.97
       '@types/node-fetch': 2.6.12
@@ -10571,7 +10574,7 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0
     optionalDependencies:
-      ws: 8.18.1(bufferutil@4.0.9)
+      ws: 8.18.2(bufferutil@4.0.9)
       zod: 3.24.2
     transitivePeerDependencies:
       - encoding
@@ -10973,7 +10976,7 @@ snapshots:
       debug: 4.4.0
       devtools-protocol: 0.0.1367902
       typed-query-selector: 2.12.0
-      ws: 8.18.1(bufferutil@4.0.9)
+      ws: 8.18.2(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bare-buffer
       - bufferutil
@@ -11943,7 +11946,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.18.1(bufferutil@4.0.9):
+  ws@8.18.2(bufferutil@4.0.9):
     optionalDependencies:
       bufferutil: 4.0.9
 

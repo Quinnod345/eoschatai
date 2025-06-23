@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Bell,
-  AlertCircle,
-  CheckCircle,
-} from 'lucide-react';
+import { Bell, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Notification {
   id: string;

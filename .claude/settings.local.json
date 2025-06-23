@@ -46,7 +46,17 @@
       "Bash(mv:*)",
       "Bash(pnpm install:*)",
       "Bash(awk:*)",
-      "Bash(pnpm format:*)"
+      "Bash(pnpm format:*)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:community.openai.com)",
+      "WebFetch(domain:webrtchacks.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(git clone:*)",
+      "Bash(npm install)",
+      "Bash(PORT=3001 npm run dev)",
+      "Bash(kill:*)",
+      "Bash(pnpm db:push:*)",
+      "Bash(npx drizzle-kit:*)"
     ]
   },
   "enableAllProjectMcpServers": false

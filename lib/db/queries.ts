@@ -120,6 +120,7 @@ export async function saveChat({
   visibility,
   personaId,
   profileId,
+  metadata,
 }: {
   id: string;
   userId: string;
@@ -127,19 +128,54 @@ export async function saveChat({
   visibility: VisibilityType;
   personaId?: string;
   profileId?: string;
+  metadata?: any;
 }) {
   try {
-    return await db.insert(chat).values({
+    console.log('[saveChat] Saving chat START:', {
       id,
-      createdAt: new Date(),
       userId,
       title,
       visibility,
-      personaId: personaId || null,
-      profileId: profileId || null,
+      personaId,
+      profileId,
+      metadata,
+      timestamp: new Date().toISOString(),
     });
+
+    // Use raw SQL to ensure immediate commit
+    const result = await db.execute(sql`
+      INSERT INTO "Chat" (id, "createdAt", "userId", title, visibility, "personaId", "profileId", metadata)
+      VALUES (${id}, ${new Date().toISOString()}, ${userId}, ${title}, ${visibility}, ${personaId || null}, ${profileId || null}, ${metadata ? JSON.stringify(metadata) : null})
+      RETURNING *
+    `);
+
+    const insertedChat = result[0];
+
+    console.log('[saveChat] INSERT result:', insertedChat);
+
+    if (!insertedChat) {
+      console.error('[saveChat] saveChat returned null/undefined');
+      throw new Error('Chat insert failed - no data returned');
+    }
+
+    // Double verify the chat was saved
+    const verifyResult = await db.execute(sql`
+      SELECT * FROM "Chat" WHERE id = ${id}
+    `);
+    const verifiedChat = verifyResult[0];
+
+    console.log('[saveChat] Verification query result:', verifiedChat);
+
+    console.log('[saveChat] Chat saved successfully END:', {
+      id,
+      timestamp: new Date().toISOString(),
+      insertedChatId: insertedChat.id || id,
+      verified: !!verifiedChat,
+    });
+
+    return insertedChat;
   } catch (error) {
-    console.error('Failed to save chat in database');
+    console.error('[saveChat] Failed to save chat in database:', error);
     throw error;
   }
 }
@@ -231,7 +267,10 @@ export async function getChatsByUserId({
 
 export async function getChatById({ id }: { id: string }) {
   try {
+    console.log('[getChatById] Fetching chat with ID:', id);
     const [selectedChat] = await db.select().from(chat).where(eq(chat.id, id));
+
+    console.log('[getChatById] Result for ID', id, ':', selectedChat);
     return selectedChat;
   } catch (error) {
     console.error('Failed to get chat by id from database');
@@ -333,7 +372,9 @@ export async function saveDocument({
     `);
 
     console.log(`Document saved/updated with ID: ${id}`);
-    const documentsResult = Array.isArray(documents) ? documents : (documents as any).rows;
+    const documentsResult = Array.isArray(documents)
+      ? documents
+      : (documents as any).rows;
 
     // Process the document for embeddings (only for text kind)
     if (kind === 'text' && content) {
@@ -792,6 +833,79 @@ export async function getMessagesByMultipleChatIds({
     return messagesByChatId;
   } catch (error) {
     console.error('Failed to batch load messages from database', error);
+    throw error;
+  }
+}
+
+export async function getPersonaProfileById({ id }: { id: string }) {
+  try {
+    const { personaProfile } = await import('./schema');
+
+    const [profile] = await db
+      .select()
+      .from(personaProfile)
+      .where(eq(personaProfile.id, id))
+      .limit(1);
+
+    return profile;
+  } catch (error) {
+    console.error('Failed to get persona profile by id from database', error);
+    throw error;
+  }
+}
+
+export async function getPersonaProfilesByPersonaId({
+  personaId,
+}: { personaId: string }) {
+  try {
+    const { personaProfile } = await import('./schema');
+
+    const profiles = await db
+      .select()
+      .from(personaProfile)
+      .where(eq(personaProfile.personaId, personaId))
+      .orderBy(asc(personaProfile.name));
+
+    return profiles;
+  } catch (error) {
+    console.error(
+      'Failed to get persona profiles by persona id from database',
+      error,
+    );
+    throw error;
+  }
+}
+
+export async function getPersonaProfileWithDocuments({ id }: { id: string }) {
+  try {
+    const { personaProfile, profileDocument } = await import('./schema');
+
+    // Get the profile
+    const [profile] = await db
+      .select()
+      .from(personaProfile)
+      .where(eq(personaProfile.id, id))
+      .limit(1);
+
+    if (!profile) {
+      return null;
+    }
+
+    // Get associated document IDs
+    const documents = await db
+      .select({ documentId: profileDocument.documentId })
+      .from(profileDocument)
+      .where(eq(profileDocument.profileId, id));
+
+    return {
+      ...profile,
+      documentIds: documents.map((d) => d.documentId),
+    };
+  } catch (error) {
+    console.error(
+      'Failed to get persona profile with documents from database',
+      error,
+    );
     throw error;
   }
 }

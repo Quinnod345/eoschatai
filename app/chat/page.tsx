@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 
-import { Chat } from '@/components/chat';
+import { ChatClientWrapper } from '@/components/chat-client-wrapper';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { generateUUID } from '@/lib/utils';
@@ -22,7 +22,7 @@ export default async function ChatPage({
   const session = await auth();
 
   if (!session) {
-    redirect('/');
+    redirect('/login');
   }
 
   const id = generateUUID();
@@ -89,7 +89,7 @@ export default async function ChatPage({
   if (!modelIdFromCookie || !providerFromCookie) {
     return (
       <>
-        <Chat
+        <ChatClientWrapper
           key={id}
           id={id}
           initialMessages={[]}
@@ -100,8 +100,9 @@ export default async function ChatPage({
           session={session}
           autoResume={false}
           initialPersonaId={undefined}
-          documentContext={documentContext}
+          initialProfileId={undefined}
           initialResearchMode={userResearchMode}
+          documentContext={documentContext}
         />
         <DataStreamHandler id={id} />
       </>
@@ -110,7 +111,7 @@ export default async function ChatPage({
 
   return (
     <>
-      <Chat
+      <ChatClientWrapper
         key={id}
         id={id}
         initialMessages={[]}
@@ -121,8 +122,9 @@ export default async function ChatPage({
         session={session}
         autoResume={false}
         initialPersonaId={undefined}
-        documentContext={documentContext}
+        initialProfileId={undefined}
         initialResearchMode={userResearchMode}
+        documentContext={documentContext}
       />
       <DataStreamHandler id={id} />
     </>

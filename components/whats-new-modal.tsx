@@ -23,6 +23,9 @@ import {
   Link,
   Settings,
   Smartphone,
+  Mic,
+  FileAudio,
+  PlayCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,12 +53,16 @@ export function WhatsNewModal({
   lastSeenVersion,
   onMarkAsSeen,
 }: WhatsNewModalProps) {
-  const [activeTab, setActiveTab] = useState<'whats-new' | 'all-features'>('whats-new');
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  
+  const [activeTab, setActiveTab] = useState<'whats-new' | 'all-features'>(
+    'whats-new',
+  );
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
+    null,
+  );
+
   const newFeatures = getNewFeatures(lastSeenVersion);
   const allFeatures = FEATURES;
-  
+
   // Initialize selected feature when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -74,8 +81,9 @@ export function WhatsNewModal({
   };
 
   const features = activeTab === 'whats-new' ? newFeatures : allFeatures;
-  const selectedFeature = features.find(f => f.id === selectedFeatureId) || features[0];
-  const currentIndex = features.findIndex(f => f.id === selectedFeatureId);
+  const selectedFeature =
+    features.find((f) => f.id === selectedFeatureId) || features[0];
+  const currentIndex = features.findIndex((f) => f.id === selectedFeatureId);
 
   const handleNext = () => {
     if (features.length <= 1) return;
@@ -85,7 +93,8 @@ export function WhatsNewModal({
 
   const handlePrevious = () => {
     if (features.length <= 1) return;
-    const prevIndex = currentIndex === 0 ? features.length - 1 : currentIndex - 1;
+    const prevIndex =
+      currentIndex === 0 ? features.length - 1 : currentIndex - 1;
     setSelectedFeatureId(features[prevIndex].id);
   };
 
@@ -108,10 +117,17 @@ export function WhatsNewModal({
       Settings,
       Sparkles,
       Smartphone,
+      Mic,
+      FileAudio,
+      PlayCircle,
     };
 
     const IconComponent = iconMap[iconName as keyof typeof iconMap];
-    return IconComponent ? <IconComponent className="size-5" /> : <Sparkles className="size-5" />;
+    return IconComponent ? (
+      <IconComponent className="size-5" />
+    ) : (
+      <Sparkles className="size-5" />
+    );
   };
 
   const getCategoryColor = (categoryId: string) => {
@@ -123,7 +139,10 @@ export function WhatsNewModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl h-[85vh] p-0 overflow-hidden" hideCloseButton>
+      <DialogContent
+        className="max-w-5xl h-[85vh] p-0 overflow-hidden"
+        hideCloseButton
+      >
         <VisuallyHidden>
           <DialogTitle>What&apos;s New - Features and Updates</DialogTitle>
         </VisuallyHidden>
@@ -154,7 +173,8 @@ export function WhatsNewModal({
                   const newTab = value as 'whats-new' | 'all-features';
                   setActiveTab(newTab);
                   // Reset selection when changing tabs
-                  const tabFeatures = newTab === 'whats-new' ? newFeatures : allFeatures;
+                  const tabFeatures =
+                    newTab === 'whats-new' ? newFeatures : allFeatures;
                   if (tabFeatures.length > 0) {
                     setSelectedFeatureId(tabFeatures[0].id);
                   }
@@ -197,7 +217,9 @@ export function WhatsNewModal({
                   <div className="text-center py-8 text-muted-foreground">
                     <Sparkles className="size-12 mx-auto mb-4 opacity-50" />
                     <p>You&apos;re all caught up!</p>
-                    <p className="text-sm">No new features since your last visit.</p>
+                    <p className="text-sm">
+                      No new features since your last visit.
+                    </p>
                   </div>
                 )
               ) : (
@@ -210,8 +232,12 @@ export function WhatsNewModal({
                     return (
                       <div key={category.id}>
                         <div className="flex items-center gap-2 mb-3 px-2">
-                          <div className={`size-3 rounded-full ${category.color}`} />
-                          <h3 className="font-medium text-sm">{category.title}</h3>
+                          <div
+                            className={`size-3 rounded-full ${category.color}`}
+                          />
+                          <h3 className="font-medium text-sm">
+                            {category.title}
+                          </h3>
                         </div>
                         <div className="space-y-2">
                           {categoryFeatures.map((feature) => (
@@ -250,9 +276,14 @@ export function WhatsNewModal({
                     </Button>
                     <div className="flex items-center gap-2">
                       {getIcon(selectedFeature.icon)}
-                      <h1 className="text-2xl font-bold">{selectedFeature.title}</h1>
+                      <h1 className="text-2xl font-bold">
+                        {selectedFeature.title}
+                      </h1>
                       {selectedFeature.isNew && (
-                        <Badge variant="secondary" className="bg-primary/10 text-primary">
+                        <Badge
+                          variant="secondary"
+                          className="bg-primary/10 text-primary"
+                        >
                           New
                         </Badge>
                       )}
@@ -281,15 +312,25 @@ export function WhatsNewModal({
                       </p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <div className={`size-2 rounded-full ${getCategoryColor(selectedFeature.category)}`} />
+                          <div
+                            className={`size-2 rounded-full ${getCategoryColor(selectedFeature.category)}`}
+                          />
                           <span>
-                            {FEATURE_CATEGORIES.find(c => c.id === selectedFeature.category)?.title}
+                            {
+                              FEATURE_CATEGORIES.find(
+                                (c) => c.id === selectedFeature.category,
+                              )?.title
+                            }
                           </span>
                         </div>
                         <span>•</span>
                         <span>Version {selectedFeature.version}</span>
                         <span>•</span>
-                        <span>{new Date(selectedFeature.releaseDate).toLocaleDateString()}</span>
+                        <span>
+                          {new Date(
+                            selectedFeature.releaseDate,
+                          ).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
 
@@ -307,17 +348,26 @@ export function WhatsNewModal({
                     {/* Detailed Description */}
                     {selectedFeature.detailedDescription && (
                       <div className="bg-muted/30 rounded-lg p-6">
-                        <h3 className="font-semibold text-lg mb-3">About This Feature</h3>
-                        <p className="text-sm leading-relaxed">{selectedFeature.detailedDescription}</p>
+                        <h3 className="font-semibold text-lg mb-3">
+                          About This Feature
+                        </h3>
+                        <p className="text-sm leading-relaxed">
+                          {selectedFeature.detailedDescription}
+                        </p>
                       </div>
                     )}
 
                     {/* Benefits */}
                     <div>
-                      <h3 className="font-semibold text-lg mb-3">Key Benefits</h3>
+                      <h3 className="font-semibold text-lg mb-3">
+                        Key Benefits
+                      </h3>
                       <ul className="space-y-2">
                         {selectedFeature.benefits.map((benefit, index) => (
-                          <li key={`benefit-${selectedFeature.id}-${index}`} className="flex items-start gap-3">
+                          <li
+                            key={`benefit-${selectedFeature.id}-${index}`}
+                            className="flex items-start gap-3"
+                          >
                             <div className="size-2 rounded-full bg-primary mt-2 shrink-0" />
                             <span className="text-sm">{benefit}</span>
                           </li>
@@ -326,48 +376,70 @@ export function WhatsNewModal({
                     </div>
 
                     {/* Examples */}
-                    {selectedFeature.examples && selectedFeature.examples.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold text-lg mb-3">Use Cases & Examples</h3>
-                        <ul className="space-y-2">
-                          {selectedFeature.examples.map((example, index) => (
-                            <li key={`example-${selectedFeature.id}-${index}`} className="flex items-start gap-3">
-                              <div className="size-2 rounded-full bg-green-500 mt-2 shrink-0" />
-                              <span className="text-sm italic">{example}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {selectedFeature.examples &&
+                      selectedFeature.examples.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3">
+                            Use Cases & Examples
+                          </h3>
+                          <ul className="space-y-2">
+                            {selectedFeature.examples.map((example, index) => (
+                              <li
+                                key={`example-${selectedFeature.id}-${index}`}
+                                className="flex items-start gap-3"
+                              >
+                                <div className="size-2 rounded-full bg-green-500 mt-2 shrink-0" />
+                                <span className="text-sm italic">
+                                  {example}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                     {/* Improvements */}
-                    {selectedFeature.improveExperience && selectedFeature.improveExperience.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold text-lg mb-3">Experience Improvements</h3>
-                        <ul className="space-y-2">
-                          {selectedFeature.improveExperience.map((improvement, index) => (
-                            <li key={`improvement-${selectedFeature.id}-${index}`} className="flex items-start gap-3">
-                              <div className="size-2 rounded-full bg-purple-500 mt-2 shrink-0" />
-                              <span className="text-sm">{improvement}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {selectedFeature.improveExperience &&
+                      selectedFeature.improveExperience.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3">
+                            Experience Improvements
+                          </h3>
+                          <ul className="space-y-2">
+                            {selectedFeature.improveExperience.map(
+                              (improvement, index) => (
+                                <li
+                                  key={`improvement-${selectedFeature.id}-${index}`}
+                                  className="flex items-start gap-3"
+                                >
+                                  <div className="size-2 rounded-full bg-purple-500 mt-2 shrink-0" />
+                                  <span className="text-sm">{improvement}</span>
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </div>
+                      )}
 
                     {/* Tags */}
-                    {selectedFeature.tags && selectedFeature.tags.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold text-lg mb-3">Related Topics</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedFeature.tags.map((tag, index) => (
-                            <Badge key={`tag-${selectedFeature.id}-${index}`} variant="outline">
-                              #{tag}
-                            </Badge>
-                          ))}
+                    {selectedFeature.tags &&
+                      selectedFeature.tags.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3">
+                            Related Topics
+                          </h3>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedFeature.tags.map((tag, index) => (
+                              <Badge
+                                key={`tag-${selectedFeature.id}-${index}`}
+                                variant="outline"
+                              >
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
 
@@ -394,7 +466,9 @@ export function WhatsNewModal({
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <Sparkles className="size-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">Select a feature to learn more</p>
+                  <p className="text-muted-foreground">
+                    Select a feature to learn more
+                  </p>
                 </div>
               </div>
             )}
@@ -434,14 +508,17 @@ function FeatureCard({
       }}
       className={`
         w-full p-3 rounded-lg text-left transition-all cursor-pointer select-none
-        ${isSelected 
-          ? 'bg-primary/10 border-primary/20 border shadow-sm' 
-          : 'hover:bg-muted/50 border border-transparent'
+        ${
+          isSelected
+            ? 'bg-primary/10 border-primary/20 border shadow-sm'
+            : 'hover:bg-muted/50 border border-transparent'
         }
       `}
     >
       <div className="flex items-start gap-3">
-        <div className={`p-1.5 rounded-md ${getCategoryColor(feature.category)} text-white shrink-0`}>
+        <div
+          className={`p-1.5 rounded-md ${getCategoryColor(feature.category)} text-white shrink-0`}
+        >
           {getIcon(feature.icon)}
         </div>
         <div className="flex-1 min-w-0">

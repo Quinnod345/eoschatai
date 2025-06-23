@@ -16,7 +16,7 @@ console.log(
 
 import { db } from '@/lib/db';
 import { persona, personaProfile } from '@/lib/db/schema';
-import { eq, } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 async function cleanupEOSImplementerData() {
   try {

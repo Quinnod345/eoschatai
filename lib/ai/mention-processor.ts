@@ -39,7 +39,10 @@ export class MentionProcessor {
     );
 
     // Analyze user intent based on mentions and message
-    const userIntent = MentionProcessor.analyzeUserIntent(mentions, originalMessage);
+    const userIntent = MentionProcessor.analyzeUserIntent(
+      mentions,
+      originalMessage,
+    );
 
     // Process each mention type with intent awareness
     const instructions: string[] = [];
@@ -410,7 +413,8 @@ IMPORTANT:
 
       case 'availability': {
         // Extract meeting context (duration, participants, etc.)
-        const meetingContext = MentionProcessor.extractMeetingContext(userQuery);
+        const meetingContext =
+          MentionProcessor.extractMeetingContext(userQuery);
         if (meetingContext.duration) {
           params.duration = meetingContext.duration;
         }
@@ -422,7 +426,8 @@ IMPORTANT:
 
       case 'analyze': {
         // Extract analysis period and focus areas
-        const analysisContext = MentionProcessor.extractAnalysisContext(userQuery);
+        const analysisContext =
+          MentionProcessor.extractAnalysisContext(userQuery);
         if (analysisContext.period) {
           params.days = analysisContext.period;
         }

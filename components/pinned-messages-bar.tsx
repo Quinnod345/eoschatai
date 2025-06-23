@@ -1,8 +1,8 @@
-import { useState, } from 'react';
+import { useState } from 'react';
 import { Pin, X, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
-import type { PinnedMessage, } from '@/lib/db/schema';
+import type { PinnedMessage } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';

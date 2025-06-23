@@ -32,12 +32,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Keyboard,
-  LogOut,
-  Settings,
-} from 'lucide-react';
+import { Keyboard, LogOut, Settings, Mic } from 'lucide-react';
 import { clientLogout } from '@/lib/auth-utils';
+import RecordingModal from '@/components/recording-modal';
 
 export function SidebarUserNav({
   user,
@@ -54,6 +51,7 @@ export function SidebarUserNav({
     useState(false);
   const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
     useState(false);
+  const [showRecordingModal, setShowRecordingModal] = useState(false);
 
   // Features hook
   const {
@@ -293,6 +291,10 @@ export function SidebarUserNav({
                   )}
                 </div>
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setShowRecordingModal(true)}>
+                <Mic className="mr-2 h-4 w-4" />
+                <span>Voice Recording Suite</span>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setShowDocumentContextModal(true)}
               >
@@ -363,6 +365,14 @@ export function SidebarUserNav({
         lastSeenVersion={lastSeenVersion}
         onMarkAsSeen={markAsSeen}
       />
+
+      {/* Recording Modal */}
+      {showRecordingModal && (
+        <RecordingModal
+          isOpen={showRecordingModal}
+          onClose={() => setShowRecordingModal(false)}
+        />
+      )}
     </>
   );
 }

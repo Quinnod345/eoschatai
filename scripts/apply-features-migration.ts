@@ -16,14 +16,14 @@ const db = drizzle(sql);
 async function applyMigration() {
   try {
     console.log('Applying features migration...');
-    
+
     const migrationSql = readFileSync(
       join(__dirname, '../lib/db/migrations/add_features_last_seen.sql'),
-      'utf8'
+      'utf8',
     );
-    
+
     await sql.unsafe(migrationSql);
-    
+
     console.log('Migration applied successfully!');
   } catch (error) {
     console.error('Migration failed:', error);
