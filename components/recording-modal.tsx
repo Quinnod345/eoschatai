@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ interface RecordingModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatId?: string;
+  selectedRecordingId?: string;
 }
 
 type SavedRecording = {
@@ -64,6 +65,7 @@ export default function RecordingModal({
   isOpen,
   onClose,
   chatId,
+  selectedRecordingId,
 }: RecordingModalProps) {
   const [activeTab, setActiveTab] = useState<
     'record' | 'details' | 'transcript'
@@ -92,18 +94,49 @@ export default function RecordingModal({
 
   const router = useRouter();
 
+  const selectRecording = useCallback((rec: SavedRecording) => {
+    setSelectedRecording(rec);
+    setAnalysisResult({
+      id: rec.id,
+      transcript: rec.transcript,
+      segments:
+        rec.segments ||
+        rec.transcript.split('\n').map((t: string, i: number) => ({
+          speaker: (i % rec.speakers) + 1,
+          text: t,
+        })),
+      speakers: rec.speakers,
+      diarizationMethod: rec.diarizationMethod,
+    });
+    setAudioUrl(rec.audioUrl);
+    setSummary(rec.summary || '');
+    setIsNewRecording(false);
+    setActiveTab('details');
+  }, []);
+
   // Load saved recordings from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = localStorage.getItem('voiceRecordings');
     if (stored) {
       try {
-        setRecordings(JSON.parse(stored));
+        const parsedRecordings = JSON.parse(stored);
+        setRecordings(parsedRecordings);
+
+        // Auto-select recording if selectedRecordingId is provided
+        if (selectedRecordingId) {
+          const recordingToSelect = parsedRecordings.find(
+            (rec: SavedRecording) => rec.id === selectedRecordingId,
+          );
+          if (recordingToSelect) {
+            selectRecording(recordingToSelect);
+          }
+        }
       } catch (_) {
         /* ignore */
       }
     }
-  }, []);
+  }, [selectedRecordingId, selectRecording]);
 
   const saveRecordingLocally = (rec: SavedRecording) => {
     const updated = [rec, ...recordings.filter((r) => r.id !== rec.id)];
@@ -122,26 +155,6 @@ export default function RecordingModal({
       setSummary('');
       setActiveTab('record');
     }
-  };
-
-  const selectRecording = (rec: SavedRecording) => {
-    setSelectedRecording(rec);
-    setAnalysisResult({
-      id: rec.id,
-      transcript: rec.transcript,
-      segments:
-        rec.segments ||
-        rec.transcript.split('\n').map((t: string, i: number) => ({
-          speaker: (i % rec.speakers) + 1,
-          text: t,
-        })),
-      speakers: rec.speakers,
-      diarizationMethod: rec.diarizationMethod,
-    });
-    setAudioUrl(rec.audioUrl);
-    setSummary(rec.summary || '');
-    setIsNewRecording(false);
-    setActiveTab('details');
   };
 
   const startNewRecording = () => {

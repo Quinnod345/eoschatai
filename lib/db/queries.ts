@@ -616,6 +616,24 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
   }
 }
 
+export async function deleteStreamIdsByChatId({ chatId }: { chatId: string }) {
+  try {
+    return await db.delete(stream).where(eq(stream.chatId, chatId));
+  } catch (error) {
+    console.error('Failed to delete stream ids by chat id from database');
+    throw error;
+  }
+}
+
+export async function deleteStreamId({ streamId }: { streamId: string }) {
+  try {
+    return await db.delete(stream).where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to delete stream id from database');
+    throw error;
+  }
+}
+
 export async function getUserSettings({ userId }: { userId: string }) {
   try {
     // First, try to get existing settings

@@ -236,7 +236,7 @@ function PureChatHeader({
 
   return (
     <>
-      <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-1 md:gap-2 z-10">
+      <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-1 md:gap-2 z-50">
         {/* Left Section - Navigation */}
         <div className="flex items-center gap-1 md:gap-2">
           <SidebarToggle />

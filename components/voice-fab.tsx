@@ -9,10 +9,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Mic, AudioWaveform } from 'lucide-react';
 import { motion } from 'framer-motion';
-import VoiceModeIntegrated from './voice-mode-integrated';
-import VoiceModeEnhanced from './voice-mode-enhanced';
-import VoiceModeFixed from './voice-mode-fixed';
 import VoiceModeBatchSave from './voice-mode-batch-save';
+import VoiceModeFixed from './voice-mode-fixed';
+import VoiceModeIntegrated from './voice-mode-integrated';
 import { cn } from '@/lib/utils';
 
 interface VoiceFABProps {
@@ -44,10 +43,9 @@ export default function VoiceFAB({
 }: VoiceFABProps) {
   const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
 
-  // Feature flag to use enhanced voice mode
-  const useEnhancedVoiceMode = false;
+  // Feature flag to use batch save or fixed voice mode
+  const useBatchSaveVoiceMode = true; // Changed to true to work like ChatGPT
   const useFixedVoiceMode = false;
-  const useBatchSaveVoiceMode = true;
 
   const getSizeClasses = () => {
     switch (size) {
@@ -181,17 +179,6 @@ export default function VoiceFAB({
           chatId={chatId}
           onMessagesUpdate={onUpdateMessages}
           navigateToChat={!chatId} // Only navigate if not already in a chat
-        />
-      ) : useEnhancedVoiceMode ? (
-        <VoiceModeEnhanced
-          isOpen={isVoiceModeOpen}
-          onClose={() => setIsVoiceModeOpen(false)}
-          selectedModelId={selectedModelId}
-          selectedProviderId={selectedProviderId}
-          selectedPersonaId={selectedPersonaId}
-          selectedProfileId={selectedProfileId}
-          chatId={chatId}
-          onMessagesUpdate={onUpdateMessages}
         />
       ) : (
         <VoiceModeIntegrated

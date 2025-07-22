@@ -1,8 +1,11 @@
+import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { unstable_noStore as noStore } from 'next/cache';
 
 import { auth } from '@/app/(auth)/auth';
 import { ChatClientWrapper } from '@/components/chat-client-wrapper';
+import ClientRedirect from '@/components/client-redirect';
 import {
   getChatById,
   getMessagesByChatId,
@@ -10,10 +13,11 @@ import {
 } from '@/lib/db/queries';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
-import { getDisplayTitle, getEOSMetadata } from '@/lib/utils/chat-utils';
-import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
-import type { Attachment, UIMessage } from 'ai';
 import type { ResearchMode } from '@/components/nexus-research-selector';
+import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
+import type { UIMessage } from 'ai';
+import { Suspense } from 'react';
+import { ChatLoading } from '@/components/chat-loading';
 
 // Silent logger to prevent errors from showing on screen during development
 const silentLog = {
@@ -42,8 +46,30 @@ const silentLog = {
 };
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
+  return (
+    <Suspense fallback={<ChatLoading />}>
+      <ChatPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { id } = params;
+
+  // Function to convert DB messages to UI messages
+  function convertToUIMessages(messages: Array<DBMessage>): Array<UIMessage> {
+    return messages.map((message) => ({
+      id: message.id,
+      parts: message.parts as UIMessage['parts'],
+      role: message.role as UIMessage['role'],
+      content: '',
+      createdAt: message.createdAt,
+      experimental_attachments: Array.isArray(message.attachments)
+        ? message.attachments
+        : [],
+    }));
+  }
 
   // Add error handling and retry logic for getting the chat
   let chat: ChatType | null = null;
@@ -79,7 +105,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const session = await auth();
 
   if (!session) {
-    return redirect('/login');
+    return <ClientRedirect path="/login" />;
   }
 
   if (chat.visibility === 'private') {
@@ -98,103 +124,85 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
   while (messagesFromDb.length === 0 && retryCount < maxRetries) {
     try {
-      const result = await getMessagesByChatId({
-        id,
-      });
-
-      if (result && result.length > 0) {
-        messagesFromDb = result;
-      } else {
+      messagesFromDb = await getMessagesByChatId({ id });
+      if (messagesFromDb.length === 0 && retryCount < maxRetries - 1) {
         silentLog.debug(
-          `No messages found for chat ID ${id}, retry ${retryCount + 1}/${maxRetries}`,
+          `No messages found for chat ${id}, retry ${retryCount + 1}/${maxRetries}`,
         );
+        // Wait before retrying
         await new Promise((resolve) => setTimeout(resolve, 500));
         retryCount++;
       }
     } catch (error: unknown) {
-      silentLog.error(`Error fetching messages for chat ID ${id}`, error);
+      silentLog.error(`Error fetching messages for chat ${id}`, error);
       retryCount++;
+      // Wait before retrying
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 
-  // If we still don't have messages, log the issue but continue with empty array
-  if (messagesFromDb.length === 0) {
-    silentLog.debug(
-      `Using empty message array for chat ID ${id} after ${maxRetries} retries`,
-    );
-  }
-
-  function convertToUIMessages(messages: Array<DBMessage>): Array<UIMessage> {
-    return messages.map((message) => ({
-      id: message.id,
-      parts: message.parts as UIMessage['parts'],
-      role: message.role as UIMessage['role'],
-      // Note: content will soon be deprecated in @ai-sdk/react
-      content: '',
-      createdAt: message.createdAt,
-      experimental_attachments:
-        (message.attachments as Array<Attachment>) ?? [],
-      // Add provider information if available
-      provider:
-        message.provider || providerFromCookie?.value || DEFAULT_PROVIDER,
-    }));
-  }
+  // Note: isStreaming field doesn't exist in current schema, so no auto-resume
+  const hasStreamingMessage = false;
+  const shouldAutoResume = hasStreamingMessage;
 
   const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get('chat-model');
   const providerFromCookie = cookieStore.get('ai-provider');
 
-  // Get user settings to retrieve research mode preference
+  // Get user settings to retrieve persona/profile/research mode preferences
+  let initialPersonaId: string | undefined;
+  let initialProfileId: string | undefined;
   let userResearchMode: ResearchMode = 'off';
   try {
     const userSettings = await getUserSettings({ userId: session.user.id });
     console.log('[ExistingChat] User settings fetched:', {
-      chatId: id,
       userId: session.user.id,
+      selectedPersonaId: userSettings?.selectedPersonaId,
+      selectedProfileId: userSettings?.selectedProfileId,
       selectedResearchMode: userSettings?.selectedResearchMode,
+      allSettings: userSettings,
     });
 
+    if (userSettings?.selectedPersonaId) {
+      initialPersonaId = userSettings.selectedPersonaId;
+    }
+    if (userSettings?.selectedProfileId) {
+      initialProfileId = userSettings.selectedProfileId;
+    }
     if (userSettings?.selectedResearchMode) {
       const rawMode = userSettings.selectedResearchMode;
       // Ensure we only accept valid research modes
       userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
       console.log('[ExistingChat] Research mode set:', {
-        chatId: id,
         rawMode,
         validatedMode: userResearchMode,
       });
     }
   } catch (error) {
     console.error(
-      '[ExistingChat] Error fetching user settings for research mode:',
+      '[ExistingChat] Error fetching user settings for persona/profile/research:',
       error,
     );
   }
 
-  // Check if this is an EOS Implementer chat from metadata in title
-  let initialPersonaId = chat.personaId || undefined;
-  let initialProfileId = chat.profileId || undefined;
-  const displayTitle = getDisplayTitle(chat.title);
-
-  // Extract EOS Implementer metadata from title if present
-  const eosMetadata = getEOSMetadata(chat.title);
-  if (eosMetadata && eosMetadata.persona === 'eos-implementer') {
-    initialPersonaId = '00000000-0000-0000-0000-000000000001';
-    initialProfileId = eosMetadata.profile || undefined;
-
-    console.log('CHAT_PAGE: Restored EOS Implementer from metadata', {
-      personaId: initialPersonaId,
-      profileId: initialProfileId,
-      originalTitle: chat.title,
-      displayTitle: displayTitle,
-    });
+  // Check if chat has an existing persona/profile/research mode
+  if (chat.personaId) {
+    console.log('[ExistingChat] Chat has existing persona:', chat.personaId);
+    initialPersonaId = chat.personaId;
   }
+  if (chat.profileId) {
+    console.log('[ExistingChat] Chat has existing profile:', chat.profileId);
+    initialProfileId = chat.profileId;
+  }
+  // Note: researchMode field doesn't exist in current chat schema
+  // Default to 'off' research mode
 
-  // Check if this is a voice chat - disable auto-resume for voice chats
-  const isVoiceChat =
-    chat.metadata?.isVoiceChat || chat.title?.includes('🎤 Voice Chat');
-  const shouldAutoResume = !isVoiceChat && messagesFromDb.length > 0;
+  console.log('[ExistingChat] Final persona/profile/research config:', {
+    chatId: id,
+    initialPersonaId,
+    initialProfileId,
+    userResearchMode,
+  });
 
   if (!chatModelFromCookie || !providerFromCookie) {
     return (

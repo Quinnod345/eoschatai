@@ -4,6 +4,8 @@ import { Button } from './ui/button';
 import type { BookmarkedChat, Chat } from '@/lib/db/schema';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
+import { useLoading } from '@/hooks/use-loading';
 import { toast } from 'sonner';
 import useSWR from 'swr';
 import { format } from 'date-fns';
@@ -27,6 +29,7 @@ export function BookmarksModal({
   const [bookmarks, setBookmarks] = useState<BookmarkWithChat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { navigateToChat } = useOptimizedNavigation();
 
   // Fetch bookmarks with chat details
   const { data, mutate } = useSWR<BookmarkWithChat[]>(
@@ -142,9 +145,12 @@ export function BookmarksModal({
     }
   };
 
-  const handleNavigateToChat = (chatId: string) => {
-    router.push(`/chat/${chatId}`);
+  const handleNavigateToChat = async (chatId: string) => {
     onOpenChange(false);
+    // Show loading immediately for better UX
+    const { setLoading } = useLoading.getState();
+    setLoading(true, 'Opening bookmarked chat...', 'chat');
+    router.push(`/chat/${chatId}`);
   };
 
   return (

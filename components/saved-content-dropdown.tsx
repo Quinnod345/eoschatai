@@ -26,6 +26,8 @@ import { getDisplayTitle } from '@/lib/utils/chat-utils';
 import { toast } from 'sonner';
 import type { UIMessage } from 'ai';
 import { useRouter } from 'next/navigation';
+import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
+import { useLoading } from '@/hooks/use-loading';
 import { usePins } from '@/hooks/use-pins';
 import { useBookmarks } from '@/hooks/use-bookmarks';
 
@@ -52,6 +54,7 @@ export function SavedContentDropdown({
   onScrollToMessage,
 }: SavedContentDropdownProps) {
   const router = useRouter();
+  const { navigateToChat } = useOptimizedNavigation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pinned' | 'bookmarks'>(
@@ -141,16 +144,25 @@ export function SavedContentDropdown({
     toast.success('Copied to clipboard');
   };
 
-  const handleNavigateToChat = (chatId: string) => {
+  const handleNavigateToChat = async (chatId: string) => {
     setOpen(false);
+    // Show loading immediately for better UX
+    const { setLoading } = useLoading.getState();
+    setLoading(true, 'Opening saved chat...', 'chat');
     router.push(`/chat/${chatId}`);
   };
 
-  const handleNavigateToPinnedMessage = (chatId: string, messageId: string) => {
+  const handleNavigateToPinnedMessage = async (
+    chatId: string,
+    messageId: string,
+  ) => {
     setOpen(false);
     if (chatId === currentChatId) {
       onScrollToMessage(messageId);
     } else {
+      // Show loading immediately for better UX
+      const { setLoading } = useLoading.getState();
+      setLoading(true, 'Opening pinned message...', 'chat');
       router.push(`/chat/${chatId}?scrollTo=${messageId}`);
     }
   };

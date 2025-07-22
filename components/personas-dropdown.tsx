@@ -230,8 +230,10 @@ export function PersonasDropdown({
 
           <DropdownMenuContent
             align="start"
-            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-md bg-background/95"
+            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-md bg-background/95 z-[100] relative"
             sideOffset={8}
+            avoidCollisions={true}
+            collisionPadding={8}
           >
             <motion.div
               initial={{ opacity: 0, y: -10 }}

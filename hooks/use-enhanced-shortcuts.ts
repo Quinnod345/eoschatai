@@ -119,6 +119,34 @@ export const createChatShortcuts = (callbacks: {
   },
 ];
 
+// Enhanced navigation shortcuts
+export const navigationShortcuts: ShortcutAction[] = [
+  {
+    key: 'cmd+[',
+    action: () => {}, // Handled by useChatKeyboardNavigation
+    description: 'Previous chat',
+    category: 'Navigation',
+  },
+  {
+    key: 'cmd+]',
+    action: () => {}, // Handled by useChatKeyboardNavigation
+    description: 'Next chat',
+    category: 'Navigation',
+  },
+  {
+    key: 'cmd+shift+[',
+    action: () => {}, // Handled by useChatKeyboardNavigation
+    description: 'First chat',
+    category: 'Navigation',
+  },
+  {
+    key: 'cmd+shift+]',
+    action: () => {}, // Handled by useChatKeyboardNavigation
+    description: 'Last chat',
+    category: 'Navigation',
+  },
+];
+
 export const getShortcutsByCategory = (shortcuts: ShortcutAction[]) => {
   return shortcuts.reduce(
     (acc, shortcut) => {

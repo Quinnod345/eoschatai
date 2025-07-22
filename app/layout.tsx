@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UISettingsProvider } from '@/components/ui-settings-provider';
+import { LoadingProvider } from '@/components/providers/loading-provider';
 import { Analytics } from '@vercel/analytics/next';
 
 import './globals.css';
@@ -135,7 +136,10 @@ export default async function RootLayout({
             }}
           />
           <SessionProvider>
-            <UISettingsProvider>{children}</UISettingsProvider>
+            <UISettingsProvider>
+              <LoadingProvider />
+              {children}
+            </UISettingsProvider>
           </SessionProvider>
           <Analytics />
         </ThemeProvider>

@@ -20,8 +20,17 @@ export type DataStreamDelta = {
     | 'kind'
     | 'chart-data'
     | 'ai-edit-start'
-    | 'ai-edit-complete';
-  content: string | Suggestion;
+    | 'ai-edit-complete'
+    | 'nexus-search-start'
+    | 'nexus-search-progress'
+    | 'nexus-search-detail'
+    | 'nexus-sites-found'
+    | 'nexus-search-error'
+    | 'nexus-search-complete'
+    | 'nexus-batch-delay'
+    | 'nexus-phase-update'
+    | 'nexus-complete-response';
+  content: string | Suggestion | any;
 };
 
 export function DataStreamHandler({ id }: { id: string }) {
@@ -36,6 +45,18 @@ export function DataStreamHandler({ id }: { id: string }) {
     lastProcessedIndex.current = dataStream.length - 1;
 
     (newDeltas as DataStreamDelta[]).forEach((delta: DataStreamDelta) => {
+      // Handle Nexus search events
+      if (delta.type?.startsWith('nexus-')) {
+        // These events are handled by the Messages component
+        // We just log them here for debugging
+        console.log(
+          '[DataStreamHandler] Nexus event:',
+          delta.type,
+          delta.content,
+        );
+        return;
+      }
+
       const artifactDefinition = artifactDefinitions.find(
         (artifactDefinition) => artifactDefinition.kind === artifact.kind,
       );

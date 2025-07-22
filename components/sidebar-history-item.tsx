@@ -24,13 +24,15 @@ import {
   ShareIcon,
   TrashIcon,
 } from './icons';
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle } from '@/lib/utils/chat-utils';
 import { Pin, Bookmark } from 'lucide-react';
 import { toast } from 'sonner';
+import { useChatPreloader } from '@/hooks/use-chat-preloader';
+import { useLoading } from '@/hooks/use-loading';
 
 const PureChatItem = ({
   chat,
@@ -54,6 +56,8 @@ const PureChatItem = ({
 
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+  const { preloadChat } = useChatPreloader();
+  const preloadTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Set initial bookmark state
   useEffect(() => {
@@ -118,6 +122,29 @@ const PureChatItem = ({
     }
   };
 
+  // Preload chat on hover
+  const handleMouseEnter = () => {
+    // Delay preloading by 200ms to avoid unnecessary preloads
+    preloadTimeoutRef.current = setTimeout(() => {
+      preloadChat(chat.id);
+    }, 200);
+  };
+
+  const handleMouseLeave = () => {
+    if (preloadTimeoutRef.current) {
+      clearTimeout(preloadTimeoutRef.current);
+    }
+  };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <SidebarMenuItem className="py-1 px-1">
       <motion.div
@@ -130,6 +157,8 @@ const PureChatItem = ({
           transition: { duration: 0.1, ease: 'easeOut' },
         }}
         className="w-full rounded-md"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <SidebarMenuButton
           asChild
@@ -143,7 +172,12 @@ const PureChatItem = ({
         >
           <Link
             href={`/chat/${chat.id}`}
-            onClick={() => setOpenMobile(false)}
+            onClick={() => {
+              setOpenMobile(false);
+              // Show loading state immediately for better UX
+              const { setLoading } = useLoading.getState();
+              setLoading(true, 'Loading chat...', 'chat');
+            }}
             className="flex items-center justify-between w-full"
           >
             <span className="truncate flex-1 pr-1">

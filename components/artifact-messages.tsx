@@ -18,6 +18,11 @@ interface ArtifactMessagesProps {
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
   artifactStatus: UIArtifact['status'];
+  onStartReply?: (
+    messageId: string,
+    content: string,
+    role: 'user' | 'assistant',
+  ) => void;
 }
 
 function PureArtifactMessages({
@@ -28,6 +33,7 @@ function PureArtifactMessages({
   setMessages,
   reload,
   isReadonly,
+  onStartReply,
 }: ArtifactMessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -40,7 +46,10 @@ function PureArtifactMessages({
     status,
   });
 
-  const { handlePin, handleReply, isPinned } = useMessageActions({ chatId });
+  const { handlePin, handleReply, isPinned } = useMessageActions({
+    chatId,
+    onStartReply,
+  });
 
   return (
     <div
@@ -74,7 +83,13 @@ function PureArtifactMessages({
                   .map((part) => part.text)
                   .join('\n')
                   .trim() || '';
-              handleReply(messageId, textContent);
+
+              // Only allow replies to user and assistant messages
+              const validRole =
+                msg.role === 'user' || msg.role === 'assistant'
+                  ? msg.role
+                  : 'assistant';
+              handleReply(messageId, textContent, validRole);
             }
           }}
           isPinned={isPinned(message.id)}

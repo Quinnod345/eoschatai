@@ -12,11 +12,15 @@ import {
   Phone,
   PhoneOff,
   Loader2,
+  Save,
+  CheckCircle,
+  Navigation,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
+import { useLoading } from '@/hooks/use-loading';
 import { generateUUID } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { VOICE_CONFIG, VOICE_EVENTS, VOICE_STATES } from '@/lib/voice/config';
@@ -92,6 +96,9 @@ export default function VoiceModeBatchSave({
   // Track if cleanup is in progress to prevent multiple calls
   const cleanupInProgressRef = useRef(false);
 
+  // Track if user has hung up to prevent re-initialization
+  const hasHungUpRef = useRef(false);
+
   // Session info
   const [sessionInfo, setSessionInfo] = useState<{
     personaName?: string;
@@ -128,14 +135,11 @@ export default function VoiceModeBatchSave({
     const allMessages = [...messagesRef.current];
 
     // If there's a pending assistant message, add it to the save queue
-    if (
-      pendingAssistantMessageRef.current &&
-      pendingAssistantMessageRef.current.content.trim()
-    ) {
+    if (pendingAssistantMessageRef.current?.content.trim()) {
       console.log('[Voice Mode] Including pending assistant message in save');
       const pendingMessage = {
         ...pendingAssistantMessageRef.current,
-        content: pendingAssistantMessageRef.current.content + ' [interrupted]',
+        content: `${pendingAssistantMessageRef.current.content} [interrupted]`,
         isComplete: true,
         // Ensure timestamp is after any existing messages
         timestamp:
@@ -232,6 +236,10 @@ export default function VoiceModeBatchSave({
         // Ensure we have the chat ID
         const savedChatId = data.chatId || chatId;
 
+        // Add a delay to ensure database consistency before navigation
+        console.log('[Voice Mode] Waiting for database consistency...');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
         // Update sidebar immediately
         try {
           await mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -307,7 +315,7 @@ export default function VoiceModeBatchSave({
         id: message.id,
         role: message.role,
         contentLength: message.content.length,
-        content: message.content.substring(0, 50) + '...',
+        content: `${message.content.substring(0, 50)}...`,
         timestamp: new Date(message.timestamp).toISOString(),
       });
 
@@ -343,6 +351,12 @@ export default function VoiceModeBatchSave({
 
   // Initialize WebRTC connection
   const initializeConnection = useCallback(async () => {
+    // Prevent initialization if user has hung up
+    if (hasHungUpRef.current) {
+      console.log('[Voice Mode] User has hung up, skipping initialization');
+      return;
+    }
+
     // Double-check modal is open
     if (!isOpen) {
       console.log('[Voice Mode] Attempted to initialize but modal is closed');
@@ -710,8 +724,7 @@ export default function VoiceModeBatchSave({
             );
             const interrupted = {
               ...pendingAssistantMessageRef.current,
-              content:
-                pendingAssistantMessageRef.current.content + ' [interrupted]',
+              content: `${pendingAssistantMessageRef.current.content} [interrupted]`,
               isComplete: true,
               // Ensure interrupted message timestamp is before the new user speech
               timestamp: Math.min(
@@ -766,7 +779,7 @@ export default function VoiceModeBatchSave({
           }
           break;
 
-        case VOICE_EVENTS.RESPONSE_CREATED:
+        case VOICE_EVENTS.RESPONSE_CREATED: {
           console.log('[Voice Mode] Response created');
           // Use the last user speech time or find the last user message
           const lastUserMessage = messagesRef.current
@@ -797,8 +810,9 @@ export default function VoiceModeBatchSave({
             referenceTime,
           );
           break;
+        }
 
-        case VOICE_EVENTS.RESPONSE_TRANSCRIPT_DELTA:
+        case VOICE_EVENTS.RESPONSE_TRANSCRIPT_DELTA: {
           if (event?.delta && pendingAssistantMessageRef.current) {
             pendingAssistantMessageRef.current.content += event.delta;
             // Mark that we have received content
@@ -843,6 +857,7 @@ export default function VoiceModeBatchSave({
             }
           }
           break;
+        }
 
         case VOICE_EVENTS.RESPONSE_AUDIO_STARTED:
           setIsPlaying(true);
@@ -918,21 +933,21 @@ export default function VoiceModeBatchSave({
   // Verify chat exists before navigating
   const verifyAndNavigate = useCallback(
     async (chatId: string, retries = 5) => {
-      console.log(
-        `[Voice Mode] Verifying chat exists: ${chatId}, retries left: ${retries}`,
-      );
-      setIsNavigating(true);
-
       try {
-        const response = await fetch(`/api/chat/${chatId}/verify`);
-        const data = await response.json();
+        console.log('[Voice Mode] Verifying chat exists:', chatId);
+        const response = await fetch(`/api/chat/${chatId}/verify`, {
+          method: 'GET',
+        });
 
-        if (data.exists) {
-          console.log('[Voice Mode] Chat verified, navigating now');
+        if (response.ok) {
+          console.log('[Voice Mode] Chat verified, navigating...');
 
-          // Dispatch event for sidebar to listen to
+          // Force refresh the sidebar
+          await mutate(unstable_serialize(getChatHistoryPaginationKey));
+
+          // Emit a custom event that the chat was created from voice mode
           window.dispatchEvent(
-            new CustomEvent('voiceChatCreated', {
+            new CustomEvent('voiceChatNavigating', {
               detail: { chatId },
             }),
           );
@@ -944,8 +959,10 @@ export default function VoiceModeBatchSave({
             console.log('[Voice Mode] Already on chat page, reloading...');
             window.location.reload();
           } else {
-            // Navigate to the chat
+            // Navigate to the chat with loading state
             console.log('[Voice Mode] Navigating to:', `/chat/${chatId}`);
+            const { setLoading } = useLoading.getState();
+            setLoading(true, 'Opening voice chat...', 'chat');
             router.push(`/chat/${chatId}`);
           }
         } else if (retries > 0) {
@@ -984,12 +1001,22 @@ export default function VoiceModeBatchSave({
     }
 
     cleanupInProgressRef.current = true;
+    hasHungUpRef.current = true; // Mark that user has hung up
 
     console.log(
       '[Voice Mode] Stopping session, messages:',
       messagesRef.current.length,
     );
     setSessionState(VOICE_STATES.SESSION.ENDING);
+
+    // Immediately stop microphone to prevent any further listening
+    if (mediaStreamRef.current) {
+      console.log('[Voice Mode] Immediately stopping microphone');
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        track.enabled = false;
+      });
+    }
 
     // Before closing connections, check if we have a pending assistant message
     if (
@@ -1001,8 +1028,7 @@ export default function VoiceModeBatchSave({
       );
       const partialMessage = {
         ...pendingAssistantMessageRef.current,
-        content:
-          pendingAssistantMessageRef.current.content + ' [session ended]',
+        content: `${pendingAssistantMessageRef.current.content} [session ended]`,
         isComplete: true,
         // Keep original timestamp to maintain order
         timestamp: pendingAssistantMessageRef.current.timestamp,
@@ -1107,7 +1133,10 @@ export default function VoiceModeBatchSave({
     } else {
       console.log('[Voice Mode] No navigation needed, closing modal');
       // If no messages were recorded or we're in an existing chat, just close
-      onClose();
+      // Add a small delay for smooth transition
+      setTimeout(() => {
+        onClose();
+      }, 500);
     }
 
     // Reset cleanup flag
@@ -1133,24 +1162,28 @@ export default function VoiceModeBatchSave({
   // Handle modal lifecycle
   useEffect(() => {
     if (isOpen && connectionStatus === VOICE_STATES.CONNECTION.DISCONNECTED) {
-      console.log('[Voice Mode] Opening modal');
-      // Reset state
-      messagesRef.current = [];
-      pendingAssistantMessageRef.current = null;
-      hasMessagesRef.current = false;
-      lastUserSpeechTimeRef.current = 0;
-      setSessionChatId(null);
-      cleanupInProgressRef.current = false;
+      // Only reset and initialize if we're not in the middle of saving/navigating
+      if (!isSaving && !isNavigating && !hasHungUpRef.current) {
+        console.log('[Voice Mode] Opening modal');
+        // Reset state
+        messagesRef.current = [];
+        pendingAssistantMessageRef.current = null;
+        hasMessagesRef.current = false;
+        lastUserSpeechTimeRef.current = 0;
+        setSessionChatId(null);
+        cleanupInProgressRef.current = false;
+        hasHungUpRef.current = false; // Reset hung up flag for fresh open
 
-      const timer = setTimeout(() => {
-        // Double-check modal is still open before initializing
-        if (isOpen) {
-          initializeConnection();
-        }
-      }, 200); // Slightly longer delay to ensure modal is fully rendered
-      return () => clearTimeout(timer);
+        const timer = setTimeout(() => {
+          // Double-check modal is still open before initializing
+          if (isOpen && !hasHungUpRef.current) {
+            initializeConnection();
+          }
+        }, 200); // Slightly longer delay to ensure modal is fully rendered
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isOpen, connectionStatus, initializeConnection]);
+  }, [isOpen, connectionStatus, initializeConnection, isSaving, isNavigating]);
 
   // Handle close
   const handleClose = async () => {
@@ -1250,7 +1283,12 @@ export default function VoiceModeBatchSave({
         className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         onClick={(e) => {
           // Only close if clicking directly on the backdrop and not saving/navigating
-          if (e.target === e.currentTarget && !isSaving && !isNavigating) {
+          if (
+            e.target === e.currentTarget &&
+            !isSaving &&
+            !isNavigating &&
+            !hasHungUpRef.current
+          ) {
             handleClose();
           }
         }}
@@ -1263,214 +1301,368 @@ export default function VoiceModeBatchSave({
           className="w-full max-w-md relative z-10"
         >
           <Card className="p-6 space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Voice Mode</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge
-                    variant={
-                      connectionStatus === VOICE_STATES.CONNECTION.CONNECTED
-                        ? 'default'
-                        : 'secondary'
+            {/* Show different UI based on state */}
+            {sessionState === VOICE_STATES.SESSION.ENDING ||
+            isSaving ||
+            isNavigating ? (
+              // Loading/Saving UI
+              <>
+                <div className="text-center space-y-6">
+                  {/* Status Icon */}
+                  <div className="flex items-center justify-center">
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{
+                        duration: 0.5,
+                        ease: 'easeOut',
+                      }}
+                      className="relative"
+                    >
+                      <motion.div
+                        animate={{
+                          scale: [1, 1.05, 1],
+                          opacity: [1, 0.8, 1],
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Number.POSITIVE_INFINITY,
+                          ease: 'easeInOut',
+                        }}
+                        className="w-24 h-24 rounded-full bg-gradient-to-r from-eos-orange to-orange-600 flex items-center justify-center shadow-lg"
+                      >
+                        <motion.div
+                          key={
+                            isSaving ? 'save' : isNavigating ? 'nav' : 'check'
+                          }
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          {isSaving ? (
+                            <Save className="h-10 w-10 text-white" />
+                          ) : isNavigating ? (
+                            <Navigation className="h-10 w-10 text-white" />
+                          ) : (
+                            <CheckCircle className="h-10 w-10 text-white" />
+                          )}
+                        </motion.div>
+                      </motion.div>
+                    </motion.div>
+                  </div>
+
+                  {/* Status Text */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">
+                      {isSaving && 'Saving your conversation'}
+                      {isNavigating && !isSaving && 'Opening your chat'}
+                      {!isSaving &&
+                        !isNavigating &&
+                        sessionState === VOICE_STATES.SESSION.ENDING &&
+                        'Ending voice session'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {isSaving &&
+                        `Saving ${messagesRef.current.length} messages...`}
+                      {isNavigating &&
+                        !isSaving &&
+                        'Preparing your chat view...'}
+                      {!isSaving &&
+                        !isNavigating &&
+                        sessionState === VOICE_STATES.SESSION.ENDING &&
+                        'Cleaning up...'}
+                    </p>
+                  </div>
+
+                  {/* Progress Steps */}
+                  <div className="space-y-3 max-w-xs mx-auto">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                          sessionState === VOICE_STATES.SESSION.ENDING
+                            ? 'bg-eos-orange text-white'
+                            : 'bg-green-500 text-white',
+                        )}
+                      >
+                        {sessionState === VOICE_STATES.SESSION.ENDING ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                      </div>
+                      <span className="text-sm">Ending voice session</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                          isSaving
+                            ? 'bg-eos-orange text-white'
+                            : isNavigating || !hasMessagesRef.current
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-200 text-gray-500',
+                        )}
+                      >
+                        {isSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isNavigating || !hasMessagesRef.current ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          '2'
+                        )}
+                      </div>
+                      <span className="text-sm">
+                        {hasMessagesRef.current
+                          ? 'Saving conversation'
+                          : 'No messages to save'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                          isNavigating
+                            ? 'bg-eos-orange text-white'
+                            : 'bg-gray-200 text-gray-500',
+                        )}
+                      >
+                        {isNavigating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          '3'
+                        )}
+                      </div>
+                      <span className="text-sm">Opening chat</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Normal Voice Mode UI
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold">Voice Mode</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant={
+                          connectionStatus === VOICE_STATES.CONNECTION.CONNECTED
+                            ? 'default'
+                            : 'secondary'
+                        }
+                        className={cn(
+                          connectionStatus ===
+                            VOICE_STATES.CONNECTION.CONNECTED &&
+                            'bg-green-500 hover:bg-green-600',
+                          connectionStatus ===
+                            VOICE_STATES.CONNECTION.CONNECTING &&
+                            'bg-yellow-500 hover:bg-yellow-600',
+                          connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
+                            'bg-red-500 hover:bg-red-600',
+                        )}
+                      >
+                        {connectionStatus ===
+                          VOICE_STATES.CONNECTION.CONNECTED && 'Connected'}
+                        {connectionStatus ===
+                          VOICE_STATES.CONNECTION.CONNECTING && 'Connecting...'}
+                        {connectionStatus ===
+                          VOICE_STATES.CONNECTION.DISCONNECTED &&
+                          'Disconnected'}
+                        {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
+                          'Error'}
+                      </Badge>
+                      {sessionInfo?.personaName && (
+                        <>
+                          <span className="text-xs text-muted-foreground">
+                            •
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {sessionInfo.personaName}
+                            {sessionInfo.profileName &&
+                              ` - ${sessionInfo.profileName}`}
+                          </span>
+                        </>
+                      )}
+                      {(existingChatId || sessionChatId) && (
+                        <>
+                          <span className="text-xs text-muted-foreground">
+                            •
+                          </span>
+                          <span className="text-xs text-green-600 font-medium">
+                            {existingChatId ? 'In chat' : 'New conversation'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleClose}
+                    disabled={isSaving || isNavigating}
+                  >
+                    {isSaving || isNavigating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PhoneOff className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Audio Visualizer */}
+                <div className="flex items-center justify-center py-8">
+                  <motion.div
+                    className="relative"
+                    animate={{
+                      scale: 1 + audioLevel * 0.3,
+                    }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  >
+                    <div
+                      className={cn(
+                        'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
+                        isListening
+                          ? 'bg-green-500 shadow-lg shadow-green-500/50'
+                          : isPlaying
+                            ? 'bg-blue-500 shadow-lg shadow-blue-500/50'
+                            : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
+                      )}
+                    >
+                      {sessionState === VOICE_STATES.SESSION.INITIALIZING ? (
+                        <Loader2 className="h-8 w-8 text-white animate-spin" />
+                      ) : isMuted ? (
+                        <MicOff className="h-8 w-8 text-white" />
+                      ) : (
+                        <Mic className="h-8 w-8 text-white" />
+                      )}
+                    </div>
+
+                    {/* Audio level rings */}
+                    {audioLevel > VOICE_CONFIG.ui.audioLevelThreshold &&
+                      sessionState === VOICE_STATES.SESSION.ACTIVE && (
+                        <>
+                          <motion.div
+                            className="absolute inset-0 rounded-full border-2 border-white/30"
+                            animate={{
+                              scale: 1 + audioLevel * 0.5,
+                              opacity: 0.7 - audioLevel * 0.3,
+                            }}
+                          />
+                          <motion.div
+                            className="absolute inset-0 rounded-full border-2 border-white/20"
+                            animate={{
+                              scale: 1 + audioLevel * 0.8,
+                              opacity: 0.5 - audioLevel * 0.2,
+                            }}
+                          />
+                        </>
+                      )}
+                  </motion.div>
+                </div>
+
+                {/* Status */}
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {sessionState === VOICE_STATES.SESSION.INITIALIZING &&
+                      'Initializing voice session...'}
+                    {sessionState === VOICE_STATES.SESSION.READY &&
+                      'Voice mode ready'}
+                    {sessionState === VOICE_STATES.SESSION.ACTIVE &&
+                      (isListening ? (
+                        <span className="text-green-600 font-medium">
+                          Listening...
+                        </span>
+                      ) : isPlaying ? (
+                        <span className="text-blue-600 font-medium">
+                          AI is speaking...
+                        </span>
+                      ) : (
+                        "Speak naturally, I'm here to help!"
+                      ))}
+                    {(sessionState as VoiceSessionState) === VOICE_STATES.SESSION.ENDING &&
+                      (isSaving
+                        ? 'Saving conversation...'
+                        : isNavigating
+                          ? 'Navigating to chat...'
+                          : 'Ending session...')}
+                    {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
+                      'Connection error occurred'}
+                  </p>
+                  {!existingChatId && hasMessagesRef.current && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your conversation will be saved when you hang up
+                    </p>
+                  )}
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleMute}
+                    disabled={
+                      connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
+                      isSaving ||
+                      isNavigating
                     }
                     className={cn(
-                      connectionStatus === VOICE_STATES.CONNECTION.CONNECTED &&
-                        'bg-green-500 hover:bg-green-600',
-                      connectionStatus === VOICE_STATES.CONNECTION.CONNECTING &&
-                        'bg-yellow-500 hover:bg-yellow-600',
-                      connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                        'bg-red-500 hover:bg-red-600',
+                      isMuted &&
+                        'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
                     )}
                   >
-                    {connectionStatus === VOICE_STATES.CONNECTION.CONNECTED &&
-                      'Connected'}
-                    {connectionStatus === VOICE_STATES.CONNECTION.CONNECTING &&
-                      'Connecting...'}
-                    {connectionStatus ===
-                      VOICE_STATES.CONNECTION.DISCONNECTED && 'Disconnected'}
-                    {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                      'Error'}
-                  </Badge>
-                  {sessionInfo?.personaName && (
-                    <>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">
-                        {sessionInfo.personaName}
-                        {sessionInfo.profileName &&
-                          ` - ${sessionInfo.profileName}`}
-                      </span>
-                    </>
-                  )}
-                  {(existingChatId || sessionChatId) && (
-                    <>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-green-600 font-medium">
-                        {existingChatId ? 'In chat' : 'New conversation'}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleClose}
-                disabled={isSaving || isNavigating}
-              >
-                {isSaving || isNavigating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PhoneOff className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-
-            {/* Audio Visualizer */}
-            <div className="flex items-center justify-center py-8">
-              <motion.div
-                className="relative"
-                animate={{
-                  scale: 1 + audioLevel * 0.3,
-                }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              >
-                <div
-                  className={cn(
-                    'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
-                    isListening
-                      ? 'bg-green-500 shadow-lg shadow-green-500/50'
-                      : isPlaying
-                        ? 'bg-blue-500 shadow-lg shadow-blue-500/50'
-                        : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
-                  )}
-                >
-                  {sessionState === VOICE_STATES.SESSION.INITIALIZING ? (
-                    <Loader2 className="h-8 w-8 text-white animate-spin" />
-                  ) : isMuted ? (
-                    <MicOff className="h-8 w-8 text-white" />
-                  ) : (
-                    <Mic className="h-8 w-8 text-white" />
-                  )}
-                </div>
-
-                {/* Audio level rings */}
-                {audioLevel > VOICE_CONFIG.ui.audioLevelThreshold &&
-                  sessionState === VOICE_STATES.SESSION.ACTIVE && (
-                    <>
-                      <motion.div
-                        className="absolute inset-0 rounded-full border-2 border-white/30"
-                        animate={{
-                          scale: 1 + audioLevel * 0.5,
-                          opacity: 0.7 - audioLevel * 0.3,
-                        }}
-                      />
-                      <motion.div
-                        className="absolute inset-0 rounded-full border-2 border-white/20"
-                        animate={{
-                          scale: 1 + audioLevel * 0.8,
-                          opacity: 0.5 - audioLevel * 0.2,
-                        }}
-                      />
-                    </>
-                  )}
-              </motion.div>
-            </div>
-
-            {/* Status */}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                {sessionState === VOICE_STATES.SESSION.INITIALIZING &&
-                  'Initializing voice session...'}
-                {sessionState === VOICE_STATES.SESSION.READY &&
-                  'Voice mode ready'}
-                {sessionState === VOICE_STATES.SESSION.ACTIVE &&
-                  (isListening ? (
-                    <span className="text-green-600 font-medium">
-                      Listening...
-                    </span>
-                  ) : isPlaying ? (
-                    <span className="text-blue-600 font-medium">
-                      AI is speaking...
-                    </span>
-                  ) : (
-                    "Speak naturally, I'm here to help!"
-                  ))}
-                {sessionState === VOICE_STATES.SESSION.ENDING &&
-                  (isSaving
-                    ? 'Saving conversation...'
-                    : isNavigating
-                      ? 'Navigating to chat...'
-                      : 'Ending session...')}
-                {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                  'Connection error occurred'}
-              </p>
-              {!existingChatId && hasMessagesRef.current && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your conversation will be saved when you hang up
-                </p>
-              )}
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleMute}
-                disabled={
-                  connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
-                  isSaving ||
-                  isNavigating
-                }
-                className={cn(
-                  isMuted &&
-                    'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
-                )}
-              >
-                {isMuted ? (
-                  <MicOff className="h-4 w-4" />
-                ) : (
-                  <Mic className="h-4 w-4" />
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={
-                  connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
-                  isSaving ||
-                  isNavigating
-                }
-              >
-                {isPlaying ? (
-                  <VolumeX className="h-4 w-4" />
-                ) : (
-                  <Volume2 className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-
-            {/* Transcript */}
-            {displayTranscript.length > 0 && (
-              <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Conversation:
-                </p>
-                {displayTranscript.map((msg, index) => (
-                  <p
-                    key={`transcript-${index}`}
-                    className={cn(
-                      'text-xs',
-                      msg.role === 'user' ? 'text-green-600' : 'text-blue-600',
+                    {isMuted ? (
+                      <MicOff className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
                     )}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={
+                      connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
+                      isSaving ||
+                      isNavigating
+                    }
                   >
-                    {msg.role === 'user' ? 'You: ' : 'AI: '}
-                    {msg.content}
-                  </p>
-                ))}
-              </div>
+                    {isPlaying ? (
+                      <VolumeX className="h-4 w-4" />
+                    ) : (
+                      <Volume2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Transcript */}
+                {displayTranscript.length > 0 && (
+                  <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Conversation:
+                    </p>
+                    {displayTranscript.map((msg, index) => (
+                      <p
+                        key={`transcript-${index}`}
+                        className={cn(
+                          'text-xs',
+                          msg.role === 'user'
+                            ? 'text-green-600'
+                            : 'text-blue-600',
+                        )}
+                      >
+                        {msg.role === 'user' ? 'You: ' : 'AI: '}
+                        {msg.content}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </motion.div>

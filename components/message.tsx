@@ -13,12 +13,14 @@ import equal from 'fast-deep-equal';
 import { cn, sanitizeText } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { EnhancedMessageEditor } from './enhanced-message-editor';
+import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
+import { ReplyContext } from './reply-context';
 
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PDFPreview } from './pdf-preview';
 import { DocumentBadge } from './document-badge';
+import { InlineUploadPreview } from './inline-upload-preview';
 import {
   Calendar,
   FileText,
@@ -63,15 +65,15 @@ interface ImageAnalysis {
 
 // Regular expression to extract PDF metadata from message text
 const PDF_CONTENT_REGEX =
-  /===\s+PDF\s+Content\s+from\s+([^\(]+)\s+\((\d+)\s+pages\)\s+===\n\n([\s\S]*?)(?=\n\n===|\n*$)/gi;
+  /===\s+PDF\s+Content\s+from\s+([^\(]+)\s+\((\d+)\s+pages\)\s+===\n(?:\[INLINE UPLOAD[^\]]*\]\n)?([\s\S]*?)(?=\n\n===\s+End\s+of\s+PDF\s+Content\s+===|\n*$)/gi;
 
 // Regular expression to extract document content
 const DOC_CONTENT_REGEX =
-  /===\s+(Word Document|Spreadsheet)\s+Content\s+from\s+([^\(]+)(?:\s+\((\d+)\s+pages\))?\s+===\n\n([\s\S]*?)(?=\n\n===|\n*$)/gi;
+  /===\s+(Word Document|Spreadsheet)\s+Content\s+from\s+([^=]+?)(?:\s+\((\d+)\s+pages?\))?\s+===\n(?:\[INLINE UPLOAD[^\]]*\]\n)?([\s\S]*?)(?:===\s+End\s+of\s+(?:Word Document|Spreadsheet)\s+Content\s+===)/gi;
 
 // Regular expression to extract image analysis
 const IMAGE_ANALYSIS_REGEX =
-  /===\s+Image\s+Analysis\s+for\s+([^\n]+)\s+===\s*\n+Description:\s+([^\n]+)(?:\s*\n+Extracted\s+Text:\s+([^\n=]*))?([\s\S]*?)(?=\n\n===|\n*$)/gi;
+  /===\s+Image\s+Analysis\s+for\s+([^\n]+)\s+===\s*\n(?:\[INLINE UPLOAD[^\]]*\]\n)?Description:\s+([^\n]+)(?:\s*\n+Extracted\s+Text:\s+([^\n=]*))?([\s\S]*?)(?=\n\n===\s+End\s+of\s+Image\s+Analysis\s+===|\n*$)/gi;
 
 // Add regex for mention detection
 const MENTION_REGEX = /@(\w+):([^\s]+)/g;
@@ -100,9 +102,13 @@ function extractPDFContent(text: string): {
   // Remove the PDF content sections from the text
   let cleanedText = text;
   if (pdfs.length > 0) {
-    // Remove PDF content sections completely
+    // Remove PDF content sections completely, including inline upload markers and headers
     cleanedText = text.replace(
-      /===\s+PDF\s+Content\s+from\s+[^\(]+\s+\(\d+\s+pages\)\s+===\n\n[\s\S]*?(?=\n\n===|\n*$)/gi,
+      /📎\s*\*\*INLINE DOCUMENT UPLOADS\*\*[^\n]*\n*/gi,
+      '',
+    );
+    cleanedText = cleanedText.replace(
+      /===\s+PDF\s+Content\s+from\s+[^\(]+\s+\(\d+\s+pages\)\s+===\n(?:\[INLINE UPLOAD[^\]]*\]\n)?[\s\S]*?(?:===\s+End\s+of\s+PDF\s+Content\s+===)?\n*/gi,
       '',
     );
     // Clean up any leftover whitespace
@@ -118,6 +124,9 @@ function extractDocumentContent(text: string): {
   cleanedText: string;
 } {
   const documents: DocumentContent[] = [];
+
+  // Reset regex state
+  DOC_CONTENT_REGEX.lastIndex = 0;
 
   // Find all document content markers in the text
   let match: RegExpExecArray | null = DOC_CONTENT_REGEX.exec(text);
@@ -137,9 +146,13 @@ function extractDocumentContent(text: string): {
   // Remove the document content sections from the text
   let cleanedText = text;
   if (documents.length > 0) {
-    // Remove document content sections completely
+    // Remove document content sections completely, including inline upload markers
     cleanedText = text.replace(
-      /===\s+(Word Document|Spreadsheet)\s+Content\s+from\s+[^\(]+(?:\s+\(\d+\s+pages\))?\s+===\n\n[\s\S]*?(?=\n\n===|\n*$)/gi,
+      /📎\s*\*\*INLINE DOCUMENT UPLOADS\*\*[^\n]*\n*/gi,
+      '',
+    );
+    cleanedText = cleanedText.replace(
+      /===\s+(Word Document|Spreadsheet)\s+Content\s+from\s+[^\(]+(?:\s+\(\d+\s+pages\))?\s+===\n(?:\[INLINE UPLOAD[^\]]*\]\n)?[\s\S]*?(?:===\s+End\s+of\s+(?:Word Document|Spreadsheet)\s+Content\s+===)?\n*/gi,
       '',
     );
     // Clean up any leftover whitespace
@@ -176,9 +189,13 @@ function extractImageAnalysis(text: string): {
   // Remove the image analysis sections from the text
   let cleanedText = text;
   if (images.length > 0) {
-    // Remove image analysis sections completely
+    // Remove image analysis sections completely, including inline upload markers
     cleanedText = text.replace(
-      /===\s+Image\s+Analysis\s+for\s+[^\n]+\s+===\s*\n+Description:\s+[^\n]+(?:\s*\n+Extracted\s+Text:\s+[^\n=]*)?([\s\S]*?)(?=\n\n===|\n*$)/gi,
+      /📎\s*\*\*INLINE DOCUMENT UPLOADS\*\*[^\n]*\n*/gi,
+      '',
+    );
+    cleanedText = cleanedText.replace(
+      /===\s+Image\s+Analysis\s+for\s+[^\n]+\s+===\s*\n(?:\[INLINE UPLOAD[^\]]*\]\n)?Description:\s+[^\n]+(?:\s*\n+Extracted\s+Text:\s+[^\n=]*)?([\s\S]*?)(?:===\s+End\s+of\s+Image\s+Analysis\s+===)?\n*/gi,
       '',
     );
     // Clean up any leftover whitespace
@@ -278,7 +295,14 @@ const PurePreviewMessage = ({
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
   // Process text parts to extract PDF content and format mentions
-  const processedParts = useMemo(() => {
+  const processedParts = useMemo((): {
+    parts: typeof message.parts;
+    pdfContents: PDFContent[];
+    documentContents: DocumentContent[];
+    imageAnalyses: ImageAnalysis[];
+    hasMentions: boolean;
+    replyContext: { content: string; role: 'user' | 'assistant' } | null;
+  } => {
     if (!message.parts)
       return {
         parts: message.parts,
@@ -286,50 +310,114 @@ const PurePreviewMessage = ({
         documentContents: [],
         imageAnalyses: [],
         hasMentions: false,
+        replyContext: null,
       };
 
     const pdfContents: PDFContent[] = [];
     const documentContents: DocumentContent[] = [];
     const imageAnalyses: ImageAnalysis[] = [];
     let hasMentions = false;
+    let replyContext: { content: string; role: 'user' | 'assistant' } | null =
+      null;
 
     // Process each text part to extract structured content
     const parts = message.parts.map((part) => {
       if (part.type === 'text') {
+        // First check for reply context (only for the first text part)
+        let currentText = part.text;
+        if (!replyContext) {
+          const replyParseResult = parseReplyContext(part.text);
+          if (replyParseResult.hasReply) {
+            replyContext = replyParseResult.replyContext || null;
+            currentText = replyParseResult.cleanedText;
+          }
+        }
+
         // Check for mentions
-        if (MENTION_REGEX.test(part.text)) {
+        if (MENTION_REGEX.test(currentText)) {
           hasMentions = true;
           // Reset regex state
           MENTION_REGEX.lastIndex = 0;
         }
 
-        // First extract and clean PDF contents
-        const { pdfs, cleanedText: textWithoutPdfs } = extractPDFContent(
-          part.text,
-        );
+        // Extract all document types in one pass
+        let cleanedText = currentText;
+
+        // First, extract PDFs
+        const { pdfs } = extractPDFContent(cleanedText);
         pdfContents.push(...pdfs);
 
-        // Then extract and clean document contents
-        const { documents, cleanedText: textWithoutDocs } =
-          extractDocumentContent(textWithoutPdfs);
+        // Then documents
+        const { documents } = extractDocumentContent(cleanedText);
         documentContents.push(...documents);
 
-        // Finally extract and clean image analyses
-        const { images, cleanedText: finalCleanedText } =
-          extractImageAnalysis(textWithoutDocs);
+        // Then images
+        const { images } = extractImageAnalysis(cleanedText);
         imageAnalyses.push(...images);
 
+        // Now remove ALL inline upload content in one comprehensive pass
+        if (pdfs.length > 0 || documents.length > 0 || images.length > 0) {
+          // Remove the inline upload header
+          cleanedText = cleanedText.replace(
+            /📎\s*\*\*INLINE DOCUMENT UPLOADS\*\*[^\n]*\n+/gi,
+            '',
+          );
+
+          // Remove all document sections with a more comprehensive regex
+          cleanedText = cleanedText.replace(
+            /===\s+(?:PDF Content from|Word Document Content from|Spreadsheet Content from|Image Analysis for)[^=]+===[\s\S]*?(?:===\s+End of[^=]+===\s*)/gi,
+            '',
+          );
+
+          // Clean up any leftover whitespace
+          cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n').trim();
+        }
+
         // Create a new part with the cleaned text
-        return { ...part, text: finalCleanedText };
+        return { ...part, text: cleanedText };
       }
       return part;
     });
 
-    return { parts, pdfContents, documentContents, imageAnalyses, hasMentions };
+    return {
+      parts,
+      pdfContents,
+      documentContents,
+      imageAnalyses,
+      hasMentions,
+      replyContext,
+    };
   }, [message.parts]);
 
-  const { parts, pdfContents, documentContents, imageAnalyses, hasMentions } =
-    processedParts;
+  const {
+    parts,
+    pdfContents,
+    documentContents,
+    imageAnalyses,
+    hasMentions,
+    replyContext,
+  } = processedParts;
+
+  // Debug logging
+  if (
+    message.role === 'user' &&
+    (pdfContents.length > 0 ||
+      documentContents.length > 0 ||
+      imageAnalyses.length > 0)
+  ) {
+    console.log('Message extraction results:', {
+      messageId: message.id,
+      pdfs: pdfContents,
+      documents: documentContents,
+      images: imageAnalyses,
+      originalLength:
+        message.parts?.[0]?.type === 'text'
+          ? message.parts[0].text?.length
+          : undefined,
+      cleanedLength:
+        parts?.[0]?.type === 'text' ? parts[0].text?.length : undefined,
+    });
+  }
 
   return (
     <AnimatePresence>
@@ -362,58 +450,17 @@ const PurePreviewMessage = ({
               'min-h-96': message.role === 'assistant' && requiresScrollPadding,
             })}
           >
-            {/* Show PDF, document, and image previews above message content for user messages */}
+            {/* Show inline upload preview for user messages */}
             {message.role === 'user' &&
               (pdfContents.length > 0 ||
                 documentContents.length > 0 ||
                 imageAnalyses.length > 0) && (
-                <div className="flex flex-row justify-end gap-2 flex-wrap">
-                  {pdfContents.map((pdf, index) => (
-                    <PDFPreview
-                      key={`pdf-${index}-${pdf.name}`}
-                      name={pdf.name}
-                      pageCount={pdf.pageCount}
-                      alignRight={true}
-                    />
-                  ))}
-
-                  {documentContents.map((doc, index) => (
-                    <DocumentBadge
-                      key={`doc-${index}-${doc.name}`}
-                      name={doc.name}
-                      type={doc.type}
-                      pageCount={doc.pageCount}
-                      alignRight={true}
-                    />
-                  ))}
-
-                  {imageAnalyses.map((img, index) => (
-                    <div
-                      key={`img-${index}-${img.name}`}
-                      className="flex flex-row items-center gap-1.5 text-xs bg-muted py-1 px-2 rounded-md ml-auto"
-                    >
-                      <svg
-                        className="size-4 text-purple-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M20.4 14.5 16 10 4 20" />
-                      </svg>
-                      <span className="line-clamp-1">{img.name}</span>
-                      {img.hasText && (
-                        <span className="text-xs px-1 bg-primary/10 text-primary rounded">
-                          Text
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <InlineUploadPreview
+                  pdfContents={pdfContents}
+                  documentContents={documentContents}
+                  imageAnalyses={imageAnalyses}
+                  isUserMessage={true}
+                />
               )}
 
             {/* Show regular attachments */}
@@ -432,56 +479,17 @@ const PurePreviewMessage = ({
                 </div>
               )}
 
-            {/* Show PDF previews for assistant messages */}
+            {/* Show inline upload preview for assistant messages */}
             {message.role === 'assistant' &&
               (pdfContents.length > 0 ||
                 documentContents.length > 0 ||
                 imageAnalyses.length > 0) && (
-                <div className="flex flex-row gap-2 flex-wrap">
-                  {pdfContents.map((pdf, index) => (
-                    <PDFPreview
-                      key={`pdf-${index}-${pdf.name}`}
-                      name={pdf.name}
-                      pageCount={pdf.pageCount}
-                    />
-                  ))}
-
-                  {documentContents.map((doc, index) => (
-                    <DocumentBadge
-                      key={`doc-${index}-${doc.name}`}
-                      name={doc.name}
-                      type={doc.type}
-                      pageCount={doc.pageCount}
-                    />
-                  ))}
-
-                  {imageAnalyses.map((img, index) => (
-                    <div
-                      key={`img-${index}-${img.name}`}
-                      className="flex flex-row items-center gap-1.5 text-xs bg-muted py-1 px-2 rounded-md"
-                    >
-                      <svg
-                        className="size-4 text-purple-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M20.4 14.5 16 10 4 20" />
-                      </svg>
-                      <span className="line-clamp-1">{img.name}</span>
-                      {img.hasText && (
-                        <span className="text-xs px-1 bg-primary/10 text-primary rounded">
-                          Text
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <InlineUploadPreview
+                  pdfContents={pdfContents}
+                  documentContents={documentContents}
+                  imageAnalyses={imageAnalyses}
+                  isUserMessage={false}
+                />
               )}
 
             {parts?.map((part, index) => {
@@ -501,21 +509,14 @@ const PurePreviewMessage = ({
                         className="flex flex-row gap-2 items-start justify-end"
                       >
                         {!isReadonly && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                data-testid="message-edit-button"
-                                variant="ghost"
-                                className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 hover:bg-muted/50 transition-all duration-200"
-                                onClick={() => {
-                                  setMode('edit');
-                                }}
-                              >
-                                <PencilEditIcon />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit message</TooltipContent>
-                          </Tooltip>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setMode('edit')}
+                          >
+                            <PencilEditIcon />
+                          </Button>
                         )}
 
                         <MeetingTranscriptCard
@@ -544,21 +545,14 @@ const PurePreviewMessage = ({
                   return (
                     <div key={key} className="flex flex-row gap-2 items-start">
                       {message.role === 'user' && !isReadonly && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              data-testid="message-edit-button"
-                              variant="ghost"
-                              className="px-2 h-fit rounded-full text-muted-foreground opacity-50 hover:opacity-100 hover:bg-muted/50 transition-all duration-200"
-                              onClick={() => {
-                                setMode('edit');
-                              }}
-                            >
-                              <PencilEditIcon />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit message</TooltipContent>
-                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setMode('edit')}
+                        >
+                          <PencilEditIcon />
+                        </Button>
                       )}
 
                       <div
@@ -568,6 +562,14 @@ const PurePreviewMessage = ({
                             message.role === 'user',
                         })}
                       >
+                        {/* Show reply context if present */}
+                        {replyContext?.role && replyContext?.content && (
+                          <ReplyContext
+                            role={replyContext.role}
+                            content={replyContext.content}
+                          />
+                        )}
+
                         {containsMentions ? (
                           // Custom rendering for text with mentions
                           <div className="prose dark:prose-invert prose-sm max-w-none">
@@ -604,7 +606,7 @@ const PurePreviewMessage = ({
                       >
                         <div className="size-8" />
 
-                        <EnhancedMessageEditor
+                        <SimpleMessageEditor
                           key={message.id}
                           message={message}
                           setMode={setMode}
@@ -1140,4 +1142,45 @@ function isMeetingTranscript(content: string): {
   }
 
   return { isTranscript: false };
+}
+
+// Function to detect and parse reply context from message content
+function parseReplyContext(text: string): {
+  hasReply: boolean;
+  replyContext?: {
+    content: string;
+    role: 'user' | 'assistant';
+  };
+  cleanedText: string;
+} {
+  // Look for reply header pattern: **Replying to [role]:**\n\n[quoted content]\n\n---\n\n[actual message]
+  const replyPattern =
+    /^\*\*Replying to (your message|assistant):\*\*\n\n((?:> .+\n?)+)\n\n---\n\n([\s\S]*)/;
+  const match = text.match(replyPattern);
+
+  if (!match) {
+    return {
+      hasReply: false,
+      cleanedText: text,
+    };
+  }
+
+  const [, roleText, quotedContent, actualMessage] = match;
+  const role = roleText === 'your message' ? 'user' : 'assistant';
+
+  // Remove the > prefix from quoted lines
+  const content = quotedContent
+    .split('\n')
+    .map((line) => line.replace(/^> /, ''))
+    .join('\n')
+    .trim();
+
+  return {
+    hasReply: true,
+    replyContext: {
+      content,
+      role,
+    },
+    cleanedText: actualMessage.trim(),
+  };
 }

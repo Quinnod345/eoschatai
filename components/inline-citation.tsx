@@ -50,15 +50,40 @@ export function InlineCitation({
             <ExternalLink className="h-2.5 w-2.5" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>
-          <div className="max-w-xs p-2">
-            <div className="font-medium text-sm mb-1">{title}</div>
+        <TooltipContent side="top" className="max-w-md p-0 overflow-hidden">
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 p-4">
+            <div className="flex items-start gap-2 mb-2">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                  {sourceNumber}
+                </span>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2">
+                  {title}
+                </h4>
+              </div>
+            </div>
+
             {snippet && (
-              <div className="text-xs text-muted-foreground mb-2">
-                {snippet}
+              <div className="mb-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-md">
+                <p className="text-xs text-gray-700 dark:text-gray-300 line-clamp-4">
+                  {snippet}
+                </p>
               </div>
             )}
-            <div className="text-xs text-blue-400 break-all">{url}</div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  {new URL(url).hostname}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                <span className="text-xs">View source</span>
+                <ExternalLink className="h-3 w-3" />
+              </div>
+            </div>
           </div>
         </TooltipContent>
       </Tooltip>
@@ -87,6 +112,10 @@ export function CitationRenderer({
   // Replace citation patterns [1], [2], etc. with clickable citation components
   const parts = text.split(/(\[\d+\])/g);
 
+  // Track citation occurrences for unique keys
+  const citationOccurrences = new Map<number, number>();
+  let textPartCounter = 0;
+
   return (
     <span className={className}>
       {parts.map((part, index) => {
@@ -96,9 +125,14 @@ export function CitationRenderer({
           const citation = citations.find((c) => c.number === sourceNumber);
 
           if (citation) {
+            // Track occurrence count for this citation number
+            const occurrenceCount =
+              (citationOccurrences.get(sourceNumber) || 0) + 1;
+            citationOccurrences.set(sourceNumber, occurrenceCount);
+
             return (
               <InlineCitation
-                key={`citation-${sourceNumber}`}
+                key={`citation-${sourceNumber}-occurrence-${occurrenceCount}`}
                 sourceNumber={sourceNumber}
                 title={citation.title}
                 url={citation.url}
@@ -107,7 +141,9 @@ export function CitationRenderer({
             );
           }
         }
-        return part;
+        // Use a counter for text parts to ensure unique keys
+        textPartCounter += 1;
+        return <span key={`text-part-${textPartCounter}`}>{part}</span>;
       })}
     </span>
   );

@@ -72,6 +72,33 @@ export const message = pgTable('Message_v2', {
 
 export type DBMessage = InferSelectModel<typeof message>;
 
+// Message edit history table for tracking all edits
+export const messageEditHistory = pgTable(
+  'MessageEditHistory',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    messageId: uuid('messageId')
+      .notNull()
+      .references(() => message.id, { onDelete: 'cascade' }),
+    previousContent: json('previousContent').notNull(), // Store the previous parts array
+    newContent: json('newContent').notNull(), // Store the new parts array
+    editedBy: uuid('editedBy')
+      .notNull()
+      .references(() => user.id),
+    editedAt: timestamp('editedAt').notNull().defaultNow(),
+    editReason: text('editReason'), // Optional reason for the edit
+  },
+  (table) => {
+    return {
+      messageIdx: index('edit_history_message_idx').on(table.messageId),
+      userIdx: index('edit_history_user_idx').on(table.editedBy),
+      timeIdx: index('edit_history_time_idx').on(table.editedAt),
+    };
+  },
+);
+
+export type MessageEditHistory = InferSelectModel<typeof messageEditHistory>;
+
 // DEPRECATED: The following schema is deprecated and will be removed in the future.
 // Read the migration guide at https://github.com/vercel/ai-chatbot/blob/main/docs/04-migrate-to-parts.md
 export const voteDeprecated = pgTable(
@@ -431,3 +458,124 @@ export const voiceTranscript = pgTable('VoiceTranscript', {
 });
 
 export type VoiceTranscript = InferSelectModel<typeof voiceTranscript>;
+
+// Nexus Research tables for storing research sessions and results
+export const nexusResearchSession = pgTable('NexusResearchSession', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  chatId: uuid('chatId').references(() => chat.id, { onDelete: 'cascade' }),
+  query: text('query').notNull(),
+  status: varchar('status', {
+    enum: [
+      'planning',
+      'searching',
+      'analyzing',
+      'synthesizing',
+      'completed',
+      'failed',
+    ],
+  })
+    .notNull()
+    .default('planning'),
+  researchPlan: jsonb('researchPlan'), // Stores the planned research steps
+  searchQueries: jsonb('searchQueries').notNull(), // Array of search queries used
+  totalSources: integer('totalSources').default(0),
+  completedSearches: integer('completedSearches').default(0),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  completedAt: timestamp('completedAt'),
+  metadata: jsonb('metadata'), // Additional metadata like model used, token count, etc.
+});
+
+export type NexusResearchSession = InferSelectModel<
+  typeof nexusResearchSession
+>;
+
+// Store individual research results
+export const nexusResearchResult = pgTable(
+  'NexusResearchResult',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    sessionId: uuid('sessionId')
+      .notNull()
+      .references(() => nexusResearchSession.id, { onDelete: 'cascade' }),
+    searchQuery: text('searchQuery').notNull(),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    snippet: text('snippet'),
+    content: text('content'), // Full scraped content
+    relevanceScore: integer('relevanceScore'), // 0-100
+    sourceType: varchar('sourceType', {
+      enum: ['web', 'academic', 'news', 'documentation', 'forum', 'other'],
+    }).default('web'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    metadata: jsonb('metadata'), // Additional source metadata
+  },
+  (table) => ({
+    sessionIdx: index('research_result_session_idx').on(table.sessionId),
+    urlIdx: index('research_result_url_idx').on(table.url),
+  }),
+);
+
+export type NexusResearchResult = InferSelectModel<typeof nexusResearchResult>;
+
+// Store research embeddings for semantic search
+export const nexusResearchEmbedding = pgTable(
+  'NexusResearchEmbedding',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    sessionId: uuid('sessionId')
+      .notNull()
+      .references(() => nexusResearchSession.id, { onDelete: 'cascade' }),
+    resultId: uuid('resultId').references(() => nexusResearchResult.id, {
+      onDelete: 'cascade',
+    }),
+    chunk: text('chunk').notNull(),
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    researchEmbeddingIdx: index('research_embedding_idx').using(
+      'hnsw',
+      table.embedding.op('vector_cosine_ops'),
+    ),
+    sessionEmbeddingIdx: index('research_session_embedding_idx').on(
+      table.sessionId,
+    ),
+  }),
+);
+
+export type NexusResearchEmbedding = InferSelectModel<
+  typeof nexusResearchEmbedding
+>;
+
+// Cache for compiled research reports
+export const nexusResearchReport = pgTable(
+  'NexusResearchReport',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    sessionId: uuid('sessionId')
+      .notNull()
+      .references(() => nexusResearchSession.id, { onDelete: 'cascade' }),
+    reportType: varchar('reportType', {
+      enum: ['summary', 'detailed', 'technical', 'executive'],
+    })
+      .notNull()
+      .default('detailed'),
+    content: text('content').notNull(), // The compiled report in markdown
+    sections: jsonb('sections'), // Structured sections of the report
+    citations: jsonb('citations'), // Array of citations used
+    visualizations: jsonb('visualizations'), // Chart/graph data
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt'), // For cache expiration
+  },
+  (table) => ({
+    sessionReportIdx: uniqueIndex('research_session_report_idx').on(
+      table.sessionId,
+      table.reportType,
+    ),
+  }),
+);
+
+export type NexusResearchReport = InferSelectModel<typeof nexusResearchReport>;

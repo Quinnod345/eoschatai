@@ -13,12 +13,14 @@ interface UpdateDocumentProps {
 export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
   tool({
     description:
-      'Update an existing document or artifact with the given description. Use this tool when the user wants to modify, extend, improve, or fix existing content.',
+      'Update an existing document or artifact with the given description. MANDATORY: Use this tool WHENEVER the user asks to edit, modify, extend, improve, fix, change, expand, shorten, rewrite, polish, wordsmith, add to, remove from, or update existing content in ANY way. NEVER output edited text in the chat - always use this tool instead.',
     parameters: z.object({
       id: z.string().describe('The ID of the document to update'),
       description: z
         .string()
-        .describe('The description of changes that need to be made'),
+        .describe(
+          'DETAILED description of the EXACT changes that need to be made. Be specific about what sections to modify, what content to add/remove/change, and how to preserve existing content. The more detailed this description, the better the edit will be.',
+        ),
     }),
     execute: async ({ id, description }) => {
       const document = await getDocumentById({ id });

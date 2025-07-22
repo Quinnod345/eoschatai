@@ -9,6 +9,7 @@ import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { Session } from 'next-auth';
 import { useEffect, useState, useCallback } from 'react';
 import { generateUUID } from '@/lib/utils';
+import { useLoading } from '@/hooks/use-loading';
 
 interface ChatClientWrapperProps {
   id: string;
@@ -49,6 +50,20 @@ export function ChatClientWrapper({
 
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [meetingMetadata, setMeetingMetadata] = useState<any>(null);
+  const { setLoading } = useLoading();
+
+  // Hide loading state when component mounts (chat is ready)
+  useEffect(() => {
+    // Clear any loading state immediately
+    setLoading(false);
+    
+    // Also clear it after a short delay to ensure it's gone
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [setLoading]);
 
   // Check for pending recording message
   useEffect(() => {

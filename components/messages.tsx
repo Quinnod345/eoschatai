@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
+import { MessageSkeleton } from './message-skeleton';
+import { usePathname } from 'next/navigation';
 
 interface CitationReference {
   number: number;
@@ -28,6 +30,11 @@ interface MessagesProps {
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
+  onStartReply?: (
+    messageId: string,
+    content: string,
+    role: 'user' | 'assistant',
+  ) => void;
 }
 
 function PureMessages({
@@ -41,7 +48,10 @@ function PureMessages({
   citations,
   searchProgress,
   meetingMetadata,
+  onStartReply,
 }: MessagesProps) {
+  const pathname = usePathname();
+  
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -53,7 +63,10 @@ function PureMessages({
     status,
   });
 
-  const { handlePin, handleReply, isPinned } = useMessageActions({ chatId });
+  const { handlePin, handleReply, isPinned } = useMessageActions({
+    chatId,
+    onStartReply,
+  });
 
   // Memoize the thinking state to avoid infinite loops
   const shouldShowThinking = useMemo(() => {
@@ -115,51 +128,66 @@ function PureMessages({
     });
   }, [messages, shouldShowThinking]);
 
+  // Show loading skeleton when messages are being loaded
+  // Don't show skeleton for new chats (when pathname is exactly /chat)
+  const isNewChat = pathname === '/chat';
+  const isLoading = messages.length === 0 && status === 'ready' && !isNewChat;
+
   return (
     <div
       ref={messagesContainerRef}
       className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
     >
-      {filteredMessages.map((message, index) => (
-        <PreviewMessage
-          key={message.id}
-          chatId={chatId}
-          message={message}
-          isLoading={
-            status === 'streaming' &&
-            filteredMessages.length - 1 === index &&
-            !shouldShowThinking
-          }
-          vote={
-            votes
-              ? votes.find((vote) => vote.messageId === message.id)
-              : undefined
-          }
-          setMessages={setMessages}
-          reload={reload}
-          isReadonly={isReadonly}
-          requiresScrollPadding={
-            hasSentMessage && index === filteredMessages.length - 1
-          }
-          onPin={handlePin}
-          onReply={(messageId) => {
-            const msg = messages.find((m) => m.id === messageId);
-            if (msg) {
-              const textContent =
-                msg.parts
-                  ?.filter((part) => part.type === 'text')
-                  .map((part) => part.text)
-                  .join('\n')
-                  .trim() || '';
-              handleReply(messageId, textContent);
+      {isLoading ? (
+        <MessageSkeleton count={3} />
+      ) : (
+        filteredMessages.map((message, index) => (
+          <PreviewMessage
+            key={message.id}
+            chatId={chatId}
+            message={message}
+            isLoading={
+              status === 'streaming' &&
+              filteredMessages.length - 1 === index &&
+              !shouldShowThinking
             }
-          }}
-          isPinned={isPinned(message.id)}
-          citations={citations}
-          searchProgress={searchProgress}
-          meetingMetadata={meetingMetadata}
-        />
-      ))}
+            vote={
+              votes
+                ? votes.find((vote) => vote.messageId === message.id)
+                : undefined
+            }
+            setMessages={setMessages}
+            reload={reload}
+            isReadonly={isReadonly}
+            requiresScrollPadding={
+              hasSentMessage && index === filteredMessages.length - 1
+            }
+            onPin={handlePin}
+            onReply={(messageId) => {
+              const msg = messages.find((m) => m.id === messageId);
+              if (msg) {
+                const textContent =
+                  msg.parts
+                    ?.filter((part) => part.type === 'text')
+                    .map((part) => part.text)
+                    .join('\n')
+                    .trim() || '';
+
+                // Only allow replies to user and assistant messages
+                const validRole =
+                  msg.role === 'user' || msg.role === 'assistant'
+                    ? msg.role
+                    : 'assistant';
+                handleReply(messageId, textContent, validRole);
+              }
+            }}
+            isPinned={isPinned(message.id)}
+            citations={citations}
+            searchProgress={searchProgress}
+            meetingMetadata={meetingMetadata}
+          />
+        ))
+      )}
 
       {shouldShowThinking && (
         <ThinkingMessage searchProgress={searchProgress} />

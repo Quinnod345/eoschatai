@@ -4,6 +4,11 @@ import type { PinnedMessage } from '@/lib/db/schema';
 
 interface UseMessageActionsProps {
   chatId: string;
+  onStartReply?: (
+    messageId: string,
+    content: string,
+    role: 'user' | 'assistant',
+  ) => void;
 }
 
 // Global event emitter for real-time updates
@@ -15,7 +20,10 @@ const emitMessageActionUpdate = (type: 'pin', data: any) => {
   );
 };
 
-export function useMessageActions({ chatId }: UseMessageActionsProps) {
+export function useMessageActions({
+  chatId,
+  onStartReply,
+}: UseMessageActionsProps) {
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -117,7 +125,18 @@ export function useMessageActions({ chatId }: UseMessageActionsProps) {
     }
   };
 
-  const handleReply = (messageId: string, messageContent: string) => {
+  const handleReply = (
+    messageId: string,
+    messageContent: string,
+    messageRole: 'user' | 'assistant' = 'assistant',
+  ) => {
+    // If we have a modern reply callback, use it
+    if (onStartReply) {
+      onStartReply(messageId, messageContent, messageRole);
+      return;
+    }
+
+    // Fallback to the old direct DOM manipulation method
     // Extract text content from the message
     const textContent = messageContent
       .split('\n')
@@ -127,21 +146,39 @@ export function useMessageActions({ chatId }: UseMessageActionsProps) {
     // Set the input with a reply indicator
     const replyText = `${textContent}\n\n`;
 
-    // Focus the input and set the reply text
+    // Focus the input and set the reply text - use the correct selector
     const inputElement = document.querySelector(
-      'textarea[name="message"]',
+      'textarea[data-testid="multimodal-input"]',
     ) as HTMLTextAreaElement;
+
     if (inputElement) {
       inputElement.value = replyText;
       inputElement.focus();
       inputElement.setSelectionRange(replyText.length, replyText.length);
 
-      // Trigger input event to update the state
-      const event = new Event('input', { bubbles: true });
-      inputElement.dispatchEvent(event);
+      // Trigger input event to update the state - use a more comprehensive event
+      const inputEvent = new Event('input', { bubbles: true });
+      inputElement.dispatchEvent(inputEvent);
+
+      // Also trigger a change event to ensure all event handlers are called
+      const changeEvent = new Event('change', { bubbles: true });
+      inputElement.dispatchEvent(changeEvent);
 
       // Scroll to the input
       inputElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Trigger height adjustment if the textarea has an adjustHeight method
+      // This ensures the textarea expands to fit the reply content
+      if (textContent.split('\n').length > 2) {
+        setTimeout(() => {
+          if (inputElement) {
+            inputElement.style.height = 'auto';
+            inputElement.style.height = `${inputElement.scrollHeight + 2}px`;
+          }
+        }, 10);
+      }
+    } else {
+      console.warn('Could not find textarea element for reply functionality');
     }
   };
 

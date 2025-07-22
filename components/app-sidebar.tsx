@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { AdvancedSearch } from '@/components/advanced-search';
+import { useLoading } from '@/hooks/use-loading';
 
 // Spring transition settings
 const springTransition = {
@@ -144,6 +145,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                         className="p-2 h-fit"
                         onClick={() => {
                           setOpenMobile(false);
+                          // Don't show loading for new chat - it should be instant
                           // Force a clean navigation to /chat without any search parameters
                           const url = new URL('/chat', window.location.origin);
                           router.replace(url.pathname);

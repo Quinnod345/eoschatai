@@ -275,11 +275,35 @@ export async function POST(request: Request) {
       }
     }
 
+    // Check if the message contains inline document uploads
+    const hasInlineDocuments =
+      queryText.includes('=== PDF Content from') ||
+      queryText.includes('=== Word Document Content from') ||
+      queryText.includes('=== Spreadsheet Content from') ||
+      queryText.includes('=== Image Analysis for');
+
+    if (hasInlineDocuments) {
+      console.log('RAG: Detected inline document upload in user message');
+    }
+
     console.log('RAG: Extracted queryText:', {
       queryText,
       queryTextLength: queryText.length,
       isEmpty: queryText.length === 0,
     });
+
+    // For RAG purposes, extract just the user's actual question without inline documents
+    let ragQueryText = queryText;
+    if (hasInlineDocuments) {
+      // Extract just the user's question part, removing inline document content for RAG search
+      const beforeDoc = queryText.split('=== ')[0].trim();
+      const afterDocMatch = queryText.match(/=== End of .* ===\s*(.*)$/s);
+      ragQueryText = beforeDoc + (afterDocMatch ? ` ${afterDocMatch[1]}` : '');
+      console.log(
+        'RAG: Extracted user question from inline document message:',
+        ragQueryText,
+      );
+    }
 
     // Enhanced mention processing with smart detection
     const extractedMentions = MentionProcessor.extractMentions(queryText);
@@ -355,7 +379,7 @@ export async function POST(request: Request) {
       queryText
         ? (() => {
             const generalRagStart = Date.now();
-            return findRelevantContent(queryText, 5)
+            return findRelevantContent(ragQueryText, 5)
               .then((content) => {
                 const generalRagTime = Date.now() - generalRagStart;
                 console.log(
@@ -387,7 +411,7 @@ export async function POST(request: Request) {
             const userRagStart = Date.now();
             return import('@/lib/ai/prompts')
               .then(({ userRagContextPrompt }) =>
-                userRagContextPrompt(session.user.id, queryText),
+                userRagContextPrompt(session.user.id, ragQueryText),
               )
               .then((context) => {
                 const userRagTime = Date.now() - userRagStart;
@@ -426,7 +450,7 @@ export async function POST(request: Request) {
               .then(({ personaRagContextPrompt }) =>
                 personaRagContextPrompt(
                   selectedPersonaId,
-                  queryText,
+                  ragQueryText,
                   session.user.id,
                 ),
               )
@@ -474,7 +498,7 @@ export async function POST(request: Request) {
                 .then(({ upstashSystemRagContextPrompt }) =>
                   upstashSystemRagContextPrompt(
                     selectedProfileId || null,
-                    queryText,
+                    ragQueryText,
                   ),
                 )
                 .then((context) => {
@@ -531,7 +555,7 @@ export async function POST(request: Request) {
                 return systemRagContextPrompt(
                   selectedPersonaId,
                   selectedProfileId || null,
-                  queryText,
+                  ragQueryText,
                 );
               })
               .then((context) => {
@@ -729,6 +753,18 @@ export async function POST(request: Request) {
     let enhancedSystemPrompt = `${fullSystemPrompt}${nexusResearchContext}
 
 ${
+  hasInlineDocuments
+    ? `
+URGENT: INLINE DOCUMENT DETECTED
+The user has just uploaded a document DIRECTLY in their message. This is NOT from the knowledge base.
+You MUST focus on the document content between the === delimiters in their message.
+This is what they are asking you to work with RIGHT NOW.
+DO NOT confuse this with RAG content or knowledge base documents.
+`
+    : ''
+}
+
+${
   allMentions.length > 0
     ? `
 @ MENTION INSTRUCTIONS:
@@ -835,7 +871,38 @@ DOCUMENT USAGE INSTRUCTIONS:
 4. Do NOT provide generic descriptions when specific document content is available.
 5. PRIORITIZE document content over other knowledge when the user asks about their business.
 6. These documents are the PRIMARY SOURCE OF TRUTH for the user's company information.
-7. If you cannot find the requested information in their documents, clearly state this fact.`;
+7. If you cannot find the requested information in their documents, clearly state this fact.
+
+CRITICAL INLINE DOCUMENT UPLOAD INSTRUCTIONS:
+When the user's message contains document content with delimiters like "=== PDF Content from..." or "=== Word Document Content from..." or "=== Image Analysis for...":
+
+1. **IMMEDIATE RECOGNITION**: This is a NEWLY UPLOADED document in the current message that the user wants you to work with RIGHT NOW.
+2. **HIGHEST PRIORITY**: This inline document content takes ABSOLUTE PRECEDENCE over all other context sources for this response.
+3. **DIRECT REFERENCE**: When the user says "wordsmith it" or "improve this" or similar, they are ALWAYS referring to the inline document content.
+4. **REQUIRED BEHAVIOR**:
+   - READ the entire inline document content carefully
+   - UNDERSTAND that this is what the user is asking about
+   - RESPOND directly to their request about THIS specific content
+   - DO NOT make up information about unrelated topics
+   - DO NOT ignore the inline content and talk about something else
+5. **INLINE DOCUMENT MARKERS**:
+   - "=== PDF Content from [filename] ===" indicates PDF text
+   - "=== Word Document Content from [filename] ===" indicates DOCX text  
+   - "=== Spreadsheet Content from [filename] ===" indicates XLSX data
+   - "=== Image Analysis for [filename] ===" indicates image description/OCR
+6. **PROPER RESPONSE PATTERN**:
+   - Acknowledge you've received their document
+   - Address their specific request about the content
+   - Use the actual content from the document in your response
+   - Never claim the message is blank when document content is present
+
+EXAMPLE:
+If user uploads a document about "Purpose/Cause/Passion" for health insurance and asks to "wordsmith it", you MUST:
+- Work with the health insurance content they provided
+- NOT talk about Mississippi counties or any other unrelated topic
+- Create a wordsmithed version of THEIR health insurance Core Focus
+
+Remember: INLINE DOCUMENT CONTENT = WHAT THE USER IS TALKING ABOUT RIGHT NOW`;
 
     // Add extra instructions specifically for Core Process questions
     if (queryText.toLowerCase().includes('core process')) {
@@ -953,20 +1020,27 @@ For questions about integrators, please focus on information from Rocket Fuel an
 `;
     }
 
-    // Add document creation guide
+    // Add document creation and editing guide
     if (
       queryText.toLowerCase().includes('document') ||
       queryText.toLowerCase().includes('create') ||
       queryText.toLowerCase().includes('v/to') ||
       queryText.toLowerCase().includes('accountability chart') ||
-      queryText.toLowerCase().includes('scorecard')
+      queryText.toLowerCase().includes('scorecard') ||
+      queryText.toLowerCase().includes('edit') ||
+      queryText.toLowerCase().includes('modify') ||
+      queryText.toLowerCase().includes('improve') ||
+      queryText.toLowerCase().includes('fix') ||
+      queryText.toLowerCase().includes('change')
     ) {
       console.log(
-        'Detected document creation request - adding special instructions',
+        'Detected document creation or editing request - adding special instructions',
       );
       enhancedSystemPrompt += `
 
-DOCUMENT CREATION GUIDE:
+DOCUMENT CREATION AND EDITING GUIDE:
+
+FOR CREATING NEW DOCUMENTS:
 When asked to create a document or artifact, such as a Vision/Traction Organizer™, Accountability Chart™, or Scorecard:
 1. Use the createDocument tool with the appropriate parameters
 2. Always provide a descriptive title and the correct kind parameter ("text", "code", or "sheet")
@@ -974,9 +1048,20 @@ When asked to create a document or artifact, such as a Vision/Traction Organizer
 4. Always use the proper tool invocation mechanism provided by this system
 5. For most EOS documents, use "text" kind unless specifically creating a spreadsheet or code
 
-Example of CORRECT tool usage (conceptual, not actual syntax):
-- Use the createDocument tool with parameters {title: "My V/TO", kind: "text"}
-- Do NOT manually format function calls with custom syntax
+FOR EDITING EXISTING ARTIFACTS:
+CRITICAL: When the user asks to edit, modify, improve, or change an existing artifact:
+1. **ALWAYS USE updateDocument TOOL** - Never output edited text in the chat
+2. **DETECT EDIT REQUESTS**: Words like "edit", "modify", "improve", "fix", "change", "expand", "shorten", "rewrite", "polish", "wordsmith", "add", "remove", "update"
+3. **PROVIDE DETAILED DESCRIPTIONS**: When using updateDocument, be specific about what changes to make
+4. **PRESERVE EXISTING CONTENT**: The tool will intelligently apply edits while keeping the rest of the document intact
+5. **NO MANUAL OUTPUTS**: NEVER say "Here's the edited version:" and output text
+
+Example of CORRECT editing (conceptual):
+- User: "Make the introduction longer and add more detail"
+- Use updateDocument tool with description: "Expand the introduction section with additional detail and context"
+- Do NOT output the edited text in chat
+
+REMEMBER: Any request to change an existing artifact = updateDocument tool. No exceptions.
 `;
     }
 
@@ -1195,146 +1280,76 @@ Always prioritize the user's document content over generic information. If speci
           console.log(
             '[NEXUS MODE] Starting nexus research with progress tracking',
           );
-          console.log(
-            '[NEXUS MODE] Inside condition - will perform web search',
-          );
+
+          // Immediately notify the client that nexus mode is starting
+          dataStream.writeData({
+            type: 'nexus-phase-update',
+            phase: 'planning',
+            message: 'Initializing Nexus Deep Research mode...',
+            startTime: Date.now(),
+          });
+
+          console.log('[NEXUS MODE] Calling nexus-chat endpoint');
           const researchStartTime = Date.now();
 
           try {
-            // Generate 20 comprehensive search queries
-            const generateComprehensiveQueries = (baseQuery: string) => {
-              const lowerQuery = baseQuery.toLowerCase();
+            // Call the nexus-chat endpoint
+            const nexusResponse = await fetch(
+              new URL('/api/nexus-chat', request.url).toString(),
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Cookie: request.headers.get('Cookie') || '',
+                },
+                body: JSON.stringify({
+                  query: queryText,
+                  chatId: id,
+                }),
+              },
+            );
 
-              if (
-                lowerQuery.includes('eos') ||
-                lowerQuery.includes('entrepreneurial operating system')
-              ) {
-                return [
-                  baseQuery,
-                  `${baseQuery} comprehensive analysis`,
-                  `${baseQuery} implementation guide`,
-                  `${baseQuery} best practices 2024`,
-                  `${baseQuery} success stories case studies`,
-                  `${baseQuery} challenges and solutions`,
-                  `${baseQuery} expert recommendations`,
-                  `${baseQuery} industry benchmarks`,
-                  `${baseQuery} ROI and benefits`,
-                  `${baseQuery} step by step process`,
-                  `${baseQuery} leadership team requirements`,
-                  `${baseQuery} organizational readiness`,
-                  `${baseQuery} common mistakes to avoid`,
-                  `${baseQuery} tools and resources`,
-                  `${baseQuery} training and certification`,
-                  `${baseQuery} small business vs enterprise`,
-                  `${baseQuery} competitive analysis`,
-                  `${baseQuery} future trends and evolution`,
-                  `${baseQuery} integration with other systems`,
-                  `${baseQuery} measurable outcomes and KPIs`,
-                ];
-              }
+            if (!nexusResponse.ok) {
+              throw new Error(`Nexus API error: ${nexusResponse.status}`);
+            }
 
-              return [
-                baseQuery,
-                `${baseQuery} comprehensive guide`,
-                `${baseQuery} expert analysis`,
-                `${baseQuery} best practices`,
-                `${baseQuery} latest research 2024`,
-                `${baseQuery} industry insights`,
-                `${baseQuery} case studies`,
-                `${baseQuery} implementation strategies`,
-                `${baseQuery} benefits and challenges`,
-                `${baseQuery} step by step approach`,
-                `${baseQuery} common mistakes`,
-                `${baseQuery} success factors`,
-                `${baseQuery} tools and resources`,
-                `${baseQuery} market trends`,
-                `${baseQuery} expert opinions`,
-                `${baseQuery} comparative analysis`,
-                `${baseQuery} ROI and value`,
-                `${baseQuery} future outlook`,
-                `${baseQuery} practical tips`,
-                `${baseQuery} detailed evaluation`,
-              ];
-            };
+            // Process the nexus stream
+            const nexusReader = nexusResponse.body?.getReader();
+            if (!nexusReader) {
+              throw new Error('No reader available from nexus response');
+            }
 
-            const searchQueries = generateComprehensiveQueries(queryText);
+            const decoder = new TextDecoder();
+            let nexusResults: any[] = [];
 
-            // Emit search start event
-            dataStream.writeData({
-              type: 'nexus-search-start',
-              totalSearches: searchQueries.length,
-              query: queryText,
-            });
+            // Read and forward nexus stream events
+            while (true) {
+              const { done, value } = await nexusReader.read();
+              if (done) break;
 
-            const allResults: any[] = [];
-            let completedSearches = 0;
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
 
-            // Execute searches sequentially with progress updates
-            for (let i = 0; i < searchQueries.length; i++) {
-              const searchQuery = searchQueries[i];
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
 
-              // Emit progress event
-              dataStream.writeData({
-                type: 'nexus-search-progress',
-                currentSearch: searchQuery,
-                searchIndex: i,
-                searchesCompleted: completedSearches,
-                totalSearches: searchQueries.length,
-              });
+                    // Forward the event to the client
+                    dataStream.writeData(data);
 
-              try {
-                const results = await searchWeb(
-                  searchQuery,
-                  (progress) => {
-                    // Emit detailed search progress
-                    dataStream.writeData({
-                      type: 'nexus-search-detail',
-                      searchIndex: i,
-                      query: searchQuery,
-                      status: progress.status,
-                      sitesFound: progress.sitesFound ?? 0,
-                      error: progress.error ?? null,
-                    });
-                  },
-                  i,
-                );
-
-                if (results.length > 0) {
-                  // Emit sites found event
-                  dataStream.writeData({
-                    type: 'nexus-sites-found',
-                    searchIndex: i,
-                    sites: results.map((r) => ({
-                      url: r.url,
-                      title: r.title,
-                    })),
-                  });
-                  allResults.push(...results);
+                    // Collect results for context
+                    if (data.type === 'nexus-search-complete' && data.results) {
+                      nexusResults = data.results;
+                    }
+                  } catch (e) {
+                    // Ignore parse errors
+                  }
                 }
-
-                completedSearches++;
-              } catch (error) {
-                console.error(
-                  `[NEXUS MODE] Search failed for "${searchQuery}":`,
-                  error,
-                );
-                dataStream.writeData({
-                  type: 'nexus-search-error',
-                  searchIndex: i,
-                  query: searchQuery,
-                  error:
-                    error instanceof Error ? error.message : 'Unknown error',
-                });
-                completedSearches++;
               }
             }
 
-            // Deduplicate and format results
-            const uniqueResults = Array.from(
-              new Map(allResults.map((item) => [item.url, item])).values(),
-            );
-
-            if (uniqueResults.length > 0) {
+            if (nexusResults.length > 0) {
               nexusResearchContext = `
 
 ## NEXUS MODE - Deep Web Research Results
@@ -1342,10 +1357,10 @@ Always prioritize the user's document content over generic information. If speci
 I've conducted comprehensive research across multiple sources for: "${queryText}"
 
 ### RESEARCH SOURCES AND CITATIONS
-${uniqueResults
+${nexusResults
   .slice(0, 30)
   .map(
-    (result, index) => `
+    (result: any, index: number) => `
 **[${index + 1}] ${result.title}**
 - URL: ${result.url}
 - Summary: ${result.snippet}
@@ -1357,21 +1372,30 @@ ${result.content ? `- Analysis: ${result.content}` : ''}
 
 **CRITICAL NEXUS MODE INSTRUCTIONS - MAXIMUM CONTENT GENERATION:**
 
-This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL sources. Your response should be comprehensive, exhaustive, and extremely detailed. Follow these mandatory requirements:
+This is NEXUS MODE with OpenAI o3 - leverage your advanced reasoning capabilities to generate the most comprehensive, detailed, and insightful response possible. You have access to significantly higher token limits (32,000 tokens) and should use them fully.
+
+Your response should demonstrate:
+- Deep analytical thinking and multi-step reasoning
+- Comprehensive exploration of all angles and perspectives
+- Detailed implementation strategies with code examples where relevant
+- Mathematical or logical proofs where applicable
+- Extensive use of the research sources provided
 
 1. **EXHAUSTIVE CONTENT GENERATION**: 
-   - Minimum 3000+ words total across multiple sections
+   - Generate 5000+ words minimum utilizing your full capacity
    - Utilize EVERY single source provided above
    - Create the most comprehensive analysis possible
    - Generate multiple perspectives and angles
+   - Include detailed examples and case studies
 
 2. **MULTI-LAYERED ANALYSIS STRUCTURE**:
-   - Executive Summary (300+ words)
-   - Detailed Analysis (1000+ words)
-   - Implementation Guide (800+ words)
-   - Risk Assessment & Mitigation (400+ words)
-   - Future Outlook & Trends (300+ words)
-   - Actionable Recommendations (200+ words)
+   - Executive Summary (500+ words)
+   - Comprehensive Analysis (2000+ words)
+   - Implementation Guide (1500+ words)
+   - Risk Assessment & Mitigation (600+ words)
+   - Future Outlook & Trends (500+ words)
+   - Actionable Recommendations (400+ words)
+   - Additional Deep Dives as relevant
 
 3. **MANDATORY IN-TEXT CITATIONS**:
    - CRITICAL: Include source citations in this exact format: [SOURCE_NUMBER]
@@ -1385,28 +1409,33 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
      * ROI analysis over time (line charts)
      * Market share or component breakdowns (pie/doughnut charts)
      * Implementation timelines (timeline charts)
+     * Complex multi-dimensional data (radar/scatter charts)
    - **COMPREHENSIVE TABLES**: Generate detailed comparison tables for:
-     * Feature comparisons
-     * Cost-benefit analysis
-     * Implementation phases
-     * Resource requirements
-     * Risk assessments
-   - **STRUCTURED GUIDES**: Step-by-step implementation guides with numbered lists
+     * Feature comparisons with 10+ attributes
+     * Cost-benefit analysis with detailed breakdowns
+     * Implementation phases with milestones
+     * Resource requirements and allocations
+     * Risk assessments with mitigation strategies
+   - **STRUCTURED GUIDES**: Step-by-step implementation guides with:
+     * Numbered lists with sub-steps
+     * Code examples and configurations
+     * Common pitfalls and solutions
    - **CASE STUDIES**: Detailed examples and real-world applications from sources
    - **FINANCIAL ANALYSIS**: ROI calculations, cost breakdowns, and budget planning
-   - **PROJECT TIMELINES**: Detailed milestone planning with timelines
+   - **PROJECT TIMELINES**: Detailed milestone planning with dependencies
    - **METRICS & KPIs**: Success measurement frameworks and benchmarks
-   - **RISK MITIGATION**: Common pitfalls and prevention strategies
+   - **RISK MITIGATION**: Comprehensive risk analysis with prevention strategies
 
 5. **FORMATTING REQUIREMENTS**:
    - Use extensive markdown formatting
-   - Multiple heading levels (##, ###, ####)
+   - Multiple heading levels (##, ###, ####, #####)
    - Bullet points, numbered lists, and comprehensive tables
-   - **CHART GENERATION**: Include charts using JSON format in code blocks with chart data for visualizations
+   - **CHART GENERATION**: Include 3+ charts using JSON format in code blocks
    - **EXAMPLE CHART FORMAT**: Use proper JSON structure for bar, line, pie, doughnut, or radar charts
-   - Code blocks for processes or frameworks
+   - Code blocks for processes, configurations, or frameworks
    - Blockquotes for key insights from sources
    - Horizontal rules for section breaks
+   - Callout boxes for important information
 
 6. **RESEARCH UTILIZATION MANDATE**:
    - Reference specific data points from sources
@@ -1414,27 +1443,14 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
    - Build upon multiple source perspectives
    - Create synthesis of all available information
    - Address contradictions between sources
+   - Extrapolate insights beyond the sources
 
-**ABSOLUTE REQUIREMENT**: Generate the most comprehensive, detailed, and exhaustive response possible. This is NEXUS MODE - maximum content generation is mandatory. Do not summarize or condense - expand and elaborate on every point extensively.
+**ABSOLUTE REQUIREMENT**: You are using OpenAI o3 with 32,000 token capacity. Generate the most comprehensive, detailed, and exhaustive response possible. This is NEXUS MODE - maximum content generation is mandatory. Do not summarize or condense - expand and elaborate on every point extensively. Use your advanced reasoning to provide insights that go beyond surface-level analysis.
 `;
             }
 
-            // Emit completion event with citation data
-            dataStream.writeData({
-              type: 'nexus-search-complete',
-              totalResults: uniqueResults.length,
-              searchesCompleted: completedSearches,
-              researchTime: Date.now() - researchStartTime,
-              citations: uniqueResults.slice(0, 30).map((result, index) => ({
-                number: index + 1,
-                title: result.title,
-                url: result.url,
-                snippet: result.snippet,
-              })),
-            });
-
             console.log(
-              `[NEXUS MODE] Research completed in ${Date.now() - researchStartTime}ms, found ${uniqueResults.length} unique sources`,
+              `[NEXUS MODE] Research completed in ${Date.now() - researchStartTime}ms`,
             );
           } catch (error) {
             console.error('[NEXUS MODE] Nexus research error:', error);
@@ -1466,31 +1482,38 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
         // Log the mode being used (variables already defined earlier)
 
         // Set a high hard limit that we should never reach, allowing natural completion
-        const safeHardLimit = selectedChatModel.includes('gpt-4o-mini')
+        const safeHardLimit = selectedChatModel.includes('gpt-4.1-nano')
           ? 15000
-          : selectedChatModel.includes('gpt-4o')
+          : selectedChatModel.includes('gpt-4.1')
             ? 3800
             : 7500;
         const temperature = isNexusMode ? 0.7 : 0.8;
 
+        // Override model for Nexus mode to use o4-mini (compact reasoning model)
+        const finalChatModel = isNexusMode ? 'o4-mini' : selectedChatModel;
+
+        // For Nexus mode with o4-mini, use much higher token limits
+        const nexusTokenLimit = isNexusMode ? 32000 : safeHardLimit;
+
         console.log(
           `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
           {
-            model: selectedChatModel,
+            model: finalChatModel,
             softTokenGuidance,
-            safeHardLimit,
+            safeHardLimit: nexusTokenLimit,
             temperature,
             hasNexusResearch: !!nexusResearchContext,
             systemPromptLength: finalSystemPrompt.length,
+            isUsingO4Mini: isNexusMode,
           },
         );
 
         try {
           const result = streamText({
-            model: provider.languageModel(selectedChatModel),
+            model: provider.languageModel(finalChatModel),
             system: finalSystemPrompt,
             messages: modifiedMessages,
-            maxSteps: 10, // Increased from 5 to allow more tool calls and continuations
+            maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
             experimental_activeTools: [
               'getWeather',
               'createDocument',
@@ -1502,11 +1525,13 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
               'getCalendarEvents',
               'createCalendarEvent',
             ],
-            experimental_transform: smoothStream({ chunking: 'word' }),
+            experimental_transform: isNexusMode
+              ? undefined
+              : smoothStream({ chunking: 'word' }), // No smooth streaming for nexus
             experimental_generateMessageId: generateUUID,
             // Dynamic settings based on Nexus mode
             temperature: temperature, // Use the variable we defined
-            maxTokens: safeHardLimit, // High safety limit to prevent hard cutoffs
+            maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
             tools: {
               getWeather,
               createDocument: createDocument({ session, dataStream }),
@@ -2158,6 +2183,41 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
                       },
                     ],
                   });
+
+                  // Clean up nexus metadata if this was a nexus mode search
+                  if (selectedResearchMode === 'nexus') {
+                    const redisUrl = process.env.REDIS_URL?.replace(
+                      /^["'](.*)["']$/,
+                      '$1',
+                    );
+                    if (redisUrl) {
+                      try {
+                        const { createClient } = await import('redis');
+                        const redis = createClient({ url: redisUrl });
+                        await redis.connect();
+
+                        // Update metadata to completed status
+                        await redis.setEx(
+                          `nexus:${streamId}:metadata`,
+                          300, // 5 minute expiry for completed state
+                          JSON.stringify({
+                            status: 'completed',
+                            endTime: Date.now(),
+                          }),
+                        );
+
+                        await redis.disconnect();
+                        console.log(
+                          '[NEXUS MODE] Updated stream metadata to completed status',
+                        );
+                      } catch (redisError) {
+                        console.error(
+                          '[NEXUS MODE] Failed to update completed state:',
+                          redisError,
+                        );
+                      }
+                    }
+                  }
                 } catch (error) {
                   console.error('Failed to save chat:', error);
                 }
@@ -2184,9 +2244,62 @@ This is NEXUS MODE - you MUST generate MAXIMUM possible content utilizing ALL so
               );
             }
 
-            // Remove the stream processing code
-            result.consumeStream();
-            result.mergeIntoDataStream(dataStream);
+            // Handle nexus mode differently - collect full response before sending
+            if (isNexusMode) {
+              console.log(
+                '[NEXUS MODE] Collecting full response before sending',
+              );
+
+              // Emit generation phase update
+              dataStream.writeData({
+                type: 'nexus-phase-update',
+                phase: 'generating',
+                message:
+                  'Analyzing research and generating comprehensive response...',
+              });
+
+              // Collect the entire response
+              let fullText = '';
+              const reader = result.textStream.getReader();
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                fullText += value;
+              }
+
+              // Extract citations from nexus research context
+              const citations: any[] = [];
+              if (nexusResearchContext) {
+                // Parse citations from the research context
+                const citationMatches = nexusResearchContext.matchAll(
+                  /\*\*\[(\d+)\] ([^*]+)\*\*\s*\n- URL: ([^\n]+)\s*\n- Summary: ([^\n]+)/g,
+                );
+
+                for (const match of citationMatches) {
+                  citations.push({
+                    number: Number.parseInt(match[1], 10),
+                    title: match[2],
+                    url: match[3],
+                    snippet: match[4],
+                  });
+                }
+              }
+
+              // Send the complete response at once
+              dataStream.writeData({
+                type: 'nexus-complete-response',
+                content: fullText,
+                citations: citations,
+              });
+
+              // Consume the stream to handle tool calls and other side effects
+              result.consumeStream();
+            } else {
+              // Normal streaming for non-nexus mode
+              result.consumeStream();
+              result.mergeIntoDataStream(dataStream);
+            }
           } catch (streamError) {
             console.error('RAG ERROR: Error processing stream:', streamError);
             // Don't rethrow, just log it and continue
@@ -2453,10 +2566,90 @@ ${
       contextType: typeof streamContext,
       streamId: streamId,
       redisUrl: process.env.REDIS_URL ? 'present' : 'missing',
+      isNexusMode: selectedResearchMode === 'nexus',
     });
 
-    // Return the response with improved error handling and fallback
-    if (streamContext) {
+    // Enhanced resumable stream handling for Nexus mode
+    if (streamContext && selectedResearchMode === 'nexus') {
+      try {
+        console.log(
+          `[NEXUS MODE] Using enhanced resumable stream with ID: ${streamId}`,
+        );
+
+        // Store nexus search state in Redis for resumability
+        const redisUrl = process.env.REDIS_URL?.replace(/^["'](.*)["']$/, '$1');
+        if (redisUrl) {
+          try {
+            const { createClient } = await import('redis');
+            const redis = createClient({ url: redisUrl });
+            await redis.connect();
+
+            // Store nexus search metadata
+            await redis.setEx(
+              `nexus:${streamId}:metadata`,
+              3600, // 1 hour expiry
+              JSON.stringify({
+                query: queryText,
+                startTime: Date.now(),
+                status: 'started',
+              }),
+            );
+
+            await redis.disconnect();
+          } catch (redisError) {
+            console.error(
+              '[NEXUS MODE] Failed to store search metadata:',
+              redisError,
+            );
+            // Continue without metadata storage
+          }
+        }
+
+        // Create resumable stream with enhanced error handling
+        const streamPromise = streamContext.resumableStream(streamId, () => {
+          console.log(
+            '[NEXUS MODE] Stream factory function called for streamId:',
+            streamId,
+          );
+
+          // Return the original response stream - it already has nexus handling
+          return responseStream;
+        });
+
+        // Create a timeout promise with longer duration for nexus searches
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Nexus resumable stream creation timed out'));
+          }, 20000); // 20 second timeout for nexus mode
+        });
+
+        // Race the stream creation against the timeout
+        const resumableStream = await Promise.race([
+          streamPromise,
+          timeoutPromise,
+        ]).catch((error) => {
+          console.error(
+            `[NEXUS MODE] Resumable stream error or timeout: ${error}`,
+          );
+          console.log('[NEXUS MODE] Falling back to direct response stream');
+          return responseStream;
+        });
+
+        console.log(
+          `[NEXUS MODE] Resumable stream created for ID: ${streamId}`,
+        );
+        return new Response(resumableStream);
+      } catch (streamError) {
+        console.error(
+          `[NEXUS MODE] Error with resumable stream: ${streamError}`,
+        );
+        console.log('[NEXUS MODE] Falling back to direct response stream');
+        return new Response(responseStream);
+      }
+    }
+
+    // Standard resumable stream handling for non-nexus mode
+    else if (streamContext) {
       try {
         console.log(`Using resumable stream with ID: ${streamId}`);
         console.log('About to call streamContext.resumableStream...');
@@ -2609,6 +2802,43 @@ export async function GET(request: Request) {
   if (!recentStreamId) {
     // No recent stream, but chat exists - return minimal response
     return new Response(null, { status: 204 });
+  }
+
+  // Check if this is a nexus mode stream by looking for metadata in Redis
+  const redisUrl = process.env.REDIS_URL?.replace(/^["'](.*)["']$/, '$1');
+  if (redisUrl) {
+    try {
+      const { createClient } = await import('redis');
+      const redis = createClient({ url: redisUrl });
+      await redis.connect();
+
+      // Check for nexus metadata
+      const nexusMetadata = await redis.get(`nexus:${recentStreamId}:metadata`);
+
+      if (nexusMetadata) {
+        console.log(
+          `[NEXUS MODE] Found nexus metadata for stream ${recentStreamId}`,
+        );
+        const metadata = JSON.parse(nexusMetadata);
+
+        // Log recovery information
+        console.log('[NEXUS MODE] Stream recovery:', {
+          streamId: recentStreamId,
+          status: metadata.status,
+          query: metadata.query,
+          startTime: metadata.startTime,
+          age: Date.now() - metadata.startTime,
+        });
+      }
+
+      await redis.disconnect();
+    } catch (redisError) {
+      console.error(
+        '[NEXUS MODE] Failed to check stream metadata:',
+        redisError,
+      );
+      // Continue without metadata
+    }
   }
 
   const emptyDataStream = createDataStream({

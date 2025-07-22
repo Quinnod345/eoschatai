@@ -32,6 +32,7 @@ import { ChatItem } from './sidebar-history-item';
 import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
 import { LoaderIcon } from './icons';
+import { useChatKeyboardNavigation } from '@/hooks/use-chat-keyboard-navigation';
 
 type GroupedChats = {
   today: Chat[];
@@ -214,6 +215,10 @@ export function SidebarHistory({
           (paginatedChatHistory) => paginatedChatHistory.chats,
         )
       : [];
+
+  // Enable keyboard navigation
+  const chatIds = allChats.map((chat) => chat.id);
+  useChatKeyboardNavigation({ chatIds, enabled: !!user });
 
   const handleDelete = async () => {
     const deletePromise = fetch(`/api/chat?id=${deleteId}`, {

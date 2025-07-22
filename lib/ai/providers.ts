@@ -68,14 +68,16 @@ export const createCustomProvider = (
 
     return {
       languageModel: (modelId: string) => {
+        // First check if it's in the predefined config
         const model = modelConfig[modelId as keyof typeof modelConfig];
-        if (!model) {
-          console.warn(
-            `Model ${modelId} not found, falling back to chat-model`,
-          );
-          return modelConfig['chat-model'];
+        if (model) {
+          return model;
         }
-        return model;
+
+        // If not in config, create the model dynamically
+        // This allows us to use any OpenAI model including o4-mini
+        console.log(`Creating dynamic model: ${modelId}`);
+        return openai(modelId);
       },
     };
   } catch (error) {

@@ -6,7 +6,7 @@ import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { generateUUID } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { auth } from '../(auth)/auth';
-import { redirect } from 'next/navigation';
+import ClientRedirect from '@/components/client-redirect';
 import { getUserSettings } from '@/lib/db/queries';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 
@@ -22,7 +22,7 @@ export default async function ChatPage({
   const session = await auth();
 
   if (!session) {
-    redirect('/login');
+    return <ClientRedirect path="/login" />;
   }
 
   const id = generateUUID();

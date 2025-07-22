@@ -151,3 +151,21 @@
     animation: animate-svg-stroke-3 3s ease-in-out 0.24s both,
         animate-svg-fill-3 0.7s ease 1s both;
 }
+
+/* Settings Modal Fix */
+.settings-modal input,
+.settings-modal textarea,
+.settings-modal [role="combobox"],
+.settings-modal [data-radix-popper-content-wrapper] {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.settings-modal [data-state="open"][data-side] {
+  max-width: calc(100vw - 2rem) !important;
+}
+
+/* Ensure grid columns don't overflow */
+.settings-modal-grid {
+  grid-template-columns: 224px minmax(0, 1fr) !important;
+}

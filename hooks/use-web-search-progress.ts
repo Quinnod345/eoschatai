@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 // Define SearchProgress interface locally
 export interface SearchProgress {
@@ -33,6 +33,42 @@ export function useWebSearchProgress() {
   });
 
   const [citations, setCitations] = useState<CitationReference[]>([]);
+
+  // Throttling refs to prevent too many updates
+  const lastUpdateTime = useRef(0);
+  const updateQueue = useRef<any[]>([]);
+  const updateTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Throttled update function
+  const throttledUpdate = useCallback((updateFn: () => void) => {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTime.current;
+
+    // If enough time has passed, update immediately
+    if (timeSinceLastUpdate >= 100) {
+      // 100ms throttle
+      updateFn();
+      lastUpdateTime.current = now;
+    } else {
+      // Queue the update
+      updateQueue.current.push(updateFn);
+
+      // Set a timer to process queued updates
+      if (!updateTimer.current) {
+        updateTimer.current = setTimeout(() => {
+          // Process the latest update from the queue
+          if (updateQueue.current.length > 0) {
+            const latestUpdate =
+              updateQueue.current[updateQueue.current.length - 1];
+            latestUpdate();
+            lastUpdateTime.current = Date.now();
+          }
+          updateQueue.current = [];
+          updateTimer.current = null;
+        }, 100 - timeSinceLastUpdate);
+      }
+    }
+  }, []);
 
   // Listen for mode-clear events to reset all search-related state
   useEffect(() => {
@@ -75,36 +111,49 @@ export function useWebSearchProgress() {
     // Cleanup
     return () => {
       window.removeEventListener('mode-clear', handleModeClear);
+      // Clear any pending timers
+      if (updateTimer.current) {
+        clearTimeout(updateTimer.current);
+      }
     };
   }, []);
 
-  const handleSearchStart = useCallback((totalSearches: number) => {
-    console.log(
-      `[WebSearchProgress] Starting search with ${totalSearches} queries`,
-    );
-    setSearchProgress({
-      status: 'searching',
-      searchesCompleted: 0,
-      totalSearches,
-      sitesVisited: [],
-    });
-  }, []);
+  const handleSearchStart = useCallback(
+    (totalSearches: number) => {
+      console.log(
+        `[WebSearchProgress] Starting search with ${totalSearches} queries`,
+      );
+      throttledUpdate(() => {
+        setSearchProgress({
+          status: 'searching',
+          searchesCompleted: 0,
+          totalSearches,
+          sitesVisited: [],
+        });
+      });
+    },
+    [throttledUpdate],
+  );
 
   const handleSearchProgress = useCallback(
     (data: {
       currentSearch: string;
       searchIndex: number;
       searchesCompleted: number;
+      totalSearches?: number;
     }) => {
       console.log(`[WebSearchProgress] Progress update:`, data);
-      setSearchProgress((prev) => ({
-        ...prev,
-        status: 'searching',
-        currentSearch: data.currentSearch,
-        searchesCompleted: data.searchesCompleted,
-      }));
+      throttledUpdate(() => {
+        setSearchProgress((prev) => ({
+          ...prev,
+          status: 'searching',
+          currentSearch: data.currentSearch,
+          searchesCompleted: data.searchesCompleted,
+          totalSearches: data.totalSearches || prev.totalSearches,
+        }));
+      });
     },
-    [],
+    [throttledUpdate],
   );
 
   const handleSearchDetail = useCallback(
@@ -117,14 +166,16 @@ export function useWebSearchProgress() {
     }) => {
       console.log(`[WebSearchProgress] Search detail:`, data);
       if (data.error) {
-        setSearchProgress((prev) => ({
-          ...prev,
-          status: 'error',
-          error: data.error,
-        }));
+        throttledUpdate(() => {
+          setSearchProgress((prev) => ({
+            ...prev,
+            status: 'error',
+            error: data.error,
+          }));
+        });
       }
     },
-    [],
+    [throttledUpdate],
   );
 
   const handleSitesFound = useCallback(
@@ -133,18 +184,20 @@ export function useWebSearchProgress() {
       sites: Array<{ url: string; title: string }>;
     }) => {
       console.log(`[WebSearchProgress] Sites found:`, data.sites.length);
-      setSearchProgress((prev) => ({
-        ...prev,
-        sitesVisited: [
-          ...prev.sitesVisited,
-          ...data.sites.map((site) => ({
-            ...site,
-            status: 'completed' as const,
-          })),
-        ],
-      }));
+      throttledUpdate(() => {
+        setSearchProgress((prev) => ({
+          ...prev,
+          sitesVisited: [
+            ...prev.sitesVisited,
+            ...data.sites.map((site) => ({
+              ...site,
+              status: 'completed' as const,
+            })),
+          ],
+        }));
+      });
     },
-    [],
+    [throttledUpdate],
   );
 
   const handleSearchComplete = useCallback(
@@ -189,6 +242,41 @@ export function useWebSearchProgress() {
     }));
   }, []);
 
+  const handlePhaseUpdate = useCallback(
+    (data: {
+      phase: 'research' | 'generating';
+      message: string;
+    }) => {
+      console.log(`[WebSearchProgress] Phase update:`, data);
+      setSearchProgress((prev) => ({
+        ...prev,
+        status: data.phase === 'research' ? 'searching' : 'processing',
+        currentSearch: data.message,
+      }));
+    },
+    [],
+  );
+
+  const handleCompleteResponse = useCallback(
+    (data: {
+      content: string;
+      citations: CitationReference[];
+    }) => {
+      console.log(`[WebSearchProgress] Complete response received`);
+      // Store citations
+      setCitations(data.citations || []);
+
+      // Mark as completed
+      setSearchProgress({
+        status: 'completed',
+        searchesCompleted: 0,
+        totalSearches: 0,
+        sitesVisited: [],
+      });
+    },
+    [],
+  );
+
   const processDataStreamMessage = useCallback(
     (data: any) => {
       if (!data.type?.startsWith('nexus-')) return;
@@ -215,6 +303,12 @@ export function useWebSearchProgress() {
         case 'nexus-error':
           handleSearchError(data.error);
           break;
+        case 'nexus-phase-update':
+          handlePhaseUpdate(data);
+          break;
+        case 'nexus-complete-response':
+          handleCompleteResponse(data);
+          break;
       }
     },
     [
@@ -224,6 +318,8 @@ export function useWebSearchProgress() {
       handleSitesFound,
       handleSearchComplete,
       handleSearchError,
+      handlePhaseUpdate,
+      handleCompleteResponse,
     ],
   );
 

@@ -1,8 +1,31 @@
 'use client';
 
 import * as React from 'react';
-import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+
+// VisuallyHidden component for accessibility
+const VisuallyHidden = ({ children }: { children: React.ReactNode }) => (
+  <span
+    style={{
+      position: 'absolute',
+      width: '1px',
+      height: '1px',
+      padding: 0,
+      margin: '-1px',
+      overflow: 'hidden',
+      clip: 'rect(0, 0, 0, 0)',
+      whiteSpace: 'nowrap',
+      border: 0,
+    }}
+  >
+    {children}
+  </span>
+);
 
 // Conditional imports to avoid SSR issues
 let motion: any;
@@ -102,6 +125,9 @@ export function AnimatedModal({
             className,
           )}
         >
+          <VisuallyHidden>
+            <AlertDialogTitle>Modal Dialog</AlertDialogTitle>
+          </VisuallyHidden>
           <div
             className="w-full max-h-[90vh] mx-auto bg-background rounded-lg border shadow-md overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
             style={{
@@ -129,6 +155,9 @@ export function AnimatedModal({
             )}
             forceMount
           >
+            <VisuallyHidden>
+              <AlertDialogTitle>Modal Dialog</AlertDialogTitle>
+            </VisuallyHidden>
             <motion.div
               className="w-full max-h-[90vh] mx-auto bg-background rounded-lg border shadow-md overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
               initial="hidden"

@@ -52,13 +52,12 @@ export const VOICE_CONFIG = {
     audioLevelThreshold: 0.1, // Minimum audio level to show visualization
   },
 
-  // Feature Flags
-  features: {
-    useEnhancedVoiceMode: true,
-    autoNavigateToChat: true,
-    showPersonaInfo: true,
-    showChatStatus: true,
-  },
+  // Feature flags
+  useFixedVoiceMode: false,
+  useBatchSaveVoiceMode: false,
+  autoNavigateToChat: true,
+  showPersonaInfo: true,
+  showChatStatus: true,
 };
 
 // Voice Mode Event Types

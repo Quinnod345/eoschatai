@@ -1,11 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import {
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,75 +12,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/lib/toast-system';
 import { useSession } from 'next-auth/react';
 import { Separator } from '@/components/ui/separator';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UserCircle, Calendar, ExternalLink } from 'lucide-react';
+import {
+  UserCircle,
+  Calendar,
+  Moon,
+  Sun,
+  Monitor,
+  Bell,
+  Shield,
+  Building2,
+  Zap,
+  X,
+  Check,
+  Camera,
+  Palette,
+  MessageSquare,
+  Mic,
+  Download,
+  Trash2,
+  Eye,
+  EyeOff,
+  Clock,
+  Database,
+  ExternalLink,
+  AlertTriangle,
+} from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
 import { AnimatedModal } from '@/components/ui/animated-modal';
 import { useUISettings } from '@/components/ui-settings-provider';
-
-// Custom styling to isolate the settings modal from global hover effects
-const styles = {
-  wrapper: 'settings-modal-wrapper',
-  tabList: 'settings-tabs-list',
-  tabTrigger: 'settings-tab-trigger',
-  tabActive: 'settings-tab-active',
-  tabContent: 'settings-tab-content',
-  headerText: 'settings-header-text',
-  normalText: 'settings-text',
-  mutedText: 'settings-muted-text',
-  formLabel: 'settings-form-label',
-  cancelButton: 'settings-cancel-button',
-  fixedHeight: 'settings-fixed-height',
-  enhancedModal: 'settings-enhanced-modal',
-  modalContent: 'settings-modal-content', // New class for consistent width
-};
-
-// Animation variants for staggered animations
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.07,
-      delayChildren: 0.1,
-    },
-  },
-  exit: {
-    opacity: 0,
-    transition: {
-      staggerChildren: 0.05,
-      staggerDirection: -1,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-    transition: {
-      type: 'spring',
-      stiffness: 300,
-      damping: 24,
-    },
-  },
-  exit: {
-    y: -20,
-    opacity: 0,
-    transition: {
-      duration: 0.2,
-    },
-  },
-};
+import { useTheme } from 'next-themes';
+import { Slider } from '@/components/ui/slider';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -93,16 +56,14 @@ interface SettingsModalProps {
 }
 
 interface UserSettings {
-  id?: string;
-  userId?: string;
-  notificationsEnabled?: boolean;
-  language?: string;
-  fontSize?: string;
   displayName?: string;
+  profilePicture?: string;
   companyName?: string;
   companyType?: string;
   companyDescription?: string;
-  profilePicture?: string;
+  language?: string;
+  fontSize?: string;
+  notificationsEnabled?: boolean;
   googleCalendarConnected?: boolean;
 }
 
@@ -111,285 +72,166 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(false);
-  const { settings: uiSettings, updateSettings: updateUISettings } =
-    useUISettings();
+  const { theme, setTheme } = useTheme();
+  const { updateSettings: updateUISettings } = useUISettings();
+
+  const [activeSection, setActiveSection] = React.useState('profile');
   const [settings, setSettings] = React.useState<UserSettings>({
-    notificationsEnabled: true,
-    language: 'english',
-    fontSize: 'medium',
     displayName: '',
+    profilePicture: '',
     companyName: '',
     companyType: '',
     companyDescription: '',
-    profilePicture: '',
+    language: 'english',
+    fontSize: 'medium',
+    notificationsEnabled: true,
     googleCalendarConnected: false,
   });
-  const [activeTab, setActiveTab] = React.useState('profile');
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const settingsContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // Account management state
+  // UI state
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [email, setEmail] = React.useState('');
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
-  const [confirmPassword, setConfirmPassword] = React.useState('');
   const [passwordError, setPasswordError] = React.useState('');
   const [uploadingImage, setUploadingImage] = React.useState(false);
-
-  // Add these state variables near the other state declarations
   const [cropperImage, setCropperImage] = React.useState<string | null>(null);
   const [isCropperOpen, setIsCropperOpen] = React.useState(false);
-  const [blockOutsideClicks, setBlockOutsideClicks] = React.useState(false);
+  const [calendarConnecting, setCalendarConnecting] = React.useState(false);
 
-  // Add a state for the current theme
-  const [currentTheme, setCurrentTheme] = React.useState<string>('system');
+  // Privacy & Security state
+  const [exportingData, setExportingData] = React.useState(false);
+  const [clearingHistory, setClearingHistory] = React.useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [deletingAccount, setDeletingAccount] = React.useState(false);
+  const [dataStats, setDataStats] = React.useState<{
+    totalChats: number;
+    totalMessages: number;
+    totalDocuments: number;
+    accountAge: number;
+  } | null>(null);
 
-  // Initialize the theme state when the modal opens
+  // Navigation items
+  const navigationItems = [
+    { id: 'profile', label: 'Profile', icon: UserCircle },
+    { id: 'appearance', label: 'Appearance', icon: Palette },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'company', label: 'Company', icon: Building2 },
+    { id: 'integrations', label: 'Integrations', icon: Zap },
+    { id: 'privacy', label: 'Privacy', icon: Shield },
+  ];
+
+  // Fetch settings on mount and when URL parameters change
   React.useEffect(() => {
-    if (isOpen && typeof window !== 'undefined') {
-      const storedTheme = localStorage.getItem('theme');
-      setCurrentTheme(storedTheme || 'system');
-    }
-  }, [isOpen]);
+    if (isOpen && session?.user) {
+      fetchUserSettings();
+      setEmail(session.user.email || '');
 
-  // Apply font size to the settings container based on the selected fontSize
-  React.useEffect(() => {
-    if (settingsContainerRef.current && settings.fontSize) {
-      // Remove any previous font size classes
-      settingsContainerRef.current.classList.remove(
-        'text-sm',
-        'text-base',
-        'text-lg',
-      );
-
-      // Apply the appropriate font size class
-      switch (settings.fontSize) {
-        case 'small':
-          settingsContainerRef.current.classList.add('text-sm');
-          break;
-        case 'medium':
-          settingsContainerRef.current.classList.add('text-base');
-          break;
-        case 'large':
-          settingsContainerRef.current.classList.add('text-lg');
-          break;
-        default:
-          settingsContainerRef.current.classList.add('text-base');
+      // Check URL parameters for OAuth success/error
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success')) {
+        toast.success(decodeURIComponent(urlParams.get('success') || ''));
+        setCalendarConnecting(false); // Reset connecting state
+        // Clean up URL parameters
+        const url = new URL(window.location.href);
+        url.searchParams.delete('success');
+        url.searchParams.delete('open_settings');
+        window.history.replaceState({}, '', url.toString());
+      }
+      if (urlParams.get('error')) {
+        toast.error(decodeURIComponent(urlParams.get('error') || ''));
+        setCalendarConnecting(false); // Reset connecting state
+        // Clean up URL parameters
+        const url = new URL(window.location.href);
+        url.searchParams.delete('error');
+        url.searchParams.delete('open_settings');
+        window.history.replaceState({}, '', url.toString());
       }
     }
-  }, [settings.fontSize, isOpen]);
+  }, [isOpen, session]);
 
-  // Add settings modal specific styling to the document
-  React.useEffect(() => {
-    // Create a style element if it doesn't exist already
-    const id = 'settings-modal-styles';
-    if (!document.getElementById(id)) {
-      const styleEl = document.createElement('style');
-      styleEl.id = id;
-      styleEl.textContent = `
-        /* Base styles for settings modal */
-        .${styles.wrapper} * {
-          color: var(--color-text) !important;
-        }
-        
-        /* Define theme-aware variables */
-        .${styles.wrapper} {
-          --color-text: hsl(var(--foreground));
-          --color-text-muted: hsl(var(--muted-foreground));
-          --color-bg: hsl(var(--background));
-          --color-bg-muted: hsl(var(--muted));
-          --color-primary: hsl(var(--primary));
-          --color-border: hsl(var(--border));
-        }
-        
-        /* Fix modal width to be consistent across tabs */
-        .${styles.modalContent} {
-          width: 540px;
-          max-width: calc(100vw - 32px);
-        }
-        
-        /* Tab list styles */
-        .${styles.tabList} {
-          background-color: var(--color-bg-muted);
-          border-radius: 0.375rem;
-        }
-        
-        /* Tab trigger styles */
-        .${styles.tabTrigger} {
-          color: var(--color-text) !important;
-          position: relative;
-          z-index: 1;
-        }
-        
-        /* Remove the tab trigger hover effect */
-        .${styles.tabTrigger}:hover {
-          color: var(--color-text) !important;
-        }
-        
-        /* Active tab styling */
-        .${styles.tabActive} {
-          background-color: var(--color-bg);
-          color: var(--color-text) !important;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
-        /* Text styles */
-        .${styles.headerText} {
-          color: var(--color-text) !important;
-          font-weight: 500;
-        }
-        
-        .${styles.normalText} {
-          color: var(--color-text) !important;
-        }
-        
-        .${styles.mutedText} {
-          color: var(--color-text-muted) !important;
-        }
-        
-        /* Remove hover color change */
-        .${styles.mutedText}:hover {
-          color: var(--color-text-muted) !important;
-        }
-        
-        /* Form labels */
-        .${styles.formLabel} {
-          color: var(--color-text) !important;
-        }
-        
-        /* Cancel button */
-        .${styles.cancelButton}:hover {
-          background-color: var(--color-bg-muted);
-        }
-        
-        /* Fixed height content */
-        .${styles.fixedHeight} {
-          height: 450px;
-          overflow-y: auto;
-          scrollbar-width: thin;
-          scrollbar-color: var(--color-border) transparent;
-        }
-        
-        /* Improve scrollbar styling */
-        .${styles.fixedHeight}::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .${styles.fixedHeight}::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        .${styles.fixedHeight}::-webkit-scrollbar-thumb {
-          background-color: var(--color-border);
-          border-radius: 3px;
-        }
-        
-        /* Enhanced modal styling with shadows */
-        .${styles.enhancedModal} {
-          background-color: hsl(var(--background));
-          border: 1px solid var(--color-border);
-        }
+  const fetchUserSettings = async () => {
+    try {
+      setLoading(true);
 
-        /* Fix switch toggle styling */
-        .${styles.wrapper} [data-state="checked"] {
-          background-color: hsl(var(--primary)) !important;
-        }
-        
-        .${styles.wrapper} [data-state="unchecked"] {
-          background-color: hsl(var(--muted)) !important;
-        }
+      // Fetch user settings and calendar status in parallel
+      const [settingsResponse, calendarResponse] = await Promise.all([
+        fetch('/api/user-settings'),
+        fetch('/api/calendar/status'),
+      ]);
 
-        .${styles.wrapper} [role="switch"] span {
-          transform: translateX(0) !important;
-          transition: transform 200ms ease-in-out !important;
-        }
+      const settingsData = settingsResponse.ok
+        ? await settingsResponse.json()
+        : {};
+      const calendarData = calendarResponse.ok
+        ? await calendarResponse.json()
+        : { connected: false };
 
-        .${styles.wrapper} [data-state="checked"] span {
-          transform: translateX(1rem) !important;
-        }
-
-        /* Ensure dropdowns appear above other content */
-        .select-content {
-          z-index: 100;
-        }
-
-        /* Dark mode specific adjustments */
-        @media (prefers-color-scheme: dark) {
-          .${styles.enhancedModal} {
-            box-shadow: inset 0px 0px 10px rgba(255, 255, 255, 0.03), 
-                      0 8px 30px rgba(0, 0, 0, 0.5), 
-                      0 2px 8px rgba(0, 0, 0, 0.4);
-          }
-        }
-
-        /* Light mode specific adjustments */
-        @media (prefers-color-scheme: light) {
-          .${styles.enhancedModal} {
-            box-shadow: inset 0px 0px 10px rgba(0, 0, 0, 0.05), 
-                      0 8px 30px rgba(0, 0, 0, 0.15), 
-                      0 2px 8px rgba(0, 0, 0, 0.1);
-          }
-        }
-      `;
-      document.head.appendChild(styleEl);
+      setSettings({
+        displayName: settingsData.displayName || '',
+        profilePicture: settingsData.profilePicture || '',
+        companyName: settingsData.companyName || '',
+        companyType: settingsData.companyType || '',
+        companyDescription: settingsData.companyDescription || '',
+        language: settingsData.language || 'english',
+        fontSize: settingsData.fontSize || 'medium',
+        notificationsEnabled: settingsData.notificationsEnabled ?? true,
+        googleCalendarConnected: calendarData.connected ?? false,
+      });
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+      toast.error('Failed to load settings');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Clean up style element when component unmounts
-    return () => {
-      const styleEl = document.getElementById(id);
-      if (styleEl) {
-        styleEl.remove();
+  const handleSaveChanges = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/user-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      if (response.ok) {
+        toast.success('Settings saved successfully');
+
+        if (updateUISettings) {
+          updateUISettings((prev) => ({
+            ...prev,
+            fontSize: settings.fontSize || 'medium',
+          }));
+        }
+
+        if (settings.displayName) {
+          await updateSession({ displayName: settings.displayName });
+        }
+
+        onClose();
+      } else {
+        throw new Error('Failed to save settings');
       }
-    };
-  }, []);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Modify the handleProfilePictureChange function to block outside clicks
   const handleProfilePictureChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      toast.error(
-        'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
-      );
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 5MB.');
-      return;
-    }
-
-    // Block outside clicks when cropper opens
-    setBlockOutsideClicks(true);
-
-    // Create a URL for the image to show in the cropper
-    const imageUrl = URL.createObjectURL(file);
-    setCropperImage(imageUrl);
+    const url = URL.createObjectURL(file);
+    setCropperImage(url);
     setIsCropperOpen(true);
-
-    // Reset the file input so the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
-  // Add a new function to handle the cropper close and restore outside click behavior
-  const handleCropperClose = () => {
-    setIsCropperOpen(false);
-    setBlockOutsideClicks(false);
-    if (cropperImage) {
-      URL.revokeObjectURL(cropperImage);
-      setCropperImage(null);
-    }
-  };
-
-  // Modify the handleCroppedImageUpload function to restore outside click behavior
   const handleCroppedImageUpload = async (
     croppedAreaPixels: any,
     croppedBlob: Blob,
@@ -397,18 +239,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       setUploadingImage(true);
       setIsCropperOpen(false);
-      setBlockOutsideClicks(false);
-
-      // Validate the cropped blob
-      if (!croppedBlob || croppedBlob.size === 0) {
-        throw new Error('The cropped image is empty. Please try again.');
-      }
 
       const formData = new FormData();
       formData.append('file', croppedBlob, 'profile.jpg');
-
-      // Log upload size for debugging
-      console.log(`Uploading profile picture: ${croppedBlob.size} bytes`);
 
       const response = await fetch('/api/user/profile-picture', {
         method: 'POST',
@@ -417,51 +250,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       if (response.ok) {
         const data = await response.json();
-
-        if (!data.url) {
-          throw new Error('No URL returned from server');
-        }
-
-        // Update state with the new profile picture URL
-        updateSetting('profilePicture', data.url);
-
-        // Also update settings in the database immediately
-        await fetch('/api/user-settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...settings,
-            profilePicture: data.url,
-          }),
-        });
-
+        setSettings((prev) => ({ ...prev, profilePicture: data.url }));
         toast.success('Profile picture updated');
-
-        // Update session to reflect new profile picture
         await updateSession({ profilePicture: data.url });
       } else {
-        let errorMessage = 'Failed to upload profile picture';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          // If the response isn't JSON, use status text
-          errorMessage = `Server error: ${response.statusText || response.status}`;
-        }
-        throw new Error(errorMessage);
+        throw new Error('Failed to upload');
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to upload profile picture. Please try again.',
-      );
+      toast.error('Failed to upload profile picture');
     } finally {
       setUploadingImage(false);
-      // Clean up the object URL
       if (cropperImage) {
         URL.revokeObjectURL(cropperImage);
         setCropperImage(null);
@@ -469,221 +268,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  // Create helper functions to update specific settings
-  const updateSetting = (key: keyof UserSettings, value: any) => {
-    // Don't update if the value hasn't changed
-    if (settings[key] === value) {
-      return;
-    }
-
-    // Update local state
-    setSettings((prev) => ({ ...prev, [key]: value }));
-
-    // If we're updating the font size, update it in the UI context as well
-    if (key === 'fontSize' && updateUISettings) {
-      updateUISettings((prev) => ({ ...prev, fontSize: value }));
-    }
-  };
-
-  // Modify the event listener for clicks outside the modal
-  React.useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      // If we are explicitly blocking outside clicks (during cropper operation), do nothing
-      if (blockOutsideClicks) return;
-
-      // Check if the click was outside the modal content
-      const modalContent = document.querySelector('.settings-modal-wrapper');
-      const selectContent = document.querySelector('[role="listbox"]');
-      const cropperUI = document.querySelector(
-        '.reactEasyCrop_Container, .cropper-container',
-      );
-      const fileInputs = document.querySelectorAll('input[type="file"]');
-      const modalDialogs = document.querySelectorAll('[role="dialog"]');
-
-      // Check for dropdowns or popover elements
-      const dropdownElements = document.querySelectorAll(
-        '[data-state="open"], [data-radix-popper-content-wrapper]',
-      );
-
-      // Check if target is a file input or inside one
-      const isFileInputTarget = Array.from(fileInputs).some(
-        (input) => input === e.target || input.contains(e.target as Node),
-      );
-
-      // Check if the click is inside a dropdown
-      const isInsideDropdown = Array.from(dropdownElements).some((dropdown) =>
-        dropdown.contains(e.target as Node),
-      );
-
-      // Don't close if clicking within interactive elements
-      if (
-        modalContent?.contains(e.target as Node) ||
-        selectContent?.contains(e.target as Node) ||
-        cropperUI?.contains(e.target as Node) ||
-        isFileInputTarget ||
-        isInsideDropdown ||
-        // Check if click target is within any dialog
-        Array.from(modalDialogs).some((dialog) =>
-          dialog.contains(e.target as Node),
-        ) ||
-        // Don't close when cropper is open
-        isCropperOpen
-      ) {
-        return;
-      }
-
-      onClose();
-    };
-
-    // Add the event listener
-    document.addEventListener('mousedown', handleClickOutside);
-
-    // Clean up
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose, isCropperOpen, blockOutsideClicks]);
-
-  // Wrap fetchUserSettings in useCallback
-  const fetchUserSettings = React.useCallback(async () => {
-    if (!session?.user) return;
-
-    try {
-      setLoading(true);
-      const response = await fetch('/api/user-settings');
-
-      if (response.ok) {
-        const data = await response.json();
-
-        const fetchedSettings = {
-          notificationsEnabled: data.notificationsEnabled ?? true,
-          language: data.language ?? 'english',
-          fontSize: data.fontSize ?? 'medium',
-          displayName: data.displayName ?? '',
-          companyName: data.companyName ?? '',
-          companyType: data.companyType ?? '',
-          companyDescription: data.companyDescription ?? '',
-          profilePicture: data.profilePicture ?? '',
-          googleCalendarConnected: data.googleCalendarConnected ?? false,
-        };
-
-        // Set settings from database
-        setSettings(fetchedSettings);
-
-        // Also update UI settings with font size
-        if (updateUISettings && fetchedSettings.fontSize) {
-          updateUISettings((prev) => ({
-            ...prev,
-            fontSize: fetchedSettings.fontSize || 'medium',
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch user settings:', error);
-      toast.error('Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user, updateUISettings]);
-
-  React.useEffect(() => {
-    if (isOpen && session?.user) {
-      fetchUserSettings();
-      setEmail(session.user.email || '');
-    }
-  }, [isOpen, session, fetchUserSettings]);
-
-  const handleSaveChanges = async () => {
-    if (!session?.user) {
-      toast.error('You must be logged in to save settings');
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch('/api/user-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
-      });
-
-      if (response.ok) {
-        toast.success('Settings saved successfully!');
-
-        // Apply UI updates for font size
-        if (updateUISettings) {
-          updateUISettings((prev) => ({
-            ...prev,
-            fontSize: settings.fontSize || 'medium',
-          }));
-        }
-
-        // Force a session update if display name was changed
-        if (settings.displayName) {
-          await updateSession({ displayName: settings.displayName });
-        }
-
-        onClose();
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save settings');
-      }
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to save settings',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleUpdatePassword = async () => {
-    // Reset error state
     setPasswordError('');
-
-    // Validation
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords don't match");
-      return;
-    }
 
     if (newPassword.length < 6) {
       setPasswordError('Password must be at least 6 characters');
       return;
     }
 
-    if (!currentPassword) {
-      setPasswordError('Current password is required');
-      return;
-    }
-
     try {
       setLoading(true);
-
       const response = await fetch('/api/account/update-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
 
       if (response.ok) {
         toast.success('Password updated successfully');
-
-        // Reset password fields
         setCurrentPassword('');
         setNewPassword('');
-        setConfirmPassword('');
       } else {
         const data = await response.json();
         setPasswordError(data.error || 'Failed to update password');
@@ -696,774 +300,383 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleUpdateEmail = async () => {
-    if (!email || email === session?.user?.email) return;
-
-    try {
-      setLoading(true);
-
-      const response = await fetch('/api/account/update-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
-        toast.success('Email updated successfully. Please sign in again.');
-
-        // Force reload of session after email change
-        router.refresh();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to update email');
-      }
-    } catch (error) {
-      console.error('Error updating email:', error);
-      toast.error('An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add a wrapped onClose handler that checks if we're in the middle of a profile picture edit
-  const handleCloseRequest = () => {
-    // If cropper is open or upload is in progress, ask for confirmation
-    if (isCropperOpen || uploadingImage) {
-      const confirmClose = window.confirm(
-        'You are in the middle of editing your profile picture. Are you sure you want to close?',
-      );
-
-      if (!confirmClose) {
-        return; // Don't close if user cancels
-      }
-
-      // Clean up resources if user confirms
-      if (cropperImage) {
-        URL.revokeObjectURL(cropperImage);
-        setCropperImage(null);
-      }
-      setIsCropperOpen(false);
-    }
-
-    // Proceed with normal close
-    onClose();
-
-    // Dispatch event to notify that settings modal has closed
-    window.dispatchEvent(new CustomEvent('settingsModalClosed'));
-  };
-
-  // Add a function to handle Google Calendar authentication
   const handleGoogleCalendarAuth = async () => {
     try {
-      // Store current window location before redirecting
+      setCalendarConnecting(true);
       localStorage.setItem('calendarAuthReturnTo', window.location.href);
-
-      // Redirect to Google OAuth in the same window instead of opening a new tab
-      window.location.href = '/api/calendar/auth';
-
-      // Show a toast message
       toast.success('Redirecting to Google authentication...');
+
+      // Small delay to show the loading state
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      window.location.href = '/api/calendar/auth';
     } catch (error) {
       console.error('Failed to initiate Google Calendar auth:', error);
       toast.error('Failed to connect to Google Calendar');
+      setCalendarConnecting(false);
     }
   };
 
-  // Add a function to disconnect Google Calendar
   const handleGoogleCalendarDisconnect = async () => {
     try {
       setLoading(true);
-
       const response = await fetch('/api/calendar/disconnect', {
         method: 'POST',
       });
 
       if (response.ok) {
-        updateSetting('googleCalendarConnected', false);
-        toast.success('Google Calendar has been disconnected');
+        setSettings((prev) => ({ ...prev, googleCalendarConnected: false }));
+        toast.success('Google Calendar disconnected successfully');
+
+        // Refresh the connection status to ensure UI is accurate
+        setTimeout(() => {
+          fetchUserSettings();
+        }, 1000);
       } else {
-        throw new Error('Failed to disconnect Google Calendar');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to disconnect');
       }
     } catch (error) {
       console.error('Failed to disconnect Google Calendar:', error);
-      toast.error('Failed to disconnect Google Calendar');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to disconnect Google Calendar',
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Check Google Calendar connection status during fetch
-  React.useEffect(() => {
-    const checkCalendarConnection = async () => {
-      try {
-        const response = await fetch('/api/calendar/status');
-        if (response.ok) {
-          const { connected } = await response.json();
-          updateSetting('googleCalendarConnected', connected);
-        }
-      } catch (error) {
-        console.error('Failed to check Google Calendar status:', error);
-      }
-    };
+  // Privacy & Security handlers
+  const handleExportData = async () => {
+    try {
+      setExportingData(true);
+      const response = await fetch('/api/user/export-data');
 
-    if (isOpen && session?.user) {
-      checkCalendarConnection();
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `eos-ai-data-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Data exported successfully');
+      } else {
+        throw new Error('Failed to export data');
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('Failed to export data');
+    } finally {
+      setExportingData(false);
     }
-  }, [isOpen, session]);
+  };
 
-  React.useEffect(() => {
-    if (isOpen) {
-      // Check for success or error messages in URL
-      const success = searchParams.get('success');
-      const error = searchParams.get('error');
+  const handleClearChatHistory = async () => {
+    try {
+      setClearingHistory(true);
+      const response = await fetch('/api/user/clear-history', {
+        method: 'POST',
+      });
 
-      if (success) {
-        toast.success(success);
-
-        // Refresh settings to show updated connection status
-        fetchUserSettings();
-
-        // Clear the query params
-        const url = new URL(window.location.href);
-        url.searchParams.delete('success');
-        window.history.replaceState({}, '', url);
+      if (response.ok) {
+        toast.success('Chat history cleared successfully');
+        // Refresh the page to update the UI
+        window.location.reload();
+      } else {
+        throw new Error('Failed to clear chat history');
       }
-
-      if (error) {
-        toast.error(error);
-
-        // Clear the query params
-        const url = new URL(window.location.href);
-        url.searchParams.delete('error');
-        window.history.replaceState({}, '', url);
-      }
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      toast.error('Failed to clear chat history');
+    } finally {
+      setClearingHistory(false);
     }
-  }, [isOpen, searchParams]);
+  };
 
-  // Add this effect to ensure proper return from OAuth
-  React.useEffect(() => {
-    // Check if we need to preserve the current URL for returning from OAuth
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const storedReturnTo = localStorage.getItem('calendarAuthReturnTo');
+  const handleDeleteAccount = async () => {
+    try {
+      setDeletingAccount(true);
+      const response = await fetch('/api/user/delete-account', {
+        method: 'DELETE',
+      });
 
-      // If we're navigating away and there's already a stored return URL
-      // but the current page isn't the Google auth page, we should update it
-      if (
-        storedReturnTo &&
-        !window.location.pathname.includes('/api/calendar/auth')
-      ) {
-        localStorage.setItem('calendarAuthReturnTo', window.location.href);
+      if (response.ok) {
+        toast.success('Account deletion initiated. You will be logged out.');
+        // Redirect to logout
+        window.location.href = '/api/auth/signout';
+      } else {
+        throw new Error('Failed to delete account');
       }
-    };
-
-    // Only add this listener if the settings modal is open
-    if (isOpen) {
-      window.addEventListener('beforeunload', handleBeforeUnload);
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account');
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteConfirm(false);
     }
+  };
 
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [isOpen]);
+  const fetchDataStats = async () => {
+    try {
+      const response = await fetch('/api/user/data-stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setDataStats(stats);
+      }
+    } catch (error) {
+      console.error('Error fetching data stats:', error);
+    }
+  };
+
+  // Fetch data stats when privacy section is opened
+  React.useEffect(() => {
+    if (isOpen && activeSection === 'privacy') {
+      fetchDataStats();
+    }
+  }, [isOpen, activeSection]);
 
   return (
-    <AnimatedModal
-      isOpen={isOpen}
-      onClose={handleCloseRequest}
-      preventAutoClose={blockOutsideClicks || isCropperOpen}
-    >
-      {cropperImage && isCropperOpen && (
-        <ImageCropper
-          image={cropperImage}
-          onCropComplete={handleCroppedImageUpload}
-          onCancel={handleCropperClose}
-        />
-      )}
-      <div
-        ref={settingsContainerRef}
-        className={cn(
-          'p-6 pb-4',
-          styles.wrapper,
-          styles.enhancedModal,
-          styles.modalContent,
-        )}
-      >
-        <AlertDialogHeader>
-          <AlertDialogTitle className={cn('text-xl', styles.headerText)}>
-            Account Settings
-          </AlertDialogTitle>
-        </AlertDialogHeader>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={cn('w-full grid grid-cols-4', styles.tabList)}>
-            <TabsTrigger
-              value="profile"
-              className={cn(
-                styles.tabTrigger,
-                activeTab === 'profile' && styles.tabActive,
-              )}
-            >
-              Profile
-            </TabsTrigger>
-            <TabsTrigger
-              value="preferences"
-              className={cn(
-                styles.tabTrigger,
-                activeTab === 'preferences' && styles.tabActive,
-              )}
-            >
-              Preferences
-            </TabsTrigger>
-            <TabsTrigger
-              value="company"
-              className={cn(
-                styles.tabTrigger,
-                activeTab === 'company' && styles.tabActive,
-              )}
-            >
-              Company
-            </TabsTrigger>
-            <TabsTrigger
-              value="integrations"
-              className={cn(
-                styles.tabTrigger,
-                activeTab === 'integrations' && styles.tabActive,
-              )}
-            >
-              Integrations
-            </TabsTrigger>
-          </TabsList>
-
-          <div className={cn('mt-4 px-1', styles.fixedHeight)}>
-            <AnimatePresence mode="wait">
-              {activeTab === 'profile' && (
-                <TabsContent
-                  value="profile"
-                  key="profile"
-                  forceMount
-                  className="w-full"
-                >
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    variants={containerVariants}
-                    className="space-y-6 pb-4"
+    <>
+      <AnimatedModal isOpen={isOpen} onClose={onClose}>
+        <div
+          className="relative bg-background rounded-lg settings-modal"
+          style={{
+            width: 'min(1100px, 95vw)',
+            height: 'min(80vh, 700px)',
+            overflow: 'hidden',
+            maxWidth: '100%',
+          }}
+        >
+          <div
+            className="absolute inset-0 settings-modal-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(180px, 224px) minmax(300px, 1fr)',
+            }}
+          >
+            {/* Sidebar */}
+            <div className="bg-muted/30 p-4 border-r overflow-y-auto">
+              <h2 className="text-lg font-semibold mb-4">Settings</h2>
+              <nav className="space-y-1">
+                {navigationItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                      activeSection === item.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted',
+                    )}
                   >
-                    {/* Profile and Account Overview in a cohesive layout */}
-                    <div className="flex flex-col md:flex-row gap-6">
-                      {/* Profile Picture Column */}
-                      <motion.div
-                        className="flex flex-col items-center space-y-3"
-                        variants={itemVariants}
-                      >
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleProfilePictureChange}
-                          accept="image/*"
-                          className="hidden"
-                        />
-                        <div className="relative">
-                          <div
-                            className={cn(
-                              'h-28 w-28 rounded-full overflow-hidden border-2 border-border',
-                              'transition-all duration-200 hover:shadow-md',
-                              'flex items-center justify-center bg-muted/20',
-                              'dark:border-muted',
-                            )}
-                            style={{
-                              objectFit: 'cover',
-                              borderRadius: '50%',
-                            }}
-                          >
-                            {settings.profilePicture ? (
-                              <Image
-                                src={settings.profilePicture}
-                                alt="Profile"
-                                fill
-                                className="object-cover rounded-full"
-                                onError={(e) => {
-                                  // If image fails to load, fall back to placeholder
-                                  e.currentTarget.src =
-                                    'https://via.placeholder.com/150?text=Profile';
-                                }}
-                              />
-                            ) : (
-                              <UserCircle className="h-20 w-20 text-muted-foreground/60" />
-                            )}
-                          </div>
-                          <Button
-                            size="sm"
-                            className="absolute bottom-1 right-1 rounded-full size-8 p-0 shadow-md hover:shadow-lg transition-shadow"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadingImage}
-                          >
-                            {uploadingImage ? (
-                              <span className="animate-spin">↻</span>
-                            ) : (
-                              <span>✎</span>
-                            )}
-                          </Button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs rounded-full px-3"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploadingImage}
-                        >
-                          {uploadingImage ? 'Uploading...' : 'Change Photo'}
-                        </Button>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
 
-                        {/* Account Type Badge */}
-                        <div
-                          className={cn(
-                            'mt-2 px-3 py-1 rounded-full text-xs font-medium',
-                            session?.user?.type !== 'guest'
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200',
-                          )}
-                        >
-                          {session?.user?.type === 'guest'
-                            ? 'Guest Account'
-                            : 'Premium Account'}
-                        </div>
-                      </motion.div>
-
-                      {/* Account Details Column */}
-                      <motion.div
-                        className="flex-1 space-y-4"
-                        variants={itemVariants}
-                      >
-                        <div className="space-y-2">
-                          <h3
-                            className={cn(
-                              'text-lg font-medium',
-                              styles.headerText,
-                            )}
-                          >
-                            Profile Information
-                          </h3>
-                          <div className="grid gap-4">
-                            <motion.div
-                              className="grid gap-2"
-                              variants={itemVariants}
-                            >
-                              <Label
-                                htmlFor="display-name"
-                                className={styles.formLabel}
-                              >
-                                Display Name
-                              </Label>
-                              <Input
-                                id="display-name"
-                                placeholder="Your display name"
-                                value={settings.displayName}
-                                onChange={(e) =>
-                                  updateSetting('displayName', e.target.value)
-                                }
-                                disabled={loading}
-                                className="transition-shadow focus:shadow-sm"
-                              />
-                              <p className={cn(styles.mutedText, 'text-xs')}>
-                                This is how your name will appear throughout the
-                                application.
-                              </p>
-                            </motion.div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 mt-4">
-                          <div className="bg-muted/10 rounded-lg p-3 border border-muted/20">
-                            <div className="flex justify-between items-start">
-                              <h4
-                                className={cn(
-                                  'text-sm font-medium',
-                                  styles.headerText,
-                                )}
-                              >
-                                Email
-                              </h4>
-                              {session?.user?.type !== 'guest' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-xs"
-                                  onClick={() => {
-                                    const emailField =
-                                      document.getElementById('email');
-                                    if (emailField) {
-                                      emailField.focus();
-                                    }
-                                  }}
-                                >
-                                  Change
-                                </Button>
+            {/* Content */}
+            <div className="flex flex-col min-w-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+                <div className="max-w-xl mx-auto w-full">
+                  {/* Profile Section */}
+                  {activeSection === 'profile' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">Profile</h3>
+                      <div className="space-y-6">
+                        {/* Profile Picture */}
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="relative flex-shrink-0">
+                            <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                              {settings.profilePicture ? (
+                                <Image
+                                  src={settings.profilePicture}
+                                  alt="Profile"
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <UserCircle className="h-12 w-12 text-muted-foreground" />
                               )}
                             </div>
-                            <p className={cn(styles.normalText, 'mt-1')}>
-                              {session?.user?.email}
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+                              disabled={uploadingImage}
+                            >
+                              <Camera className="h-3 w-3" />
+                            </button>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={handleProfilePictureChange}
+                              className="hidden"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">
+                              Profile Picture
                             </p>
-                          </div>
-
-                          <div className="bg-muted/10 rounded-lg p-3 border border-muted/20">
-                            <h4
-                              className={cn(
-                                'text-sm font-medium',
-                                styles.headerText,
-                              )}
-                            >
-                              Account ID
-                            </h4>
-                            <p
-                              className={cn(
-                                'text-xs mt-1 font-mono',
-                                styles.mutedText,
-                              )}
-                            >
-                              {session?.user?.id}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </div>
-
-                    {session?.user?.type === 'guest' && (
-                      <motion.div
-                        className="rounded-md border-dashed border border-yellow-300 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800 p-4"
-                        variants={itemVariants}
-                      >
-                        <div className="flex items-start">
-                          <div className="shrink-0 mr-3">
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M9.99999 6.66669V10M9.99999 13.3334H10.0083M18.3333 10C18.3333 14.6024 14.6024 18.3334 9.99999 18.3334C5.39762 18.3334 1.66666 14.6024 1.66666 10C1.66666 5.39765 5.39762 1.66669 9.99999 1.66669C14.6024 1.66669 18.3333 5.39765 18.3333 10Z"
-                                stroke="#D97706"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </div>
-                          <div>
-                            <h4
-                              className={cn(
-                                'font-medium text-sm',
-                                styles.headerText,
-                              )}
-                            >
-                              Limited Guest Account
-                            </h4>
-                            <p className={cn('text-sm mt-1', styles.mutedText)}>
-                              You&apos;re using a temporary guest account. To
-                              save your data permanently and access all
-                              features, please register for a full account.
+                            <p className="text-xs text-muted-foreground">
+                              Click the camera icon to upload
                             </p>
                           </div>
                         </div>
-                      </motion.div>
-                    )}
 
-                    {/* Email change section */}
-                    <motion.div
-                      className="space-y-4 pt-2"
-                      variants={itemVariants}
-                    >
-                      <div className="flex items-center justify-between">
-                        <h3
-                          className={cn(
-                            'text-lg font-medium',
-                            styles.headerText,
-                          )}
-                        >
-                          Email Address
-                        </h3>
-                        {session?.user?.type === 'guest' && (
-                          <div className="bg-muted/20 text-xs px-2 py-1 rounded-full">
-                            Locked
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid gap-4">
-                        <motion.div
-                          className="grid gap-2"
-                          variants={itemVariants}
-                        >
-                          <div className="flex space-x-2">
+                        {/* Display Name */}
+                        <div className="space-y-2">
+                          <Label htmlFor="displayName">Display Name</Label>
+                          <Input
+                            id="displayName"
+                            value={settings.displayName}
+                            onChange={(e) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                displayName: e.target.value,
+                              }))
+                            }
+                            placeholder="How should we address you?"
+                          />
+                        </div>
+
+                        {/* Email */}
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email Address</Label>
+                          <div className="flex gap-2 min-w-0">
                             <Input
                               id="email"
                               type="email"
-                              placeholder="Your email"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              disabled={
-                                loading || session?.user?.type === 'guest'
-                              }
-                              className="transition-shadow focus:shadow-sm"
+                              disabled={session?.user?.type === 'guest'}
+                              className="flex-1 min-w-0"
                             />
                             <Button
-                              onClick={handleUpdateEmail}
+                              variant="outline"
+                              type="button"
                               disabled={
                                 loading ||
                                 email === session?.user?.email ||
                                 session?.user?.type === 'guest'
                               }
+                              className="flex-shrink-0"
                             >
                               Update
                             </Button>
                           </div>
-                          {session?.user?.type === 'guest' && (
-                            <p
-                              className={cn(styles.mutedText, 'text-xs italic')}
-                            >
-                              Guest accounts cannot change their email. Please
-                              register for a full account.
-                            </p>
-                          )}
-                        </motion.div>
-                      </div>
-                    </motion.div>
+                        </div>
 
-                    <motion.div variants={itemVariants}>
-                      <Separator className="my-4" />
-                    </motion.div>
-
-                    <motion.div className="space-y-4" variants={itemVariants}>
-                      <div className="flex items-center justify-between">
-                        <h3
-                          className={cn(
-                            'text-lg font-medium',
-                            styles.headerText,
-                          )}
-                        >
-                          Password
-                        </h3>
-                        {(session?.user?.type === 'guest' ||
-                          session?.user?.email?.includes('guest-')) && (
-                          <div className="bg-muted/20 text-xs px-2 py-1 rounded-full">
-                            Locked
-                          </div>
-                        )}
-                      </div>
-
-                      {session?.user?.type === 'guest' ||
-                      session?.user?.email?.includes('guest-') ? (
-                        <p
-                          className={cn(
-                            styles.mutedText,
-                            'text-sm bg-muted/10 rounded-lg p-3 border border-muted/20',
-                          )}
-                        >
-                          Guest accounts cannot change their password. Please
-                          register for a full account.
-                        </p>
-                      ) : (
-                        <>
-                          {passwordError && (
-                            <div className="rounded-md bg-destructive/15 p-3">
+                        {/* Password */}
+                        {session?.user?.type !== 'guest' && (
+                          <div className="space-y-4 pt-4 border-t">
+                            <h4 className="text-sm font-medium">
+                              Change Password
+                            </h4>
+                            {passwordError && (
                               <p className="text-sm text-destructive">
                                 {passwordError}
                               </p>
-                            </div>
-                          )}
-                          <div className="grid gap-4 bg-muted/10 rounded-lg p-4 border border-muted/20">
-                            <motion.div
-                              className="grid gap-2"
-                              variants={itemVariants}
-                            >
-                              <Label
-                                htmlFor="current-password"
-                                className={styles.formLabel}
-                              >
-                                Current Password
-                              </Label>
+                            )}
+                            <div className="space-y-2">
                               <Input
-                                id="current-password"
                                 type="password"
+                                placeholder="Current password"
                                 value={currentPassword}
                                 onChange={(e) =>
                                   setCurrentPassword(e.target.value)
                                 }
-                                disabled={loading}
-                                className="transition-shadow focus:shadow-sm"
                               />
-                            </motion.div>
-
-                            <motion.div
-                              className="grid gap-2"
-                              variants={itemVariants}
-                            >
-                              <Label
-                                htmlFor="new-password"
-                                className={styles.formLabel}
-                              >
-                                New Password
-                              </Label>
                               <Input
-                                id="new-password"
                                 type="password"
+                                placeholder="New password (min 6 characters)"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                disabled={loading}
-                                className="transition-shadow focus:shadow-sm"
                               />
-                            </motion.div>
-
-                            <motion.div
-                              className="grid gap-2"
-                              variants={itemVariants}
-                            >
-                              <Label
-                                htmlFor="confirm-password"
-                                className={styles.formLabel}
-                              >
-                                Confirm New Password
-                              </Label>
-                              <Input
-                                id="confirm-password"
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) =>
-                                  setConfirmPassword(e.target.value)
-                                }
-                                disabled={loading}
-                                className="transition-shadow focus:shadow-sm"
-                              />
-                            </motion.div>
-
-                            <motion.div variants={itemVariants}>
                               <Button
                                 onClick={handleUpdatePassword}
                                 disabled={
-                                  loading ||
-                                  !currentPassword ||
-                                  !newPassword ||
-                                  !confirmPassword
+                                  loading || !currentPassword || !newPassword
                                 }
-                                className="mt-1"
+                                className="w-full"
                               >
                                 Update Password
                               </Button>
-                            </motion.div>
+                            </div>
                           </div>
-                        </>
-                      )}
-                    </motion.div>
-                  </motion.div>
-                </TabsContent>
-              )}
-
-              {activeTab === 'preferences' && (
-                <TabsContent
-                  value="preferences"
-                  key="preferences"
-                  forceMount
-                  className="w-full"
-                >
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    variants={containerVariants}
-                    className="space-y-6 pb-4"
-                  >
-                    {/* Notifications Section */}
-                    <motion.div className="space-y-4" variants={itemVariants}>
-                      <h3
-                        className={cn('text-lg font-medium', styles.headerText)}
-                      >
-                        Notifications
-                      </h3>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label
-                            htmlFor="notification-toggle"
-                            className={styles.formLabel}
-                          >
-                            Allow Notifications
-                          </Label>
-                          <p className={cn(styles.mutedText, 'text-xs')}>
-                            Receive notifications for important updates
-                          </p>
-                        </div>
-                        <Switch
-                          id="notification-toggle"
-                          checked={settings.notificationsEnabled}
-                          onCheckedChange={(checked) =>
-                            updateSetting('notificationsEnabled', checked)
-                          }
-                          disabled={loading}
-                        />
+                        )}
                       </div>
-                    </motion.div>
+                    </div>
+                  )}
 
-                    {/* Font Size Section */}
-                    <motion.div
-                      className="space-y-4 mt-6"
-                      variants={itemVariants}
-                    >
-                      <h3
-                        className={cn('text-lg font-medium', styles.headerText)}
-                      >
-                        Appearance
-                      </h3>
-                      <div className="grid gap-4">
-                        {/* Font Size Setting - Updated to apply changes */}
-                        <motion.div
-                          className="grid gap-2"
-                          variants={itemVariants}
-                        >
-                          <Label
-                            htmlFor="fontSize"
-                            className={styles.formLabel}
-                          >
-                            Font Size
-                          </Label>
+                  {/* Appearance Section */}
+                  {activeSection === 'appearance' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">Appearance</h3>
+                      <div className="space-y-6">
+                        {/* Theme */}
+                        <div className="space-y-3">
+                          <Label>Theme</Label>
+                          <div className="grid grid-cols-3 gap-2 max-w-sm">
+                            <Button
+                              variant={
+                                theme === 'light' ? 'default' : 'outline'
+                              }
+                              size="sm"
+                              onClick={() => setTheme('light')}
+                              className="flex items-center gap-2 justify-center"
+                            >
+                              <Sun className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">Light</span>
+                            </Button>
+                            <Button
+                              variant={theme === 'dark' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setTheme('dark')}
+                              className="flex items-center gap-2 justify-center"
+                            >
+                              <Moon className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">Dark</span>
+                            </Button>
+                            <Button
+                              variant={
+                                theme === 'system' ? 'default' : 'outline'
+                              }
+                              size="sm"
+                              onClick={() => setTheme('system')}
+                              className="flex items-center gap-2 justify-center"
+                            >
+                              <Monitor className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">System</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Font Size */}
+                        <div className="space-y-2">
+                          <Label htmlFor="fontSize">Font Size</Label>
                           <Select
                             value={settings.fontSize}
-                            onValueChange={(value) => {
-                              updateSetting('fontSize', value);
-
-                              // Apply the font size change immediately for preview
-                              if (settingsContainerRef.current) {
-                                settingsContainerRef.current.classList.remove(
-                                  'text-sm',
-                                  'text-base',
-                                  'text-lg',
-                                );
-
-                                switch (value) {
-                                  case 'small':
-                                    settingsContainerRef.current.classList.add(
-                                      'text-sm',
-                                    );
-                                    break;
-                                  case 'medium':
-                                    settingsContainerRef.current.classList.add(
-                                      'text-base',
-                                    );
-                                    break;
-                                  case 'large':
-                                    settingsContainerRef.current.classList.add(
-                                      'text-lg',
-                                    );
-                                    break;
-                                }
-                              }
-                            }}
-                            disabled={loading}
+                            onValueChange={(value) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                fontSize: value,
+                              }))
+                            }
                           >
-                            <SelectTrigger id="fontSize" className="w-full">
-                              <SelectValue placeholder="Select font size" />
+                            <SelectTrigger
+                              id="fontSize"
+                              className="w-full max-w-xs"
+                            >
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="small">Small</SelectItem>
@@ -1471,362 +684,627 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               <SelectItem value="large">Large</SelectItem>
                             </SelectContent>
                           </Select>
-                          <p className={cn(styles.mutedText, 'text-xs')}>
-                            Changes the font size throughout the application.
-                          </p>
-                        </motion.div>
+                        </div>
 
-                        {/* Dark Mode Toggle */}
-                        <motion.div
-                          className="grid gap-2 mt-2"
-                          variants={itemVariants}
-                        >
-                          <Label
-                            htmlFor="theme-mode"
-                            className={styles.formLabel}
-                          >
-                            Theme Mode
-                          </Label>
+                        {/* Language */}
+                        <div className="space-y-2">
+                          <Label htmlFor="language">Language</Label>
                           <Select
-                            value={currentTheme}
-                            onValueChange={(value) => {
-                              setCurrentTheme(value);
-                              if (value === 'dark') {
-                                document.documentElement.classList.add('dark');
-                                localStorage.setItem('theme', 'dark');
-                              } else if (value === 'light') {
-                                document.documentElement.classList.remove(
-                                  'dark',
-                                );
-                                localStorage.setItem('theme', 'light');
-                              } else {
-                                // System preference
-                                localStorage.removeItem('theme');
-                                if (
-                                  window.matchMedia(
-                                    '(prefers-color-scheme: dark)',
-                                  ).matches
-                                ) {
-                                  document.documentElement.classList.add(
-                                    'dark',
-                                  );
-                                } else {
-                                  document.documentElement.classList.remove(
-                                    'dark',
-                                  );
-                                }
-                              }
-                            }}
+                            value={settings.language}
+                            onValueChange={(value) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                language: value,
+                              }))
+                            }
                           >
-                            <SelectTrigger id="theme-mode">
-                              <SelectValue placeholder="Select theme mode" />
+                            <SelectTrigger
+                              id="language"
+                              className="w-full max-w-xs"
+                            >
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="light">Light</SelectItem>
-                              <SelectItem value="dark">Dark</SelectItem>
-                              <SelectItem value="system">
-                                System Default
-                              </SelectItem>
+                              <SelectItem value="english">English</SelectItem>
+                              <SelectItem value="spanish">Español</SelectItem>
+                              <SelectItem value="french">Français</SelectItem>
+                              <SelectItem value="german">Deutsch</SelectItem>
                             </SelectContent>
                           </Select>
-                          <p className={cn(styles.mutedText, 'text-xs')}>
-                            Choose between light, dark, or use your system
-                            preference
-                          </p>
-                        </motion.div>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                </TabsContent>
-              )}
-
-              {activeTab === 'company' && (
-                <TabsContent
-                  value="company"
-                  key="company"
-                  forceMount
-                  className="w-full"
-                >
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    variants={containerVariants}
-                    className="space-y-4"
-                  >
-                    <motion.div variants={itemVariants}>
-                      <h3
-                        className={cn('text-lg font-medium', styles.headerText)}
-                      >
-                        Company Context
-                      </h3>
-                    </motion.div>
-
-                    <motion.div
-                      className="grid gap-4"
-                      variants={containerVariants}
-                    >
-                      <motion.div
-                        className="grid gap-2"
-                        variants={itemVariants}
-                      >
-                        <Label
-                          htmlFor="company-name"
-                          className={styles.formLabel}
-                        >
-                          Company Name
-                        </Label>
-                        <Input
-                          id="company-name"
-                          placeholder="Enter your company name"
-                          value={settings.companyName}
-                          onChange={(e) =>
-                            updateSetting('companyName', e.target.value)
-                          }
-                          disabled={loading}
-                        />
-                      </motion.div>
-
-                      <motion.div
-                        className="grid gap-2"
-                        variants={itemVariants}
-                      >
-                        <Label
-                          htmlFor="company-type"
-                          className={styles.formLabel}
-                        >
-                          Company Type
-                        </Label>
-                        <Select
-                          value={settings.companyType}
-                          onValueChange={(value) =>
-                            updateSetting('companyType', value)
-                          }
-                          disabled={loading}
-                        >
-                          <SelectTrigger id="company-type">
-                            <SelectValue placeholder="Select company type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="corporation">
-                              Corporation
-                            </SelectItem>
-                            <SelectItem value="llc">LLC</SelectItem>
-                            <SelectItem value="partnership">
-                              Partnership
-                            </SelectItem>
-                            <SelectItem value="nonprofit">
-                              Non-Profit
-                            </SelectItem>
-                            <SelectItem value="startup">Startup</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </motion.div>
-
-                      <motion.div
-                        className="grid gap-2"
-                        variants={itemVariants}
-                      >
-                        <Label
-                          htmlFor="company-description"
-                          className={styles.formLabel}
-                        >
-                          About Your Company
-                        </Label>
-                        <Textarea
-                          id="company-description"
-                          placeholder="Describe what your company does, your mission, and other relevant information"
-                          value={settings.companyDescription}
-                          onChange={(e) =>
-                            updateSetting('companyDescription', e.target.value)
-                          }
-                          className="min-h-[100px]"
-                          disabled={loading}
-                        />
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                </TabsContent>
-              )}
-
-              {activeTab === 'integrations' && (
-                <TabsContent
-                  value="integrations"
-                  key="integrations"
-                  forceMount
-                  className="w-full"
-                >
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    variants={containerVariants}
-                    className="space-y-6"
-                  >
-                    <motion.div variants={itemVariants}>
-                      <h3
-                        className={cn('text-lg font-medium', styles.headerText)}
-                      >
-                        External Integrations
-                      </h3>
-                      <p className={cn('text-sm', styles.mutedText)}>
-                        Connect your accounts to enable additional AI features
-                      </p>
-                    </motion.div>
-
-                    <motion.div
-                      className="space-y-6"
-                      variants={containerVariants}
-                    >
-                      {/* Google Calendar Integration Card */}
-                      <motion.div
-                        className="rounded-lg border border-border p-4 bg-muted/10"
-                        variants={itemVariants}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                              <Calendar className="h-6 w-6 text-primary" />
-                            </div>
-                            <div>
-                              <h4
-                                className={cn(
-                                  'text-base font-medium',
-                                  styles.headerText,
-                                )}
-                              >
-                                Google Calendar
-                              </h4>
-                              <p className={cn('text-sm', styles.mutedText)}>
-                                {settings.googleCalendarConnected
-                                  ? 'Connected. The AI can access and manage your calendar.'
-                                  : 'Connect to allow the AI to check and update your calendar.'}
-                              </p>
-                            </div>
-                          </div>
-                          <div>
-                            {settings.googleCalendarConnected ? (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={handleGoogleCalendarDisconnect}
-                                disabled={loading}
-                              >
-                                Disconnect
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={handleGoogleCalendarAuth}
-                                disabled={
-                                  loading || session?.user?.type === 'guest'
-                                }
-                                className="flex items-center gap-2"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                Connect
-                              </Button>
-                            )}
-                          </div>
                         </div>
+                      </div>
+                    </div>
+                  )}
 
-                        {settings.googleCalendarConnected && (
-                          <div className="mt-3 pt-3 border-t border-border">
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={cn('text-sm', styles.normalText)}
-                              >
-                                Calendar access
-                              </span>
-                              <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
-                                Active
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {session?.user?.type === 'guest' &&
-                          !settings.googleCalendarConnected && (
-                            <div className="mt-3 pt-3 border-t border-border">
-                              <p
-                                className={cn(
-                                  'text-xs italic',
-                                  styles.mutedText,
-                                )}
-                              >
-                                Guest accounts cannot connect to Google
-                                Calendar. Please register for a full account.
-                              </p>
-                            </div>
-                          )}
-                      </motion.div>
-
-                      {/* Information Card */}
-                      <motion.div
-                        className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4"
-                        variants={itemVariants}
-                      >
-                        <div className="flex space-x-3">
-                          <div className="flex-shrink-0">
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 20 20"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M9.99999 6.66669V10M9.99999 13.3334H10.0083M18.3333 10C18.3333 14.6024 14.6024 18.3334 9.99999 18.3334C5.39762 18.3334 1.66666 14.6024 1.66666 10C1.66666 5.39765 5.39762 1.66669 9.99999 1.66669C14.6024 1.66669 18.3333 5.39765 18.3333 10Z"
-                                stroke="#D97706"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </div>
-                          <div>
-                            <h4
-                              className={cn(
-                                'text-sm font-medium',
-                                styles.headerText,
-                              )}
-                            >
-                              About Calendar Integration
-                            </h4>
-                            <p className={cn('text-xs mt-1', styles.mutedText)}>
-                              When connected, the AI can check your calendar for
-                              free times, schedule meetings, and help manage
-                              your events when asked. Your calendar data is only
-                              accessed when you explicitly ask for
-                              calendar-related help.
+                  {/* Notifications Section */}
+                  {activeSection === 'notifications' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">
+                        Notifications
+                      </h3>
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium">Enable Notifications</p>
+                            <p className="text-sm text-muted-foreground">
+                              Receive notifications for important updates
                             </p>
                           </div>
+                          <Switch
+                            checked={settings.notificationsEnabled}
+                            onCheckedChange={(checked) =>
+                              setSettings((prev) => ({
+                                ...prev,
+                                notificationsEnabled: checked,
+                              }))
+                            }
+                            className="flex-shrink-0"
+                          />
                         </div>
-                      </motion.div>
-                    </motion.div>
-                  </motion.div>
-                </TabsContent>
-              )}
-            </AnimatePresence>
-          </div>
-        </Tabs>
+                      </div>
+                    </div>
+                  )}
 
-        <AlertDialogFooter>
-          <Button
-            variant="outline"
-            onClick={handleCloseRequest}
-            disabled={loading}
-            className={cn(styles.cancelButton)}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleSaveChanges} disabled={loading}>
-            {loading ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </AlertDialogFooter>
-      </div>
-    </AnimatedModal>
+                  {/* Company Section */}
+                  {activeSection === 'company' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">
+                        Company Information
+                      </h3>
+                      <div className="space-y-6">
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="companyName">Company Name</Label>
+                            <Input
+                              id="companyName"
+                              value={settings.companyName}
+                              onChange={(e) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companyName: e.target.value,
+                                }))
+                              }
+                              placeholder="Your company name"
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyType">Company Type</Label>
+                            <Select
+                              value={settings.companyType}
+                              onValueChange={(value) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companyType: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger
+                                id="companyType"
+                                className="w-full"
+                              >
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="corporation">
+                                  Corporation
+                                </SelectItem>
+                                <SelectItem value="llc">LLC</SelectItem>
+                                <SelectItem value="partnership">
+                                  Partnership
+                                </SelectItem>
+                                <SelectItem value="nonprofit">
+                                  Non-Profit
+                                </SelectItem>
+                                <SelectItem value="startup">Startup</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyDescription">
+                              Description
+                            </Label>
+                            <Textarea
+                              id="companyDescription"
+                              value={settings.companyDescription}
+                              onChange={(e) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companyDescription: e.target.value,
+                                }))
+                              }
+                              placeholder="What does your company do?"
+                              rows={4}
+                              className="resize-none w-full"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Integrations Section */}
+                  {activeSection === 'integrations' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">
+                        Integrations
+                      </h3>
+                      <div className="space-y-6">
+                        {/* Google Calendar Integration */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                                  <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="font-semibold">
+                                    Google Calendar
+                                  </h4>
+                                  {settings.googleCalendarConnected && (
+                                    <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 rounded-full">
+                                      <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                      <span className="text-xs text-green-700 dark:text-green-300 font-medium">
+                                        Connected
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                                  {settings.googleCalendarConnected
+                                    ? 'Your Google Calendar is connected! You can now ask the AI to create events, check your schedule, and manage your calendar directly from the chat.'
+                                    : 'Connect your Google Calendar to enable AI-powered calendar management. Create events, check your schedule, and get meeting reminders all through natural conversation.'}
+                                </p>
+
+                                {settings.googleCalendarConnected && (
+                                  <div className="mb-4">
+                                    <h5 className="text-sm font-medium mb-2">
+                                      What you can do:
+                                    </h5>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      <li>
+                                        • Create calendar events by describing
+                                        them
+                                      </li>
+                                      <li>
+                                        • Check your schedule and upcoming
+                                        meetings
+                                      </li>
+                                      <li>
+                                        • Get meeting summaries and reminders
+                                      </li>
+                                      <li>
+                                        • Schedule meetings with natural
+                                        language
+                                      </li>
+                                    </ul>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-3">
+                                  {settings.googleCalendarConnected ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={handleGoogleCalendarDisconnect}
+                                      disabled={loading}
+                                      className="flex-shrink-0"
+                                    >
+                                      <X className="h-4 w-4 mr-1" />
+                                      Disconnect
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      onClick={handleGoogleCalendarAuth}
+                                      disabled={
+                                        loading ||
+                                        calendarConnecting ||
+                                        session?.user?.type === 'guest'
+                                      }
+                                      className="flex-shrink-0"
+                                    >
+                                      <Calendar className="h-4 w-4 mr-1" />
+                                      {calendarConnecting
+                                        ? 'Connecting...'
+                                        : 'Connect Google Calendar'}
+                                    </Button>
+                                  )}
+
+                                  {session?.user?.type === 'guest' && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Please sign up for a full account to use
+                                      integrations
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Future Integrations Preview */}
+                        <div className="rounded-lg border bg-muted/30 opacity-60">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                  <Zap className="h-5 w-5 text-gray-500" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  More Integrations Coming Soon
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  We're working on additional integrations to
+                                  make your workflow even more seamless.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  <div className="px-3 py-1 bg-background rounded-full text-xs text-muted-foreground">
+                                    Slack
+                                  </div>
+                                  <div className="px-3 py-1 bg-background rounded-full text-xs text-muted-foreground">
+                                    Notion
+                                  </div>
+                                  <div className="px-3 py-1 bg-background rounded-full text-xs text-muted-foreground">
+                                    Zoom
+                                  </div>
+                                  <div className="px-3 py-1 bg-background rounded-full text-xs text-muted-foreground">
+                                    Microsoft Teams
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Privacy Section */}
+                  {activeSection === 'privacy' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">
+                        Privacy & Security
+                      </h3>
+                      <div className="space-y-6">
+                        {/* Data Overview */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                                  <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Your Data Overview
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Here's a summary of the data associated with
+                                  your account.
+                                </p>
+
+                                {dataStats ? (
+                                  <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="bg-background rounded-lg p-3">
+                                      <div className="text-2xl font-bold text-primary">
+                                        {dataStats.totalChats}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Chat Conversations
+                                      </div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3">
+                                      <div className="text-2xl font-bold text-primary">
+                                        {dataStats.totalMessages}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Messages
+                                      </div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3">
+                                      <div className="text-2xl font-bold text-primary">
+                                        {dataStats.totalDocuments}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Documents
+                                      </div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3">
+                                      <div className="text-2xl font-bold text-primary">
+                                        {dataStats.accountAge}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Days with us
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="animate-pulse grid grid-cols-2 gap-4 mb-4">
+                                    {[
+                                      'chats',
+                                      'messages',
+                                      'documents',
+                                      'days',
+                                    ].map((type) => (
+                                      <div
+                                        key={`stat-skeleton-${type}`}
+                                        className="bg-background rounded-lg p-3"
+                                      >
+                                        <div className="h-6 bg-muted rounded mb-1" />
+                                        <div className="h-3 bg-muted rounded w-2/3" />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Data Export */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                                  <Download className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Export Your Data
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Download a complete copy of your data
+                                  including chats, messages, documents, and
+                                  account information in JSON format.
+                                </p>
+                                <Button
+                                  onClick={handleExportData}
+                                  disabled={exportingData}
+                                  className="w-full sm:w-auto"
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  {exportingData
+                                    ? 'Preparing Export...'
+                                    : 'Download My Data'}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Data Management */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                                  <Trash2 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Data Management
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Manage your chat history and account data.
+                                  These actions cannot be undone.
+                                </p>
+
+                                <div className="space-y-3">
+                                  <Button
+                                    variant="outline"
+                                    onClick={handleClearChatHistory}
+                                    disabled={clearingHistory}
+                                    className="w-full sm:w-auto mr-2"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    {clearingHistory
+                                      ? 'Clearing...'
+                                      : 'Clear Chat History'}
+                                  </Button>
+
+                                  <div className="text-xs text-muted-foreground">
+                                    This will permanently delete all your
+                                    conversations and messages.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Privacy Information */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
+                                  <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Data Protection
+                                </h4>
+                                <div className="space-y-3 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <span>
+                                      All data is encrypted in transit and at
+                                      rest
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <span>
+                                      Chat history retained for 6 months maximum
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <span>
+                                      Account data deleted within 90 days of
+                                      account deletion
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <span>
+                                      No data shared with third parties without
+                                      consent
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t">
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        window.open('/privacy-policy', '_blank')
+                                      }
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-1" />
+                                      Privacy Policy
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        window.open('/terms', '_blank')
+                                      }
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-1" />
+                                      Terms of Service
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Account Deletion */}
+                        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2 text-red-900 dark:text-red-100">
+                                  Delete Account
+                                </h4>
+                                <p className="text-sm text-red-700 dark:text-red-300 mb-4">
+                                  Permanently delete your account and all
+                                  associated data. This action cannot be undone
+                                  and will immediately log you out.
+                                </p>
+
+                                {!showDeleteConfirm ? (
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="w-full sm:w-auto"
+                                    disabled={session?.user?.type === 'guest'}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete My Account
+                                  </Button>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-lg">
+                                      <p className="text-sm font-medium text-red-900 dark:text-red-100 mb-2">
+                                        Are you absolutely sure?
+                                      </p>
+                                      <p className="text-xs text-red-700 dark:text-red-300">
+                                        This will permanently delete all your
+                                        chats, documents, and account data. Type
+                                        your email to confirm.
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="destructive"
+                                        onClick={handleDeleteAccount}
+                                        disabled={deletingAccount}
+                                        size="sm"
+                                      >
+                                        {deletingAccount
+                                          ? 'Deleting...'
+                                          : 'Yes, Delete Everything'}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        onClick={() =>
+                                          setShowDeleteConfirm(false)
+                                        }
+                                        size="sm"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {session?.user?.type === 'guest' && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Guest accounts are automatically cleaned up.
+                                    No action needed.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t p-4 flex justify-end gap-2">
+                <Button variant="outline" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveChanges} disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AnimatedModal>
+
+      {/* Image Cropper */}
+      {cropperImage && isCropperOpen && (
+        <ImageCropper
+          image={cropperImage}
+          onCropComplete={handleCroppedImageUpload}
+          onCancel={() => {
+            setIsCropperOpen(false);
+            if (cropperImage) {
+              URL.revokeObjectURL(cropperImage);
+              setCropperImage(null);
+            }
+          }}
+        />
+      )}
+    </>
   );
 }

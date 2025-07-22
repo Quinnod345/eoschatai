@@ -23,6 +23,10 @@ import { MessageLimitIndicator } from './message-limit-indicator';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
+import { ReplyIndicator } from './reply-indicator';
+import { useReplyState } from '@/hooks/use-reply-state';
+import { NexusSearchProgress } from './nexus-search-progress';
+import { NexusResearchPlan } from './nexus-research-plan';
 
 export function Chat({
   id,
@@ -88,6 +92,10 @@ export function Chat({
 
   // Add loading state for research mode changes
   const [researchModeChanging, setResearchModeChanging] = useState(false);
+
+  // Add state for Nexus search progress
+  const [nexusSearchData, setNexusSearchData] = useState<any>(null);
+  const [nexusResearchPlan, setNexusResearchPlan] = useState<any>(null);
 
   // Add logging for research mode changes
   useEffect(() => {
@@ -398,6 +406,45 @@ export function Chat({
     },
   });
 
+  // Track current Nexus stream ID for recovery
+  const [nexusStreamId, setNexusStreamId] = useState<string | null>(null);
+
+  // TODO: Re-implement resumable streams later
+  // Check for interrupted Nexus searches on mount (disabled for now)
+  useEffect(() => {
+    // Clear any old stream IDs to prevent errors
+    const storedStreamId = sessionStorage.getItem(`nexus-stream-${id}`);
+    if (storedStreamId) {
+      sessionStorage.removeItem(`nexus-stream-${id}`);
+    }
+  }, [id]);
+
+  // Handle Nexus search events from data stream
+  useEffect(() => {
+    if (!data || data.length === 0) return;
+
+    const lastData = data[data.length - 1];
+    if (lastData && typeof lastData === 'object' && 'type' in lastData) {
+      const eventType = lastData.type as string;
+      if (eventType.startsWith('nexus-')) {
+        console.log('[Chat] Nexus event received:', eventType, lastData);
+
+        // Handle research plan
+        if (eventType === 'nexus-research-plan') {
+          setNexusResearchPlan(lastData);
+        }
+        // Handle stream resumed event
+        else if (eventType === 'nexus-stream-resumed') {
+          console.log('[Chat] Nexus stream resumed:', lastData);
+          toast.success('Resuming your research where it left off...');
+          setNexusSearchData(lastData);
+        } else {
+          setNexusSearchData(lastData);
+        }
+      }
+    }
+  }, [data, id]);
+
   // Process data stream for web search events
   useEffect(() => {
     if (!data) return;
@@ -405,6 +452,39 @@ export function Chat({
     // Process each data item in the stream
     data.forEach((item: any) => {
       processDataStreamMessage(item);
+
+      // Handle nexus complete response
+      if (item.type === 'nexus-complete-response' && item.content) {
+        console.log('[Chat] Nexus complete response received');
+
+        // Find the last assistant message and update it with the complete content
+        setMessages((prevMessages) => {
+          const lastAssistantIndex = prevMessages.findLastIndex(
+            (m) => m.role === 'assistant',
+          );
+
+          if (lastAssistantIndex !== -1) {
+            const updatedMessages = [...prevMessages];
+            updatedMessages[lastAssistantIndex] = {
+              ...updatedMessages[lastAssistantIndex],
+              parts: [{ type: 'text', text: item.content }],
+            };
+            return updatedMessages;
+          }
+
+          // If no assistant message exists, create one
+          return [
+            ...prevMessages,
+            {
+              id: generateUUID(),
+              role: 'assistant',
+              content: item.content,
+              parts: [{ type: 'text', text: item.content }],
+              createdAt: new Date(),
+            },
+          ];
+        });
+      }
     });
   }, [data, processDataStreamMessage]);
 
@@ -1262,6 +1342,17 @@ export function Chat({
     }
   }, [pendingMessage]);
 
+  // Add reply state management
+  const { replyState, isReplying, startReply, cancelReply, clearReply } =
+    useReplyState();
+
+  // Clear reply when input is submitted
+  useEffect(() => {
+    if (status === 'submitted' && isReplying) {
+      clearReply();
+    }
+  }, [status, isReplying, clearReply]);
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
@@ -1294,9 +1385,36 @@ export function Chat({
           citations={citations}
           searchProgress={searchProgress}
           meetingMetadata={meetingMetadata}
+          onStartReply={startReply}
         />
 
-        <form className="absolute bottom-0 left-0 right-0 flex mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
+        {/* Show Nexus search progress if active */}
+        {nexusResearchPlan && (
+          <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
+            <NexusResearchPlan
+              plan={nexusResearchPlan.plan}
+              onApprove={() => {
+                // Research plan approved, clear it from display
+                setNexusResearchPlan(null);
+              }}
+            />
+          </div>
+        )}
+
+        {nexusSearchData && !nexusResearchPlan && (
+          <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
+            <NexusSearchProgress data={nexusSearchData} />
+          </div>
+        )}
+
+        <form className="absolute bottom-0 left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
+          {/* Reply Indicator */}
+          <ReplyIndicator
+            isVisible={isReplying}
+            replyingTo={replyState}
+            onCancel={cancelReply}
+          />
+
           {!isReadonly && (
             <MultimodalInput
               chatId={id}
