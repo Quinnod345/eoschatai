@@ -10,6 +10,7 @@ import { useMessageActions } from '@/hooks/use-message-actions';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { MessageSkeleton } from './message-skeleton';
 import { usePathname } from 'next/navigation';
+import { CitationReferences } from './citation-button';
 
 interface CitationReference {
   number: number;
@@ -45,13 +46,38 @@ function PureMessages({
   setMessages,
   reload,
   isReadonly,
-  citations,
+  citations: propCitations,
   searchProgress,
   meetingMetadata,
   onStartReply,
 }: MessagesProps) {
   const pathname = usePathname();
-  
+
+  // Extract citations from message parts if available
+  const extractedCitations = useMemo(() => {
+    // First check if we have citations from props (during active chat)
+    if (propCitations && propCitations.length > 0) {
+      return propCitations;
+    }
+
+    // Otherwise, extract from message parts (when returning to chat)
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'assistant' && msg.parts) {
+        // Check if any part contains citations
+        const citationPart = msg.parts?.find(
+          (part: any) => part.type === 'citations',
+        );
+        if (citationPart && citationPart.citations) {
+          return citationPart.citations;
+        }
+      }
+    }
+    return [];
+  }, [messages, propCitations]);
+
+  const citations = extractedCitations;
+
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -192,6 +218,16 @@ function PureMessages({
       {shouldShowThinking && (
         <ThinkingMessage searchProgress={searchProgress} />
       )}
+
+      {/* Show citation references if we have citations and the last message is from assistant */}
+      {citations &&
+        citations.length > 0 &&
+        filteredMessages.length > 0 &&
+        filteredMessages[filteredMessages.length - 1].role === 'assistant' && (
+          <div className="w-full max-w-3xl mx-auto px-4 py-6">
+            <CitationReferences citations={citations} />
+          </div>
+        )}
 
       <motion.div
         ref={messagesEndRef}

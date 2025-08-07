@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Nexus UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #output {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Nexus Research UI</h1>
+        <div class="status" id="status">Ready to test</div>
+        
+        <button onclick="testNexusFlow()">Start Full Nexus Flow</button>
+        <button onclick="clearOutput()">Clear Output</button>
+        
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+
+        function log(message, data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            if (data) {
+                output.textContent += JSON.stringify(data, null, 2) + '\n';
+            }
+            output.textContent += '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            output.textContent = '';
+            status.textContent = 'Ready to test';
+            status.classList.remove('active');
+        }
+
+        async function testNexusFlow() {
+            clearOutput();
+            status.textContent = 'Testing Nexus Research Flow...';
+            status.classList.add('active');
+            
+            const query = 'How to implement EOS in my business';
+            log('Starting Nexus research for: ' + query);
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: 'test-nexus-ui-' + Date.now(),
+                        messages: [{
+                            role: 'user',
+                            content: query,
+                            id: 'msg-1',
+                            parts: [{ type: 'text', text: query }],
+                            createdAt: new Date(),
+                        }],
+                        model: 'gpt-4.1',
+                        researchMode: 'nexus',
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${error}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                switch (data.type) {
+                                    case 'nexus-progress':
+                                        log(`📊 Progress Update - Phase: ${data.phase}`, {
+                                            phase: data.phase,
+                                            message: data.message,
+                                            plan: data.plan ? 'Plan included' : 'No plan',
+                                            totalResults: data.totalResults,
+                                        });
+                                        break;
+                                        
+                                    case 'nexus-plan-complete':
+                                        log('✅ Research Plan Created', data.plan);
+                                        break;
+                                        
+                                    case 'nexus-search-update':
+                                        log(`🔍 Search Update - Step ${data.currentStep}`, {
+                                            message: data.message,
+                                            questionsSearched: data.questionsSearched,
+                                        });
+                                        break;
+                                        
+                                    case 'nexus-search-complete':
+                                        log(`✅ Search Complete - ${data.totalResults} results`, data);
+                                        break;
+                                        
+                                    case 'nexus-analysis-update':
+                                        log(`🧠 Analysis Update - Step ${data.stepNumber}`, data);
+                                        break;
+                                        
+                                    case 'nexus-error':
+                                        log('❌ Error', data);
+                                        break;
+                                        
+                                    case 'text':
+                                        // Don't log every text chunk, just count them
+                                        if (!window.textChunks) window.textChunks = 0;
+                                        window.textChunks++;
+                                        if (window.textChunks % 50 === 0) {
+                                            log(`📝 Received ${window.textChunks} text chunks...`);
+                                        }
+                                        break;
+                                }
+                            } catch (e) {
+                                // Not JSON, skip
+                            }
+                        }
+                    }
+                }
+
+                log('✨ Nexus research complete!');
+                status.textContent = 'Test complete - check output for details';
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+                status.textContent = 'Test failed - see output';
+                status.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

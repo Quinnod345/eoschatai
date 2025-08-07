@@ -1,49 +1,21 @@
-'use client';
-
 import React from 'react';
 import { CitationButton } from '@/components/citation-button';
 
-interface InlineCitationProps {
-  sourceNumber: number;
-  title: string;
-  url: string;
-  snippet?: string;
-  className?: string;
-}
-
-export function InlineCitation({
-  sourceNumber,
-  title,
-  url,
-  snippet,
-  className,
-}: InlineCitationProps) {
-  return (
-    <CitationButton
-      number={sourceNumber}
-      title={title}
-      url={url}
-      inline={true}
-      className={className}
-    />
-  );
-}
-
-interface CitationReference {
+interface Citation {
   number: number;
   title: string;
   url: string;
-  snippet?: string;
 }
 
-interface CitationRendererProps {
-  text: string;
-  citations?: CitationReference[];
-}
-
-export function CitationRenderer({ text, citations }: CitationRendererProps) {
+/**
+ * Process text to replace [1], [2] etc. with clickable citation buttons
+ */
+export function processCitationsInText(
+  text: string,
+  citations: Citation[],
+): (string | React.ReactElement)[] {
   if (!citations || citations.length === 0) {
-    return <>{text}</>;
+    return [text];
   }
 
   // Create a map for quick citation lookup
@@ -93,5 +65,33 @@ export function CitationRenderer({ text, citations }: CitationRendererProps) {
     parts.push(text.substring(lastIndex));
   }
 
-  return <>{parts}</>;
+  return parts;
+}
+
+/**
+ * Process markdown content to add citation buttons
+ */
+export function processMarkdownWithCitations(
+  markdown: string,
+  citations: Citation[],
+): string {
+  if (!citations || citations.length === 0) {
+    return markdown;
+  }
+
+  // Add citation references section at the end if not already present
+  if (
+    !markdown.includes('## Sources & References') &&
+    !markdown.includes('## 📚 Sources & References')
+  ) {
+    let referencesSection = '\n\n## 📚 Sources & References\n\n';
+
+    citations.forEach((citation) => {
+      referencesSection += `**[${citation.number}]** [${citation.title}](${citation.url})\n\n`;
+    });
+
+    return markdown + referencesSection;
+  }
+
+  return markdown;
 }

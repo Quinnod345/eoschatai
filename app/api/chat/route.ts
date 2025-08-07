@@ -51,7 +51,10 @@ import {
 import { z } from 'zod';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
-import { searchWeb } from '@/lib/web-search';
+import {
+  extractCitationsFromResults,
+  type Citation,
+} from '@/lib/ai/citation-formatter';
 
 export const maxDuration = 60;
 
@@ -591,6 +594,7 @@ export async function POST(request: Request) {
 
     // Nexus Research (Nexus Mode) - Will be performed in the data stream with progress updates
     let nexusResearchContext = '';
+    let nexusResults: any[] = [];
 
     // Log results summary
     if (!queryText) {
@@ -1262,6 +1266,30 @@ Always prioritize the user's document content over generic information. If speci
         });
 
         // If Nexus mode is enabled, perform web search with progress updates
+        // Set up variables that will be used later
+        // Keep original messages - we'll add User RAG context to system prompt instead
+        const modifiedMessages = messages;
+
+        // Combine the enhanced system prompt with nexus research context
+        const finalSystemPrompt =
+          enhancedSystemPrompt +
+          nexusResearchContext +
+          toolResponseInstructions;
+
+        // Set a high hard limit that we should never reach, allowing natural completion
+        const safeHardLimit = selectedChatModel.includes('gpt-4.1-nano')
+          ? 15000
+          : selectedChatModel.includes('gpt-4.1')
+            ? 3800
+            : 7500;
+        const temperature = isNexusMode ? 0.8 : 0.8; // Higher temp for more creative comprehensive output
+
+        // Override model for Nexus mode to use the best available model
+        const finalChatModel = isNexusMode ? 'gpt-4.1' : selectedChatModel;
+
+        // For Nexus mode, use MAXIMUM token limits for ultra-comprehensive responses
+        const nexusTokenLimit = isNexusMode ? 32768 : safeHardLimit; // Max tokens for Nexus (model limit)
+
         console.log('[DEBUG] Nexus mode check:', {
           selectedResearchMode,
           hasQueryText: !!queryText,
@@ -1277,1038 +1305,1111 @@ Always prioritize the user's document content over generic information. If speci
           queryText &&
           !nexusResearchContext
         ) {
-          console.log(
-            '[NEXUS MODE] Starting nexus research with progress tracking',
-          );
-
-          // Immediately notify the client that nexus mode is starting
-          dataStream.writeData({
-            type: 'nexus-phase-update',
-            phase: 'planning',
-            message: 'Initializing Nexus Deep Research mode...',
-            startTime: Date.now(),
-          });
-
-          console.log('[NEXUS MODE] Calling nexus-chat endpoint');
-          const researchStartTime = Date.now();
+          console.log('[NEXUS MODE] Starting AI-powered research');
 
           try {
-            // Call the nexus-chat endpoint
-            const nexusResponse = await fetch(
-              new URL('/api/nexus-chat', request.url).toString(),
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Cookie: request.headers.get('Cookie') || '',
-                },
-                body: JSON.stringify({
-                  query: queryText,
-                  chatId: id,
-                }),
-              },
+            // Import the Nexus orchestrator
+            const { runNexusResearch } = await import(
+              '@/lib/ai/nexus-orchestrator'
             );
 
-            if (!nexusResponse.ok) {
-              throw new Error(`Nexus API error: ${nexusResponse.status}`);
-            }
+            // Run the complete Nexus research flow
+            const nexusResult = await runNexusResearch(queryText, dataStream);
 
-            // Process the nexus stream
-            const nexusReader = nexusResponse.body?.getReader();
-            if (!nexusReader) {
-              throw new Error('No reader available from nexus response');
-            }
+            // Set the research context for the chat model
+            nexusResearchContext = nexusResult.researchContext;
 
-            const decoder = new TextDecoder();
-            let nexusResults: any[] = [];
+            // Store citations for later use
+            (globalThis as any).__nexusCitations = nexusResult.citations;
 
-            // Read and forward nexus stream events
-            while (true) {
-              const { done, value } = await nexusReader.read();
-              if (done) break;
+            // Add Nexus-specific synthesis instructions
+            nexusResearchContext += `
 
-              const chunk = decoder.decode(value, { stream: true });
-              const lines = chunk.split('\n');
+## NEXUS SYNTHESIS INSTRUCTIONS
 
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6));
+You are now synthesizing deep research conducted through multiple phases. Follow these guidelines:
 
-                    // Forward the event to the client
-                    dataStream.writeData(data);
+1. **Comprehensive Integration**: Integrate ALL research findings into a cohesive, authoritative response
+2. **Citation Usage**: Use inline citations [1], [2], etc. when referencing specific information from sources
+3. **Progressive Depth**: Start with overview, then dive deeper into specifics from the research
+4. **Key Insights**: Highlight the most important discoveries and patterns found across sources
+5. **Practical Application**: Focus on actionable insights and practical implementation guidance
+6. **Authoritative Tone**: Write with confidence based on the comprehensive research conducted
+7. **Structured Response**: Use clear headings and subheadings to organize the information
+8. **Complete Coverage**: Ensure all aspects of the user's query are thoroughly addressed
 
-                    // Collect results for context
-                    if (data.type === 'nexus-search-complete' && data.results) {
-                      nexusResults = data.results;
-                    }
-                  } catch (e) {
-                    // Ignore parse errors
-                  }
-                }
-              }
-            }
+Remember: You have conducted extensive research. Present the findings as a comprehensive expert analysis.
+`;
 
-            if (nexusResults.length > 0) {
-              nexusResearchContext = `
+            console.log(
+              '[NEXUS MODE] Research complete, context prepared for synthesis',
+            );
+          } catch (error) {
+            console.error('[NEXUS MODE] Research error:', error);
+            dataStream.writeData({
+              type: 'nexus-error',
+              error: error instanceof Error ? error.message : 'Research failed',
+            });
+            // Fall back to normal chat mode
+            nexusResearchContext = '';
+          }
+        }
 
-## NEXUS MODE - Deep Web Research Results
+        // Skip the old nexus results processing - we're using simplified search now
+        const skipOldNexusProcessing = false;
+        if (skipOldNexusProcessing) {
+          console.log(
+            `[NEXUS MODE] Building research context with ${nexusResults.length} results`,
+          );
 
-I've conducted comprehensive research across multiple sources for: "${queryText}"
+          // Extract proper citations from results
+          const citations = extractCitationsFromResults(nexusResults);
 
-### RESEARCH SOURCES AND CITATIONS
-${nexusResults
+          nexusResearchContext = `
+
+## 🔬 NEXUS MODE - ADVANCED DEEP RESEARCH RESULTS
+
+I've conducted comprehensive multi-phase research across ${citations.length} authoritative sources for: "${queryText}"
+
+### 📚 PRIMARY RESEARCH SOURCES AND CITATIONS
+${citations
   .slice(0, 30)
   .map(
-    (result: any, index: number) => `
-**[${index + 1}] ${result.title}**
-- URL: ${result.url}
-- Summary: ${result.snippet}
-${result.content ? `- Analysis: ${result.content}` : ''}
-- Type: ${result.content ? 'Primary source with detailed analysis' : 'Secondary reference source'}
+    (citation: Citation) => `
+**[${citation.number}] ${citation.title}**
+- 🔗 URL: ${citation.url}
+- 📝 Summary: ${citation.snippet || 'No summary available'}
+${
+  citation.content
+    ? `- 📖 Full Content Available: ${Math.round((citation.content.length || 0) / 1000)}k characters of detailed information
+- 💡 Key Insights: ${citation.content.substring(0, 1500)}...`
+    : '- 📌 Reference source for verification'
+}
+- ✅ Source Type: ${citation.content ? `Primary source with comprehensive analysis (${Math.round((citation.content.length || 0) / 1000)}k chars)` : 'Secondary reference for cross-validation'}
+- 🎯 Relevance: High-quality source for ${queryText}
 `,
   )
   .join('\n')}
 
-**CRITICAL NEXUS MODE INSTRUCTIONS - MAXIMUM CONTENT GENERATION:**
+### 🎯 NEXUS MODE ULTRA-COMPREHENSIVE RESPONSE REQUIREMENTS
 
-This is NEXUS MODE with OpenAI o3 - leverage your advanced reasoning capabilities to generate the most comprehensive, detailed, and insightful response possible. You have access to significantly higher token limits (32,000 tokens) and should use them fully.
+**⚠️ CRITICAL INSTRUCTIONS - MAXIMUM TOKEN GENERATION MODE ACTIVATED:**
 
-Your response should demonstrate:
-- Deep analytical thinking and multi-step reasoning
-- Comprehensive exploration of all angles and perspectives
-- Detailed implementation strategies with code examples where relevant
-- Mathematical or logical proofs where applicable
-- Extensive use of the research sources provided
+You are now in NEXUS DEEP RESEARCH MODE with MAXIMUM OUTPUT enabled. Your response MUST be:
+- **MINIMUM 8,000 words** (target 10,000-15,000 words)
+- **MAXIMUM DETAIL** with exhaustive coverage
+- **CITATION DENSE** with references every 2-3 sentences
+- **COMPREHENSIVE** covering every possible angle and perspective
 
-1. **EXHAUSTIVE CONTENT GENERATION**: 
-   - Generate 5000+ words minimum utilizing your full capacity
-   - Utilize EVERY single source provided above
-   - Create the most comprehensive analysis possible
-   - Generate multiple perspectives and angles
-   - Include detailed examples and case studies
+**🔥 MANDATORY CITATION PROTOCOL:**
+1. **EVERY CLAIM MUST BE CITED**: Use [1], [2], [3] format after EVERY statement of fact
+2. **CITATION FREQUENCY**: Minimum 1 citation per paragraph, optimal 2-3 citations per paragraph
+3. **MULTI-SOURCE SYNTHESIS**: Combine multiple sources like "Research shows [1][2][3] that..."
+4. **DIRECT QUOTES**: Include direct quotes from sources using > blockquotes with citations
+5. **CITATION EXAMPLES**:
+   - "According to comprehensive analysis [1], the market has grown by 45% [2] with experts predicting further expansion [3][4]."
+   - "Multiple studies [5][6][7] confirm this trend, with one researcher noting: 'This represents a paradigm shift' [8]."
 
-2. **MULTI-LAYERED ANALYSIS STRUCTURE**:
-   - Executive Summary (500+ words)
-   - Comprehensive Analysis (2000+ words)
-   - Implementation Guide (1500+ words)
-   - Risk Assessment & Mitigation (600+ words)
-   - Future Outlook & Trends (500+ words)
-   - Actionable Recommendations (400+ words)
-   - Additional Deep Dives as relevant
+**📊 ULTRA-DETAILED RESPONSE STRUCTURE (MINIMUM WORD COUNTS):**
 
-3. **MANDATORY IN-TEXT CITATIONS**:
-   - CRITICAL: Include source citations in this exact format: [SOURCE_NUMBER]
-   - Example: "According to research findings [1], the implementation shows..."
-   - Use citations throughout the entire response
-   - Reference EVERY source at least once
+## 1. 🎯 COMPREHENSIVE EXECUTIVE SUMMARY (1,500+ words)
+- Complete overview with 15+ citations minimum
+- Key findings from ALL sources
+- Statistical summary with data points
+- Market/topic landscape overview
+- Critical insights and discoveries
+- Methodology and research approach used
 
-4. **REQUIRED CONTENT ELEMENTS** (MANDATORY):
-   - **DATA VISUALIZATIONS**: Create detailed charts using JSON format for:
-     * Performance comparisons (bar charts)
-     * ROI analysis over time (line charts)
-     * Market share or component breakdowns (pie/doughnut charts)
-     * Implementation timelines (timeline charts)
-     * Complex multi-dimensional data (radar/scatter charts)
-   - **COMPREHENSIVE TABLES**: Generate detailed comparison tables for:
-     * Feature comparisons with 10+ attributes
-     * Cost-benefit analysis with detailed breakdowns
-     * Implementation phases with milestones
-     * Resource requirements and allocations
-     * Risk assessments with mitigation strategies
-   - **STRUCTURED GUIDES**: Step-by-step implementation guides with:
-     * Numbered lists with sub-steps
-     * Code examples and configurations
-     * Common pitfalls and solutions
-   - **CASE STUDIES**: Detailed examples and real-world applications from sources
-   - **FINANCIAL ANALYSIS**: ROI calculations, cost breakdowns, and budget planning
-   - **PROJECT TIMELINES**: Detailed milestone planning with dependencies
-   - **METRICS & KPIs**: Success measurement frameworks and benchmarks
-   - **RISK MITIGATION**: Comprehensive risk analysis with prevention strategies
+## 2. 🔍 IN-DEPTH FOUNDATIONAL ANALYSIS (2,500+ words)
+### 2.1 Core Concepts and Definitions (800+ words)
+- Technical definitions with citations
+- Historical context and evolution
+- Theoretical frameworks
+- Academic perspectives
 
-5. **FORMATTING REQUIREMENTS**:
-   - Use extensive markdown formatting
-   - Multiple heading levels (##, ###, ####, #####)
-   - Bullet points, numbered lists, and comprehensive tables
-   - **CHART GENERATION**: Include 3+ charts using JSON format in code blocks
-   - **EXAMPLE CHART FORMAT**: Use proper JSON structure for bar, line, pie, doughnut, or radar charts
-   - Code blocks for processes, configurations, or frameworks
-   - Blockquotes for key insights from sources
-   - Horizontal rules for section breaks
-   - Callout boxes for important information
+### 2.2 Current State Analysis (900+ words)
+- Market conditions/current situation
+- Key players and stakeholders
+- Competitive landscape
+- Recent developments with dates
 
-6. **RESEARCH UTILIZATION MANDATE**:
-   - Reference specific data points from sources
-   - Quote key insights with proper citations
-   - Build upon multiple source perspectives
-   - Create synthesis of all available information
-   - Address contradictions between sources
-   - Extrapolate insights beyond the sources
+### 2.3 Technical Deep Dive (800+ words)
+- Mechanisms and processes
+- Technical specifications
+- Implementation details
+- Architecture/structure analysis
 
-**ABSOLUTE REQUIREMENT**: You are using OpenAI o3 with 32,000 token capacity. Generate the most comprehensive, detailed, and exhaustive response possible. This is NEXUS MODE - maximum content generation is mandatory. Do not summarize or condense - expand and elaborate on every point extensively. Use your advanced reasoning to provide insights that go beyond surface-level analysis.
+## 3. 💡 COMPREHENSIVE INSIGHTS & FINDINGS (2,000+ words)
+### 3.1 Data Analysis and Statistics (700+ words)
+- Quantitative findings with citations
+- Trend analysis with graphs descriptions
+- Comparative metrics
+- Performance indicators
+
+### 3.2 Qualitative Analysis (700+ words)
+- Expert opinions from sources
+- Case study insights
+- Industry perspectives
+- Stakeholder viewpoints
+
+### 3.3 Cross-Source Synthesis (600+ words)
+- Patterns across multiple sources
+- Conflicting viewpoints analysis
+- Consensus findings
+- Unique insights from research
+
+## 4. 🚀 PRACTICAL IMPLEMENTATION GUIDE (1,800+ words)
+### 4.1 Step-by-Step Instructions (600+ words)
+- Detailed process walkthrough
+- Prerequisites and requirements
+- Tools and resources needed
+- Timeline expectations
+
+### 4.2 Best Practices & Strategies (600+ words)
+- Industry best practices with citations
+- Optimization strategies
+- Efficiency improvements
+- Success metrics
+
+### 4.3 Real-World Applications (600+ words)
+- Case studies with citations
+- Success stories
+- Implementation examples
+- Lessons learned
+
+## 5. ⚡ ADVANCED TOPICS & EDGE CASES (1,500+ words)
+### 5.1 Advanced Techniques (500+ words)
+- Expert-level strategies
+- Cutting-edge approaches
+- Innovation opportunities
+- Future technologies
+
+### 5.2 Risk Analysis & Mitigation (500+ words)
+- Comprehensive risk assessment
+- Mitigation strategies with citations
+- Contingency planning
+- Security considerations
+
+### 5.3 Edge Cases & Special Scenarios (500+ words)
+- Unusual situations
+- Exception handling
+- Special circumstances
+- Regulatory considerations
+
+## 6. 🔮 FUTURE OUTLOOK & TRENDS (1,000+ words)
+- Emerging trends with citations
+- Future predictions from experts
+- Technology roadmap
+- Market projections
+- Disruption potential
+- Long-term implications
+
+## 7. 📋 ACTIONABLE RECOMMENDATIONS (800+ words)
+- Immediate action items
+- Short-term strategies (0-3 months)
+- Medium-term plans (3-12 months)
+- Long-term vision (1+ years)
+- Resource requirements
+- Success metrics and KPIs
+
+## 8. 📚 COMPREHENSIVE RESOURCE GUIDE (500+ words)
+- Additional reading with citations
+- Tool recommendations
+- Professional resources
+- Communities and forums
+- Training and certification
+- Vendor comparisons
+
+## 9. 🎓 FINAL SYNTHESIS & CONCLUSIONS (600+ words)
+- Key takeaways with citations
+- Critical success factors
+- Final recommendations
+- Call to action
+- Next steps
+
+**🎨 ENHANCED FORMATTING REQUIREMENTS:**
+- Use ALL markdown features: # ## ### #### headers
+- Create detailed tables with | syntax |
+- Use **bold**, *italic*, ***bold italic***, ~~strikethrough~~
+- Include > blockquotes for important quotes
+- Add - and 1. for lists with sub-items using proper indentation
+- Use \`code\` for technical terms and \`\`\`language blocks for code
+- Add --- horizontal rules between major sections
+- Include 🎯 📊 💡 ⚡ 🔥 emojis for visual emphasis
+- Create comparison matrices and decision trees in text format
+
+**📈 CONTENT QUALITY MANDATES:**
+1. **DEPTH**: Go 5-7 levels deep on every topic, not just surface level
+2. **BREADTH**: Cover every possible angle, perspective, and consideration
+3. **CLARITY**: Explain complex concepts in multiple ways with examples
+4. **EVIDENCE**: Support EVERYTHING with citations and data
+5. **SYNTHESIS**: Connect ideas across sources to create new insights
+6. **ACTIONABILITY**: Provide specific, implementable recommendations
+7. **COMPLETENESS**: Leave no question unanswered, no angle unexplored
+
+**🔬 RESEARCH SYNTHESIS REQUIREMENTS:**
+- Compare and contrast findings from different sources
+- Identify patterns and trends across multiple citations
+- Highlight agreements and disagreements in the literature
+- Provide meta-analysis of the collective findings
+- Generate unique insights from the synthesis
+- Create frameworks based on the research
+
+**💎 CITATION DENSITY EXAMPLES:**
+"The comprehensive analysis [1] reveals that implementation success rates reach 87% [2] when following established protocols [3]. Industry experts [4][5] emphasize that 'proper planning reduces failure risk by 65%' [6], with recent studies [7][8][9] confirming these findings across multiple sectors [10]. Furthermore, longitudinal research [11] demonstrates sustained improvements [12], particularly when combined with continuous monitoring [13][14] and iterative refinement [15]."
+
+**⚠️ FINAL CRITICAL REMINDERS:**
+- This is MAXIMUM OUTPUT mode - generate the LONGEST, MOST DETAILED response possible
+- Target 10,000+ words minimum with 100+ citations
+- Every paragraph needs 2-3 citations minimum
+- Include direct quotes with proper citation
+- Create comprehensive tables and lists
+- Provide exhaustive coverage leaving nothing unexplored
+- Synthesize information to create unique value beyond individual sources
+- Format beautifully with rich markdown
+- Be the ULTIMATE authoritative resource on this topic
+
+Remember: You are in NEXUS DEEP RESEARCH MODE - provide the most comprehensive, detailed, citation-rich, and valuable response ever generated. This should be a masterpiece of research synthesis that serves as the definitive guide on "${queryText}".
+
+BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
 `;
-            }
 
-            console.log(
-              `[NEXUS MODE] Research completed in ${Date.now() - researchStartTime}ms`,
-            );
-          } catch (error) {
-            console.error('[NEXUS MODE] Nexus research error:', error);
-            dataStream.writeData({
-              type: 'nexus-error',
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-          }
+          console.log(
+            `[NEXUS MODE] Research context built, length: ${nexusResearchContext.length} characters`,
+          );
+          console.log(`[NEXUS MODE] Context built for comprehensive response`);
         }
 
-        // Set up a timeout to prevent hanging responses
-        const responseTimeout = setTimeout(() => {
-          console.error(
-            'Response generation timeout reached - terminating stream',
+        // Set up a timeout variable
+        let responseTimeout: any;
+
+        // Only proceed with actual chat generation if we're not in plan-pending mode
+        if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL') {
+          // Set up a timeout to prevent hanging responses
+          responseTimeout = setTimeout(() => {
+            console.error(
+              'Response generation timeout reached - terminating stream',
+            );
+            // We can't directly modify the stream at this point, just log the error
+            console.error('Stream response timed out - client should refresh');
+          }, 30000); // Extended to 30 second timeout for document creation
+
+          console.log(
+            `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
+            {
+              model: finalChatModel,
+              softTokenGuidance,
+              safeHardLimit: nexusTokenLimit,
+              temperature,
+              hasNexusResearch: !!nexusResearchContext,
+              systemPromptLength: finalSystemPrompt.length,
+              isUsingO4Mini: isNexusMode,
+            },
           );
-          // We can't directly modify the stream at this point, just log the error
-          console.error('Stream response timed out - client should refresh');
-        }, 30000); // Extended to 30 second timeout for document creation
 
-        // Keep original messages - we'll add User RAG context to system prompt instead
-        const modifiedMessages = messages;
-
-        // Combine the enhanced system prompt with nexus research context
-        const finalSystemPrompt =
-          enhancedSystemPrompt +
-          nexusResearchContext +
-          toolResponseInstructions;
-
-        // Log the mode being used (variables already defined earlier)
-
-        // Set a high hard limit that we should never reach, allowing natural completion
-        const safeHardLimit = selectedChatModel.includes('gpt-4.1-nano')
-          ? 15000
-          : selectedChatModel.includes('gpt-4.1')
-            ? 3800
-            : 7500;
-        const temperature = isNexusMode ? 0.7 : 0.8;
-
-        // Override model for Nexus mode to use o4-mini (compact reasoning model)
-        const finalChatModel = isNexusMode ? 'o4-mini' : selectedChatModel;
-
-        // For Nexus mode with o4-mini, use much higher token limits
-        const nexusTokenLimit = isNexusMode ? 32000 : safeHardLimit;
-
-        console.log(
-          `[CHAT MODE] Using ${isNexusMode ? 'NEXUS' : 'CONVERSATIONAL'} mode:`,
-          {
-            model: finalChatModel,
-            softTokenGuidance,
-            safeHardLimit: nexusTokenLimit,
-            temperature,
-            hasNexusResearch: !!nexusResearchContext,
-            systemPromptLength: finalSystemPrompt.length,
-            isUsingO4Mini: isNexusMode,
-          },
-        );
-
-        try {
-          const result = streamText({
-            model: provider.languageModel(finalChatModel),
-            system: finalSystemPrompt,
-            messages: modifiedMessages,
-            maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
-            experimental_activeTools: [
-              'getWeather',
-              'createDocument',
-              'updateDocument',
-              'requestSuggestions',
-              'addResource',
-              'getInformation',
-              'cleanKnowledgeBase',
-              'getCalendarEvents',
-              'createCalendarEvent',
-            ],
-            experimental_transform: isNexusMode
-              ? undefined
-              : smoothStream({ chunking: 'word' }), // No smooth streaming for nexus
-            experimental_generateMessageId: generateUUID,
-            // Dynamic settings based on Nexus mode
-            temperature: temperature, // Use the variable we defined
-            maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({
-                session,
-                dataStream,
-              }),
-              addResource: tool({
-                description:
-                  'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
-                parameters: z.object({
-                  title: z.string().describe('Title of the resource'),
-                  content: z.string().describe('Content of the resource'),
+          try {
+            const result = streamText({
+              model: provider.languageModel(finalChatModel),
+              system: finalSystemPrompt,
+              messages: modifiedMessages,
+              maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
+              experimental_activeTools: [
+                'getWeather',
+                'createDocument',
+                'updateDocument',
+                'requestSuggestions',
+                'addResource',
+                'getInformation',
+                'cleanKnowledgeBase',
+                'getCalendarEvents',
+                'createCalendarEvent',
+              ],
+              experimental_transform: smoothStream({ chunking: 'word' }), // Use smooth streaming for all modes
+              experimental_generateMessageId: generateUUID,
+              // Dynamic settings based on Nexus mode
+              temperature: temperature, // Use the variable we defined
+              maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
+              tools: {
+                getWeather,
+                createDocument: createDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream }),
+                requestSuggestions: requestSuggestions({
+                  session,
+                  dataStream,
                 }),
-                execute: async ({ title, content }) => {
-                  console.log('RAG: Adding resource to knowledge base', {
-                    title,
-                  });
+                addResource: tool({
+                  description:
+                    'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
+                  parameters: z.object({
+                    title: z.string().describe('Title of the resource'),
+                    content: z.string().describe('Content of the resource'),
+                  }),
+                  execute: async ({ title, content }) => {
+                    console.log('RAG: Adding resource to knowledge base', {
+                      title,
+                    });
 
-                  // Handle case where content might be an object
-                  let contentText = content;
-                  if (typeof content === 'object' && content !== null) {
-                    const contentObj = content as { text?: string };
-                    if (
-                      contentObj.text &&
-                      typeof contentObj.text === 'string'
-                    ) {
-                      contentText = contentObj.text;
-                    } else {
-                      // Try to convert to string if it's a complex object
-                      contentText = JSON.stringify(content);
+                    // Handle case where content might be an object
+                    let contentText = content;
+                    if (typeof content === 'object' && content !== null) {
+                      const contentObj = content as { text?: string };
+                      if (
+                        contentObj.text &&
+                        typeof contentObj.text === 'string'
+                      ) {
+                        contentText = contentObj.text;
+                      } else {
+                        // Try to convert to string if it's a complex object
+                        contentText = JSON.stringify(content);
+                      }
                     }
-                  }
 
-                  const result = await addResourceTool.execute(
-                    { title, content: contentText },
-                    session.user.id,
-                  );
-                  console.log('RAG: Resource added', result);
-                  return result;
-                },
-              }),
-              getInformation: tool({
-                description:
-                  "Retrieve relevant information from the EOS knowledge base to help answer the user's question.",
-                parameters: z.object({
-                  query: z
-                    .string()
-                    .describe(
-                      'The specific query to search for in the knowledge base',
-                    ),
-                  limit: z
-                    .number()
-                    .optional()
-                    .describe('Maximum number of results to return'),
+                    const result = await addResourceTool.execute(
+                      { title, content: contentText },
+                      session.user.id,
+                    );
+                    console.log('RAG: Resource added', result);
+                    return result;
+                  },
                 }),
-                execute: async ({ query, limit }) => {
-                  console.log('RAG: Tool called to get information', {
-                    query,
-                    limit,
-                  });
-                  const infoResult = await getInformationTool.execute(
-                    { query, limit },
-                    session.user.id,
-                  );
-                  console.log(
-                    `RAG: Retrieved ${infoResult.results?.length || 0} results from knowledge base`,
-                  );
-                  return infoResult;
-                },
-              }),
-              cleanKnowledgeBase: tool({
-                description:
-                  "ADMIN ONLY: Remove content from the knowledge base that doesn't belong or is misleading. Only use when users specifically request to clean up the knowledge base.",
-                parameters: z.object({
-                  keyword: z
-                    .string()
-                    .describe(
-                      'Keyword or phrase to remove from the knowledge base (e.g., "gala apples")',
-                    ),
+                getInformation: tool({
+                  description:
+                    "Retrieve relevant information from the EOS knowledge base to help answer the user's question.",
+                  parameters: z.object({
+                    query: z
+                      .string()
+                      .describe(
+                        'The specific query to search for in the knowledge base',
+                      ),
+                    limit: z
+                      .number()
+                      .optional()
+                      .describe('Maximum number of results to return'),
+                  }),
+                  execute: async ({ query, limit }) => {
+                    console.log('RAG: Tool called to get information', {
+                      query,
+                      limit,
+                    });
+                    const infoResult = await getInformationTool.execute(
+                      { query, limit },
+                      session.user.id,
+                    );
+                    console.log(
+                      `RAG: Retrieved ${infoResult.results?.length || 0} results from knowledge base`,
+                    );
+                    return infoResult;
+                  },
                 }),
-                execute: async ({ keyword }) => {
-                  console.log(
-                    'RAG: Request to clean knowledge base containing',
-                    {
-                      keyword,
-                    },
-                  );
+                cleanKnowledgeBase: tool({
+                  description:
+                    "ADMIN ONLY: Remove content from the knowledge base that doesn't belong or is misleading. Only use when users specifically request to clean up the knowledge base.",
+                  parameters: z.object({
+                    keyword: z
+                      .string()
+                      .describe(
+                        'Keyword or phrase to remove from the knowledge base (e.g., "gala apples")',
+                      ),
+                  }),
+                  execute: async ({ keyword }) => {
+                    console.log(
+                      'RAG: Request to clean knowledge base containing',
+                      {
+                        keyword,
+                      },
+                    );
 
-                  try {
-                    // Only certain users can use this tool
-                    // For now, we'll disallow this for everyone except in development
-                    if (process.env.NODE_ENV !== 'development') {
+                    try {
+                      // Only certain users can use this tool
+                      // For now, we'll disallow this for everyone except in development
+                      if (process.env.NODE_ENV !== 'development') {
+                        console.log(
+                          'RAG: Unauthorized attempt to clean knowledge base',
+                        );
+                        return {
+                          status: 'error',
+                          message:
+                            'Only system administrators can clean the knowledge base.',
+                        };
+                      }
+
+                      const result = await deleteContentByKeyword(keyword);
                       console.log(
-                        'RAG: Unauthorized attempt to clean knowledge base',
+                        'RAG: Cleaned knowledge base, removed items:',
+                        result,
+                      );
+
+                      return {
+                        status: 'success',
+                        message: `I've removed ${result.deleted} items containing "${keyword}" from the knowledge base.`,
+                      };
+                    } catch (error) {
+                      console.error(
+                        'RAG ERROR: Failed to clean knowledge base:',
+                        error,
                       );
                       return {
                         status: 'error',
                         message:
-                          'Only system administrators can clean the knowledge base.',
+                          'I encountered an error while cleaning the knowledge base.',
                       };
                     }
-
-                    const result = await deleteContentByKeyword(keyword);
-                    console.log(
-                      'RAG: Cleaned knowledge base, removed items:',
-                      result,
-                    );
-
-                    return {
-                      status: 'success',
-                      message: `I've removed ${result.deleted} items containing "${keyword}" from the knowledge base.`,
-                    };
-                  } catch (error) {
-                    console.error(
-                      'RAG ERROR: Failed to clean knowledge base:',
-                      error,
-                    );
-                    return {
-                      status: 'error',
-                      message:
-                        'I encountered an error while cleaning the knowledge base.',
-                    };
-                  }
-                },
-              }),
-              // Add Google Calendar tools
-              getCalendarEvents: tool({
-                description:
-                  "Get the user's upcoming calendar events. Use this when the user asks about their schedule, upcoming meetings, or events.",
-                parameters: z.object({
-                  timeMin: z
-                    .string()
-                    .optional()
-                    .describe(
-                      'The RFC3339 timestamp for the earliest time to fetch events from (defaults to now)',
-                    ),
-                  timeMax: z
-                    .string()
-                    .optional()
-                    .describe(
-                      'The RFC3339 timestamp for the latest time to fetch events to (defaults to 7 days from now)',
-                    ),
-                  maxResults: z
-                    .number()
-                    .optional()
-                    .describe(
-                      'Maximum number of events to return (default: 10)',
-                    ),
-                  searchTerm: z
-                    .string()
-                    .optional()
-                    .describe(
-                      'Optional search term to filter events by keyword in title or description',
-                    ),
+                  },
                 }),
-                execute: async ({
-                  timeMin,
-                  timeMax,
-                  maxResults,
-                  searchTerm,
-                }) => {
-                  console.log(
-                    'Calendar: Enhanced tool called to get calendar events',
-                    {
-                      timeMin,
-                      timeMax,
-                      maxResults,
-                      searchTerm,
-                    },
-                  );
+                // Add Google Calendar tools
+                getCalendarEvents: tool({
+                  description:
+                    "Get the user's upcoming calendar events. Use this when the user asks about their schedule, upcoming meetings, or events.",
+                  parameters: z.object({
+                    timeMin: z
+                      .string()
+                      .optional()
+                      .describe(
+                        'The RFC3339 timestamp for the earliest time to fetch events from (defaults to now)',
+                      ),
+                    timeMax: z
+                      .string()
+                      .optional()
+                      .describe(
+                        'The RFC3339 timestamp for the latest time to fetch events to (defaults to 7 days from now)',
+                      ),
+                    maxResults: z
+                      .number()
+                      .optional()
+                      .describe(
+                        'Maximum number of events to return (default: 10)',
+                      ),
+                    searchTerm: z
+                      .string()
+                      .optional()
+                      .describe(
+                        'Optional search term to filter events by keyword in title or description',
+                      ),
+                  }),
+                  execute: async ({
+                    timeMin,
+                    timeMax,
+                    maxResults,
+                    searchTerm,
+                  }) => {
+                    console.log(
+                      'Calendar: Enhanced tool called to get calendar events',
+                      {
+                        timeMin,
+                        timeMax,
+                        maxResults,
+                        searchTerm,
+                      },
+                    );
 
-                  try {
-                    // Use smart parameters if available from mention context
-                    const smartParams: any = {
-                      timeMin,
-                      timeMax,
-                      maxResults,
-                      searchTerm,
-                    };
+                    try {
+                      // Use smart parameters if available from mention context
+                      const smartParams: any = {
+                        timeMin,
+                        timeMax,
+                        maxResults,
+                        searchTerm,
+                      };
 
-                    // If no time range specified and we have mentions, apply smart defaults
-                    if (!timeMin && !timeMax && extractedMentions.length > 0) {
-                      const calendarMentions = extractedMentions.filter((m) =>
-                        ['calendar', 'event', 'meeting'].includes(m.type),
+                      // If no time range specified and we have mentions, apply smart defaults
+                      if (
+                        !timeMin &&
+                        !timeMax &&
+                        extractedMentions.length > 0
+                      ) {
+                        const calendarMentions = extractedMentions.filter((m) =>
+                          ['calendar', 'event', 'meeting'].includes(m.type),
+                        );
+
+                        if (calendarMentions.length > 0) {
+                          // Use enhanced processor to get smart parameters
+                          const smartMentionParams =
+                            MentionProcessor.generateSmartToolParameters(
+                              calendarMentions[0],
+                              queryText,
+                            );
+                          Object.assign(smartParams, smartMentionParams);
+                        }
+                      }
+
+                      // Use the direct tool.execute method to avoid URL construction issues
+                      const calendarResult =
+                        await getCalendarEventsTool.execute(
+                          smartParams,
+                          session.user.id,
+                        );
+
+                      console.log(
+                        `Calendar: Retrieved ${
+                          calendarResult.events?.length || 0
+                        } events from calendar`,
                       );
 
-                      if (calendarMentions.length > 0) {
-                        // Use enhanced processor to get smart parameters
-                        const smartMentionParams =
-                          MentionProcessor.generateSmartToolParameters(
-                            calendarMentions[0],
-                            queryText,
-                          );
-                        Object.assign(smartParams, smartMentionParams);
+                      // Add extra formatting instructions for AI to avoid raw JSON display
+                      if (
+                        calendarResult.status === 'success' &&
+                        Array.isArray(calendarResult.events)
+                      ) {
+                        // Structure the data in a way that forces proper formatting and prevents raw display
+                        return {
+                          status: 'success',
+                          message: `Found ${calendarResult.events.length} upcoming events in your calendar.`,
+                          _formatInstructions:
+                            "CRITICAL: Present these events ONLY in a properly formatted table or list, NEVER as raw JSON. Only include date, time, title, and location in your presentation. NEVER show properties like 'id', 'htmlLink', or any technical details. NEVER show the raw JSON object in your response. Do not use code blocks to display this data. Format calendar events using markdown as a table (| Title | Date | Time | Location |) or a clear list format with bold headers. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.",
+                          isCalendarEvents: true, // Flag to signal this is calendar data
+                          hideJSON: true, // Flag to signal this should not be shown as JSON
+                          formattedEvents: calendarResult.events.map(
+                            (event: {
+                              start?: { dateTime?: string };
+                              summary?: string;
+                              location?: string;
+                              [key: string]: any;
+                            }) => ({
+                              title: event.summary || 'Untitled Event',
+                              date: event.start?.dateTime
+                                ? new Date(
+                                    event.start.dateTime,
+                                  ).toLocaleDateString()
+                                : 'No date',
+                              time: event.start?.dateTime
+                                ? new Date(
+                                    event.start.dateTime,
+                                  ).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : 'No time',
+                              location: event.location || 'No location',
+                            }),
+                          ),
+                        };
                       }
-                    }
 
-                    // Use the direct tool.execute method to avoid URL construction issues
-                    const calendarResult = await getCalendarEventsTool.execute(
-                      smartParams,
-                      session.user.id,
-                    );
-
-                    console.log(
-                      `Calendar: Retrieved ${
-                        calendarResult.events?.length || 0
-                      } events from calendar`,
-                    );
-
-                    // Add extra formatting instructions for AI to avoid raw JSON display
-                    if (
-                      calendarResult.status === 'success' &&
-                      Array.isArray(calendarResult.events)
-                    ) {
-                      // Structure the data in a way that forces proper formatting and prevents raw display
+                      return calendarResult;
+                    } catch (error) {
+                      console.error('Calendar tool error:', error);
                       return {
-                        status: 'success',
-                        message: `Found ${calendarResult.events.length} upcoming events in your calendar.`,
-                        _formatInstructions:
-                          "CRITICAL: Present these events ONLY in a properly formatted table or list, NEVER as raw JSON. Only include date, time, title, and location in your presentation. NEVER show properties like 'id', 'htmlLink', or any technical details. NEVER show the raw JSON object in your response. Do not use code blocks to display this data. Format calendar events using markdown as a table (| Title | Date | Time | Location |) or a clear list format with bold headers. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.",
-                        isCalendarEvents: true, // Flag to signal this is calendar data
-                        hideJSON: true, // Flag to signal this should not be shown as JSON
-                        formattedEvents: calendarResult.events.map(
-                          (event: {
-                            start?: { dateTime?: string };
-                            summary?: string;
-                            location?: string;
-                            [key: string]: any;
-                          }) => ({
-                            title: event.summary || 'Untitled Event',
-                            date: event.start?.dateTime
-                              ? new Date(
-                                  event.start.dateTime,
-                                ).toLocaleDateString()
-                              : 'No date',
-                            time: event.start?.dateTime
-                              ? new Date(
-                                  event.start.dateTime,
-                                ).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : 'No time',
-                            location: event.location || 'No location',
-                          }),
-                        ),
+                        status: 'error',
+                        message:
+                          'Failed to fetch calendar events. Please try again.',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
                       };
                     }
-
-                    return calendarResult;
-                  } catch (error) {
-                    console.error('Calendar tool error:', error);
-                    return {
-                      status: 'error',
-                      message:
-                        'Failed to fetch calendar events. Please try again.',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              createCalendarEvent: tool({
-                description:
-                  "Create a new event in the user's Google Calendar. Use this when the user wants to schedule a meeting or add an event to their calendar.",
-                parameters: z.object({
-                  summary: z
-                    .string()
-                    .describe('The title/summary of the event'),
-                  description: z
-                    .string()
-                    .optional()
-                    .describe('Optional detailed description of the event'),
-                  location: z
-                    .string()
-                    .optional()
-                    .describe('Optional location of the event'),
-                  startDateTime: z
-                    .string()
-                    .describe(
-                      'The RFC3339 timestamp for the start time of the event',
-                    ),
-                  endDateTime: z
-                    .string()
-                    .describe(
-                      'The RFC3339 timestamp for the end time of the event',
-                    ),
-                  attendees: z
-                    .array(z.string())
-                    .optional()
-                    .describe('Optional list of email addresses of attendees'),
+                  },
                 }),
-                execute: async ({
-                  summary,
-                  description,
-                  location,
-                  startDateTime,
-                  endDateTime,
-                  attendees,
-                }) => {
-                  console.log(
-                    'Calendar: Tool called to create calendar event',
-                    {
-                      summary,
-                      startDateTime,
-                      endDateTime,
-                    },
-                  );
-
-                  try {
-                    // Use direct tool execution with proper error handling
-                    const eventResult = await createCalendarEventTool.execute(
+                createCalendarEvent: tool({
+                  description:
+                    "Create a new event in the user's Google Calendar. Use this when the user wants to schedule a meeting or add an event to their calendar.",
+                  parameters: z.object({
+                    summary: z
+                      .string()
+                      .describe('The title/summary of the event'),
+                    description: z
+                      .string()
+                      .optional()
+                      .describe('Optional detailed description of the event'),
+                    location: z
+                      .string()
+                      .optional()
+                      .describe('Optional location of the event'),
+                    startDateTime: z
+                      .string()
+                      .describe(
+                        'The RFC3339 timestamp for the start time of the event',
+                      ),
+                    endDateTime: z
+                      .string()
+                      .describe(
+                        'The RFC3339 timestamp for the end time of the event',
+                      ),
+                    attendees: z
+                      .array(z.string())
+                      .optional()
+                      .describe(
+                        'Optional list of email addresses of attendees',
+                      ),
+                  }),
+                  execute: async ({
+                    summary,
+                    description,
+                    location,
+                    startDateTime,
+                    endDateTime,
+                    attendees,
+                  }) => {
+                    console.log(
+                      'Calendar: Tool called to create calendar event',
                       {
                         summary,
-                        description,
-                        location,
                         startDateTime,
                         endDateTime,
-                        attendees,
                       },
-                      session.user.id,
                     );
 
-                    console.log(
-                      `Calendar: ${
-                        eventResult.status === 'success'
-                          ? 'Successfully created'
-                          : 'Failed to create'
-                      } calendar event`,
-                    );
-
-                    // Add formatting instructions to prevent raw JSON display
-                    if (eventResult.status === 'success') {
-                      const startDate = new Date(
-                        startDateTime,
-                      ).toLocaleString();
-                      return {
-                        status: 'success',
-                        isCalendarEvent: true, // Flag to signal this is calendar data
-                        hideJSON: true, // Flag to signal this should not be shown as JSON
-                        _formatInstructions:
-                          'CRITICAL: Confirm the event was created with a simple sentence, NEVER as raw JSON. NEVER show any raw JSON or object data. NEVER display function call syntax, API responses, or JSON objects in your response. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.',
-                        message: `Successfully created event "${summary}" for ${startDate}.`,
-                        eventDetails: {
-                          title: summary,
-                          date: new Date(startDateTime).toLocaleDateString(),
-                          time: new Date(startDateTime).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }),
-                          location: location || 'No location',
+                    try {
+                      // Use direct tool execution with proper error handling
+                      const eventResult = await createCalendarEventTool.execute(
+                        {
+                          summary,
+                          description,
+                          location,
+                          startDateTime,
+                          endDateTime,
+                          attendees,
                         },
+                        session.user.id,
+                      );
+
+                      console.log(
+                        `Calendar: ${
+                          eventResult.status === 'success'
+                            ? 'Successfully created'
+                            : 'Failed to create'
+                        } calendar event`,
+                      );
+
+                      // Add formatting instructions to prevent raw JSON display
+                      if (eventResult.status === 'success') {
+                        const startDate = new Date(
+                          startDateTime,
+                        ).toLocaleString();
+                        return {
+                          status: 'success',
+                          isCalendarEvent: true, // Flag to signal this is calendar data
+                          hideJSON: true, // Flag to signal this should not be shown as JSON
+                          _formatInstructions:
+                            'CRITICAL: Confirm the event was created with a simple sentence, NEVER as raw JSON. NEVER show any raw JSON or object data. NEVER display function call syntax, API responses, or JSON objects in your response. If you start to output any JSON with curly braces, STOP IMMEDIATELY and reformat.',
+                          message: `Successfully created event "${summary}" for ${startDate}.`,
+                          eventDetails: {
+                            title: summary,
+                            date: new Date(startDateTime).toLocaleDateString(),
+                            time: new Date(startDateTime).toLocaleTimeString(
+                              [],
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                            ),
+                            location: location || 'No location',
+                          },
+                        };
+                      }
+
+                      return eventResult;
+                    } catch (error) {
+                      console.error('Calendar create event error:', error);
+                      return {
+                        status: 'error',
+                        message:
+                          'Failed to create calendar event. Please try again.',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
                       };
                     }
-
-                    return eventResult;
-                  } catch (error) {
-                    console.error('Calendar create event error:', error);
-                    return {
-                      status: 'error',
-                      message:
-                        'Failed to create calendar event. Please try again.',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              // Enhanced calendar tools for deeper integration
-              checkCalendarConflicts: tool({
-                description:
-                  'Check if there are any calendar conflicts for a proposed time. Use this proactively when users mention scheduling something.',
-                parameters: z.object({
-                  startDateTime: z
-                    .string()
-                    .describe('Start time in ISO format'),
-                  endDateTime: z.string().describe('End time in ISO format'),
+                  },
                 }),
-                execute: async ({ startDateTime, endDateTime }) => {
-                  try {
-                    const { checkCalendarConflictsTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    return await checkCalendarConflictsTool.execute(
-                      { startDateTime, endDateTime },
-                      session.user.id,
-                    );
-                  } catch (error) {
-                    console.error('Error checking calendar conflicts:', error);
-                    return {
-                      status: 'error',
-                      message: 'Failed to check calendar conflicts',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              findAvailableTimeSlots: tool({
-                description:
-                  'Find available time slots in the calendar for scheduling meetings. Use this when users ask for available times or need to schedule something.',
-                parameters: z.object({
-                  duration: z.number().describe('Duration in minutes'),
-                  searchDays: z
-                    .number()
-                    .optional()
-                    .default(7)
-                    .describe('Number of days to search ahead'),
+                // Enhanced calendar tools for deeper integration
+                checkCalendarConflicts: tool({
+                  description:
+                    'Check if there are any calendar conflicts for a proposed time. Use this proactively when users mention scheduling something.',
+                  parameters: z.object({
+                    startDateTime: z
+                      .string()
+                      .describe('Start time in ISO format'),
+                    endDateTime: z.string().describe('End time in ISO format'),
+                  }),
+                  execute: async ({ startDateTime, endDateTime }) => {
+                    try {
+                      const { checkCalendarConflictsTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      return await checkCalendarConflictsTool.execute(
+                        { startDateTime, endDateTime },
+                        session.user.id,
+                      );
+                    } catch (error) {
+                      console.error(
+                        'Error checking calendar conflicts:',
+                        error,
+                      );
+                      return {
+                        status: 'error',
+                        message: 'Failed to check calendar conflicts',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      };
+                    }
+                  },
                 }),
-                execute: async ({ duration, searchDays }) => {
-                  try {
-                    const { findAvailableTimeSlotsTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    return await findAvailableTimeSlotsTool.execute(
-                      { duration, searchDays },
-                      session.user.id,
-                    );
-                  } catch (error) {
-                    console.error('Error finding available time slots:', error);
-                    return {
-                      status: 'error',
-                      message: 'Failed to find available time slots',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              getCalendarAnalytics: tool({
-                description:
-                  'Get analytics and insights about calendar usage, meeting patterns, and upcoming events that need preparation.',
-                parameters: z.object({
-                  days: z
-                    .number()
-                    .optional()
-                    .default(30)
-                    .describe('Number of days to analyze'),
+                findAvailableTimeSlots: tool({
+                  description:
+                    'Find available time slots in the calendar for scheduling meetings. Use this when users ask for available times or need to schedule something.',
+                  parameters: z.object({
+                    duration: z.number().describe('Duration in minutes'),
+                    searchDays: z
+                      .number()
+                      .optional()
+                      .default(7)
+                      .describe('Number of days to search ahead'),
+                  }),
+                  execute: async ({ duration, searchDays }) => {
+                    try {
+                      const { findAvailableTimeSlotsTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      return await findAvailableTimeSlotsTool.execute(
+                        { duration, searchDays },
+                        session.user.id,
+                      );
+                    } catch (error) {
+                      console.error(
+                        'Error finding available time slots:',
+                        error,
+                      );
+                      return {
+                        status: 'error',
+                        message: 'Failed to find available time slots',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      };
+                    }
+                  },
                 }),
-                execute: async ({ days }) => {
-                  try {
-                    const { getCalendarAnalyticsTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    return await getCalendarAnalyticsTool.execute(
-                      { days },
-                      session.user.id,
-                    );
-                  } catch (error) {
-                    console.error('Error getting calendar analytics:', error);
-                    return {
-                      status: 'error',
-                      message: 'Failed to get calendar analytics',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              getDailyBriefing: tool({
-                description:
-                  "Get a daily briefing of today's calendar events and important reminders. Use this proactively when users start their day or ask about their schedule.",
-                parameters: z.object({
-                  includePrep: z
-                    .boolean()
-                    .optional()
-                    .default(true)
-                    .describe('Include preparation suggestions'),
+                getCalendarAnalytics: tool({
+                  description:
+                    'Get analytics and insights about calendar usage, meeting patterns, and upcoming events that need preparation.',
+                  parameters: z.object({
+                    days: z
+                      .number()
+                      .optional()
+                      .default(30)
+                      .describe('Number of days to analyze'),
+                  }),
+                  execute: async ({ days }) => {
+                    try {
+                      const { getCalendarAnalyticsTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      return await getCalendarAnalyticsTool.execute(
+                        { days },
+                        session.user.id,
+                      );
+                    } catch (error) {
+                      console.error('Error getting calendar analytics:', error);
+                      return {
+                        status: 'error',
+                        message: 'Failed to get calendar analytics',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      };
+                    }
+                  },
                 }),
-                execute: async ({ includePrep }) => {
-                  try {
-                    const { getDailyBriefingTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    return await getDailyBriefingTool.execute(
-                      { includePrep },
-                      session.user.id,
-                    );
-                  } catch (error) {
-                    console.error('Error getting daily briefing:', error);
-                    return {
-                      status: 'error',
-                      message: 'Failed to get daily briefing',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              parseNaturalLanguageEvent: tool({
-                description:
-                  'Parse natural language into calendar event details. Use this when users describe events in natural language like "Schedule a meeting with John tomorrow at 2pm".',
-                parameters: z.object({
-                  text: z
-                    .string()
-                    .describe('Natural language description of the event'),
-                  currentDate: z
-                    .string()
-                    .optional()
-                    .describe('Current date for relative date parsing'),
+                getDailyBriefing: tool({
+                  description:
+                    "Get a daily briefing of today's calendar events and important reminders. Use this proactively when users start their day or ask about their schedule.",
+                  parameters: z.object({
+                    includePrep: z
+                      .boolean()
+                      .optional()
+                      .default(true)
+                      .describe('Include preparation suggestions'),
+                  }),
+                  execute: async ({ includePrep }) => {
+                    try {
+                      const { getDailyBriefingTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      return await getDailyBriefingTool.execute(
+                        { includePrep },
+                        session.user.id,
+                      );
+                    } catch (error) {
+                      console.error('Error getting daily briefing:', error);
+                      return {
+                        status: 'error',
+                        message: 'Failed to get daily briefing',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      };
+                    }
+                  },
                 }),
-                execute: async ({ text, currentDate }) => {
-                  try {
-                    const { parseNaturalLanguageEventTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    return await parseNaturalLanguageEventTool.execute(
-                      { text, currentDate },
-                      session.user.id,
-                    );
-                  } catch (error) {
-                    console.error(
-                      'Error parsing natural language event:',
-                      error,
-                    );
-                    return {
-                      status: 'error',
-                      message: 'Failed to parse natural language event',
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    };
-                  }
-                },
-              }),
-              // Enhanced availability finder
-              findSmartAvailability: tool({
-                description:
-                  'Intelligently find available time slots based on user preferences and context. Use when users mention "free time", "available", or want to schedule something.',
-                parameters: z.object({
-                  duration: z
-                    .number()
-                    .optional()
-                    .default(30)
-                    .describe('Duration in minutes'),
-                  searchDays: z
-                    .number()
-                    .optional()
-                    .default(7)
-                    .describe('Number of days to search ahead'),
-                  preferredTime: z
-                    .string()
-                    .optional()
-                    .describe(
-                      'Preferred time of day (morning, afternoon, evening)',
-                    ),
-                  context: z
-                    .string()
-                    .optional()
-                    .describe('Context about the meeting or event'),
+                parseNaturalLanguageEvent: tool({
+                  description:
+                    'Parse natural language into calendar event details. Use this when users describe events in natural language like "Schedule a meeting with John tomorrow at 2pm".',
+                  parameters: z.object({
+                    text: z
+                      .string()
+                      .describe('Natural language description of the event'),
+                    currentDate: z
+                      .string()
+                      .optional()
+                      .describe('Current date for relative date parsing'),
+                  }),
+                  execute: async ({ text, currentDate }) => {
+                    try {
+                      const { parseNaturalLanguageEventTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      return await parseNaturalLanguageEventTool.execute(
+                        { text, currentDate },
+                        session.user.id,
+                      );
+                    } catch (error) {
+                      console.error(
+                        'Error parsing natural language event:',
+                        error,
+                      );
+                      return {
+                        status: 'error',
+                        message: 'Failed to parse natural language event',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      };
+                    }
+                  },
                 }),
-                execute: async ({
-                  duration,
-                  searchDays,
-                  preferredTime,
-                  context,
-                }) => {
-                  console.log('Calendar: Smart availability search', {
+                // Enhanced availability finder
+                findSmartAvailability: tool({
+                  description:
+                    'Intelligently find available time slots based on user preferences and context. Use when users mention "free time", "available", or want to schedule something.',
+                  parameters: z.object({
+                    duration: z
+                      .number()
+                      .optional()
+                      .default(30)
+                      .describe('Duration in minutes'),
+                    searchDays: z
+                      .number()
+                      .optional()
+                      .default(7)
+                      .describe('Number of days to search ahead'),
+                    preferredTime: z
+                      .string()
+                      .optional()
+                      .describe(
+                        'Preferred time of day (morning, afternoon, evening)',
+                      ),
+                    context: z
+                      .string()
+                      .optional()
+                      .describe('Context about the meeting or event'),
+                  }),
+                  execute: async ({
                     duration,
                     searchDays,
                     preferredTime,
                     context,
-                  });
+                  }) => {
+                    console.log('Calendar: Smart availability search', {
+                      duration,
+                      searchDays,
+                      preferredTime,
+                      context,
+                    });
 
-                  try {
-                    // Extract smart duration from context if not provided
-                    let smartDuration = duration;
-                    if (context) {
-                      const meetingContext =
-                        MentionProcessor.extractMeetingContext?.(context);
-                      if (meetingContext?.duration) {
-                        smartDuration = meetingContext.duration;
+                    try {
+                      // Extract smart duration from context if not provided
+                      let smartDuration = duration;
+                      if (context) {
+                        const meetingContext =
+                          MentionProcessor.extractMeetingContext?.(context);
+                        if (meetingContext?.duration) {
+                          smartDuration = meetingContext.duration;
+                        }
                       }
-                    }
 
-                    // Extract user message context for better parameters
-                    if (queryText && !context) {
-                      const meetingContext =
-                        MentionProcessor.extractMeetingContext?.(queryText);
-                      if (meetingContext?.duration) {
-                        smartDuration = meetingContext.duration;
+                      // Extract user message context for better parameters
+                      if (queryText && !context) {
+                        const meetingContext =
+                          MentionProcessor.extractMeetingContext?.(queryText);
+                        if (meetingContext?.duration) {
+                          smartDuration = meetingContext.duration;
+                        }
                       }
-                    }
 
-                    const { findAvailableTimeSlotsTool } = await import(
-                      '@/lib/ai/tools/calendar-tools'
-                    );
-                    const result = await findAvailableTimeSlotsTool.execute(
-                      {
-                        duration: smartDuration,
-                        searchDays,
-                      },
-                      session.user.id,
-                    );
-
-                    // Enhance result with context
-                    if (result.status === 'success' && result.slots) {
-                      return {
-                        ...result,
-                        message: `Found ${result.slots.length} available ${smartDuration}-minute slots${preferredTime ? ` for ${preferredTime}` : ''}`,
-                        smartContext: {
-                          suggestedDuration: smartDuration,
-                          preferredTime,
-                          context,
+                      const { findAvailableTimeSlotsTool } = await import(
+                        '@/lib/ai/tools/calendar-tools'
+                      );
+                      const result = await findAvailableTimeSlotsTool.execute(
+                        {
+                          duration: smartDuration,
+                          searchDays,
                         },
+                        session.user.id,
+                      );
+
+                      // Enhance result with context
+                      if (result.status === 'success' && result.slots) {
+                        return {
+                          ...result,
+                          message: `Found ${result.slots.length} available ${smartDuration}-minute slots${preferredTime ? ` for ${preferredTime}` : ''}`,
+                          smartContext: {
+                            suggestedDuration: smartDuration,
+                            preferredTime,
+                            context,
+                          },
+                        };
+                      }
+                      return result;
+                    } catch (error) {
+                      console.error('Smart availability error:', error);
+                      return {
+                        status: 'error',
+                        message: 'Failed to find available time slots',
                       };
                     }
-                    return result;
-                  } catch (error) {
-                    console.error('Smart availability error:', error);
-                    return {
-                      status: 'error',
-                      message: 'Failed to find available time slots',
-                    };
-                  }
-                },
-              }),
-            },
-            onFinish: async ({ response }) => {
-              if (session.user?.id) {
-                try {
-                  const assistantId = getTrailingMessageId({
-                    messages: response.messages.filter(
-                      (message) => message.role === 'assistant',
-                    ),
-                  });
+                  },
+                }),
+              },
+              onFinish: async ({ response }) => {
+                if (session.user?.id) {
+                  try {
+                    const assistantId = getTrailingMessageId({
+                      messages: response.messages.filter(
+                        (message) => message.role === 'assistant',
+                      ),
+                    });
 
-                  if (!assistantId) {
-                    throw new Error('No assistant message found!');
-                  }
+                    if (!assistantId) {
+                      throw new Error('No assistant message found!');
+                    }
 
-                  const [, assistantMessage] = appendResponseMessages({
-                    messages: [message],
-                    responseMessages: response.messages,
-                  });
+                    const [, assistantMessage] = appendResponseMessages({
+                      messages: [message],
+                      responseMessages: response.messages,
+                    });
 
-                  await saveMessages({
-                    messages: [
-                      {
-                        id: assistantId,
-                        chatId: id,
-                        role: assistantMessage.role,
-                        parts: assistantMessage.parts,
-                        attachments:
-                          assistantMessage.experimental_attachments ?? [],
-                        createdAt: new Date(),
-                        provider: selectedProvider,
-                      },
-                    ],
-                  });
-
-                  // Clean up nexus metadata if this was a nexus mode search
-                  if (selectedResearchMode === 'nexus') {
-                    const redisUrl = process.env.REDIS_URL?.replace(
-                      /^["'](.*)["']$/,
-                      '$1',
-                    );
-                    if (redisUrl) {
-                      try {
-                        const { createClient } = await import('redis');
-                        const redis = createClient({ url: redisUrl });
-                        await redis.connect();
-
-                        // Update metadata to completed status
-                        await redis.setEx(
-                          `nexus:${streamId}:metadata`,
-                          300, // 5 minute expiry for completed state
-                          JSON.stringify({
-                            status: 'completed',
-                            endTime: Date.now(),
-                          }),
-                        );
-
-                        await redis.disconnect();
-                        console.log(
-                          '[NEXUS MODE] Updated stream metadata to completed status',
-                        );
-                      } catch (redisError) {
-                        console.error(
-                          '[NEXUS MODE] Failed to update completed state:',
-                          redisError,
-                        );
+                    // Add citations to the message parts if in Nexus mode
+                    const messageParts = [...(assistantMessage.parts || [])];
+                    if (
+                      selectedResearchMode === 'nexus' &&
+                      (globalThis as any).__nexusCitations
+                    ) {
+                      const citations = (globalThis as any).__nexusCitations;
+                      if (citations && citations.length > 0) {
+                        // Add citations as a special part type
+                        messageParts.push({
+                          type: 'citations',
+                          citations: citations,
+                        });
                       }
                     }
+
+                    await saveMessages({
+                      messages: [
+                        {
+                          id: assistantId,
+                          chatId: id,
+                          role: assistantMessage.role,
+                          parts: messageParts,
+                          attachments:
+                            assistantMessage.experimental_attachments ?? [],
+                          createdAt: new Date(),
+                          provider: selectedProvider,
+                        },
+                      ],
+                    });
+
+                    // Clean up nexus metadata if this was a nexus mode search
+                    if (selectedResearchMode === 'nexus') {
+                      // Clean up global citations
+                      (globalThis as any).__nexusCitations = undefined;
+
+                      const redisUrl = process.env.REDIS_URL?.replace(
+                        /^["'](.*)["']$/,
+                        '$1',
+                      );
+                      if (redisUrl) {
+                        try {
+                          const { createClient } = await import('redis');
+                          const redis = createClient({ url: redisUrl });
+                          await redis.connect();
+
+                          // Update metadata to completed status
+                          await redis.setEx(
+                            `nexus:${streamId}:metadata`,
+                            300, // 5 minute expiry for completed state
+                            JSON.stringify({
+                              status: 'completed',
+                              endTime: Date.now(),
+                            }),
+                          );
+
+                          await redis.disconnect();
+                          console.log(
+                            '[NEXUS MODE] Updated stream metadata to completed status',
+                          );
+                        } catch (redisError) {
+                          console.error(
+                            '[NEXUS MODE] Failed to update completed state:',
+                            redisError,
+                          );
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Failed to save chat:', error);
                   }
-                } catch (error) {
-                  console.error('Failed to save chat:', error);
                 }
-              }
-            },
-            experimental_telemetry: {
-              isEnabled: isProductionEnvironment,
-              functionId: 'stream-text',
-            },
-          });
+              },
+              experimental_telemetry: {
+                isEnabled: isProductionEnvironment,
+                functionId: 'stream-text',
+              },
+            });
 
-          // Clear the timeout when the stream is done
-          clearTimeout(responseTimeout);
+            // Clear the timeout when the stream is done
+            if (responseTimeout) clearTimeout(responseTimeout);
 
-          // Debug logs for the stream
-          console.log('RAG: Creating stream with tools configured');
+            // Debug logs for the stream
+            console.log('RAG: Creating stream with tools configured');
 
-          try {
-            // Safely check if getTools is available (not all models support this)
-            if ('getTools' in result && typeof result.getTools === 'function') {
-              console.log(
-                'RAG: Tools available:',
-                Object.keys(result.getTools()),
-              );
-            }
-
-            // Handle nexus mode differently - collect full response before sending
-            if (isNexusMode) {
-              console.log(
-                '[NEXUS MODE] Collecting full response before sending',
-              );
-
-              // Emit generation phase update
-              dataStream.writeData({
-                type: 'nexus-phase-update',
-                phase: 'generating',
-                message:
-                  'Analyzing research and generating comprehensive response...',
-              });
-
-              // Collect the entire response
-              let fullText = '';
-              const reader = result.textStream.getReader();
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                fullText += value;
-              }
-
-              // Extract citations from nexus research context
-              const citations: any[] = [];
-              if (nexusResearchContext) {
-                // Parse citations from the research context
-                const citationMatches = nexusResearchContext.matchAll(
-                  /\*\*\[(\d+)\] ([^*]+)\*\*\s*\n- URL: ([^\n]+)\s*\n- Summary: ([^\n]+)/g,
+            try {
+              // Safely check if getTools is available (not all models support this)
+              if (
+                'getTools' in result &&
+                typeof result.getTools === 'function'
+              ) {
+                console.log(
+                  'RAG: Tools available:',
+                  Object.keys(result.getTools()),
                 );
-
-                for (const match of citationMatches) {
-                  citations.push({
-                    number: Number.parseInt(match[1], 10),
-                    title: match[2],
-                    url: match[3],
-                    snippet: match[4],
-                  });
-                }
               }
 
-              // Send the complete response at once
-              dataStream.writeData({
-                type: 'nexus-complete-response',
-                content: fullText,
-                citations: citations,
-              });
+              // Use normal streaming for both nexus and non-nexus modes
+              console.log(
+                `[${isNexusMode ? 'NEXUS' : 'NORMAL'}] Starting response streaming`,
+              );
 
-              // Consume the stream to handle tool calls and other side effects
-              result.consumeStream();
-            } else {
-              // Normal streaming for non-nexus mode
               result.consumeStream();
               result.mergeIntoDataStream(dataStream);
+            } catch (streamError) {
+              console.error('RAG ERROR: Error processing stream:', streamError);
+              // Don't rethrow, just log it and continue
             }
-          } catch (streamError) {
-            console.error('RAG ERROR: Error processing stream:', streamError);
-            // Don't rethrow, just log it and continue
+          } catch (error) {
+            console.error('Fatal error in stream processing:', error);
+            if (responseTimeout) clearTimeout(responseTimeout);
+            // We can't return a value here, but we've logged the error
           }
-        } catch (error) {
-          console.error('Fatal error in stream processing:', error);
-          clearTimeout(responseTimeout);
-          // We can't return a value here, but we've logged the error
-        }
+        } // End of if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL')
       },
       onError: (error) => {
         console.error('Error in data stream:', error);

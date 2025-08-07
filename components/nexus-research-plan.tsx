@@ -20,6 +20,8 @@ interface NexusResearchPlanProps {
   plan: ResearchPlan;
   onApprove?: () => void;
   onModify?: (plan: ResearchPlan) => void;
+  onRegenerate?: (feedback: string) => void;
+  onStartResearch?: () => void;
   isGenerating?: boolean;
 }
 
@@ -27,17 +29,42 @@ export function NexusResearchPlan({
   plan,
   onApprove,
   onModify,
+  onRegenerate,
+  onStartResearch,
   isGenerating = false,
 }: NexusResearchPlanProps) {
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
   const [showFullPlan, setShowFullPlan] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [regenerateFeedback, setRegenerateFeedback] = useState('');
+
+  // Provide default values for plan properties to prevent undefined errors
+  const safePlan = plan
+    ? {
+        mainQuery: plan.mainQuery || '',
+        subQuestions: plan.subQuestions || [],
+        searchQueries: plan.searchQueries || [],
+        researchApproach: plan.researchApproach || 'comprehensive',
+        phases: plan.phases || [],
+        estimatedDuration: plan.estimatedDuration || 180,
+        totalSearches: plan.totalSearches || 0,
+      }
+    : {
+        mainQuery: '',
+        subQuestions: [],
+        searchQueries: [],
+        researchApproach: 'comprehensive',
+        phases: [],
+        estimatedDuration: 180,
+        totalSearches: 0,
+      };
 
   useEffect(() => {
     // Auto-expand plan after generation
-    if (!isGenerating && plan.phases.length > 0) {
+    if (!isGenerating && safePlan.phases.length > 0) {
       setShowFullPlan(true);
     }
-  }, [isGenerating, plan.phases.length]);
+  }, [isGenerating, safePlan.phases.length]);
 
   const getApproachIcon = (approach: string) => {
     switch (approach) {
@@ -97,7 +124,7 @@ export function NexusResearchPlan({
           <div className="flex items-center gap-2 text-sm">
             <Clock className="w-4 h-4 text-muted-foreground" />
             <span className="text-muted-foreground">
-              Est. {Math.round(plan.estimatedDuration / 60)} minutes
+              Est. {Math.round(safePlan.estimatedDuration / 60)} minutes
             </span>
           </div>
         )}
@@ -145,7 +172,7 @@ export function NexusResearchPlan({
                   <h4 className="font-medium text-sm text-purple-700 dark:text-purple-300 mb-1">
                     Research Question
                   </h4>
-                  <p className="text-sm">{plan.mainQuery}</p>
+                  <p className="text-sm">{safePlan.mainQuery}</p>
                 </div>
               </div>
             </div>
@@ -153,32 +180,32 @@ export function NexusResearchPlan({
             {/* Research Approach */}
             <div className="flex items-center gap-3">
               <div
-                className={`p-2 rounded-lg bg-gradient-to-r ${getApproachColor(plan.researchApproach)}`}
+                className={`p-2 rounded-lg bg-gradient-to-r ${getApproachColor(safePlan.researchApproach)}`}
               >
-                {getApproachIcon(plan.researchApproach)}
+                {getApproachIcon(safePlan.researchApproach)}
               </div>
               <div>
                 <p className="text-sm font-medium capitalize">
-                  {plan.researchApproach} Research Approach
+                  {safePlan.researchApproach} Research Approach
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {plan.searchQueries.length} searches across{' '}
-                  {plan.phases.length} phases
+                  {safePlan.searchQueries.length} searches across{' '}
+                  {safePlan.phases.length} phases
                 </p>
               </div>
             </div>
 
             {/* Sub-questions */}
-            {plan.subQuestions.length > 0 && (
+            {safePlan.subQuestions.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-purple-500" />
                   Key Research Areas
                 </h4>
                 <ul className="space-y-1">
-                  {plan.subQuestions.map((question, index) => (
+                  {safePlan.subQuestions.map((question, index) => (
                     <motion.li
-                      key={`subq-${index}`}
+                      key={`subq-${question}-${index}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -199,9 +226,9 @@ export function NexusResearchPlan({
                 Research Phases
               </h4>
 
-              {plan.phases.map((phase, index) => (
+              {safePlan.phases.map((phase, index) => (
                 <motion.div
-                  key={`phase-${index}`}
+                  key={`phase-${phase.name}-${index}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
@@ -250,7 +277,7 @@ export function NexusResearchPlan({
                             </p>
                             {phase.queries.map((query, qIndex) => (
                               <div
-                                key={qIndex}
+                                key={`query-${query}-${qIndex}`}
                                 className="flex items-start gap-2 text-xs text-muted-foreground"
                               >
                                 <Search className="w-3 h-3 mt-0.5 text-purple-500/40" />
@@ -267,24 +294,89 @@ export function NexusResearchPlan({
             </div>
 
             {/* Action Buttons */}
-            {(onApprove || onModify) && (
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-purple-500/10">
+            <div className="flex items-center justify-between pt-4 border-t border-purple-500/10">
+              <div className="flex items-center gap-2">
+                {onRegenerate && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRegenerateDialog(true)}
+                    className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Regenerate Plan
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
                 {onModify && (
                   <button
-                    onClick={() => onModify(plan)}
+                    type="button"
+                    onClick={() => onModify(safePlan as ResearchPlan)}
                     className="px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-lg transition-colors"
                   >
                     Modify Plan
                   </button>
                 )}
-                {onApprove && (
+                {onStartResearch && (
                   <button
-                    onClick={onApprove}
-                    className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-colors"
+                    type="button"
+                    onClick={onStartResearch}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-colors flex items-center gap-2"
                   >
+                    <Search className="w-4 h-4" />
                     Start Research
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Regenerate Dialog */}
+            {showRegenerateDialog && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl"
+                >
+                  <h3 className="text-lg font-semibold mb-3">
+                    Regenerate Research Plan
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    What would you like to improve about the current plan?
+                  </p>
+                  <textarea
+                    value={regenerateFeedback}
+                    onChange={(e) => setRegenerateFeedback(e.target.value)}
+                    placeholder="e.g., 'Include more recent sources', 'Focus more on technical aspects', 'Add comparison with alternatives'..."
+                    className="w-full p-3 border rounded-lg resize-none h-24 text-sm"
+                  />
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRegenerateDialog(false);
+                        setRegenerateFeedback('');
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onRegenerate) {
+                          onRegenerate(regenerateFeedback);
+                        }
+                        setShowRegenerateDialog(false);
+                        setRegenerateFeedback('');
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-colors"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                </motion.div>
               </div>
             )}
           </motion.div>

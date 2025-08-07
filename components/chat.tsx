@@ -25,7 +25,7 @@ import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 import { ReplyIndicator } from './reply-indicator';
 import { useReplyState } from '@/hooks/use-reply-state';
-import { NexusSearchProgress } from './nexus-search-progress';
+import { NexusResearchProgress } from './nexus-research-progress';
 import { NexusResearchPlan } from './nexus-research-plan';
 
 export function Chat({
@@ -96,6 +96,13 @@ export function Chat({
   // Add state for Nexus search progress
   const [nexusSearchData, setNexusSearchData] = useState<any>(null);
   const [nexusResearchPlan, setNexusResearchPlan] = useState<any>(null);
+  const [nexusCitations, setNexusCitations] = useState<
+    Array<{
+      number: number;
+      title: string;
+      url: string;
+    }>
+  >([]);
 
   // Add logging for research mode changes
   useEffect(() => {
@@ -429,17 +436,54 @@ export function Chat({
       if (eventType.startsWith('nexus-')) {
         console.log('[Chat] Nexus event received:', eventType, lastData);
 
-        // Handle research plan
-        if (eventType === 'nexus-research-plan') {
-          setNexusResearchPlan(lastData);
-        }
-        // Handle stream resumed event
-        else if (eventType === 'nexus-stream-resumed') {
-          console.log('[Chat] Nexus stream resumed:', lastData);
-          toast.success('Resuming your research where it left off...');
-          setNexusSearchData(lastData);
-        } else {
-          setNexusSearchData(lastData);
+        // Handle different Nexus events
+        switch (eventType) {
+          case 'nexus-progress':
+            setNexusSearchData(lastData);
+            break;
+          case 'nexus-plan-complete':
+            setNexusResearchPlan(lastData.plan);
+            setNexusSearchData({ ...lastData, type: 'nexus-progress' });
+            break;
+          case 'nexus-search-update':
+            setNexusSearchData((prev: any) => ({
+              ...prev,
+              currentStep: lastData.currentStep,
+              questionsSearched: lastData.questionsSearched,
+              message: lastData.message,
+            }));
+            break;
+          case 'nexus-search-complete':
+            setNexusSearchData((prev: any) => ({
+              ...prev,
+              totalResults: lastData.totalResults,
+            }));
+            break;
+          case 'nexus-analysis-update':
+            setNexusSearchData((prev: any) => ({
+              ...prev,
+              currentAnalysisStep: lastData.stepNumber,
+            }));
+            break;
+          case 'nexus-synthesis-complete':
+            // Store citations for display
+            if (lastData.citations && Array.isArray(lastData.citations)) {
+              setNexusCitations(
+                lastData.citations as Array<{
+                  number: number;
+                  title: string;
+                  url: string;
+                }>,
+              );
+            }
+            // Auto-dismiss the progress UI after a short delay
+            setTimeout(() => {
+              setNexusSearchData(null);
+              setNexusResearchPlan(null);
+            }, 2000);
+            break;
+          default:
+            setNexusSearchData(lastData);
         }
       }
     }
@@ -1382,28 +1426,136 @@ export function Chat({
           reload={reload}
           isReadonly={isReadonly}
           isArtifactVisible={isArtifactVisible}
-          citations={citations}
+          citations={
+            selectedResearchMode === 'nexus' ? nexusCitations : citations
+          }
           searchProgress={searchProgress}
           meetingMetadata={meetingMetadata}
           onStartReply={startReply}
         />
 
         {/* Show Nexus search progress if active */}
-        {nexusResearchPlan && (
+        {nexusResearchPlan?.plan && (
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
             <NexusResearchPlan
               plan={nexusResearchPlan.plan}
-              onApprove={() => {
-                // Research plan approved, clear it from display
+              onStartResearch={async () => {
+                // Start the actual research
+                console.log('[Chat] Starting approved research');
                 setNexusResearchPlan(null);
+                setNexusSearchData({
+                  type: 'nexus-search-start',
+                  message: 'Starting research...',
+                });
+
+                try {
+                  const response = await fetch('/api/nexus-execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      plan: nexusResearchPlan.plan,
+                      chatId: id,
+                    }),
+                  });
+
+                  if (!response.ok) {
+                    throw new Error('Failed to start research');
+                  }
+
+                  // Process the stream
+                  const reader = response.body?.getReader();
+                  if (reader) {
+                    const decoder = new TextDecoder();
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+
+                      const chunk = decoder.decode(value, { stream: true });
+                      const lines = chunk.split('\n');
+
+                      for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                          try {
+                            const data = JSON.parse(line.slice(6));
+                            setNexusSearchData(data);
+
+                            // If research is complete, append the results to the conversation
+                            if (
+                              data.type === 'nexus-search-complete' &&
+                              data.results
+                            ) {
+                              // The results will be handled by the existing nexus logic
+                              processDataStreamMessage(data);
+                            }
+                          } catch (e) {
+                            console.error('Failed to parse stream data:', e);
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error('[Chat] Error executing research:', error);
+                  toast.error('Failed to execute research plan');
+                }
+              }}
+              onRegenerate={async (feedback) => {
+                // Regenerate the plan with feedback
+                console.log(
+                  '[Chat] Regenerating plan with feedback:',
+                  feedback,
+                );
+                setNexusResearchPlan(null);
+                setNexusSearchData({
+                  type: 'nexus-plan-generating',
+                  message: 'Regenerating plan...',
+                });
+
+                try {
+                  const response = await fetch('/api/nexus-plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      query: messages[messages.length - 1].content,
+                      model: activeModel,
+                      regenerate: true,
+                      feedback,
+                    }),
+                  });
+
+                  const planData = await response.json();
+                  if (planData.success) {
+                    setNexusResearchPlan({
+                      plan: planData.plan,
+                      totalSearches: planData.totalSearches,
+                      phases: planData.phases,
+                      requiresApproval: true,
+                    });
+                    setNexusSearchData(null);
+                  } else {
+                    throw new Error(
+                      planData.error || 'Failed to regenerate plan',
+                    );
+                  }
+                } catch (error) {
+                  console.error('[Chat] Error regenerating plan:', error);
+                  toast.error('Failed to regenerate research plan');
+                  setNexusSearchData(null);
+                }
               }}
             />
           </div>
         )}
 
-        {nexusSearchData && !nexusResearchPlan && (
+        {nexusSearchData && nexusSearchData.type === 'nexus-progress' && (
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
-            <NexusSearchProgress data={nexusSearchData} />
+            <NexusResearchProgress
+              phase={nexusSearchData.phase || 'planning'}
+              message={nexusSearchData.message}
+              plan={nexusSearchData.plan || nexusResearchPlan}
+              currentStep={nexusSearchData.currentStep}
+              totalResults={nexusSearchData.totalResults}
+            />
           </div>
         )}
 

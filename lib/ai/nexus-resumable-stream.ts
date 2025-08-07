@@ -367,9 +367,14 @@ export async function executeNexusSearch(
                   startTime: state.startTime,
                   sourcesFound,
                   streamId: state.streamId,
+                  // Include cost estimation for better transparency
+                  costEstimate: progress.costEstimate,
                 });
               },
               searchIndex,
+              3, // maxRetries
+              undefined, // searchContext (let it use Nexus defaults)
+              plan.searchQueries.length, // totalSearches for adaptive configuration
             );
 
             if (results.length > 0) {

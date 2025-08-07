@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Chat Streaming</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        #output {
+            white-space: pre-wrap;
+            border: 1px solid #0f0;
+            padding: 10px;
+            min-height: 400px;
+            margin-top: 20px;
+            background: #000;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0a0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Nexus Mode Streaming</h1>
+    <button onclick="testNexus()">Test Nexus Mode</button>
+    <button onclick="testNormal()">Test Normal Mode</button>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg, isError = false) {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            output.innerHTML += `[${timestamp}] ${isError ? '❌ ' : ''}${msg}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        async function testNexus() {
+            output.innerHTML = '';
+            log('Starting Nexus mode test...');
+            await testChat('nexus');
+        }
+        
+        async function testNormal() {
+            output.innerHTML = '';
+            log('Starting Normal mode test...');
+            await testChat('conversational');
+        }
+        
+        async function testChat(mode) {
+            try {
+                const response = await fetch('http://localhost:3000/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: 'test-' + Date.now(),
+                        messages: [{
+                            id: 'msg-1',
+                            role: 'user',
+                            content: 'How can I implement EOS in my business?'
+                        }],
+                        model: 'gpt-4.1-mini',
+                        researchMode: mode
+                    }),
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    log(`HTTP Error: ${response.status} ${response.statusText}`, true);
+                    const text = await response.text();
+                    log('Response: ' + text, true);
+                    return;
+                }
+                
+                log('✅ Got streaming response');
+                log('Reading stream...\n');
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let messageStarted = false;
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Process complete chunks
+                    const chunks = buffer.split('\n');
+                    buffer = chunks.pop() || '';
+                    
+                    for (const chunk of chunks) {
+                        if (!chunk.trim()) continue;
+                        
+                        // Handle different streaming formats
+                        if (chunk.startsWith('0:')) {
+                            const content = chunk.substring(2);
+                            try {
+                                // Try to parse as JSON first
+                                const data = JSON.parse(content);
+                                
+                                // Handle different event types
+                                if (data.type) {
+                                    if (data.type === 'nexus-search-start') {
+                                        log(`🔍 ${data.message || 'Starting search...'}`);
+                                    } else if (data.type === 'nexus-search-complete') {
+                                        log(`✅ Search complete: ${data.resultsFound || 0} results found`);
+                                    } else if (data.type === 'nexus-error') {
+                                        log(`Error: ${data.error}`, true);
+                                    } else {
+                                        log(`[${data.type}] ${JSON.stringify(data).substring(0, 100)}`);
+                                    }
+                                } else if (typeof data === 'string' && data !== '""') {
+                                    // It's a text chunk
+                                    if (!messageStarted) {
+                                        log('📝 Response:');
+                                        messageStarted = true;
+                                    }
+                                    output.innerHTML += data.replace(/^"|"$/g, '');
+                                }
+                            } catch (e) {
+                                // Not JSON, treat as text
+                                if (content && content !== '""') {
+                                    if (!messageStarted) {
+                                        log('📝 Response:');
+                                        messageStarted = true;
+                                    }
+                                    output.innerHTML += content.replace(/^"|"$/g, '');
+                                }
+                            }
+                        } else if (chunk.startsWith('data: ')) {
+                            // SSE format
+                            const data = chunk.substring(6);
+                            if (data !== '[DONE]') {
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    log(`[SSE] ${JSON.stringify(parsed).substring(0, 100)}`);
+                                } catch {
+                                    if (data && data !== '""') {
+                                        output.innerHTML += data;
+                                    }
+                                }
+                            }
+                        } else {
+                            // Raw text
+                            if (chunk && chunk !== '""') {
+                                if (!messageStarted) {
+                                    log('📝 Response:');
+                                    messageStarted = true;
+                                }
+                                output.innerHTML += chunk;
+                            }
+                        }
+                    }
+                }
+                
+                log('\n\n✅ Stream completed');
+                
+            } catch (error) {
+                log('Error: ' + error.message, true);
+                console.error(error);
+            }
+        }
+        
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            log('Test page loaded. Click a button to test streaming.');
+        });
+    </script>
+</body>
+</html>
