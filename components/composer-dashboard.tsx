@@ -132,7 +132,7 @@ export function ComposerDashboard() {
       case 'code':
         return 'Code';
       case 'vto':
-        return 'VTO';
+        return 'Vision/Traction Organizer';
       default:
         return String(kind).toUpperCase();
     }
@@ -151,7 +151,7 @@ export function ComposerDashboard() {
       case 'code':
         return 'Code';
       case 'vto':
-        return "VTO's";
+        return 'Vision/Traction Organizers';
       default:
         return `${displayName}s`;
     }
@@ -252,7 +252,11 @@ export function ComposerDashboard() {
           {displayRows.map((row, i) => (
             <motion.article
               key={row.id}
-              className="group rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-card"
+              className={`group rounded-lg border overflow-hidden bg-card transition-all duration-200 ${
+                row.kind === 'vto' 
+                  ? 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600' 
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+              }`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -261,7 +265,13 @@ export function ComposerDashboard() {
                 damping: 24,
                 delay: Math.min(i * 0.03, 0.24),
               }}
-              whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}
+              whileHover={{ 
+                y: -3, 
+                boxShadow: row.kind === 'vto' 
+                  ? '0 12px 24px rgba(100, 116, 139, 0.15)' 
+                  : '0 8px 20px rgba(0,0,0,0.08)',
+                transition: { duration: 0.2 }
+              }}
               whileTap={{ scale: 0.98 }}
             >
               <button
@@ -394,42 +404,166 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
       }
       if (jsonStr) {
         const vto = JSON.parse(jsonStr);
-        const rockCounts: Record<string, number> = {};
+        
+        // Calculate completion percentage
+        let filledSections = 0;
+        const totalSections = 8;
+        
+        // Check each section for content
+        if (vto?.coreValues?.some((v: string) => v?.trim())) filledSections++;
+        if (vto?.coreFocus?.purpose?.trim() || vto?.coreFocus?.niche?.trim()) filledSections++;
+        if (vto?.tenYearTarget?.trim()) filledSections++;
+        if (vto?.marketingStrategy?.targetMarket?.trim() || 
+            vto?.marketingStrategy?.threeUniques?.some((u: string) => u?.trim())) filledSections++;
+        if (vto?.threeYearPicture?.futureDate?.trim() || 
+            vto?.threeYearPicture?.revenue?.trim() ||
+            vto?.threeYearPicture?.bullets?.some((b: string) => b?.trim())) filledSections++;
+        if (vto?.oneYearPlan?.futureDate?.trim() || 
+            vto?.oneYearPlan?.revenue?.trim() ||
+            vto?.oneYearPlan?.goals?.some((g: string) => g?.trim())) filledSections++;
+        if (vto?.rocks?.rocks?.some((r: string) => r?.trim())) filledSections++;
+        if (vto?.issuesList?.some((i: string) => i?.trim())) filledSections++;
+        
+        const completionPercent = Math.round((filledSections / totalSections) * 100);
+        
         return (
-          <div className="absolute inset-0 p-3 overflow-hidden text-[11px] leading-5">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="font-semibold text-xs">1-Year Plan</div>
-                <div className="text-muted-foreground">
-                  {vto?.oneYearPlan?.futureDate || '-'}
+          <div className="absolute inset-0 p-2 overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+            {/* Header with completion indicator */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
                 </div>
-                <div className="text-muted-foreground">
-                  Rev: {vto?.oneYearPlan?.revenue || '-'}
-                </div>
-                <div className="text-muted-foreground">
-                  Profit: {vto?.oneYearPlan?.profit || '-'}
+                <div className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                  V/TO
                 </div>
               </div>
-              <div>
-                <div className="font-semibold text-xs">Rocks</div>
-                <ul className="list-disc list-inside text-muted-foreground">
-                  {(vto?.rocks?.rocks || []).slice(0, 3).map((r: string) => {
-                    const val = r || '-';
-                    const prev = rockCounts[val] || 0;
-                    const next = prev + 1;
-                    rockCounts[val] = next;
-                    return <li key={`${id}-rock-${val}-${next}`}>{val}</li>;
-                  })}
-                </ul>
+              <div className="flex items-center gap-1">
+                <div className="text-[9px] text-muted-foreground">{completionPercent}%</div>
+                <div className="w-12 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-300"
+                    style={{ width: `${completionPercent}%` }}
+                  />
+                </div>
               </div>
             </div>
+            
+            {/* Content Grid */}
+            <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+              {/* Core Values & Focus */}
+              <div className="bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
+                <div className="font-semibold text-slate-700 dark:text-slate-300 mb-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  Core
+                </div>
+                <div className="text-muted-foreground truncate">
+                  {vto?.coreFocus?.purpose ? 
+                    <span className="block truncate" title={vto.coreFocus.purpose}>{vto.coreFocus.purpose}</span> : 
+                    <span className="opacity-50">No purpose</span>}
+                </div>
+                <div className="text-muted-foreground">
+                  {vto?.coreValues?.filter((v: string) => v?.trim()).length || 0} values
+                </div>
+              </div>
+              
+              {/* 10 Year Target */}
+              <div className="bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
+                <div className="font-semibold text-slate-700 dark:text-slate-300 mb-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  10-Year
+                </div>
+                <div className="text-muted-foreground truncate" title={vto?.tenYearTarget}>
+                  {vto?.tenYearTarget?.trim() ? vto.tenYearTarget : <span className="opacity-50">Not set</span>}
+                </div>
+              </div>
+              
+              {/* 3 Year Picture */}
+              <div className="bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
+                <div className="font-semibold text-slate-700 dark:text-slate-300 mb-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  3-Year
+                </div>
+                <div className="text-muted-foreground">
+                  {vto?.threeYearPicture?.futureDate || <span className="opacity-50">-</span>}
+                </div>
+                {vto?.threeYearPicture?.revenue && (
+                  <div className="text-muted-foreground text-[8px]">
+                    ${vto.threeYearPicture.revenue}
+                  </div>
+                )}
+              </div>
+              
+              {/* 1 Year Plan */}
+              <div className="bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
+                <div className="font-semibold text-slate-700 dark:text-slate-300 mb-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  1-Year
+                </div>
+                <div className="text-muted-foreground">
+                  {vto?.oneYearPlan?.futureDate || <span className="opacity-50">-</span>}
+                </div>
+                {vto?.oneYearPlan?.revenue && (
+                  <div className="text-muted-foreground text-[8px]">
+                    ${vto.oneYearPlan.revenue}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Rocks Section */}
+            {vto?.rocks?.rocks?.filter((r: string) => r?.trim()).length > 0 && (
+              <div className="mt-1.5 bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
+                <div className="font-semibold text-slate-700 dark:text-slate-300 text-[9px] mb-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Rocks ({vto.rocks.rocks.filter((r: string) => r?.trim()).length})
+                </div>
+                <div className="text-[8px] text-muted-foreground space-y-0.5">
+                  {vto.rocks.rocks
+                    .filter((r: string) => r?.trim())
+                    .slice(0, 2)
+                    .map((rock: string, idx: number) => (
+                      <div key={`${id}-rock-${idx}-${rock.slice(0, 10)}`} className="truncate" title={rock}>
+                        • {rock}
+                      </div>
+                    ))}
+                  {vto.rocks.rocks.filter((r: string) => r?.trim()).length > 2 && (
+                    <div className="opacity-60">
+                      +{vto.rocks.rocks.filter((r: string) => r?.trim()).length - 2} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       }
     } catch {}
     return (
-      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-        VTO
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-200">
+            <svg className="w-6 h-6 text-slate-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+        </div>
+        <div className="font-medium group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors duration-200">V/TO</div>
+        <div className="text-[10px] opacity-60">Vision/Traction Organizer</div>
       </div>
     );
   }
