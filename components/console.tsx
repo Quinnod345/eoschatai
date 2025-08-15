@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { cn } from '@/lib/utils';
-import { useArtifactSelector } from '@/hooks/use-composer';
+import { useComposerSelector } from '@/hooks/use-composer';
 
 export interface ConsoleOutputContent {
   type: 'text' | 'image';
@@ -32,7 +32,7 @@ export function Console({ consoleOutputs, setConsoleOutputs }: ConsoleProps) {
   const [isResizing, setIsResizing] = useState(false);
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
-  const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
+  const isArtifactVisible = useComposerSelector((state) => state.isVisible);
 
   const minHeight = 100;
   const maxHeight = 800;
