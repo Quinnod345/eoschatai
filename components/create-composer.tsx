@@ -2,9 +2,9 @@ import type { Suggestion } from '@/lib/db/schema';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { ComponentType, Dispatch, ReactNode, SetStateAction } from 'react';
 import type { DataStreamDelta } from './data-stream-handler';
-import type { UIArtifact } from './composer';
+import type { UIComposer } from './composer';
 
-export type ArtifactActionContext<M = any> = {
+export type ComposerActionContext<M = any> = {
   content: string;
   title?: string;
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
@@ -15,25 +15,25 @@ export type ArtifactActionContext<M = any> = {
   setMetadata: Dispatch<SetStateAction<M>>;
 };
 
-type ArtifactAction<M = any> = {
+type ComposerAction<M = any> = {
   icon: ReactNode;
   label?: string;
   description: string;
-  onClick: (context: ArtifactActionContext<M>) => Promise<void> | void;
-  isDisabled?: (context: ArtifactActionContext<M>) => boolean;
+  onClick: (context: ComposerActionContext<M>) => Promise<void> | void;
+  isDisabled?: (context: ComposerActionContext<M>) => boolean;
 };
 
-export type ArtifactToolbarContext = {
+export type ComposerToolbarContext = {
   appendMessage: UseChatHelpers['append'];
 };
 
-export type ArtifactToolbarItem = {
+export type ComposerToolbarItem = {
   description: string;
   icon: ReactNode;
-  onClick: (context: ArtifactToolbarContext) => void;
+  onClick: (context: ComposerToolbarContext) => void;
 };
 
-interface ArtifactContent<M = any> {
+interface ComposerContent<M = any> {
   title: string;
   content: string;
   mode: 'edit' | 'diff' | 'changes';
@@ -54,34 +54,34 @@ interface InitializeParameters<M = any> {
   setMetadata: Dispatch<SetStateAction<M>>;
 }
 
-type ArtifactConfig<T extends string, M = any> = {
+type ComposerConfig<T extends string, M = any> = {
   kind: T;
   description: string;
-  content: ComponentType<ArtifactContent<M>>;
-  actions: Array<ArtifactAction<M>>;
-  toolbar: ArtifactToolbarItem[];
+  content: ComponentType<ComposerContent<M>>;
+  actions: Array<ComposerAction<M>>;
+  toolbar: ComposerToolbarItem[];
   initialize?: (parameters: InitializeParameters<M>) => void;
   onStreamPart: (args: {
     setMetadata: Dispatch<SetStateAction<M>>;
-    setArtifact: Dispatch<SetStateAction<UIArtifact>>;
+    setComposer: Dispatch<SetStateAction<UIComposer>>;
     streamPart: DataStreamDelta;
   }) => void;
 };
 
-export class Artifact<T extends string, M = any> {
+export class Composer<T extends string, M = any> {
   readonly kind: T;
   readonly description: string;
-  readonly content: ComponentType<ArtifactContent<M>>;
-  readonly actions: Array<ArtifactAction<M>>;
-  readonly toolbar: ArtifactToolbarItem[];
+  readonly content: ComponentType<ComposerContent<M>>;
+  readonly actions: Array<ComposerAction<M>>;
+  readonly toolbar: ComposerToolbarItem[];
   readonly initialize?: (parameters: InitializeParameters) => void;
   readonly onStreamPart: (args: {
     setMetadata: Dispatch<SetStateAction<M>>;
-    setArtifact: Dispatch<SetStateAction<UIArtifact>>;
+    setComposer: Dispatch<SetStateAction<UIComposer>>;
     streamPart: DataStreamDelta;
   }) => void;
 
-  constructor(config: ArtifactConfig<T, M>) {
+  constructor(config: ComposerConfig<T, M>) {
     this.kind = config.kind;
     this.description = config.description;
     this.content = config.content;
@@ -91,3 +91,11 @@ export class Artifact<T extends string, M = any> {
     this.onStreamPart = config.onStreamPart;
   }
 }
+
+// Backward-compatible aliases (if any legacy code still imports Artifact* types)
+export type ArtifactActionContext<M = any> = ComposerActionContext<M>;
+export type ArtifactToolbarContext = ComposerToolbarContext;
+export type ArtifactToolbarItem = ComposerToolbarItem;
+export type ArtifactContent<M = any> = ComposerContent<M>;
+export type ArtifactConfig<T extends string, M = any> = ComposerConfig<T, M>;
+export class Artifact<T extends string, M = any> extends Composer<T, M> {}
