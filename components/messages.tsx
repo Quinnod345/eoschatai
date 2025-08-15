@@ -10,7 +10,7 @@ import { useMessageActions } from '@/hooks/use-message-actions';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { MessageSkeleton } from './message-skeleton';
 import { usePathname } from 'next/navigation';
-import { ArtifactDashboard } from './composer-dashboard';
+import { ComposerDashboard } from './composer-dashboard';
 import { CitationReferences } from './citation-button';
 
 interface CitationReference {
@@ -182,7 +182,7 @@ function PureMessages({
         className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
       >
         <div className="w-full max-w-3xl mx-auto px-4">
-          <ArtifactDashboard />
+          <ComposerDashboard />
         </div>
       </div>
     );
