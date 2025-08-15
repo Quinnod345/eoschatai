@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChartData } from '@/artifacts/chart/client';
+import type { ChartData } from '@/composer/chart/client';
 import { Button } from './ui/button';
 import { ChartIcon, LineChartIcon } from './icons';
 

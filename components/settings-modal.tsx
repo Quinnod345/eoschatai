@@ -444,7 +444,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <>
       <AnimatedModal isOpen={isOpen} onClose={onClose}>
         <div
-          className="relative bg-background rounded-lg settings-modal"
+          className="relative bg-background/80 rounded-2xl border border-white/30 dark:border-zinc-700/30 shadow-enhanced backdrop-blur-[16px] settings-modal"
           style={{
             width: 'min(1100px, 95vw)',
             height: 'min(80vh, 700px)',

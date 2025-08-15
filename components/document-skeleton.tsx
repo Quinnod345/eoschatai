@@ -1,6 +1,6 @@
 'use client';
 
-import type { ArtifactKind } from './artifact';
+import type { ArtifactKind } from './composer';
 
 export const DocumentSkeleton = ({
   artifactKind,

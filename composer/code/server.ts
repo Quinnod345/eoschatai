@@ -1,21 +1,21 @@
-import { createCustomProvider } from '@/lib/ai/providers';
-import { sheetPrompt, inlineEditPrompt } from '@/lib/ai/prompts';
-import { createDocumentHandler } from '@/lib/artifacts/server';
-import { streamObject } from 'ai';
 import { z } from 'zod';
+import { streamObject } from 'ai';
+import { createCustomProvider } from '@/lib/ai/providers';
+import { codePrompt, inlineEditPrompt } from '@/lib/ai/prompts';
+import { createDocumentHandler } from '@/lib/composer/server';
 
-export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
-  kind: 'sheet',
+export const codeDocumentHandler = createDocumentHandler<'code'>({
+  kind: 'code',
   onCreateDocument: async ({ title, dataStream }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('artifact-model'),
-      system: sheetPrompt,
+      system: codePrompt,
       prompt: title,
       schema: z.object({
-        csv: z.string().describe('CSV data'),
+        code: z.string(),
       }),
     });
 
@@ -24,23 +24,18 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
       if (type === 'object') {
         const { object } = delta;
-        const { csv } = object;
+        const { code } = object;
 
-        if (csv) {
+        if (code) {
           dataStream.writeData({
-            type: 'sheet-delta',
-            content: csv,
+            type: 'code-delta',
+            content: code ?? '',
           });
 
-          draftContent = csv;
+          draftContent = code;
         }
       }
     }
-
-    dataStream.writeData({
-      type: 'sheet-delta',
-      content: draftContent,
-    });
 
     return draftContent;
   },
@@ -50,10 +45,10 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('artifact-model'),
-      system: inlineEditPrompt(document.content || '', description, 'sheet'),
+      system: inlineEditPrompt(document.content || '', description, 'code'),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({
-        csv: z.string(),
+        code: z.string(),
       }),
     });
 
@@ -62,15 +57,15 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
       if (type === 'object') {
         const { object } = delta;
-        const { csv } = object;
+        const { code } = object;
 
-        if (csv) {
+        if (code) {
           dataStream.writeData({
-            type: 'sheet-delta',
-            content: csv,
+            type: 'code-delta',
+            content: code ?? '',
           });
 
-          draftContent = csv;
+          draftContent = code;
         }
       }
     }

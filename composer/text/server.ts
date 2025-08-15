@@ -1,6 +1,6 @@
 import { smoothStream, streamText } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
-import { createDocumentHandler } from '@/lib/artifacts/server';
+import { createDocumentHandler } from '@/lib/composer/server';
 import { inlineEditPrompt } from '@/lib/ai/prompts';
 
 export const textDocumentHandler = createDocumentHandler<'text'>({

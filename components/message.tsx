@@ -12,14 +12,11 @@ import { Weather } from './weather';
 import equal from 'fast-deep-equal';
 import { cn, sanitizeText } from '@/lib/utils';
 import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
 
 import type { UseChatHelpers } from '@ai-sdk/react';
-import { PDFPreview } from './pdf-preview';
-import { DocumentBadge } from './document-badge';
 import { InlineUploadPreview } from './inline-upload-preview';
 import {
   Calendar,
@@ -28,7 +25,6 @@ import {
   Mic,
   Clock,
   MessageSquare,
-  FileAudio,
 } from 'lucide-react';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { Badge } from '@/components/ui/badge';
@@ -791,13 +787,16 @@ export const ThinkingMessage = ({
   const [loadingStage, setLoadingStage] = useState(0);
   const [currentPhase, setCurrentPhase] = useState(0);
 
-  // Define the main process phases
+  // Define the main process phases (expanded for better UX)
   const processingPhases = [
-    { name: 'init' as const, duration: 1200 },
-    { name: 'search' as const, duration: 3000 },
-    { name: 'process' as const, duration: 4000 },
-    { name: 'generate' as const, duration: 3000 },
-    { name: 'final' as const, duration: 2000 },
+    { name: 'init' as const, duration: 900 },
+    { name: 'preflight' as const, duration: 1400 },
+    { name: 'context' as const, duration: 1400 },
+    { name: 'ragSearch' as const, duration: 2200 },
+    { name: 'ragProcess' as const, duration: 2600 },
+    { name: 'tools' as const, duration: 1600 },
+    { name: 'generate' as const, duration: 2400 },
+    { name: 'final' as const, duration: 1500 },
   ];
 
   // Define phase name type for type safety
@@ -809,25 +808,45 @@ export const ThinkingMessage = ({
       'Initializing...',
       'Processing your query...',
       'Analyzing request...',
+      'Parsing instructions...',
     ],
-    search: [
-      'Searching the web...',
-      'Gathering web results...',
-      'Processing search findings...',
-      'Analyzing web content...',
+    preflight: [
+      'Warming up model...',
+      'Performing safety checks...',
+      'Allocating context window...',
+      'Estimating token budget...',
+      'Preflight model call...',
     ],
-    process: [
-      'Using RAG system...',
-      'Retrieving knowledge base...',
-      'Processing documents...',
-      'Integrating context...',
+    context: [
+      'Collecting chat history context...',
+      'Extracting key details...',
+      'Resolving mentions and references...',
+      'Merging prior answers...',
+    ],
+    ragSearch: [
+      'Searching knowledge base...',
+      'Running semantic search (RAG)...',
+      'Fetching relevant documents...',
+      'Scanning web as needed...',
+    ],
+    ragProcess: [
+      'Chunking and embedding documents...',
+      'Ranking results by relevance...',
+      'Extracting evidence...',
+      'Summarizing key findings...',
+    ],
+    tools: [
+      'Invoking tools...',
+      'Calling functions...',
+      'Validating intermediate results...',
     ],
     generate: [
       'Generating response...',
       'Formulating answer...',
-      'Preparing final response...',
+      'Synthesizing with sources...',
+      'Composing final draft...',
     ],
-    final: ['Finalizing response...', 'Almost ready...'],
+    final: ['Finalizing response...', 'Polishing...', 'Almost ready...'],
   };
 
   // Check if we're actively searching based on searchProgress
@@ -837,18 +856,18 @@ export const ThinkingMessage = ({
   const searchCompleted = searchProgress?.searchesCompleted || 0;
   const searchTotal = searchProgress?.totalSearches || 0;
 
-  // Update phase based on search progress
+  // Update phase based on search progress (map to RAG phases)
   useEffect(() => {
     if (searchProgress?.status === 'searching') {
-      setCurrentPhase(1); // search phase
+      setCurrentPhase(3); // ragSearch
     } else if (searchProgress?.status === 'processing') {
-      setCurrentPhase(2); // process phase
+      setCurrentPhase(4); // ragProcess
     } else if (searchProgress?.status === 'completed') {
-      setCurrentPhase(3); // generate phase
+      setCurrentPhase(6); // generate
     }
   }, [searchProgress?.status]);
 
-  // Cycle through phase messages
+  // Cycle through phase messages with per-phase durations
   useEffect(() => {
     let messageIndex = 0;
 
@@ -865,7 +884,10 @@ export const ThinkingMessage = ({
     };
 
     // Create interval based on current phase duration
-    const interval = setInterval(updateMessage, 1200);
+    const interval = setInterval(
+      updateMessage,
+      processingPhases[currentPhase]?.duration ?? 1200,
+    );
 
     return () => clearInterval(interval);
   }, [currentPhase]);

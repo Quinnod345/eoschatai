@@ -1894,7 +1894,9 @@ function PureMultimodalInput({
         )}
       </AnimatePresence>
 
-      {messages.length === 0 &&
+      {/* Hide big greeting/suggestions when embedded in the artifact side panel */}
+      {!className?.includes('artifact-embedded') &&
+        messages.length === 0 &&
         attachments.length === 0 &&
         uploadQueue.length === 0 &&
         pdfContents.length === 0 &&
@@ -2112,7 +2114,7 @@ function PureMultimodalInput({
           placeholder={
             selectedMentions.length > 0
               ? 'Continue your message...'
-              : 'Send a message... (Type @ to mention calendar, documents, or other resources)'
+              : 'Ask Anything...'
           }
           value={input}
           onChange={handleInputChange}

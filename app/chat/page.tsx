@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 
 import { ChatClientWrapper } from '@/components/chat-client-wrapper';
+import { ArtifactDashboard } from '@/components/composer-dashboard';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { generateUUID } from '@/lib/utils';
@@ -17,6 +18,9 @@ export default async function ChatPage({
     documentId?: string;
     documentTitle?: string;
     userDocumentId?: string;
+    dashboard?: string;
+    newArtifactKind?: string;
+    newArtifactTitle?: string;
   }>;
 }) {
   const session = await auth();
@@ -56,31 +60,19 @@ export default async function ChatPage({
     );
   }
 
-  // Handle document context if provided - we'll pass this as a prop to trigger auto-submission
-  let documentContext: {
-    type: 'ai-document' | 'user-document';
-    id: string;
-    title: string;
-    message: string;
-  } | null = null;
-
-  if (params.documentId && params.documentTitle) {
-    // AI-generated document
-    documentContext = {
-      type: 'ai-document' as const,
-      id: params.documentId,
-      title: params.documentTitle,
-      message: `I'd like to discuss the document "${params.documentTitle}". Please help me understand and work with this document.`,
-    };
-  } else if (params.userDocumentId && params.documentTitle) {
-    // User-uploaded document
-    documentContext = {
-      type: 'user-document' as const,
-      id: params.userDocumentId,
-      title: params.documentTitle,
-      message: `I'd like to discuss the document "${params.documentTitle}". This is a document I uploaded. Please help me understand and work with this document.`,
-    };
+  // Dashboard mode: render full dashboard view (no chat UI)
+  if ((await searchParams).dashboard) {
+    return (
+      <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
+        <div className="w-full h-full overflow-y-auto p-4">
+          <ArtifactDashboard />
+        </div>
+      </div>
+    );
   }
+
+  // If dashboard param present, just render Chat normally; the client will show dashboard UI.
+  // If newArtifactKind is present, we initialize a blank artifact on the client via SWR store.
 
   const cookieStore = await cookies();
   const modelIdFromCookie = cookieStore.get('chat-model');
@@ -102,7 +94,7 @@ export default async function ChatPage({
           initialPersonaId={undefined}
           initialProfileId={undefined}
           initialResearchMode={userResearchMode}
-          documentContext={documentContext}
+          documentContext={null}
         />
         <DataStreamHandler id={id} />
       </>
@@ -124,7 +116,7 @@ export default async function ChatPage({
         initialPersonaId={undefined}
         initialProfileId={undefined}
         initialResearchMode={userResearchMode}
-        documentContext={documentContext}
+        documentContext={null}
       />
       <DataStreamHandler id={id} />
     </>

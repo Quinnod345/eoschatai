@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import type { ChartData } from '@/artifacts/chart/client';
+import type { ChartData } from '@/composer/chart/client';
 import { ChartRenderer } from './chart-renderer';
 import { motion } from 'framer-motion';
 

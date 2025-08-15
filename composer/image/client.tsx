@@ -1,12 +1,38 @@
-import { Artifact } from '@/components/create-artifact';
+import { Artifact } from '@/components/create-composer';
 import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
 import { ImageEditor } from '@/components/image-editor';
 import { toast } from 'sonner';
 
+function extractBase64(content: string): string | null {
+  try {
+    const trimmed = (content || '').trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('{')) return trimmed;
+    const parsed = JSON.parse(trimmed) as any;
+    const active = parsed.images?.[parsed.activeIndex || 0];
+    const current = active?.versions?.[active.currentVersionIndex || 0];
+    return current?.base64 || null;
+  } catch {
+    return (content || '').trim() || null;
+  }
+}
+
 export const imageArtifact = new Artifact({
   kind: 'image',
   description: 'Useful for image generation',
+  initialize: async ({ documentId, setMetadata }) => {
+    setMetadata({ documentId });
+  },
   onStreamPart: ({ streamPart, setArtifact }) => {
+    if ((streamPart as any).type === 'image-gallery') {
+      setArtifact((draft) => ({
+        ...draft,
+        content: String((streamPart as any).content || ''),
+        isVisible: true,
+        status: 'streaming',
+      }));
+      return;
+    }
     if (streamPart.type === 'image-delta') {
       setArtifact((draftArtifact) => ({
         ...draftArtifact,
@@ -50,8 +76,13 @@ export const imageArtifact = new Artifact({
       icon: <CopyIcon size={18} />,
       description: 'Copy image to clipboard',
       onClick: ({ content }) => {
+        const base64 = extractBase64(content || '');
+        if (!base64) {
+          toast.error('No image to copy');
+          return;
+        }
         const img = new Image();
-        img.src = `data:image/png;base64,${content}`;
+        img.src = `data:image/png;base64,${base64}`;
 
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -75,9 +106,14 @@ export const imageArtifact = new Artifact({
       icon: <DownloadIcon size={18} />,
       description: 'Download image as PNG',
       onClick: ({ content, title }) => {
+        const base64 = extractBase64(content || '');
+        if (!base64) {
+          toast.error('No image to download');
+          return;
+        }
         // Create an image to get dimensions and properly handle the download
         const img = new Image();
-        img.src = `data:image/png;base64,${content}`;
+        img.src = `data:image/png;base64,${base64}`;
 
         img.onload = () => {
           // Use a canvas to ensure proper image formatting

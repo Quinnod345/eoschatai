@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { motion } from 'framer-motion';
 
 import { cn } from '@/lib/utils';
 
@@ -7,13 +8,15 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => {
     return (
-      <div
-        ref={ref}
+      <motion.div
+        ref={ref as any}
+        whileHover={{ y: -2 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 24 }}
         className={cn(
-          'rounded-lg border bg-card text-card-foreground shadow-sm',
+          'rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md',
           className,
         )}
-        {...props}
+        {...(props as any)}
       />
     );
   },

@@ -1,6 +1,6 @@
 import type { UIMessage } from 'ai';
 import { PreviewMessage, ThinkingMessage } from './message';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
@@ -10,6 +10,7 @@ import { useMessageActions } from '@/hooks/use-message-actions';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { MessageSkeleton } from './message-skeleton';
 import { usePathname } from 'next/navigation';
+import { ArtifactDashboard } from './composer-dashboard';
 import { CitationReferences } from './citation-button';
 
 interface CitationReference {
@@ -36,6 +37,7 @@ interface MessagesProps {
     content: string,
     role: 'user' | 'assistant',
   ) => void;
+  onRetry?: () => void;
 }
 
 function PureMessages({
@@ -50,6 +52,7 @@ function PureMessages({
   searchProgress,
   meetingMetadata,
   onStartReply,
+  onRetry,
 }: MessagesProps) {
   const pathname = usePathname();
 
@@ -63,13 +66,16 @@ function PureMessages({
     // Otherwise, extract from message parts (when returning to chat)
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (msg.role === 'assistant' && msg.parts) {
+      if (msg.role === 'assistant' && (msg as any)?.parts) {
         // Check if any part contains citations
-        const citationPart = msg.parts?.find(
-          (part: any) => part.type === 'citations',
+        const parts: any[] = Array.isArray((msg as any)?.parts)
+          ? ((msg as any)?.parts as any[])
+          : [];
+        const citationPart = parts.find(
+          (part: any) => part?.type === 'citations',
         );
-        if (citationPart && citationPart.citations) {
-          return citationPart.citations;
+        if (citationPart?.citations) {
+          return citationPart?.citations;
         }
       }
     }
@@ -159,6 +165,29 @@ function PureMessages({
   const isNewChat = pathname === '/chat';
   const isLoading = messages.length === 0 && status === 'ready' && !isNewChat;
 
+  // Detect dashboard mode
+  const [dashboardKind, setDashboardKind] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const dash = url.searchParams.get('dashboard');
+      setDashboardKind(dash);
+    } catch {}
+  }, []);
+
+  if (dashboardKind) {
+    return (
+      <div
+        ref={messagesContainerRef}
+        className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
+      >
+        <div className="w-full max-w-3xl mx-auto px-4">
+          <ArtifactDashboard />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={messagesContainerRef}
@@ -211,6 +240,7 @@ function PureMessages({
             citations={citations}
             searchProgress={searchProgress}
             meetingMetadata={meetingMetadata}
+            onRetry={onRetry}
           />
         ))
       )}

@@ -6,7 +6,7 @@ import type { Session } from 'next-auth';
 import {
   artifactKinds,
   documentHandlersByArtifactKind,
-} from '@/lib/artifacts/server';
+} from '@/lib/composer/server';
 
 interface CreateDocumentProps {
   session: Session;

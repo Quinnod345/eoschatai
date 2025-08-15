@@ -27,6 +27,30 @@ const upstashVectorClient = new Index({
 
 const embeddingModel = openai.embedding('text-embedding-ada-002');
 
+// In-process cache for query embeddings to avoid duplicate work across RAG branches
+type CachedEmbedding = { createdAtMs: number; vector: number[] };
+const EMBEDDING_CACHE_TTL_MS = 60_000; // 60s
+const EMBEDDING_CACHE_MAX_SIZE = 200;
+const embeddingCache: Map<string, CachedEmbedding> = new Map();
+
+function getCachedEmbeddingIfFresh(key: string): number[] | null {
+  const cached = embeddingCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAtMs > EMBEDDING_CACHE_TTL_MS) {
+    embeddingCache.delete(key);
+    return null;
+  }
+  return cached.vector;
+}
+
+function setCachedEmbedding(key: string, vector: number[]) {
+  if (embeddingCache.size >= EMBEDDING_CACHE_MAX_SIZE) {
+    const firstKey = embeddingCache.keys().next().value as string | undefined;
+    if (firstKey) embeddingCache.delete(firstKey);
+  }
+  embeddingCache.set(key, { createdAtMs: Date.now(), vector });
+}
+
 /**
  * Enhances a search query for better semantic matching
  */
@@ -126,11 +150,15 @@ export const generateEmbedding = async (
   }
 
   try {
+    const cached = getCachedEmbeddingIfFresh(queryText);
+    if (cached) return cached;
+
     const { embedding } = await embed({
       model: embeddingModel,
       value: queryText,
     });
 
+    setCachedEmbedding(queryText, embedding);
     return embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
@@ -252,11 +280,16 @@ export const findRelevantContent = async (
       console.log('RAG: Using original query:', queryText);
     }
 
-    // Generate embedding for the query
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: enhancedQuery,
-    });
+    // Generate embedding for the query (reuse cached embedding when available)
+    let embedding = getCachedEmbeddingIfFresh(enhancedQuery);
+    if (!embedding) {
+      const result = await embed({
+        model: embeddingModel,
+        value: enhancedQuery,
+      });
+      embedding = result.embedding;
+      setCachedEmbedding(enhancedQuery, embedding);
+    }
 
     // Log the dimensions for debugging
     console.log(`RAG: Generated ${embedding.length}-dimensional embedding`);
@@ -341,10 +374,16 @@ export const deleteContentByKeyword = async (
 ): Promise<{ deleted: number }> => {
   try {
     // First, find entries containing the keyword
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: keyword,
-    });
+    const cached = getCachedEmbeddingIfFresh(keyword);
+    const embedding =
+      cached ||
+      (
+        await embed({
+          model: embeddingModel,
+          value: keyword,
+        })
+      ).embedding;
+    if (!cached) setCachedEmbedding(keyword, embedding);
 
     // Search for similar vectors (potential matches)
     const results = await upstashVectorClient.query({

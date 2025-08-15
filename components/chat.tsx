@@ -7,11 +7,12 @@ import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
 import { fetcher, generateUUID } from '@/lib/utils';
-import { Artifact } from './artifact';
+import { Artifact } from './composer';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
 import type { VisibilityType } from './visibility-selector';
-import { useArtifactSelector } from '@/hooks/use-artifact';
+import { useArtifact, useArtifactSelector } from '@/hooks/use-composer';
+import type { ArtifactKind } from './composer';
 import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
 import { toast } from '@/lib/toast-system';
@@ -24,9 +25,11 @@ import { useMessageActions } from '@/hooks/use-message-actions';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 import { ReplyIndicator } from './reply-indicator';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
 import { NexusResearchProgress } from './nexus-research-progress';
 import { NexusResearchPlan } from './nexus-research-plan';
+import { ComposerContextIndicator } from './artifact-context-indicator';
 
 export function Chat({
   id,
@@ -267,6 +270,10 @@ export function Chat({
         selectedPersonaId: selectedPersonaId,
         selectedProfileId: selectedProfileId,
         selectedResearchMode: selectedResearchMode,
+        artifactDocumentId:
+          artifact?.isVisible && artifact?.documentId
+            ? artifact.documentId
+            : undefined,
       };
 
       console.log('[Chat] Request body prepared with research mode:', {
@@ -275,6 +282,19 @@ export function Chat({
         researchModeInBody: requestBody.selectedResearchMode,
         initialResearchMode: initialResearchMode,
         timestamp: new Date().toISOString(),
+      });
+
+      // Enhanced artifact debugging
+      console.log('[ARTIFACT DEBUG] Request body artifact info:', {
+        artifactState: {
+          isVisible: artifact?.isVisible,
+          documentId: artifact?.documentId,
+          kind: artifact?.kind,
+          status: artifact?.status,
+          title: artifact?.title,
+        },
+        artifactDocumentId: requestBody.artifactDocumentId,
+        wasIncluded: !!requestBody.artifactDocumentId,
       });
 
       console.log('PERSONA_CLIENT: Full request body:', {
@@ -821,12 +841,43 @@ export function Chat({
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
+  const { artifact, setArtifact } = useArtifact();
 
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingMessageSentRef = useRef<boolean>(false);
 
   const { pinnedMessages, handlePin } = useMessageActions({ chatId: id });
+
+  // Custom retry function that properly formats the request
+  const handleRetry = useCallback(async () => {
+    if (messages.length < 2) return;
+
+    // Get the last user message
+    let lastUserMessage = null;
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        lastUserMessage = messages[i];
+        break;
+      }
+    }
+
+    if (!lastUserMessage) return;
+
+    // Remove the last assistant message
+    const newMessages = messages.filter(
+      (_, index) => index !== messages.length - 1,
+    );
+    setMessages(newMessages);
+
+    // Resubmit the last user message
+    await append({
+      id: generateUUID(),
+      role: 'user',
+      content: lastUserMessage.content,
+      createdAt: new Date(),
+    });
+  }, [messages, setMessages, append]);
 
   const handleScrollToMessage = (messageId: string) => {
     const messageElement = document.querySelector(
@@ -1309,6 +1360,84 @@ export function Chat({
     }
   }, [documentContext, messages.length, status, append]);
 
+  // Handle dashboard and new artifact creation based on URL
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const dashboard = url.searchParams.get('dashboard');
+    const newKind = url.searchParams.get(
+      'newArtifactKind',
+    ) as ArtifactKind | null;
+    const newTitle = url.searchParams.get('newArtifactTitle');
+    const existingId = url.searchParams.get('documentId');
+    const existingTitle = url.searchParams.get('documentTitle');
+    const existingKind = url.searchParams.get(
+      'artifactKind',
+    ) as ArtifactKind | null;
+
+    // If creating a new artifact, set up a blank artifact and show the panel.
+    if (newKind) {
+      const newDocumentId = generateUUID();
+      setArtifact((current) => ({
+        ...current,
+        kind: newKind,
+        title: newTitle || 'Untitled',
+        documentId: newDocumentId,
+        content: '',
+        isVisible: true,
+        status: 'idle',
+      }));
+
+      // Create empty artifact in database
+      fetch(`/api/document?id=${newDocumentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle || 'Untitled',
+          kind: newKind,
+          content: '',
+        }),
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            console.log('[ARTIFACT DEBUG] Empty artifact saved to database:', {
+              id: newDocumentId,
+              kind: newKind,
+              title: newTitle || 'Untitled',
+            });
+          } else {
+            console.error('[ARTIFACT DEBUG] Failed to save artifact:', {
+              status: res.status,
+              statusText: res.statusText,
+              text: await res.text(),
+            });
+          }
+        })
+        .catch((error) => {
+          console.error('[ARTIFACT DEBUG] Error saving artifact:', error);
+        });
+
+      // Remove the param so refreshes don't re-trigger
+      url.searchParams.delete('newArtifactKind');
+      url.searchParams.delete('newArtifactTitle');
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    // Opening an existing artifact from dashboard
+    if (existingId) {
+      setArtifact((current) => ({
+        ...current,
+        kind: existingKind || current.kind,
+        title: existingTitle || current.title || '',
+        documentId: existingId,
+        isVisible: true,
+        status: 'idle',
+      }));
+      // Do not navigate. Mirroring is handled inside the Artifact component.
+    }
+
+    // Dashboard param is consumed by dashboard UI component; no-op here.
+  }, [setArtifact]);
+
   // Handle research mode changes and save to user settings
   const handleResearchModeChange = useCallback(
     (mode: ResearchMode) => {
@@ -1415,6 +1544,27 @@ export function Chat({
           onScrollToMessage={handleScrollToMessage}
         />
 
+        {/* Show artifact context indicator when artifact is open */}
+        <AnimatePresence>
+          {artifact?.isVisible && artifact?.documentId && (
+            <motion.div
+              initial={{ y: -6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -6, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+            >
+              <ComposerContextIndicator
+                documentId={artifact.documentId}
+                title={artifact.title || 'Untitled'}
+                kind={artifact.kind || 'text'}
+                onClose={() =>
+                  setArtifact((current) => ({ ...current, isVisible: false }))
+                }
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* PinnedMessagesBar is now integrated into ChatHeader via SavedContentDropdown */}
 
         <Messages
@@ -1432,6 +1582,7 @@ export function Chat({
           searchProgress={searchProgress}
           meetingMetadata={meetingMetadata}
           onStartReply={startReply}
+          onRetry={handleRetry}
         />
 
         {/* Show Nexus search progress if active */}
@@ -1561,36 +1712,53 @@ export function Chat({
 
         <form className="absolute bottom-0 left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
           {/* Reply Indicator */}
-          <ReplyIndicator
-            isVisible={isReplying}
-            replyingTo={replyState}
-            onCancel={cancelReply}
-          />
+          <AnimatePresence initial={false}>
+            {isReplying && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+              >
+                <ReplyIndicator
+                  isVisible={isReplying}
+                  replyingTo={replyState}
+                  onCancel={cancelReply}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {!isReadonly && (
-            <MultimodalInput
-              chatId={id}
-              input={input}
-              setInput={setInput}
-              handleSubmit={handleSubmitAdapter}
-              status={status}
-              stop={stop}
-              attachments={attachments}
-              setAttachments={setAttachments}
-              messages={messages}
-              setMessages={setMessages}
-              append={append}
-              selectedVisibilityType={visibilityType}
-              selectedModelId={activeModel}
-              selectedProviderId={activeProvider}
-              selectedPersonaId={selectedPersonaId}
-              selectedProfileId={selectedProfileId}
-              session={session}
-              isReadonly={isReadonly}
-              selectedResearchMode={selectedResearchMode}
-              onResearchModeChange={handleResearchModeChange}
-              isChanging={researchModeChanging}
-            />
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+            >
+              <MultimodalInput
+                chatId={id}
+                input={input}
+                setInput={setInput}
+                handleSubmit={handleSubmitAdapter}
+                status={status}
+                stop={stop}
+                attachments={attachments}
+                setAttachments={setAttachments}
+                messages={messages}
+                setMessages={setMessages}
+                append={append}
+                selectedVisibilityType={visibilityType}
+                selectedModelId={activeModel}
+                selectedProviderId={activeProvider}
+                selectedPersonaId={selectedPersonaId}
+                selectedProfileId={selectedProfileId}
+                session={session}
+                isReadonly={isReadonly}
+                selectedResearchMode={selectedResearchMode}
+                onResearchModeChange={handleResearchModeChange}
+                isChanging={researchModeChanging}
+              />
+            </motion.div>
           )}
         </form>
 

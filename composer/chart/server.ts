@@ -1,4 +1,4 @@
-import { createDocumentHandler } from '@/lib/artifacts/server';
+import { createDocumentHandler } from '@/lib/composer/server';
 
 interface ChartData {
   type: string;

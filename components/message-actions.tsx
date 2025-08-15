@@ -4,7 +4,7 @@ import { useCopyToClipboard } from 'usehooks-ts';
 
 import type { Vote } from '@/lib/db/schema';
 
-import { CopyIcon, ThumbDownIcon, ThumbUpIcon } from './icons';
+import { CopyIcon, ThumbDownIcon, ThumbUpIcon, PencilEditIcon } from './icons';
 import { Button } from './ui/button';
 import {
   Tooltip,
@@ -13,9 +13,10 @@ import {
   TooltipTrigger,
 } from './ui/tooltip';
 import { memo } from 'react';
+import { motion } from 'framer-motion';
 import equal from 'fast-deep-equal';
 import { toast, toastUtils } from '@/lib/toast-system';
-import { Pin, MessageCircle, Share } from 'lucide-react';
+import { Pin, MessageCircle, Share, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { copyRichText, processMessageParts } from '@/lib/utils/copy-utils';
 
@@ -27,6 +28,8 @@ export function PureMessageActions({
   onPin,
   onReply,
   isPinned,
+  onEdit,
+  onRetry,
 }: {
   chatId: string;
   message: Message;
@@ -35,6 +38,8 @@ export function PureMessageActions({
   onPin?: (messageId: string) => void;
   onReply?: (messageId: string) => void;
   isPinned?: boolean;
+  onEdit?: () => void;
+  onRetry?: () => void;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
@@ -83,7 +88,7 @@ export function PureMessageActions({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex flex-row items-center gap-2 opacity-0 group-hover/message:opacity-100 transition-opacity duration-200">
+      <div className="flex flex-row items-center gap-2">
         {/* Show edited indicator if message has been edited */}
         {(message as any).isEdited && (
           <span className="text-xs text-muted-foreground/70 italic">
@@ -95,17 +100,22 @@ export function PureMessageActions({
           {/* Enhanced actions for all messages */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                className={cn(
-                  'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
-                  isPinned && 'text-eos-orange',
-                )}
-                variant="ghost"
-                size="sm"
-                onClick={() => onPin?.(message.id)}
+              <motion.div
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
               >
-                <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
-              </Button>
+                <Button
+                  className={cn(
+                    'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
+                    isPinned && 'text-eos-orange',
+                  )}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onPin?.(message.id)}
+                >
+                  <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
+                </Button>
+              </motion.div>
             </TooltipTrigger>
             <TooltipContent>
               {isPinned ? 'Unpin message' : 'Pin message'}
@@ -114,158 +124,230 @@ export function PureMessageActions({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                variant="ghost"
-                size="sm"
-                onClick={() => onReply?.(message.id)}
+              <motion.div
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
               >
-                <MessageCircle className="h-3 w-3" />
-              </Button>
+                <Button
+                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onReply?.(message.id)}
+                >
+                  <MessageCircle className="h-3 w-3" />
+                </Button>
+              </motion.div>
             </TooltipTrigger>
             <TooltipContent>Reply to message</TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                variant="ghost"
-                size="sm"
-                onClick={handleCopy}
+              <motion.div
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
               >
-                <CopyIcon />
-              </Button>
+                <Button
+                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopy}
+                >
+                  <CopyIcon />
+                </Button>
+              </motion.div>
             </TooltipTrigger>
             <TooltipContent>Copy message</TooltipContent>
           </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                variant="ghost"
-                size="sm"
-                onClick={handleShare}
+              <motion.div
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
               >
-                <Share className="h-3 w-3" />
-              </Button>
+                <Button
+                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleShare}
+                >
+                  <Share className="h-3 w-3" />
+                </Button>
+              </motion.div>
             </TooltipTrigger>
             <TooltipContent>Share message</TooltipContent>
           </Tooltip>
 
-          {/* Voting actions for assistant messages only */}
+          {/* Edit action for user messages */}
+          {message.role === 'user' && onEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Button
+                    className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onEdit}
+                  >
+                    <PencilEditIcon />
+                  </Button>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>Edit message</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Voting and retry actions for assistant messages only */}
           {message.role === 'assistant' && (
             <>
               <div className="w-px h-6 bg-border mx-1" />
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    data-testid="message-upvote"
-                    className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
-                    disabled={vote?.isUpvoted}
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const upvote = fetch('/api/vote', {
-                        method: 'PATCH',
-                        body: JSON.stringify({
-                          chatId,
-                          messageId: message.id,
-                          type: 'up',
-                        }),
-                      });
-
-                      toast.promise(upvote, {
-                        loading: 'Upvoting Response...',
-                        success: () => {
-                          mutate<Array<Vote>>(
-                            `/api/vote?chatId=${chatId}`,
-                            (currentVotes) => {
-                              if (!currentVotes) return [];
-
-                              const votesWithoutCurrent = currentVotes.filter(
-                                (vote) => vote.messageId !== message.id,
-                              );
-
-                              return [
-                                ...votesWithoutCurrent,
-                                {
-                                  chatId,
-                                  messageId: message.id,
-                                  isUpvoted: true,
-                                },
-                              ];
-                            },
-                            { revalidate: false },
-                          );
-
-                          return 'Upvoted Response!';
-                        },
-                        error: 'Failed to upvote response.',
-                      });
-                    }}
+                  <motion.div
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                   >
-                    <ThumbUpIcon />
-                  </Button>
+                    <Button
+                      data-testid="message-upvote"
+                      className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
+                      disabled={vote?.isUpvoted}
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const upvote = fetch('/api/vote', {
+                          method: 'PATCH',
+                          body: JSON.stringify({
+                            chatId,
+                            messageId: message.id,
+                            type: 'up',
+                          }),
+                        });
+
+                        toast.promise(upvote, {
+                          loading: 'Upvoting Response...',
+                          success: () => {
+                            mutate<Array<Vote>>(
+                              `/api/vote?chatId=${chatId}`,
+                              (currentVotes) => {
+                                if (!currentVotes) return [];
+
+                                const votesWithoutCurrent = currentVotes.filter(
+                                  (vote) => vote.messageId !== message.id,
+                                );
+
+                                return [
+                                  ...votesWithoutCurrent,
+                                  {
+                                    chatId,
+                                    messageId: message.id,
+                                    isUpvoted: true,
+                                  },
+                                ];
+                              },
+                              { revalidate: false },
+                            );
+
+                            return 'Upvoted Response!';
+                          },
+                          error: 'Failed to upvote response.',
+                        });
+                      }}
+                    >
+                      <ThumbUpIcon />
+                    </Button>
+                  </motion.div>
                 </TooltipTrigger>
                 <TooltipContent>Upvote Response</TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    data-testid="message-downvote"
-                    className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
-                    variant="ghost"
-                    size="sm"
-                    disabled={vote && !vote.isUpvoted}
-                    onClick={async () => {
-                      const downvote = fetch('/api/vote', {
-                        method: 'PATCH',
-                        body: JSON.stringify({
-                          chatId,
-                          messageId: message.id,
-                          type: 'down',
-                        }),
-                      });
-
-                      toast.promise(downvote, {
-                        loading: 'Downvoting Response...',
-                        success: () => {
-                          mutate<Array<Vote>>(
-                            `/api/vote?chatId=${chatId}`,
-                            (currentVotes) => {
-                              if (!currentVotes) return [];
-
-                              const votesWithoutCurrent = currentVotes.filter(
-                                (vote) => vote.messageId !== message.id,
-                              );
-
-                              return [
-                                ...votesWithoutCurrent,
-                                {
-                                  chatId,
-                                  messageId: message.id,
-                                  isUpvoted: false,
-                                },
-                              ];
-                            },
-                            { revalidate: false },
-                          );
-
-                          return 'Downvoted Response!';
-                        },
-                        error: 'Failed to downvote response.',
-                      });
-                    }}
+                  <motion.div
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                   >
-                    <ThumbDownIcon />
-                  </Button>
+                    <Button
+                      data-testid="message-downvote"
+                      className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
+                      variant="ghost"
+                      size="sm"
+                      disabled={vote && !vote.isUpvoted}
+                      onClick={async () => {
+                        const downvote = fetch('/api/vote', {
+                          method: 'PATCH',
+                          body: JSON.stringify({
+                            chatId,
+                            messageId: message.id,
+                            type: 'down',
+                          }),
+                        });
+
+                        toast.promise(downvote, {
+                          loading: 'Downvoting Response...',
+                          success: () => {
+                            mutate<Array<Vote>>(
+                              `/api/vote?chatId=${chatId}`,
+                              (currentVotes) => {
+                                if (!currentVotes) return [];
+
+                                const votesWithoutCurrent = currentVotes.filter(
+                                  (vote) => vote.messageId !== message.id,
+                                );
+
+                                return [
+                                  ...votesWithoutCurrent,
+                                  {
+                                    chatId,
+                                    messageId: message.id,
+                                    isUpvoted: false,
+                                  },
+                                ];
+                              },
+                              { revalidate: false },
+                            );
+
+                            return 'Downvoted Response!';
+                          },
+                          error: 'Failed to downvote response.',
+                        });
+                      }}
+                    >
+                      <ThumbDownIcon />
+                    </Button>
+                  </motion.div>
                 </TooltipTrigger>
                 <TooltipContent>Downvote Response</TooltipContent>
               </Tooltip>
+
+              {/* Retry action for assistant messages */}
+              {onRetry && (
+                <>
+                  <div className="w-px h-6 bg-border mx-1" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <motion.div
+                        whileHover={{ scale: 1.03, y: -1 }}
+                        whileTap={{ scale: 0.97 }}
+                      >
+                        <Button
+                          className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                          variant="ghost"
+                          size="sm"
+                          onClick={onRetry}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      </motion.div>
+                    </TooltipTrigger>
+                    <TooltipContent>Retry generation</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
             </>
           )}
         </div>
@@ -279,9 +361,11 @@ export const MessageActions = memo(
   (prevProps, nextProps) => {
     if (!equal(prevProps.vote, nextProps.vote)) return false;
     if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (prevProps.onPin !== nextProps.onPin) return false;
-    if (prevProps.onReply !== nextProps.onReply) return false;
     if (prevProps.isPinned !== nextProps.isPinned) return false;
+    if (prevProps.message.id !== nextProps.message.id) return false;
+    // Don't compare function references as they may change
+    // if (prevProps.onPin !== nextProps.onPin) return false;
+    // if (prevProps.onReply !== nextProps.onReply) return false;
 
     return true;
   },

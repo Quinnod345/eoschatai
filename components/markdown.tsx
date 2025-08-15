@@ -4,7 +4,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChartRenderer } from './chart-renderer';
 import { CitationRenderer } from './inline-citation';
-import type { ChartData } from '@/artifacts/chart/client';
+import type { ChartData } from '@/composer/chart/client';
 
 interface CitationReference {
   number: number;
@@ -243,7 +243,7 @@ function EnhancedTable({ children, ...props }: any) {
       {/* Lightbox Modal */}
       {isLightboxOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/0 backdrop-blur-[6px]"
           onClick={() => setIsLightboxOpen(false)}
         >
           <div

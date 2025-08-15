@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { cn } from '@/lib/utils';
-import { useArtifactSelector } from '@/hooks/use-artifact';
+import { useArtifactSelector } from '@/hooks/use-composer';
 
 export interface ConsoleOutputContent {
   type: 'text' | 'image';

@@ -44,7 +44,7 @@ function PureEditor({
   useEffect(() => {
     if (containerRef.current && !editorRef.current) {
       const state = EditorState.create({
-        doc: buildDocumentFromContent(content),
+        doc: buildDocumentFromContent(content || ''),
         plugins: [
           ...exampleSetup({ schema: documentSchema, menuBar: false }),
           inputRules({
@@ -63,6 +63,7 @@ function PureEditor({
 
       editorRef.current = new EditorView(containerRef.current, {
         state,
+        editable: () => true, // Ensure editor is always editable
       });
     }
 

@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/tooltip';
 
 import { ArrowUpIcon, StopIcon, SummarizeIcon } from './icons';
-import { artifactDefinitions, type ArtifactKind } from './artifact';
-import type { ArtifactToolbarItem } from './create-artifact';
+import { artifactDefinitions, type ArtifactKind } from './composer';
+import type { ArtifactToolbarItem } from './create-composer';
 import type { UseChatHelpers } from '@ai-sdk/react';
 
 type ToolProps = {

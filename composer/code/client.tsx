@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-artifact';
+import { Artifact } from '@/components/create-composer';
 import { CodeEditor } from '@/components/code-editor';
 import {
   CopyIcon,

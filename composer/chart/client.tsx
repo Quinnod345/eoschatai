@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-artifact';
+import { Artifact } from '@/components/create-composer';
 import {
   CopyIcon,
   DownloadIcon,
@@ -820,14 +820,15 @@ CHART_DATA_END`
       }
     };
 
-    // Helper to format chart type names for display
-    const formatChartTypeName = (type: string) => {
-      let name = `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+    // Helper to format chart type names for display (defensive)
+    const formatChartTypeName = (type?: string) => {
+      const safeType =
+        typeof type === 'string' && type.length > 0 ? type : 'bar';
+      if (safeType === 'polarArea') return 'Polar Area';
+      let name = `${safeType.charAt(0).toUpperCase()}${safeType.slice(1)}`;
       name = name.replace('Area', ' Area'); // e.g., PolarArea -> Polar Area
       name = name.replace('chart', ' Chart'); // e.g., Barchart -> Bar Chart (if it occurred)
-      // Handle specific known multi-word types for better display if needed
-      if (type === 'polarArea') return 'Polar Area';
-      return name; // Return the formatted name
+      return name;
     };
 
     return (

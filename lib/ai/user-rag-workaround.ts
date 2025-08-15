@@ -1,9 +1,9 @@
 import { openai } from '@ai-sdk/openai';
-import { embed } from 'ai';
 import { Index } from '@upstash/vector';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { generateEmbedding } from '@/lib/ai/embeddings';
 
 // Lazy initialization of Upstash Vector client for user RAG
 let userRagClient: Index | null = null;
@@ -76,11 +76,8 @@ export const findRelevantUserContentWorkaround = async (
       `User RAG Workaround: Found ${userDocs.length} documents for user ${userId}`,
     );
 
-    // Step 2: Generate embedding for the query
-    const { embedding: queryEmbedding } = await embed({
-      model: embeddingModel,
-      value: query,
-    });
+    // Step 2: Generate embedding for the query (uses shared cache)
+    const queryEmbedding = await generateEmbedding(query);
 
     console.log(
       `User RAG Workaround: Generated ${queryEmbedding.length}-dimensional embedding`,
@@ -98,24 +95,44 @@ export const findRelevantUserContentWorkaround = async (
 
       while (foundChunks < 20) {
         // Reasonable limit to avoid infinite loop
-        const vectorId = `${doc.id}-${chunkIndex}`;
+        const batchSize = 5;
+        const ids: string[] = [];
+        for (let i = 0; i < batchSize; i++) {
+          ids.push(`${doc.id}-${chunkIndex + i}`);
+        }
 
         try {
-          const vectorResult = await getUserRagClient().fetch([vectorId], {
+          const batch = await getUserRagClient().fetch(ids, {
             namespace: userId,
             includeMetadata: true,
             includeVectors: true,
           });
 
-          if (vectorResult?.[0]?.vector) {
-            const vector = vectorResult[0];
+          // Emulate original semantics: stop when we hit the first missing slot
+          let shouldBreak = false;
+          for (let i = 0; i < batch.length; i++) {
+            const vector = batch[i];
+            const currentId = ids[i];
+
+            if (!vector || !vector.vector) {
+              shouldBreak = true;
+              break;
+            }
+
             foundChunks++;
 
             // Compute cosine similarity
-            const similarity = cosineSimilarity(queryEmbedding, vector.vector!);
+            const vectorValues = Array.isArray(vector.vector)
+              ? (vector.vector as number[])
+              : [];
+            if (vectorValues.length === 0) {
+              shouldBreak = true;
+              break;
+            }
+            const similarity = cosineSimilarity(queryEmbedding, vectorValues);
 
             console.log(
-              `User RAG Workaround: Vector ${vectorId} similarity: ${(similarity * 100).toFixed(1)}%`,
+              `User RAG Workaround: Vector ${currentId} similarity: ${(similarity * 100).toFixed(1)}%`,
             );
 
             if (similarity >= minRelevance) {
@@ -131,16 +148,14 @@ export const findRelevantUserContentWorkaround = async (
                 },
               });
             }
-          } else {
-            // No more vectors for this document
-            break;
           }
+
+          chunkIndex += batchSize;
+          if (shouldBreak) break;
         } catch (error) {
-          // Vector doesn't exist, try next one
+          // Vector doesn't exist or request failed; emulate original break
           break;
         }
-
-        chunkIndex++;
       }
 
       console.log(

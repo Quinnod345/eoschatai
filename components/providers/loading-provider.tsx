@@ -1,7 +1,6 @@
 'use client';
 
 import { useLoading } from '@/hooks/use-loading';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Search, Upload, Cpu, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
@@ -41,16 +40,25 @@ export function LoadingProvider() {
   const config = loadingConfig[loadingType];
   const IconComponent = config.icon;
 
-  // Auto-hide loading when pathname changes
+  // Auto-hide loading overlay on navigation for chat and default
   useEffect(() => {
-    if (isLoading && loadingType === 'chat') {
-      // Give a small delay to allow for smooth transition
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
+    if (!isLoading) return;
+    const timeout = loadingType === 'chat' ? 300 : 400;
+    const timer = setTimeout(() => setLoading(false), timeout);
+    return () => clearTimeout(timer);
   }, [pathname, isLoading, loadingType, setLoading]);
+
+  // Prevent interactions and scroll while loading
+  useEffect(() => {
+    if (isLoading) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isLoading]);
 
   // Don't show loading overlay for chat navigation - the chat page itself will show loading
   if (loadingType === 'chat') {
@@ -64,7 +72,7 @@ export function LoadingProvider() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-[100] pointer-events-none"
+          className="fixed inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-[100] pointer-events-auto cursor-wait"
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -80,9 +88,6 @@ export function LoadingProvider() {
                 <IconComponent className="h-8 w-8 text-eos-orange animate-pulse" />
               </div>
             </div>
-
-            {/* Loading Spinner */}
-            <LoadingSpinner size="lg" variant="primary" />
 
             {/* Text Content */}
             <div className="text-center space-y-2">

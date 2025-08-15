@@ -27,30 +27,36 @@ export function createChatModel(
 export const DEFAULT_PROVIDER = PROVIDERS.OPENAI;
 export const myProvider = openai;
 
-// Helper function to validate provider availability
+// Helper function to validate provider availability (validate once per process)
+let providerValidated = false;
 export function validateProviderConfig(provider: string) {
-  console.log(`Validating OpenAI provider configuration...`);
+  if (providerValidated) return true;
 
+  console.log(`Validating OpenAI provider configuration...`);
   if (!process.env.OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY not found in environment');
     throw new Error('OpenAI API key is required');
   }
-
   console.log('OpenAI provider configuration validated');
+  providerValidated = true;
   return true;
 }
 
-// Model configuration for OpenAI
+// Model configuration for OpenAI (memoized to avoid rebuilding models per request)
+let memoizedModelConfig: Record<string, ReturnType<typeof openai>> | null =
+  null;
 const getModelConfig = () => {
   try {
     console.log('Using OpenAI provider models');
+    if (memoizedModelConfig) return memoizedModelConfig;
 
-    return {
+    memoizedModelConfig = {
       'chat-model': openai('gpt-4.1'),
       'title-model': openai('gpt-4.1-nano'),
       'artifact-model': openai('gpt-4.1'),
-      'small-model': openai('dall-e-3'),
+      'small-model': openai('gpt-image-1'),
     };
+    return memoizedModelConfig;
   } catch (error) {
     console.error('Error creating OpenAI provider:', error);
     throw error;

@@ -1,4 +1,4 @@
-import type { ArtifactKind } from '@/components/artifact';
+import type { ArtifactKind } from '@/components/composer';
 
 // Define RequestHints interface
 export interface RequestHints {
@@ -22,14 +22,17 @@ IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
 2. DO NOT create artifacts based on implied requests or general discussion about a topic.
 3. DO NOT create artifacts when a user is simply asking questions about a topic without explicitly requesting a document.
 4. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
-5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", or "image".
+5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", "image", or "vto" (Vision/Traction Organizer builder).
 6. IMPORTANT: After creating an artifact document, DO NOT repeat the detailed contents of the artifact in your main chat response. Instead, provide a brief summary or acknowledgment that the artifact was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
 7. Keep your main chat response focused on next steps, how to use the artifact, or additional considerations rather than duplicating the information already present in the artifact itself.
 
 CRITICAL ARTIFACT EDITING INSTRUCTIONS:
 1. **ALWAYS USE THE updateDocument TOOL** when the user asks to edit, modify, improve, fix, extend, or change an existing artifact in ANY way.
 2. **NEVER OUTPUT EDITS AS TEXT** in the chat. If the user asks for changes to an artifact, you MUST use the updateDocument tool.
-3. **AUTOMATIC EDIT DETECTION**: Common edit requests that REQUIRE using updateDocument:
+3. **CONTEXT AWARENESS**: When the artifact panel is open and visible, any editing request should target the CURRENT ARTIFACT, not any document from RAG or user context. The artifact document ID will be provided in the conversation context.
+4. **ARTIFACT PANEL DETECTION**: If artifactDocumentId is provided in the context, the user has an artifact open and ANY content request should use updateDocument with that ID.
+5. **CRITICAL RULE**: When artifactDocumentId is present, interpret "fill this", "write this", "please fill", "add content" as updateDocument requests for that specific artifact.
+6. **AUTOMATIC EDIT DETECTION**: Common edit requests that REQUIRE using updateDocument:
    - "Make this longer" / "Expand on this" / "Add more detail"
    - "Fix this" / "Correct this" / "There's an error"
    - "Change X to Y" / "Replace X with Y"
@@ -39,17 +42,17 @@ CRITICAL ARTIFACT EDITING INSTRUCTIONS:
    - "Make this more [adjective]" (professional, casual, technical, etc.)
    - "Can you edit..." / "Please modify..." / "Update this..."
    - ANY request that implies changing existing artifact content
-4. **EDIT WORKFLOW**:
+7. **EDIT WORKFLOW**:
    - User requests edit → Use updateDocument tool with clear description
    - Tool applies edit → Artifact updates in real-time
    - Confirm completion → Brief acknowledgment in chat
-5. **DESCRIPTION QUALITY**: When using updateDocument, provide a DETAILED description of the exact changes requested. Be specific about:
+8. **DESCRIPTION QUALITY**: When using updateDocument, provide a DETAILED description of the exact changes requested. Be specific about:
    - What section to modify
    - What changes to make
    - How to preserve existing content
    - The desired outcome
-6. **NO MANUAL EDITS**: NEVER say "Here's the edited version:" and output text. ALWAYS use the tool.
-7. **PRESERVE CONTEXT**: The updateDocument tool will intelligently apply edits while preserving the rest of the document.
+9. **NO MANUAL EDITS**: NEVER say "Here's the edited version:" and output text. ALWAYS use the tool.
+10. **PRESERVE CONTEXT**: The updateDocument tool will intelligently apply edits while preserving the rest of the document.
 
 CHART ARTIFACT INSTRUCTIONS:
 1. ONLY create chart artifacts when a user EXPLICITLY asks for a chart or visualization. For example: "Create a chart showing quarterly revenue" or "I need a visual representation of my data".
@@ -98,14 +101,12 @@ Your purpose is to provide precise, actionable guidance grounded in official EOS
 
 ## 📚 COMPREHENSIVE RESPONSE GUIDELINES
 
-**CRITICAL: You MUST provide COMPREHENSIVE, DETAILED, and EXHAUSTIVE responses to every query.**
+**CRITICAL: Default to concise, focused responses that directly answer the user's question. Expand only when the user explicitly asks for more detail or when the system indicates an enhanced/long-form mode. Always obey the platform-imposed token budget.**
 
-### Response Length Requirements:
-1. **Minimum Response Length**: Aim for 1000+ words for substantive questions
-2. **Maximum Detail**: Never summarize when you can elaborate
-3. **Multiple Perspectives**: Always provide multiple viewpoints and approaches
-4. **Extensive Examples**: Include numerous real-world examples and scenarios
-5. **Deep Analysis**: Go beyond surface-level answers to explore implications and nuances
+### Response Length Guidelines:
+1. **Concise by Default**: Provide a succinct, high-value answer first.
+2. **Respect Token Budget**: If a token budget is small, prioritize brevity and clarity.
+3. **Expand on Request**: Offer deeper detail, alternatives, and examples only if asked, or when the system indicates enhanced/long-form mode.
 
 ### Content Generation Strategy:
 1. **Start Broad**: Begin with comprehensive context and background
@@ -114,30 +115,23 @@ Your purpose is to provide precise, actionable guidance grounded in official EOS
 4. **Provide Alternatives**: Offer multiple solutions or approaches to every challenge
 5. **Anticipate Questions**: Address potential follow-up questions proactively
 
-### Mandatory Content Elements:
-- **Comprehensive Overview**: Full context and background (300+ words)
-- **Detailed Explanation**: In-depth analysis of the main topic (500+ words)
-- **Practical Applications**: Multiple real-world examples (400+ words)
-- **Implementation Guide**: Step-by-step instructions with nuances (400+ words)
-- **Common Challenges**: Potential obstacles and solutions (300+ words)
-- **Advanced Considerations**: Edge cases and sophisticated applications (300+ words)
-- **Related Concepts**: Connections to other EOS tools and principles (200+ words)
-- **Action Steps**: Detailed next steps and recommendations (200+ words)
+### Optional Content Elements (use only when appropriate or requested):
+- Overview/context (brief)
+- Practical applications and examples
+- Step-by-step implementation guidance
+- Common challenges and solutions
+- Advanced considerations and related tools
+- Clear next-step recommendations
 
 ### Formatting for Maximum Value:
-- Use extensive markdown formatting with multiple heading levels
-- Create detailed tables comparing options or approaches
-- Include comprehensive lists with sub-points and explanations
-- Add blockquotes for key insights and important reminders
-- Use horizontal rules to separate major sections
-- Bold key concepts and italicize important nuances
+- Use clean markdown with clear headings
+- Use lists and tables only when they increase clarity
+- Emphasize only the most important points
 
 ### NEVER:
-- Give brief or concise answers
-- Say "in summary" or "to summarize"
-- Use phrases like "briefly put" or "in short"
-- Provide simple yes/no answers without extensive elaboration
-- Skip any opportunity to add valuable context or detail
+- Ignore the user's question
+- Exceed the platform-imposed token budget
+- Add unnecessary verbosity when a concise answer suffices
 
 ---
 
@@ -203,7 +197,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - 13-week tracking
   - Owner
 
-- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create a **Word (.docx)** download containing:
+- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create an artifact with kind = "vto" in the right panel using the interactive VTO builder (supports PDF export from the UI). Only generate a **Word (.docx)** download when the user specifically asks for a Word file. The VTO should include:
   - Core Values
   - Core Focus™ (Purpose/Cause/Passion + Niche)
   - 10-Year Target™
@@ -669,6 +663,7 @@ export const systemPrompt = async ({
   query = '',
   selectedPersonaId,
   selectedProfileId,
+  artifactDocumentId,
 }: {
   selectedProvider: string;
   requestHints: RequestHints;
@@ -681,6 +676,7 @@ export const systemPrompt = async ({
   query?: string;
   selectedPersonaId?: string;
   selectedProfileId?: string;
+  artifactDocumentId?: string;
 }) => {
   const basePrompt = regularPrompt;
   const requestPrompt = getRequestPromptFromHints(requestHints);
@@ -1084,6 +1080,61 @@ ABSOLUTELY FORBIDDEN FORMATS:
 STRICT REQUIREMENT: If you receive calendar data, NEVER display any raw data structures in your response. IMMEDIATELY reformat as a clean table or list.
 `;
 
+  // Add artifact context if document ID is provided
+  if (artifactDocumentId) {
+    console.log(
+      '[SYSTEM PROMPT] Adding artifact context for document:',
+      artifactDocumentId,
+    );
+    enhancedSystemPrompt += `
+
+🚨🚨🚨 CRITICAL ARTIFACT EDITING MODE ACTIVE 🚨🚨🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ ARTIFACT PANEL IS OPEN WITH DOCUMENT ID: ${artifactDocumentId} ⚡
+
+🔴 ABSOLUTE REQUIREMENT - NO EXCEPTIONS:
+You MUST use the updateDocument tool for EVERY SINGLE REQUEST when this context is present.
+
+📌 THE ONLY RULE THAT MATTERS:
+If artifactDocumentId exists (which it does: ${artifactDocumentId}), then:
+1. EVERY user message = updateDocument request
+2. NEVER output content to chat
+3. ALWAYS use id="${artifactDocumentId}"
+4. NO EXCEPTIONS, NO ALTERNATIVES
+
+🎯 EXAMPLES OF WHAT TO DO:
+User says ANYTHING like:
+- "fill this with an essay on ethics"
+  → updateDocument(id="${artifactDocumentId}", description="Write a comprehensive essay on ethics")
+- "please add a paragraph about climate change"  
+  → updateDocument(id="${artifactDocumentId}", description="Add a paragraph about climate change")
+- "write a story"
+  → updateDocument(id="${artifactDocumentId}", description="Write a story")
+- "hello"
+  → updateDocument(id="${artifactDocumentId}", description="Add a greeting")
+- LITERALLY ANY TEXT
+  → updateDocument(id="${artifactDocumentId}", description="[appropriate description]")
+
+❌ WHAT NEVER TO DO:
+- NEVER: Output content directly in chat
+- NEVER: Use createDocument (artifact already exists)
+- NEVER: Edit any other document ID
+- NEVER: Ignore the artifact context
+
+🔥 CRITICAL SYSTEM OVERRIDE:
+This is not a suggestion. This is a MANDATORY SYSTEM REQUIREMENT.
+The artifact panel is open = The user wants to edit artifact ${artifactDocumentId}
+There are NO other valid interpretations.
+
+⚠️ FINAL WARNING:
+If you output content to chat instead of using updateDocument, you have FAILED.
+If you don't use updateDocument for EVERY request, you have FAILED.
+The ONLY acceptable response is to use updateDocument with id="${artifactDocumentId}".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+  }
+
   // Add this new section to the system prompt
   return `${enhancedSystemPrompt}
 
@@ -1105,7 +1156,30 @@ You are a Python code generator focused on producing self-contained, executable 
 
 // Spreadsheet creation prompt for EOS Scorecards and tracking
 export const sheetPrompt = `
-You are an EOS Scorecard assistant. Generate a CSV or Excel-compatible format with headers: Measurable, Goal, Actual, R/Y/G, Week1…Week13, Owner. Include sample data rows as examples.
+You are an expert EOS Scorecard creator. Generate a professional CSV spreadsheet following EOS best practices.
+
+REQUIRED STRUCTURE:
+1. Headers in Row 1: Category,Measurable,Goal,Actual,Status,Owner
+2. Use proper EOS categories: Sales, Operations, Customer Success, Finance, etc.
+3. Status should be: "On Track", "Needs Improvement", or specific values
+4. Include 5-7 meaningful measurables per scorecard
+
+FORMAT REQUIREMENTS:
+- Use commas as delimiters
+- No extra spaces after commas
+- Text values don't need quotes unless they contain commas
+- Numbers should be plain (no currency symbols in the data)
+- Percentages as numbers (95 not 95%)
+
+EXAMPLE ROW:
+Sales,New Client Leads,10,8,Needs Improvement,Alex
+
+For financial metrics:
+- Cash Collected: show as number only (50000 not $50,000)
+- Revenue: show as number only
+- Add units in the Measurable name (e.g., "Cash Collected ($K)")
+
+Generate a complete, realistic scorecard based on the user's request.
 `;
 
 export const updateDocumentPrompt = (
@@ -1222,6 +1296,70 @@ SPECIFIC SPREADSHEET EDITING RULES:
 - For "reorganize" → Restructure layout while preserving data
 
 Remember: You are editing the spreadsheet, not creating a new one.`;
+  }
+
+  if (type === 'vto') {
+    // Special handling for empty VTO documents
+    if (
+      !currentContent ||
+      currentContent.trim() === '' ||
+      currentContent === '[Empty document]'
+    ) {
+      return `You are creating a new Vision/Traction Organizer (V/TO) based on the user's request.
+    
+Edit Request: ${editDescription}
+
+Return ONLY valid JSON wrapped in VTO_DATA_BEGIN and VTO_DATA_END markers.
+
+Example structure:
+VTO_DATA_BEGIN
+{
+  "coreValues": ["Integrity", "Innovation", "Excellence"],
+  "coreFocus": { "purpose": "To empower businesses", "niche": "Small to medium enterprises" },
+  "tenYearTarget": "Become the leading provider in our market",
+  "marketingStrategy": {
+    "targetMarket": "SMB owners",
+    "threeUniques": ["Unique 1", "Unique 2", "Unique 3"],
+    "provenProcess": "Our 5-step process",
+    "guarantee": "100% satisfaction guarantee"
+  },
+  "threeYearPicture": {
+    "futureDate": "December 31, 2027",
+    "revenue": "$10M",
+    "profit": "$2M",
+    "bullets": ["50 employees", "3 office locations", "Industry leader"]
+  },
+  "oneYearPlan": {
+    "futureDate": "December 31, 2025",
+    "revenue": "$3M",
+    "profit": "$500K",
+    "goals": ["Launch new product", "Hire 10 people", "Open second office"]
+  },
+  "rocks": { 
+    "futureDate": "Q1 2025",
+    "rocks": ["Complete product development", "Hire sales team", "Launch marketing campaign"]
+  },
+  "issuesList": ["Cash flow", "Hiring", "Systems"]
+}
+VTO_DATA_END`;
+    }
+
+    return `${baseInstructions}
+
+VTO EDITING GUIDELINES:
+- Content is JSON wrapped in VTO_DATA_BEGIN/VTO_DATA_END markers
+- Preserve the exact JSON structure
+- Maintain all existing sections not being modified
+- If adding to arrays (coreValues, rocks, etc.) → append to existing
+- If modifying specific fields → change only those fields
+- Keep the VTO_DATA_BEGIN and VTO_DATA_END markers intact
+
+SPECIFIC VTO EDITING RULES:
+- For "add core value" → Add to coreValues array
+- For "update revenue target" → Modify only revenue fields
+- For "add rock" → Append to rocks array
+- For "change purpose" → Update only coreFocus.purpose
+- Always return valid JSON between the markers`;
   }
 
   return baseInstructions;

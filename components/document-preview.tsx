@@ -7,17 +7,19 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
-import type { ArtifactKind, UIArtifact } from './artifact';
+import type { ArtifactKind, UIArtifact } from './composer';
 import { FileIcon, FullscreenIcon, ImageIcon, LoaderIcon } from './icons';
 import { cn, fetcher } from '@/lib/utils';
 import type { Document } from '@/lib/db/schema';
 import { InlineDocumentSkeleton } from './document-skeleton';
 import useSWR from 'swr';
 import { Editor } from './text-editor';
+import { motion } from 'framer-motion';
 import { DocumentToolCall, DocumentToolResult } from './document';
 import { CodeEditor } from './code-editor';
-import { useArtifact } from '@/hooks/use-artifact';
+import { useArtifact } from '@/hooks/use-composer';
 import equal from 'fast-deep-equal';
 import { SpreadsheetEditor } from './sheet-editor';
 import { ImageEditor } from './image-editor';
@@ -42,6 +44,37 @@ export function DocumentPreview({
 
   const previewDocument = useMemo(() => documents?.[0], [documents]);
   const hitboxRef = useRef<HTMLDivElement>(null);
+  const [frozenDocument, setFrozenDocument] = useState<Document | null>(null);
+
+  // Compute latest document (from DB or streaming artifact) up-front so hooks below can use it
+  const latestDocument: Document | null = useMemo(() => {
+    if (previewDocument) return previewDocument;
+    if (artifact.status === 'streaming') {
+      return {
+        title: artifact.title,
+        kind: artifact.kind,
+        content: artifact.content,
+        id: artifact.documentId,
+        createdAt: new Date(),
+        userId: 'noop',
+      } as Document;
+    }
+    return null;
+  }, [
+    previewDocument,
+    artifact.status,
+    artifact.title,
+    artifact.kind,
+    artifact.content,
+    artifact.documentId,
+  ]);
+
+  // Freeze the inline preview to the first available document until user clicks to open
+  useEffect(() => {
+    if (!frozenDocument && latestDocument) {
+      setFrozenDocument(latestDocument);
+    }
+  }, [frozenDocument, latestDocument]);
 
   useEffect(() => {
     const boundingBox = hitboxRef.current?.getBoundingClientRect();
@@ -81,31 +114,34 @@ export function DocumentPreview({
     }
   }
 
-  if (isDocumentsFetching) {
-    return <LoadingSkeleton artifactKind={result.kind ?? args.kind} />;
+  if (isDocumentsFetching && !frozenDocument) {
+    return (
+      <LoadingSkeleton
+        artifactKind={result?.kind ?? args?.kind ?? artifact.kind}
+      />
+    );
   }
 
-  const document: Document | null = previewDocument
-    ? previewDocument
-    : artifact.status === 'streaming'
-      ? {
-          title: artifact.title,
-          kind: artifact.kind,
-          content: artifact.content,
-          id: artifact.documentId,
-          createdAt: new Date(),
-          userId: 'noop',
-        }
-      : null;
+  if (!frozenDocument && !latestDocument)
+    return <LoadingSkeleton artifactKind={artifact.kind} />;
 
-  if (!document) return <LoadingSkeleton artifactKind={artifact.kind} />;
+  const document: Document = frozenDocument ?? (latestDocument as Document);
 
   return (
-    <div className="relative w-full cursor-pointer">
+    <motion.div
+      className="relative w-full cursor-pointer"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+    >
       <HitboxLayer
         hitboxRef={hitboxRef}
         result={result}
         setArtifact={setArtifact}
+        onOpen={() => {
+          // When the user clicks to open, update the frozen snapshot to the latest
+          if (latestDocument) setFrozenDocument(latestDocument);
+        }}
       />
       <DocumentHeader
         title={document.title}
@@ -113,7 +149,7 @@ export function DocumentPreview({
         isStreaming={artifact.status === 'streaming'}
       />
       <DocumentContent document={document} />
-    </div>
+    </motion.div>
   );
 }
 
@@ -146,16 +182,20 @@ const PureHitboxLayer = ({
   hitboxRef,
   result,
   setArtifact,
+  onOpen,
 }: {
   hitboxRef: React.RefObject<HTMLDivElement>;
   result: any;
   setArtifact: (
     updaterFn: UIArtifact | ((currentArtifact: UIArtifact) => UIArtifact),
   ) => void;
+  onOpen?: () => void;
 }) => {
   const handleClick = useCallback(
     (event: MouseEvent<HTMLElement>) => {
       const boundingBox = event.currentTarget.getBoundingClientRect();
+
+      if (onOpen) onOpen();
 
       setArtifact((artifact) =>
         artifact.status === 'streaming'
@@ -175,7 +215,7 @@ const PureHitboxLayer = ({
             },
       );
     },
-    [setArtifact, result],
+    [setArtifact, result, onOpen],
   );
 
   return (
@@ -320,6 +360,101 @@ const DocumentContent = ({ document }: { document: Document }) => {
     );
   };
 
+  // Parse and render compact VTO preview
+  const renderVtoPreview = () => {
+    try {
+      const content = document.content || '';
+      const hasBegin = content.includes('VTO_DATA_BEGIN');
+      const hasEnd = content.includes('VTO_DATA_END');
+      let jsonStr = '';
+      if (hasBegin && hasEnd) {
+        const start =
+          content.indexOf('VTO_DATA_BEGIN') + 'VTO_DATA_BEGIN'.length;
+        const end = content.indexOf('VTO_DATA_END');
+        jsonStr = content.substring(start, end).trim();
+      } else {
+        const s = content.indexOf('{');
+        const e = content.lastIndexOf('}') + 1;
+        if (s >= 0 && e > s) jsonStr = content.substring(s, e);
+      }
+      if (!jsonStr) return null;
+      const vto = JSON.parse(jsonStr) as any;
+      return (
+        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-slate-700 text-white px-3 py-2 font-semibold">
+              1-YEAR PLAN
+            </div>
+            <div className="p-3">
+              <div className="font-semibold">Future Date:</div>
+              <div className="mb-1 text-muted-foreground">
+                {vto?.oneYearPlan?.futureDate || '-'}
+              </div>
+              <div className="font-semibold">Revenue:</div>
+              <div className="mb-1 text-muted-foreground">
+                {vto?.oneYearPlan?.revenue || '-'}
+              </div>
+              <div className="font-semibold">Profit:</div>
+              <div className="mb-2 text-muted-foreground">
+                {vto?.oneYearPlan?.profit || '-'}
+              </div>
+              <div className="font-semibold mb-1">Goals:</div>
+              <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                {(vto?.oneYearPlan?.goals || [])
+                  .slice(0, 5)
+                  .map((g: string) => (
+                    <li key={`${g}-${Math.random().toString(36).slice(2, 7)}`}>
+                      {g || ' '}
+                    </li>
+                  ))}
+              </ol>
+            </div>
+          </div>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-slate-700 text-white px-3 py-2 font-semibold">
+              ROCKS
+            </div>
+            <div className="p-3">
+              <div className="font-semibold">Future Date:</div>
+              <div className="mb-2 text-muted-foreground">
+                {vto?.rocks?.futureDate || '-'}
+              </div>
+              <div className="font-semibold mb-1">Rocks for the Quarter</div>
+              <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                {(vto?.rocks?.rocks || []).slice(0, 5).map((r: string) => (
+                  <li key={`${r}-${Math.random().toString(36).slice(2, 7)}`}>
+                    {r || ' '}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="bg-slate-700 text-white px-3 py-2 font-semibold">
+              ISSUES LIST
+            </div>
+            <div className="p-3">
+              <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                {(vto?.issuesList || []).slice(0, 6).map((it: string) => (
+                  <li key={`${it}-${Math.random().toString(36).slice(2, 7)}`}>
+                    {it || ' '}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      );
+    } catch (err) {
+      console.error('Failed to parse VTO for preview:', err);
+      return (
+        <div className="flex items-center justify-center w-full h-full text-muted-foreground">
+          VTO preview unavailable
+        </div>
+      );
+    }
+  };
+
   return (
     <div className={containerClassName}>
       {document.kind === 'text' ? (
@@ -347,6 +482,8 @@ const DocumentContent = ({ document }: { document: Document }) => {
         />
       ) : document.kind === 'chart' ? (
         renderChartPreview()
+      ) : document.kind === 'vto' ? (
+        renderVtoPreview()
       ) : null}
     </div>
   );

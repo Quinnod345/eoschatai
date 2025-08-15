@@ -1,9 +1,10 @@
-import { codeDocumentHandler } from '@/artifacts/code/server';
-import { imageDocumentHandler } from '@/artifacts/image/server';
-import { sheetDocumentHandler } from '@/artifacts/sheet/server';
-import { textDocumentHandler } from '@/artifacts/text/server';
-import { chartDocumentHandler } from '@/artifacts/chart/server';
-import type { ArtifactKind } from '@/components/artifact';
+import { codeDocumentHandler } from '@/composer/code/server';
+import { imageDocumentHandler } from '@/composer/image/server';
+import { sheetDocumentHandler } from '@/composer/sheet/server';
+import { textDocumentHandler } from '@/composer/text/server';
+import { chartDocumentHandler } from '@/composer/chart/server';
+import { vtoDocumentHandler } from '@/composer/vto/server';
+import type { ArtifactKind } from '@/components/composer';
 import type { DataStreamWriter } from 'ai';
 import type { Session } from 'next-auth';
 import type { Document } from '@/lib/db/schema';
@@ -96,6 +97,7 @@ export const documentHandlersByArtifactKind: Array<DocumentHandler> = [
   imageDocumentHandler,
   sheetDocumentHandler,
   chartDocumentHandler,
+  vtoDocumentHandler,
 ];
 
 export const artifactKinds = [
@@ -104,4 +106,5 @@ export const artifactKinds = [
   'image',
   'sheet',
   'chart',
+  'vto',
 ] as const;

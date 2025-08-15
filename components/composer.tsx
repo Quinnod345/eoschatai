@@ -20,12 +20,13 @@ import { ArtifactActions } from './artifact-actions';
 import { ArtifactCloseButton } from './artifact-close-button';
 import { ArtifactMessages } from './artifact-messages';
 import { useSidebar } from './ui/sidebar';
-import { useArtifact } from '@/hooks/use-artifact';
-import { imageArtifact } from '@/artifacts/image/client';
-import { codeArtifact } from '@/artifacts/code/client';
-import { sheetArtifact } from '@/artifacts/sheet/client';
-import { textArtifact } from '@/artifacts/text/client';
-import { chartArtifact } from '@/artifacts/chart/client';
+import { useArtifact } from '@/hooks/use-composer';
+import { imageArtifact } from '@/composer/image/client';
+import { codeArtifact } from '@/composer/code/client';
+import { sheetArtifact } from '@/composer/sheet/client';
+import { textArtifact } from '@/composer/text/client';
+import { chartArtifact } from '@/composer/chart/client';
+import { vtoArtifact } from '@/composer/vto/client';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
@@ -36,6 +37,7 @@ export const artifactDefinitions = [
   imageArtifact,
   sheetArtifact,
   chartArtifact,
+  vtoArtifact,
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
@@ -103,8 +105,41 @@ function PureArtifact({
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
+  const [mirroredChatId, setMirroredChatId] = useState<string | null>(null);
+  const [mirroredMessages, setMirroredMessages] = useState<Array<UIMessage>>(
+    [],
+  );
+  const [mirroredVotes, setMirroredVotes] = useState<Array<Vote>>([]);
+  const [isMirroredLoading, setIsMirroredLoading] = useState(false);
 
   const { open: isSidebarOpen } = useSidebar();
+  // Inline title editing
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+
+  // Validate VTO content to avoid saving/overriding with invalid or empty data
+  const isValidVtoContent = useCallback(
+    (maybeContent: string | null | undefined) => {
+      if (!maybeContent) return false;
+      const content = String(maybeContent);
+      try {
+        const hasBegin = content.includes('VTO_DATA_BEGIN');
+        const hasEnd = content.includes('VTO_DATA_END');
+        let jsonStr = content;
+        if (hasBegin && hasEnd) {
+          const start =
+            content.indexOf('VTO_DATA_BEGIN') + 'VTO_DATA_BEGIN'.length;
+          const end = content.indexOf('VTO_DATA_END');
+          jsonStr = content.substring(start, end).trim();
+        }
+        const parsed: any = JSON.parse(jsonStr);
+        return Boolean(parsed?.coreValues && parsed?.coreFocus);
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (documents && documents.length > 0) {
@@ -113,58 +148,122 @@ function PureArtifact({
       if (mostRecentDocument) {
         setDocument(mostRecentDocument);
         setCurrentVersionIndex(documents.length - 1);
-        setArtifact((currentArtifact) => ({
-          ...currentArtifact,
-          content: mostRecentDocument.content ?? '',
-        }));
+        setArtifact((currentArtifact) => {
+          // Avoid clobbering in-flight or freshly streamed content with an empty/older fetch
+          const shouldOverrideContent =
+            currentArtifact.status !== 'streaming' &&
+            !!mostRecentDocument.content &&
+            mostRecentDocument.content.length > 0 &&
+            mostRecentDocument.content !== currentArtifact.content &&
+            // For VTO, only override if the fetched content is valid VTO
+            (currentArtifact.kind !== 'vto' ||
+              isValidVtoContent(mostRecentDocument.content));
+
+          return shouldOverrideContent
+            ? { ...currentArtifact, content: mostRecentDocument.content ?? '' }
+            : currentArtifact;
+        });
       }
     }
-  }, [documents, setArtifact]);
+  }, [documents, setArtifact, isValidVtoContent]);
 
   useEffect(() => {
     mutateDocuments();
   }, [artifact.status, mutateDocuments]);
+  // Load mirrored chat for this artifact if it exists
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMirrored() {
+      if (!artifact.documentId || artifact.documentId === 'init') return;
+      setIsMirroredLoading(true);
+      try {
+        const chatRes = await fetch(
+          `/api/chats/by-document?id=${artifact.documentId}`,
+        );
+        const { chatId } = await chatRes.json();
+        if (!chatId || cancelled) {
+          setMirroredChatId(null);
+          setMirroredMessages([]);
+          setMirroredVotes([]);
+          return;
+        }
+        setMirroredChatId(chatId);
+        const msgsRes = await fetch(`/api/chats/messages?chatId=${chatId}`);
+        const data = await msgsRes.json();
+        if (!cancelled && Array.isArray(data?.messages)) {
+          // Convert DB messages -> UIMessage expected by existing components if needed
+          const uiMsgs = data.messages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            parts: m.parts,
+            createdAt: m.createdAt,
+          }));
+          setMirroredMessages(uiMsgs);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setMirroredChatId(null);
+          setMirroredMessages([]);
+          setMirroredVotes([]);
+        }
+      } finally {
+        if (!cancelled) setIsMirroredLoading(false);
+      }
+    }
+    loadMirrored();
+    return () => {
+      cancelled = true;
+    };
+  }, [artifact.documentId]);
 
   const { mutate } = useSWRConfig();
   const [isContentDirty, setIsContentDirty] = useState(false);
 
   const handleContentChange = useCallback(
-    (updatedContent: string) => {
-      if (!artifact) return;
+    async (updatedContent: string) => {
+      if (!artifact || !artifact.documentId) return;
 
+      // Never persist invalid/empty VTO content
+      if (
+        artifact.kind === 'vto' &&
+        (!isValidVtoContent(updatedContent) ||
+          updatedContent.trim().length === 0)
+      ) {
+        return;
+      }
+
+      // Always POST the latest content to persist
+      try {
+        await fetch(`/api/document?id=${artifact.documentId}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            title: artifact.title,
+            content: updatedContent,
+            kind: artifact.kind,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to save document content', err);
+      } finally {
+        setIsContentDirty(false);
+      }
+
+      // If we already have documents cached, append a new version locally
       mutate<Array<Document>>(
         `/api/document?id=${artifact.documentId}`,
-        async (currentDocuments) => {
-          if (!currentDocuments) return undefined;
-
-          const currentDocument = currentDocuments.at(-1);
-
-          if (!currentDocument || !currentDocument.content) {
-            setIsContentDirty(false);
+        (currentDocuments) => {
+          if (!currentDocuments || currentDocuments.length === 0)
             return currentDocuments;
-          }
-
-          if (currentDocument.content !== updatedContent) {
-            await fetch(`/api/document?id=${artifact.documentId}`, {
-              method: 'POST',
-              body: JSON.stringify({
-                title: artifact.title,
-                content: updatedContent,
-                kind: artifact.kind,
-              }),
-            });
-
-            setIsContentDirty(false);
-
-            const newDocument = {
-              ...currentDocument,
-              content: updatedContent,
-              createdAt: new Date(),
-            };
-
-            return [...currentDocuments, newDocument];
-          }
-          return currentDocuments;
+          const currentDocument = currentDocuments.at(-1);
+          if (!currentDocument) return currentDocuments;
+          if (currentDocument.content === updatedContent)
+            return currentDocuments;
+          const newDocument = {
+            ...currentDocument,
+            content: updatedContent,
+            createdAt: new Date(),
+          } as Document;
+          return [...currentDocuments, newDocument];
         },
         { revalidate: false },
       );
@@ -179,17 +278,16 @@ function PureArtifact({
 
   const saveContent = useCallback(
     (updatedContent: string, debounce: boolean) => {
-      if (document && updatedContent !== document.content) {
+      if (updatedContent !== (document?.content ?? '')) {
         setIsContentDirty(true);
-
         if (debounce) {
           debouncedHandleContentChange(updatedContent);
         } else {
-          handleContentChange(updatedContent);
+          void handleContentChange(updatedContent);
         }
       }
     },
-    [document, debouncedHandleContentChange, handleContentChange],
+    [document?.content, debouncedHandleContentChange, handleContentChange],
   );
 
   function getDocumentContentById(index: number) {
@@ -268,7 +366,7 @@ function PureArtifact({
         >
           {!isMobile && (
             <motion.div
-              className="fixed bg-background h-dvh"
+              className="fixed bg-background h-dvh pointer-events-none"
               initial={{
                 width: isSidebarOpen ? windowWidth - 256 : windowWidth,
                 right: 0,
@@ -316,11 +414,13 @@ function PureArtifact({
 
               <div className="flex flex-col h-full justify-between items-center">
                 <ArtifactMessages
-                  chatId={chatId}
-                  status={status}
-                  votes={votes}
-                  messages={messages}
-                  setMessages={setMessages}
+                  chatId={mirroredChatId || chatId}
+                  status={isMirroredLoading ? 'submitted' : status}
+                  votes={mirroredChatId ? mirroredVotes : votes}
+                  messages={mirroredChatId ? mirroredMessages : messages}
+                  setMessages={
+                    mirroredChatId ? ((() => {}) as any) : setMessages
+                  }
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
@@ -328,7 +428,7 @@ function PureArtifact({
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-6 pb-6">
                   <MultimodalInput
-                    chatId={chatId}
+                    chatId={mirroredChatId || chatId}
                     input={input}
                     setInput={setInput}
                     handleSubmit={handleSubmit}
@@ -336,10 +436,12 @@ function PureArtifact({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    messages={messages}
+                    messages={mirroredChatId ? mirroredMessages : messages}
                     append={append}
-                    className="bg-transparent dark:bg-transparent"
-                    setMessages={setMessages}
+                    className="bg-transparent dark:bg-transparent artifact-embedded"
+                    setMessages={
+                      mirroredChatId ? ((() => {}) as any) : setMessages
+                    }
                     selectedVisibilityType={selectedVisibilityType}
                   />
                 </form>
@@ -348,7 +450,7 @@ function PureArtifact({
           )}
 
           <motion.div
-            className="fixed dark:bg-muted bg-background h-dvh flex flex-col overflow-y-scroll md:border-l dark:border-zinc-700 border-zinc-200"
+            className="fixed dark:bg-muted bg-background h-dvh flex flex-col overflow-y-scroll md:border-l dark:border-zinc-700 border-zinc-200 z-[70]"
             initial={
               isMobile
                 ? {
@@ -419,7 +521,46 @@ function PureArtifact({
                 <ArtifactCloseButton />
 
                 <div className="flex flex-col">
-                  <div className="font-medium">{artifact.title}</div>
+                  <div className="font-medium">
+                    {isEditingTitle ? (
+                      <input
+                        autoFocus
+                        className="bg-transparent border-b border-transparent focus:border-primary outline-none px-1"
+                        value={draftTitle}
+                        onChange={(e) => setDraftTitle(e.target.value)}
+                        onBlur={async () => {
+                          setIsEditingTitle(false);
+                          const title = (draftTitle || '').trim() || 'Untitled';
+                          setArtifact((a) => ({ ...a, title }));
+                          if (artifact.documentId) {
+                            try {
+                              await fetch(
+                                `/api/document?id=${artifact.documentId}`,
+                                {
+                                  method: 'PATCH',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({ title }),
+                                },
+                              );
+                            } catch {}
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={() => {
+                          setDraftTitle(artifact.title || '');
+                          setIsEditingTitle(true);
+                        }}
+                        className="cursor-text"
+                        title="Double-click to rename"
+                      >
+                        {artifact.title || 'Untitled'}
+                      </span>
+                    )}
+                  </div>
 
                   {isContentDirty ? (
                     <div className="text-sm text-muted-foreground">

@@ -159,7 +159,7 @@ export function AnimatedModal({
               <AlertDialogTitle>Modal Dialog</AlertDialogTitle>
             </VisuallyHidden>
             <motion.div
-              className="w-full max-h-[90vh] mx-auto bg-background rounded-lg border shadow-md overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
+              className="w-full max-h-[90vh] mx-auto bg-background/80 rounded-2xl border border-white/30 dark:border-zinc-700/30 shadow-enhanced backdrop-blur-[10px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
               initial="hidden"
               animate={isClosing ? 'exit' : 'visible'}
               exit="exit"

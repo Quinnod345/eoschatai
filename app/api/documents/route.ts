@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
+// Inline query for listing documents by user and kind to avoid missing export
+import { document } from '@/lib/db/schema';
+import type { ArtifactKind } from '@/components/composer';
 import { eq, and, desc } from 'drizzle-orm';
 
 // Define the valid document categories
@@ -24,42 +27,84 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get('category');
+    const artifactKindParam = searchParams.get('artifactKind');
 
-    if (!categoryParam) {
-      return NextResponse.json(
-        { error: 'Category is required' },
-        { status: 400 },
-      );
+    // Optional path 1: legacy uploaded documents by category
+    if (categoryParam) {
+      // Validate that the category is one of the allowed values
+      if (!validCategories.includes(categoryParam as DocumentCategory)) {
+        return NextResponse.json(
+          { error: 'Invalid category' },
+          { status: 400 },
+        );
+      }
+
+      // Use the validated category
+      const category = categoryParam as DocumentCategory;
+
+      const documents = await db
+        .select()
+        .from(userDocuments)
+        .where(
+          and(
+            eq(userDocuments.userId, session.user.id),
+            eq(userDocuments.category, category),
+          ),
+        )
+        .orderBy(desc(userDocuments.createdAt));
+
+      return NextResponse.json({
+        documents: documents.map((doc) => ({
+          id: doc.id,
+          fileName: doc.fileName,
+          category: doc.category,
+          uploadedAt: doc.createdAt,
+          size: doc.fileSize,
+        })),
+      });
     }
 
-    // Validate that the category is one of the allowed values
-    if (!validCategories.includes(categoryParam as DocumentCategory)) {
-      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    // Optional path 2: list AI-generated artifacts by kind for Composer dashboards
+    if (artifactKindParam) {
+      const kind = artifactKindParam as ArtifactKind;
+      // Rough validation to allowed kinds defined in schema
+      const allowed: ArtifactKind[] = [
+        'text',
+        'code',
+        'image',
+        'sheet',
+        'chart',
+        'vto',
+      ];
+      if (!allowed.includes(kind)) {
+        return NextResponse.json(
+          { error: 'Invalid artifact kind' },
+          { status: 400 },
+        );
+      }
+
+      const docs = await db
+        .select()
+        .from(document)
+        .where(
+          and(eq(document.userId, session.user.id), eq(document.kind, kind)),
+        )
+        .orderBy(desc(document.createdAt));
+
+      return NextResponse.json({
+        documents: docs.map((d) => ({
+          id: d.id,
+          title: d.title,
+          kind: d.kind,
+          createdAt: d.createdAt,
+        })),
+      });
     }
 
-    // Use the validated category
-    const category = categoryParam as DocumentCategory;
-
-    const documents = await db
-      .select()
-      .from(userDocuments)
-      .where(
-        and(
-          eq(userDocuments.userId, session.user.id),
-          eq(userDocuments.category, category),
-        ),
-      )
-      .orderBy(desc(userDocuments.createdAt));
-
-    return NextResponse.json({
-      documents: documents.map((doc) => ({
-        id: doc.id,
-        fileName: doc.fileName,
-        category: doc.category,
-        uploadedAt: doc.createdAt,
-        size: doc.fileSize,
-      })),
-    });
+    return NextResponse.json(
+      { error: 'Missing query parameter: category or artifactKind' },
+      { status: 400 },
+    );
   } catch (error) {
     console.error('Error fetching documents:', error);
     return NextResponse.json(
