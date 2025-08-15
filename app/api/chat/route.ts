@@ -117,18 +117,18 @@ async function decideModelWithNano(args: {
   queryText: string;
   hasCodeOrMath: boolean;
   mode?: 'nexus' | 'standard';
-  hasArtifactOpen?: boolean;
+  hasComposerOpen?: boolean;
 }): Promise<{ model: 'gpt-4.1' | 'gpt-5'; maxTokens: number }> {
   const {
     provider,
     queryText,
     hasCodeOrMath,
     mode = 'standard',
-    hasArtifactOpen = false,
+    hasComposerOpen = false,
   } = args;
   console.log('[PREFLIGHT] Starting nano preflight', {
     mode,
-    hasArtifactOpen,
+    hasComposerOpen,
     hasCodeOrMath,
     queryLength: (queryText || '').length,
   });
@@ -156,8 +156,8 @@ INTELLIGENCE SIGNALS:
 
 MODE CONTEXT:
 - mode: ${mode}
-- artifact_open: ${hasArtifactOpen}
-If mode is nexus, allow higher budgets within limits. If an artifact is open, still return a single budget for the chat model.
+- composer_open: ${hasComposerOpen}
+If mode is nexus, allow higher budgets within limits. If an composer is open, still return a single budget for the chat model.
 
 Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 200..100000>}. No commentary.`,
     prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}`,
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
       selectedPersonaId,
       selectedProfileId,
       selectedResearchMode,
-      artifactDocumentId,
+      composerDocumentId,
     } = requestBody;
 
     console.log('PERSONA_CHAT_API: Request received', {
@@ -203,10 +203,10 @@ export async function POST(request: Request) {
       selectedPersonaId: selectedPersonaId,
       selectedProfileId: selectedProfileId,
       selectedResearchMode: selectedResearchMode,
-      artifactDocumentId: artifactDocumentId,
+      composerDocumentId: composerDocumentId,
       hasPersona: !!selectedPersonaId,
       hasProfile: !!selectedProfileId,
-      hasArtifact: !!artifactDocumentId,
+      hasComposer: !!composerDocumentId,
       timestamp: new Date().toISOString(),
       requestBody: JSON.stringify(requestBody, null, 2),
     });
@@ -804,7 +804,7 @@ export async function POST(request: Request) {
       query: queryText,
       selectedPersonaId: selectedPersonaId, // Pass the selected persona ID
       selectedProfileId: selectedProfileId, // Pass the selected profile ID
-      artifactDocumentId: artifactDocumentId, // Pass the artifact document ID if present
+      composerDocumentId: composerDocumentId, // Pass the composer document ID if present
     });
 
     // Log document context usage
@@ -1114,7 +1114,7 @@ For questions about integrators, please focus on information from Rocket Fuel an
 DOCUMENT CREATION AND EDITING GUIDE:
 
 FOR CREATING NEW DOCUMENTS:
-When asked to create a document or artifact, such as a Vision/Traction Organizer™, Accountability Chart™, or Scorecard:
+When asked to create a document or composer, such as a Vision/Traction Organizer™, Accountability Chart™, or Scorecard:
 1. Use the createDocument tool with the appropriate parameters
 2. Always provide a descriptive title and the correct kind parameter ("text", "code", or "sheet")
 3. NEVER use raw function call syntax like <function_call>{"action": "createDocument", ...}</function_call>
@@ -1122,7 +1122,7 @@ When asked to create a document or artifact, such as a Vision/Traction Organizer
 5. For most EOS documents, use "text" kind unless specifically creating a spreadsheet or code
 
 FOR EDITING EXISTING ARTIFACTS:
-CRITICAL: When the user asks to edit, modify, improve, or change an existing artifact:
+CRITICAL: When the user asks to edit, modify, improve, or change an existing composer:
 1. **ALWAYS USE updateDocument TOOL** - Never output edited text in the chat
 2. **DETECT EDIT REQUESTS**: Words like "edit", "modify", "improve", "fix", "change", "expand", "shorten", "rewrite", "polish", "wordsmith", "add", "remove", "update"
 3. **PROVIDE DETAILED DESCRIPTIONS**: When using updateDocument, be specific about what changes to make
@@ -1134,7 +1134,7 @@ Example of CORRECT editing (conceptual):
 - Use updateDocument tool with description: "Expand the introduction section with additional detail and context"
 - Do NOT output the edited text in chat
 
-REMEMBER: Any request to change an existing artifact = updateDocument tool. No exceptions.
+REMEMBER: Any request to change an existing composer = updateDocument tool. No exceptions.
 `;
     }
 
@@ -1360,7 +1360,7 @@ Always prioritize the user's document content over generic information. If speci
             queryText: queryText || '',
             hasCodeOrMath,
             mode: isNexusMode ? 'nexus' : 'standard',
-            hasArtifactOpen: Boolean(artifactDocumentId),
+            hasComposerOpen: Boolean(composerDocumentId),
           });
           preflightModel = decision.model;
           preflightMaxTokens = decision.maxTokens;

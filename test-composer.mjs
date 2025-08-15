@@ -16,9 +16,9 @@ if (!connectionString) {
 const sql = postgres(connectionString);
 const db = drizzle(sql);
 
-async function testArtifacts() {
+async function testComposer() {
   try {
-    console.log('Testing artifact/document functionality...\n');
+    console.log('Testing composer/document functionality...\n');
 
     // 1. Get recent documents
     console.log('1. Fetching recent documents...');
@@ -48,10 +48,10 @@ async function testArtifacts() {
     const testId = `test-${Date.now()}`;
     const testDoc = {
       id: testId,
-      title: 'Test Artifact Document',
+      title: 'Test Composer Document',
       kind: 'text',
       content:
-        'This is a test document to verify artifact functionality is working correctly.',
+        'This is a test document to verify composer functionality is working correctly.',
       userId: recentDocs[0]?.userId || 'test-user',
       createdAt: new Date(),
     };
@@ -110,4 +110,4 @@ async function testArtifacts() {
   }
 }
 
-testArtifacts();
+testComposer();

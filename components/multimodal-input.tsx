@@ -1894,8 +1894,8 @@ function PureMultimodalInput({
         )}
       </AnimatePresence>
 
-      {/* Hide big greeting/suggestions when embedded in the artifact side panel */}
-      {!className?.includes('artifact-embedded') &&
+      {/* Hide big greeting/suggestions when embedded in the composer side panel */}
+      {!className?.includes('composer-embedded') &&
         messages.length === 0 &&
         attachments.length === 0 &&
         uploadQueue.length === 0 &&

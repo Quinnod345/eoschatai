@@ -11,7 +11,7 @@ export const codeDocumentHandler = createDocumentHandler<'code'>({
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system: codePrompt,
       prompt: title,
       schema: z.object({
@@ -44,7 +44,7 @@ export const codeDocumentHandler = createDocumentHandler<'code'>({
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system: inlineEditPrompt(document.content || '', description, 'code'),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({

@@ -1,14 +1,14 @@
 import { expect, type Page } from '@playwright/test';
 
-export class ArtifactPage {
+export class ComposerPage {
   constructor(private page: Page) {}
 
-  public get artifact() {
-    return this.page.getByTestId('artifact');
+  public get composer() {
+    return this.page.getByTestId('composer');
   }
 
   public get sendButton() {
-    return this.artifact.getByTestId('send-button');
+    return this.composer.getByTestId('send-button');
   }
 
   public get stopButton() {
@@ -28,13 +28,13 @@ export class ArtifactPage {
   }
 
   async sendUserMessage(message: string) {
-    await this.artifact.getByTestId('multimodal-input').click();
-    await this.artifact.getByTestId('multimodal-input').fill(message);
-    await this.artifact.getByTestId('send-button').click();
+    await this.composer.getByTestId('multimodal-input').click();
+    await this.composer.getByTestId('multimodal-input').fill(message);
+    await this.composer.getByTestId('send-button').click();
   }
 
   async getRecentAssistantMessage() {
-    const messageElements = await this.artifact
+    const messageElements = await this.composer
       .getByTestId('message-assistant')
       .all();
     const lastMessageElement = messageElements[messageElements.length - 1];
@@ -51,7 +51,7 @@ export class ArtifactPage {
   }
 
   async getRecentUserMessage() {
-    const messageElements = await this.artifact
+    const messageElements = await this.composer
       .getByTestId('message-user')
       .all();
     const lastMessageElement = messageElements[messageElements.length - 1];
@@ -67,7 +67,7 @@ export class ArtifactPage {
       ? await lastMessageElement.getByTestId('message-attachments').all()
       : [];
 
-    const page = this.artifact;
+    const page = this.composer;
 
     return {
       element: lastMessageElement,
@@ -84,7 +84,7 @@ export class ArtifactPage {
     };
   }
 
-  async closeArtifact() {
-    return this.page.getByTestId('artifact-close-button').click();
+  async closeComposer() {
+    return this.page.getByTestId('composer-close-button').click();
   }
 }

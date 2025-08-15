@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ArtifactKind, UIArtifact } from './composer';
+import type { ComposerKind, UIComposer } from './composer';
 import { FileIcon, FullscreenIcon, ImageIcon, LoaderIcon } from './icons';
 import { cn, fetcher } from '@/lib/utils';
 import type { Document } from '@/lib/db/schema';
@@ -19,7 +19,7 @@ import { Editor } from './text-editor';
 import { motion } from 'framer-motion';
 import { DocumentToolCall, DocumentToolResult } from './document';
 import { CodeEditor } from './code-editor';
-import { useArtifact } from '@/hooks/use-composer';
+import { useComposer } from '@/hooks/use-composer';
 import equal from 'fast-deep-equal';
 import { SpreadsheetEditor } from './sheet-editor';
 import { ImageEditor } from './image-editor';
@@ -36,7 +36,7 @@ export function DocumentPreview({
   result,
   args,
 }: DocumentPreviewProps) {
-  const { artifact, setArtifact } = useArtifact();
+  const { composer, setComposer } = useComposer();
 
   const { data: documents, isLoading: isDocumentsFetching } = useSWR<
     Array<Document>
@@ -46,15 +46,15 @@ export function DocumentPreview({
   const hitboxRef = useRef<HTMLDivElement>(null);
   const [frozenDocument, setFrozenDocument] = useState<Document | null>(null);
 
-  // Compute latest document (from DB or streaming artifact) up-front so hooks below can use it
+  // Compute latest document (from DB or streaming composer) up-front so hooks below can use it
   const latestDocument: Document | null = useMemo(() => {
     if (previewDocument) return previewDocument;
-    if (artifact.status === 'streaming') {
+    if (composer.status === 'streaming') {
       return {
-        title: artifact.title,
-        kind: artifact.kind,
-        content: artifact.content,
-        id: artifact.documentId,
+        title: composer.title,
+        kind: composer.kind,
+        content: composer.content,
+        id: composer.documentId,
         createdAt: new Date(),
         userId: 'noop',
       } as Document;
@@ -62,11 +62,11 @@ export function DocumentPreview({
     return null;
   }, [
     previewDocument,
-    artifact.status,
-    artifact.title,
-    artifact.kind,
-    artifact.content,
-    artifact.documentId,
+    composer.status,
+    composer.title,
+    composer.kind,
+    composer.content,
+    composer.documentId,
   ]);
 
   // Freeze the inline preview to the first available document until user clicks to open
@@ -79,9 +79,9 @@ export function DocumentPreview({
   useEffect(() => {
     const boundingBox = hitboxRef.current?.getBoundingClientRect();
 
-    if (artifact.documentId && boundingBox) {
-      setArtifact((artifact) => ({
-        ...artifact,
+    if (composer.documentId && boundingBox) {
+      setComposer((composer) => ({
+        ...composer,
         boundingBox: {
           left: boundingBox.x,
           top: boundingBox.y,
@@ -90,9 +90,9 @@ export function DocumentPreview({
         },
       }));
     }
-  }, [artifact.documentId, setArtifact]);
+  }, [composer.documentId, setComposer]);
 
-  if (artifact.isVisible) {
+  if (composer.isVisible) {
     if (result) {
       return (
         <DocumentToolResult
@@ -117,13 +117,13 @@ export function DocumentPreview({
   if (isDocumentsFetching && !frozenDocument) {
     return (
       <LoadingSkeleton
-        artifactKind={result?.kind ?? args?.kind ?? artifact.kind}
+        composerKind={result?.kind ?? args?.kind ?? composer.kind}
       />
     );
   }
 
   if (!frozenDocument && !latestDocument)
-    return <LoadingSkeleton artifactKind={artifact.kind} />;
+    return <LoadingSkeleton composerKind={composer.kind} />;
 
   const document: Document = frozenDocument ?? (latestDocument as Document);
 
@@ -137,7 +137,7 @@ export function DocumentPreview({
       <HitboxLayer
         hitboxRef={hitboxRef}
         result={result}
-        setArtifact={setArtifact}
+        setComposer={setComposer}
         onOpen={() => {
           // When the user clicks to open, update the frozen snapshot to the latest
           if (latestDocument) setFrozenDocument(latestDocument);
@@ -146,14 +146,14 @@ export function DocumentPreview({
       <DocumentHeader
         title={document.title}
         kind={document.kind}
-        isStreaming={artifact.status === 'streaming'}
+        isStreaming={composer.status === 'streaming'}
       />
       <DocumentContent document={document} />
     </motion.div>
   );
 }
 
-const LoadingSkeleton = ({ artifactKind }: { artifactKind: ArtifactKind }) => (
+const LoadingSkeleton = ({ composerKind }: { composerKind: ComposerKind }) => (
   <div className="w-full">
     <div className="p-4 border rounded-t-2xl flex flex-row gap-2 items-center justify-between dark:bg-muted h-[57px] dark:border-zinc-700 border-b-0">
       <div className="flex flex-row items-center gap-3">
@@ -166,7 +166,7 @@ const LoadingSkeleton = ({ artifactKind }: { artifactKind: ArtifactKind }) => (
         <FullscreenIcon />
       </div>
     </div>
-    {artifactKind === 'image' ? (
+    {composerKind === 'image' ? (
       <div className="overflow-y-scroll border rounded-b-2xl bg-muted border-t-0 dark:border-zinc-700">
         <div className="animate-pulse h-[257px] bg-muted-foreground/20 w-full" />
       </div>
@@ -181,13 +181,13 @@ const LoadingSkeleton = ({ artifactKind }: { artifactKind: ArtifactKind }) => (
 const PureHitboxLayer = ({
   hitboxRef,
   result,
-  setArtifact,
+  setComposer,
   onOpen,
 }: {
   hitboxRef: React.RefObject<HTMLDivElement>;
   result: any;
-  setArtifact: (
-    updaterFn: UIArtifact | ((currentArtifact: UIArtifact) => UIArtifact),
+  setComposer: (
+    updaterFn: UIComposer | ((currentComposer: UIComposer) => UIComposer),
   ) => void;
   onOpen?: () => void;
 }) => {
@@ -197,11 +197,11 @@ const PureHitboxLayer = ({
 
       if (onOpen) onOpen();
 
-      setArtifact((artifact) =>
-        artifact.status === 'streaming'
-          ? { ...artifact, isVisible: true }
+      setComposer((composer) =>
+        composer.status === 'streaming'
+          ? { ...composer, isVisible: true }
           : {
-              ...artifact,
+              ...composer,
               title: result.title,
               documentId: result.id,
               kind: result.kind,
@@ -215,7 +215,7 @@ const PureHitboxLayer = ({
             },
       );
     },
-    [setArtifact, result, onOpen],
+    [setComposer, result, onOpen],
   );
 
   return (
@@ -246,7 +246,7 @@ const PureDocumentHeader = ({
   isStreaming,
 }: {
   title: string;
-  kind: ArtifactKind;
+  kind: ComposerKind;
   isStreaming: boolean;
 }) => (
   <div className="p-4 border rounded-t-2xl flex flex-row gap-2 items-start sm:items-center justify-between dark:bg-muted border-b-0 dark:border-zinc-700">
@@ -276,7 +276,7 @@ const DocumentHeader = memo(PureDocumentHeader, (prevProps, nextProps) => {
 });
 
 const DocumentContent = ({ document }: { document: Document }) => {
-  const { artifact, metadata, setMetadata } = useArtifact();
+  const { composer, metadata, setMetadata } = useComposer();
 
   const containerClassName = cn(
     'h-[257px] overflow-y-scroll border rounded-b-2xl dark:bg-muted border-t-0 dark:border-zinc-700',
@@ -291,7 +291,7 @@ const DocumentContent = ({ document }: { document: Document }) => {
     content: document.content ?? '',
     isCurrentVersion: true,
     currentVersionIndex: 0,
-    status: artifact.status,
+    status: composer.status,
     saveContent: () => {},
     suggestions: [],
   };
@@ -477,7 +477,7 @@ const DocumentContent = ({ document }: { document: Document }) => {
           content={document.content ?? ''}
           isCurrentVersion={true}
           currentVersionIndex={0}
-          status={artifact.status}
+          status={composer.status}
           isInline={true}
         />
       ) : document.kind === 'chart' ? (

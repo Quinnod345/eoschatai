@@ -10,7 +10,7 @@ import { AdvancedSearch } from '@/components/advanced-search';
 import { SidebarUserNav } from '@/components/sidebar-user-nav';
 import { useWindowSize } from 'usehooks-ts';
 import { useSession } from 'next-auth/react';
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 import { Button } from '@/components/ui/button';
 import { fetcher } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -25,12 +25,12 @@ import { MoreHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ChartPreview } from '@/components/chart-preview';
 
-type Row = { id: string; title: string; kind: ArtifactKind; createdAt: string };
+type Row = { id: string; title: string; kind: ComposerKind; createdAt: string };
 
-export function ArtifactDashboard() {
+export function ComposerDashboard() {
   const params = useSearchParams();
   const router = useRouter();
-  const kind = (params.get('dashboard') || 'text') as ArtifactKind;
+  const kind = (params.get('dashboard') || 'text') as ComposerKind;
   const { setLoading } = useLoading();
   const { open } = useSidebar();
   const { width: windowWidth } = useWindowSize();
@@ -38,7 +38,7 @@ export function ArtifactDashboard() {
 
   const { data, mutate, isLoading, isValidating } = useSWR<{
     documents: Row[];
-  }>(kind ? `/api/documents?artifactKind=${kind}` : null, fetcher, {
+  }>(kind ? `/api/documents?composerKind=${kind}` : null, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 4000,
     revalidateIfStale: true,
@@ -69,7 +69,7 @@ export function ArtifactDashboard() {
   const handleCreate = useCallback(() => {
     const url = new URL(window.location.href);
     url.searchParams.delete('dashboard');
-    url.searchParams.set('newArtifactKind', kind);
+    url.searchParams.set('newComposerKind', kind);
     router.replace(url.toString());
   }, [router, kind]);
 
@@ -79,7 +79,7 @@ export function ArtifactDashboard() {
       url.searchParams.delete('dashboard');
       url.searchParams.set('documentId', doc.id);
       url.searchParams.set('documentTitle', doc.title || 'Untitled');
-      url.searchParams.set('artifactKind', doc.kind);
+      url.searchParams.set('composerKind', doc.kind);
       router.replace(url.toString());
     },
     [router],
@@ -334,7 +334,7 @@ function InlineRenameMenuItem({
   );
 }
 
-function PreviewBlock({ kind, id }: { kind: ArtifactKind; id: string }) {
+function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
   const { data } = useSWR<any[]>(`/api/document?id=${id}`, fetcher);
   const content: string = data?.[data.length - 1]?.content || '';
   const [markdownHtml, setMarkdownHtml] = useState<string>('');

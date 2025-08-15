@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
-async function testArtifactCreationWithAuth() {
-  console.log('Testing artifact creation with authentication...');
+async function testComposerCreationWithAuth() {
+  console.log('Testing composer creation with authentication...');
 
   try {
     // First, we need to get a session cookie by logging in
@@ -77,7 +77,7 @@ async function testArtifactCreationWithAuth() {
     console.log('\nFull response:', result);
     console.log('\nTest completed successfully!');
   } catch (error) {
-    console.error('Error testing artifact creation:', error);
+    console.error('Error testing composer creation:', error);
   }
 }
 
@@ -89,4 +89,4 @@ console.log('1. Open http://localhost:3000 in your browser');
 console.log('2. Log in to the application');
 console.log('3. Get the session token as described in the error message\n');
 
-testArtifactCreationWithAuth();
+testComposerCreationWithAuth();

@@ -44,7 +44,7 @@ export const titleModel = new MockLanguageModelV1({
   }),
 });
 
-export const artifactModel = new MockLanguageModelV1({
+export const composerModel = new MockLanguageModelV1({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',

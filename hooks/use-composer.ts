@@ -1,10 +1,10 @@
 'use client';
 
 import useSWR from 'swr';
-import type { UIArtifact } from '@/components/composer';
+import type { UIComposer } from '@/components/composer';
 import { useCallback, useMemo } from 'react';
 
-export const initialArtifactData: UIArtifact = {
+export const initialComposerData: UIComposer = {
   documentId: 'init',
   content: '',
   kind: 'text',
@@ -19,54 +19,54 @@ export const initialArtifactData: UIArtifact = {
   },
 };
 
-type Selector<T> = (state: UIArtifact) => T;
+type Selector<T> = (state: UIComposer) => T;
 
-export function useArtifactSelector<Selected>(selector: Selector<Selected>) {
-  const { data: localArtifact } = useSWR<UIArtifact>('artifact', null, {
-    fallbackData: initialArtifactData,
+export function useComposerSelector<Selected>(selector: Selector<Selected>) {
+  const { data: localComposer } = useSWR<UIComposer>('composer', null, {
+    fallbackData: initialComposerData,
   });
 
   const selectedValue = useMemo(() => {
-    if (!localArtifact) return selector(initialArtifactData);
-    return selector(localArtifact);
-  }, [localArtifact, selector]);
+    if (!localComposer) return selector(initialComposerData);
+    return selector(localComposer);
+  }, [localComposer, selector]);
 
   return selectedValue;
 }
 
-export function useArtifact() {
-  const { data: localArtifact, mutate: setLocalArtifact } = useSWR<UIArtifact>(
-    'artifact',
+export function useComposer() {
+  const { data: localComposer, mutate: setLocalComposer } = useSWR<UIComposer>(
+    'composer',
     null,
     {
-      fallbackData: initialArtifactData,
+      fallbackData: initialComposerData,
     },
   );
 
-  const artifact = useMemo(() => {
-    if (!localArtifact) return initialArtifactData;
-    return localArtifact;
-  }, [localArtifact]);
+  const composer = useMemo(() => {
+    if (!localComposer) return initialComposerData;
+    return localComposer;
+  }, [localComposer]);
 
-  const setArtifact = useCallback(
-    (updaterFn: UIArtifact | ((currentArtifact: UIArtifact) => UIArtifact)) => {
-      setLocalArtifact((currentArtifact) => {
-        const artifactToUpdate = currentArtifact || initialArtifactData;
+  const setComposer = useCallback(
+    (updaterFn: UIComposer | ((currentComposer: UIComposer) => UIComposer)) => {
+      setLocalComposer((currentComposer) => {
+        const composerToUpdate = currentComposer || initialComposerData;
 
         if (typeof updaterFn === 'function') {
-          return updaterFn(artifactToUpdate);
+          return updaterFn(composerToUpdate);
         }
 
         return updaterFn;
       });
     },
-    [setLocalArtifact],
+    [setLocalComposer],
   );
 
-  const { data: localArtifactMetadata, mutate: setLocalArtifactMetadata } =
+  const { data: localComposerMetadata, mutate: setLocalComposerMetadata } =
     useSWR<any>(
       () =>
-        artifact.documentId ? `artifact-metadata-${artifact.documentId}` : null,
+        composer.documentId ? `composer-metadata-${composer.documentId}` : null,
       null,
       {
         fallbackData: null,
@@ -75,11 +75,11 @@ export function useArtifact() {
 
   return useMemo(
     () => ({
-      artifact,
-      setArtifact,
-      metadata: localArtifactMetadata,
-      setMetadata: setLocalArtifactMetadata,
+      composer,
+      setComposer,
+      metadata: localComposerMetadata,
+      setMetadata: setLocalComposerMetadata,
     }),
-    [artifact, setArtifact, localArtifactMetadata, setLocalArtifactMetadata],
+    [composer, setComposer, localComposerMetadata, setLocalComposerMetadata],
   );
 }

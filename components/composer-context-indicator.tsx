@@ -11,17 +11,17 @@ import {
   Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ArtifactKind } from './composer';
+import type { ComposerKind } from './composer';
 
 interface ComposerContextIndicatorProps {
   documentId: string;
   title: string;
-  kind: ArtifactKind;
+  kind: ComposerKind;
   onClose?: () => void;
   className?: string;
 }
 
-const artifactIcons: Record<ArtifactKind, React.ReactNode> = {
+const composerIcons: Record<ComposerKind, React.ReactNode> = {
   text: <FileText className="w-4 h-4" />,
   code: <Code className="w-4 h-4" />,
   image: <Image className="w-4 h-4" />,
@@ -45,7 +45,7 @@ export const ComposerContextIndicator = memo(function ComposerContextIndicator({
       )}
     >
       <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-        {artifactIcons[kind]}
+        {composerIcons[kind]}
         <span className="text-sm font-medium">Editing Composer:</span>
       </div>
       <div className="flex-1">
@@ -61,7 +61,7 @@ export const ComposerContextIndicator = memo(function ComposerContextIndicator({
           type="button"
           onClick={onClose}
           className="p-1 rounded hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
-          aria-label="Close artifact context"
+          aria-label="Close composer context"
         >
           <X className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         </button>

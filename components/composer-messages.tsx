@@ -3,13 +3,13 @@ import type { Vote } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 import { memo } from 'react';
 import equal from 'fast-deep-equal';
-import type { UIArtifact } from './composer';
+import type { UIComposer } from './composer';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
 
-interface ArtifactMessagesProps {
+interface ComposerMessagesProps {
   chatId: string;
   status: UseChatHelpers['status'];
   votes: Array<Vote> | undefined;
@@ -17,7 +17,7 @@ interface ArtifactMessagesProps {
   setMessages: UseChatHelpers['setMessages'];
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
-  artifactStatus: UIArtifact['status'];
+  composerStatus: UIComposer['status'];
   onStartReply?: (
     messageId: string,
     content: string,
@@ -25,7 +25,7 @@ interface ArtifactMessagesProps {
   ) => void;
 }
 
-function PureArtifactMessages({
+function PureComposerMessages({
   chatId,
   status,
   votes,
@@ -34,7 +34,7 @@ function PureArtifactMessages({
   reload,
   isReadonly,
   onStartReply,
-}: ArtifactMessagesProps) {
+}: ComposerMessagesProps) {
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -111,12 +111,12 @@ function PureArtifactMessages({
 }
 
 function areEqual(
-  prevProps: ArtifactMessagesProps,
-  nextProps: ArtifactMessagesProps,
+  prevProps: ComposerMessagesProps,
+  nextProps: ComposerMessagesProps,
 ) {
   if (
-    prevProps.artifactStatus === 'streaming' &&
-    nextProps.artifactStatus === 'streaming'
+    prevProps.composerStatus === 'streaming' &&
+    nextProps.composerStatus === 'streaming'
   )
     return true;
 
@@ -128,4 +128,4 @@ function areEqual(
   return true;
 }
 
-export const ArtifactMessages = memo(PureArtifactMessages, areEqual);
+export const ComposerMessages = memo(PureComposerMessages, areEqual);

@@ -53,7 +53,7 @@ const getModelConfig = () => {
     memoizedModelConfig = {
       'chat-model': openai('gpt-4.1'),
       'title-model': openai('gpt-4.1-nano'),
-      'artifact-model': openai('gpt-4.1'),
+      'composer-model': openai('gpt-4.1'),
       'small-model': openai('gpt-image-1'),
     };
     return memoizedModelConfig;

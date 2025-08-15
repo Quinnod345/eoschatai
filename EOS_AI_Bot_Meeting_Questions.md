@@ -1084,9 +1084,9 @@ if (user1.implementationSuccess && user2.businessProfile.similarityScore > 0.8) 
 
 **Answer**: Yes, the system provides comprehensive implementation planning:
 
-- **Artifact Generation System**: Creates structured implementation documents:
+- **Composer Generation System**: Creates structured implementation documents:
   ```javascript
-  // Supported artifact types for implementation planning:
+  // Supported composer types for implementation planning:
   - "text": Detailed implementation guides
   - "sheet": Spreadsheet templates (Scorecards, Rock trackers)
   - "chart": Visual progress tracking and metrics

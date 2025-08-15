@@ -3,7 +3,7 @@ import { tool } from 'ai';
 import type { Session } from 'next-auth';
 import { z } from 'zod';
 import { getDocumentById } from '@/lib/db/queries';
-import { documentHandlersByArtifactKind } from '@/lib/composer/server';
+import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 interface UpdateDocumentProps {
   session: Session;
@@ -13,7 +13,7 @@ interface UpdateDocumentProps {
 export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
   tool({
     description:
-      'Update an existing document or artifact with the given description. MANDATORY: Use this tool WHENEVER the user asks to edit, modify, extend, improve, fix, change, expand, shorten, rewrite, polish, wordsmith, add to, remove from, or update existing content in ANY way. NEVER output edited text in the chat - always use this tool instead.',
+      'Update an existing document or composer with the given description. MANDATORY: Use this tool WHENEVER the user asks to edit, modify, extend, improve, fix, change, expand, shorten, rewrite, polish, wordsmith, add to, remove from, or update existing content in ANY way. NEVER output edited text in the chat - always use this tool instead.',
     parameters: z.object({
       id: z.string().describe('The ID of the document to update'),
       description: z
@@ -47,9 +47,9 @@ export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
         }),
       });
 
-      const documentHandler = documentHandlersByArtifactKind.find(
-        (documentHandlerByArtifactKind) =>
-          documentHandlerByArtifactKind.kind === document.kind,
+      const documentHandler = documentHandlersByComposerKind.find(
+        (documentHandlerByComposerKind) =>
+          documentHandlerByComposerKind.kind === document.kind,
       );
 
       if (!documentHandler) {

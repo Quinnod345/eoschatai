@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import { DiffView } from '@/components/diffview';
 import { DocumentSkeleton } from '@/components/document-skeleton';
 import { Editor } from '@/components/text-editor';
@@ -16,11 +16,11 @@ import { toast } from 'sonner';
 import { getSuggestions } from '../actions';
 // Document library will be imported dynamically
 
-interface TextArtifactMetadata {
+interface TextComposerMetadata {
   suggestions: Array<Suggestion>;
 }
 
-export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
+export const textComposer = new Composer<'text', TextComposerMetadata>({
   kind: 'text',
   description:
     'Useful for document content (notes, outlines, articles, SOPs). Renders Markdown.',
@@ -31,7 +31,7 @@ export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
       suggestions,
     });
   },
-  onStreamPart: ({ streamPart, setMetadata, setArtifact }) => {
+  onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
     if (streamPart.type === 'suggestion') {
       setMetadata((metadata) => {
         return {
@@ -44,16 +44,16 @@ export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
     }
 
     if (streamPart.type === 'text-delta') {
-      setArtifact((draftArtifact) => {
+      setComposer((draftComposer) => {
         return {
-          ...draftArtifact,
-          content: draftArtifact.content + (streamPart.content as string),
+          ...draftComposer,
+          content: draftComposer.content + (streamPart.content as string),
           isVisible:
-            draftArtifact.status === 'streaming' &&
-            draftArtifact.content.length > 400 &&
-            draftArtifact.content.length < 450
+            draftComposer.status === 'streaming' &&
+            draftComposer.content.length > 400 &&
+            draftComposer.content.length < 450
               ? true
-              : draftArtifact.isVisible,
+              : draftComposer.isVisible,
           status: 'streaming',
         };
       });
@@ -71,7 +71,7 @@ export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
     metadata,
   }) => {
     if (isLoading) {
-      return <DocumentSkeleton artifactKind="text" />;
+      return <DocumentSkeleton composerKind="text" />;
     }
 
     if (mode === 'diff') {
@@ -340,7 +340,7 @@ export const textArtifact = new Artifact<'text', TextArtifactMetadata>({
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            // Use the artifact title for the filename, with fallback
+            // Use the composer title for the filename, with fallback
             const safeTitle =
               title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'document';
             a.download = `${safeTitle}.docx`;

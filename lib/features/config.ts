@@ -106,8 +106,8 @@ export const FEATURES: Feature[] = [
     tags: ['ai', 'chat', 'streaming', 'openai', 'conversation'],
   },
   {
-    id: 'artifacts',
-    title: 'Interactive Artifacts',
+    id: 'composer',
+    title: 'Interactive Composer',
     description:
       'Create and edit code, documents, charts, and spreadsheets with AI assistance',
     category: 'productivity',
@@ -116,7 +116,7 @@ export const FEATURES: Feature[] = [
     isNew: true,
     icon: 'FileCode',
     detailedDescription:
-      'Create rich, interactive content directly in your conversations. From code snippets to complex charts and documents, artifacts make your AI conversations more productive and visual.',
+      'Create rich, interactive content directly in your conversations. From code snippets to complex charts and documents, composer make your AI conversations more productive and visual.',
     benefits: [
       'Monaco code editor with syntax highlighting for 50+ languages',
       'Interactive Chart.js charts with real-time data',
@@ -124,7 +124,7 @@ export const FEATURES: Feature[] = [
       'Excel-like spreadsheets with formulas and calculations',
       'AI-assisted editing with diff view and suggestions',
       'Real-time collaboration and sharing capabilities',
-      'Export options for all artifact types',
+      'Export options for all composer types',
     ],
     examples: [
       'Generate Python scripts and edit them with AI assistance',
@@ -140,7 +140,7 @@ export const FEATURES: Feature[] = [
       'Work with code, data, and documents in one place',
     ],
     tags: [
-      'artifacts',
+      'composer',
       'code',
       'charts',
       'documents',
@@ -432,7 +432,7 @@ export const FEATURES: Feature[] = [
     benefits: [
       'Quick search activation with Cmd/Ctrl+K',
       'Message navigation with arrow keys',
-      'Artifact shortcuts for editing and creation',
+      'Composer shortcuts for editing and creation',
       'Chat management and switching shortcuts',
       'Full accessibility support for screen readers',
       'Customizable shortcut preferences',
@@ -585,8 +585,8 @@ export const FEATURES: Feature[] = [
     ],
   },
   {
-    id: 'artifact-editing',
-    title: 'Advanced Artifact Editing',
+    id: 'composer-editing',
+    title: 'Advanced Composer Editing',
     description:
       'AI-assisted editing with version control and export capabilities',
     category: 'advanced',
@@ -595,12 +595,12 @@ export const FEATURES: Feature[] = [
     isNew: true,
     icon: 'FileCode',
     detailedDescription:
-      'Powerful artifact editing with AI assistance, version tracking, and export features that make content creation and editing more intuitive and productive.',
+      'Powerful composer editing with AI assistance, version tracking, and export features that make content creation and editing more intuitive and productive.',
     benefits: [
       'AI-powered content suggestions and improvements',
       'Version history and change tracking',
       'Advanced Monaco editor with syntax highlighting',
-      'Multiple export formats for all artifact types',
+      'Multiple export formats for all composer types',
       'Smart formatting and error detection',
       'Inline editing with real-time preview',
       'Keyboard shortcuts for power users',
@@ -608,7 +608,7 @@ export const FEATURES: Feature[] = [
     examples: [
       'Get AI help to improve your documents',
       'Track changes with version history',
-      'Export artifacts in multiple formats',
+      'Export composer in multiple formats',
       'Use advanced editor features for coding',
     ],
     improveExperience: [
@@ -618,7 +618,7 @@ export const FEATURES: Feature[] = [
       'Export and share content easily',
     ],
     tags: [
-      'artifacts',
+      'composer',
       'editing',
       'ai-assistance',
       'version-control',
@@ -800,7 +800,7 @@ export const FEATURES: Feature[] = [
       'Seamless chat experience on mobile phones',
       'Touch-friendly buttons and interactive elements',
       'Responsive sidebar that adapts to screen size',
-      'Optimized artifact viewing on tablets',
+      'Optimized composer viewing on tablets',
     ],
     improveExperience: [
       'Use the app anywhere, on any device',

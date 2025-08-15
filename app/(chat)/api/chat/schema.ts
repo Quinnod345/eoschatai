@@ -36,7 +36,7 @@ export const postRequestBodySchema = z.object({
   selectedPersonaId: z.string().optional(),
   selectedProfileId: z.string().optional(),
   selectedResearchMode: z.enum(['off', 'nexus']).optional(),
-  artifactDocumentId: z.string().optional(),
+  composerDocumentId: z.string().optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

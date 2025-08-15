@@ -4,8 +4,8 @@ import type { DataStreamWriter } from 'ai';
 import { z } from 'zod';
 import type { Session } from 'next-auth';
 import {
-  artifactKinds,
-  documentHandlersByArtifactKind,
+  composerKinds,
+  documentHandlersByComposerKind,
 } from '@/lib/composer/server';
 
 interface CreateDocumentProps {
@@ -19,7 +19,7 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
       'Create a document for a writing or content creation activities. This tool will call other functions that will generate the contents of the document based on the title and kind.',
     parameters: z.object({
       title: z.string(),
-      kind: z.enum(artifactKinds),
+      kind: z.enum(composerKinds),
     }),
     execute: async ({ title, kind }) => {
       const id = generateUUID();
@@ -46,9 +46,9 @@ export const createDocument = ({ session, dataStream }: CreateDocumentProps) =>
         content: '',
       });
 
-      const documentHandler = documentHandlersByArtifactKind.find(
-        (documentHandlerByArtifactKind) =>
-          documentHandlerByArtifactKind.kind === kind,
+      const documentHandler = documentHandlersByComposerKind.find(
+        (documentHandlerByComposerKind) =>
+          documentHandlerByComposerKind.kind === kind,
       );
 
       if (!documentHandler) {

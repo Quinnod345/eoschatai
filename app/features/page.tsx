@@ -118,15 +118,15 @@ const featureCategories = [
     ],
   },
   {
-    id: 'artifacts',
-    title: 'Rich Artifact System',
+    id: 'composer',
+    title: 'Rich Composer System',
     description:
       'Create and manipulate various content types with AI assistance',
     color: 'from-eos-orange to-eos-orangeLight',
     features: [
       {
         icon: FileText,
-        title: 'Code Artifacts',
+        title: 'Code Composer',
         description: 'Syntax-highlighted code with multiple language support',
       },
       {
@@ -426,7 +426,7 @@ const featureCategories = [
       {
         icon: Download,
         title: 'Export Options',
-        description: 'Download conversations and artifacts in multiple formats',
+        description: 'Download conversations and composer in multiple formats',
       },
     ],
   },

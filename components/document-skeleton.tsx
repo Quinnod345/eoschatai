@@ -1,13 +1,13 @@
 'use client';
 
-import type { ArtifactKind } from './composer';
+import type { ComposerKind } from './composer';
 
 export const DocumentSkeleton = ({
-  artifactKind,
+  composerKind,
 }: {
-  artifactKind: ArtifactKind;
+  composerKind: ComposerKind;
 }) => {
-  return artifactKind === 'image' ? (
+  return composerKind === 'image' ? (
     <div className="flex flex-col gap-4 w-full justify-center items-center h-[calc(100dvh-60px)]">
       <div className="animate-pulse rounded-lg bg-muted-foreground/20 size-96" />
     </div>

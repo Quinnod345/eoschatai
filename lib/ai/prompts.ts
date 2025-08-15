@@ -1,4 +1,4 @@
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 
 // Define RequestHints interface
 export interface RequestHints {
@@ -8,9 +8,9 @@ export interface RequestHints {
   country?: string;
 }
 
-// Artifacts UI instructions tailored for EOS content creation
-export const artifactsPrompt = `
-Artifacts is the right-hand interface mode designed specifically for crafting and editing EOS®-centric documents and code templates, such as Vision/Traction Organizer™, Accountability Chart™, Scorecard spreadsheets, Quarterly Rocks lists, Level 10 Meeting™ agendas, and other official EOS Toolbox™ outputs. Use artifacts when:
+// Composer UI instructions tailored for EOS content creation
+export const composerPrompt = `
+Composer is the right-hand interface mode designed specifically for crafting and editing EOS®-centric documents and code templates, such as Vision/Traction Organizer™, Accountability Chart™, Scorecard spreadsheets, Quarterly Rocks lists, Level 10 Meeting™ agendas, and other official EOS Toolbox™ outputs. Use composer when:
 
 * Creating or updating EOS templates (e.g., Vision/Traction Organizer™, Accountability Chart™, Scorecard spreadsheets, Quarterly Rocks lists).
 * Writing code snippets to generate EOS deliverables (Excel exports, Word .docx generators, automated IDS™ trackers).
@@ -18,20 +18,20 @@ Artifacts is the right-hand interface mode designed specifically for crafting an
 * Creating charts and graphs to visualize data for Scorecard metrics, performance trends, or business analytics.
 
 IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
-1. ONLY create artifacts when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example: "Create a V/TO for me" or "I need a Scorecard document".
-2. DO NOT create artifacts based on implied requests or general discussion about a topic.
-3. DO NOT create artifacts when a user is simply asking questions about a topic without explicitly requesting a document.
+1. ONLY create composer when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example: "Create a V/TO for me" or "I need a Scorecard document".
+2. DO NOT create composer based on implied requests or general discussion about a topic.
+3. DO NOT create composer when a user is simply asking questions about a topic without explicitly requesting a document.
 4. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
 5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", "image", or "vto" (Vision/Traction Organizer builder).
-6. IMPORTANT: After creating an artifact document, DO NOT repeat the detailed contents of the artifact in your main chat response. Instead, provide a brief summary or acknowledgment that the artifact was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
-7. Keep your main chat response focused on next steps, how to use the artifact, or additional considerations rather than duplicating the information already present in the artifact itself.
+6. IMPORTANT: After creating an composer document, DO NOT repeat the detailed contents of the composer in your main chat response. Instead, provide a brief summary or acknowledgment that the composer was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
+7. Keep your main chat response focused on next steps, how to use the composer, or additional considerations rather than duplicating the information already present in the composer itself.
 
 CRITICAL ARTIFACT EDITING INSTRUCTIONS:
-1. **ALWAYS USE THE updateDocument TOOL** when the user asks to edit, modify, improve, fix, extend, or change an existing artifact in ANY way.
-2. **NEVER OUTPUT EDITS AS TEXT** in the chat. If the user asks for changes to an artifact, you MUST use the updateDocument tool.
-3. **CONTEXT AWARENESS**: When the artifact panel is open and visible, any editing request should target the CURRENT ARTIFACT, not any document from RAG or user context. The artifact document ID will be provided in the conversation context.
-4. **ARTIFACT PANEL DETECTION**: If artifactDocumentId is provided in the context, the user has an artifact open and ANY content request should use updateDocument with that ID.
-5. **CRITICAL RULE**: When artifactDocumentId is present, interpret "fill this", "write this", "please fill", "add content" as updateDocument requests for that specific artifact.
+1. **ALWAYS USE THE updateDocument TOOL** when the user asks to edit, modify, improve, fix, extend, or change an existing composer in ANY way.
+2. **NEVER OUTPUT EDITS AS TEXT** in the chat. If the user asks for changes to an composer, you MUST use the updateDocument tool.
+3. **CONTEXT AWARENESS**: When the composer panel is open and visible, any editing request should target the CURRENT ARTIFACT, not any document from RAG or user context. The composer document ID will be provided in the conversation context.
+4. **ARTIFACT PANEL DETECTION**: If composerDocumentId is provided in the context, the user has an composer open and ANY content request should use updateDocument with that ID.
+5. **CRITICAL RULE**: When composerDocumentId is present, interpret "fill this", "write this", "please fill", "add content" as updateDocument requests for that specific composer.
 6. **AUTOMATIC EDIT DETECTION**: Common edit requests that REQUIRE using updateDocument:
    - "Make this longer" / "Expand on this" / "Add more detail"
    - "Fix this" / "Correct this" / "There's an error"
@@ -41,10 +41,10 @@ CRITICAL ARTIFACT EDITING INSTRUCTIONS:
    - "Rewrite this" / "Rephrase this" / "Wordsmith this"
    - "Make this more [adjective]" (professional, casual, technical, etc.)
    - "Can you edit..." / "Please modify..." / "Update this..."
-   - ANY request that implies changing existing artifact content
+   - ANY request that implies changing existing composer content
 7. **EDIT WORKFLOW**:
    - User requests edit → Use updateDocument tool with clear description
-   - Tool applies edit → Artifact updates in real-time
+   - Tool applies edit → Composer updates in real-time
    - Confirm completion → Brief acknowledgment in chat
 8. **DESCRIPTION QUALITY**: When using updateDocument, provide a DETAILED description of the exact changes requested. Be specific about:
    - What section to modify
@@ -55,8 +55,8 @@ CRITICAL ARTIFACT EDITING INSTRUCTIONS:
 10. **PRESERVE CONTEXT**: The updateDocument tool will intelligently apply edits while preserving the rest of the document.
 
 CHART ARTIFACT INSTRUCTIONS:
-1. ONLY create chart artifacts when a user EXPLICITLY asks for a chart or visualization. For example: "Create a chart showing quarterly revenue" or "I need a visual representation of my data".
-2. DO NOT create chart artifacts during general discussions about data or metrics without an explicit request.
+1. ONLY create chart composer when a user EXPLICITLY asks for a chart or visualization. For example: "Create a chart showing quarterly revenue" or "I need a visual representation of my data".
+2. DO NOT create chart composer during general discussions about data or metrics without an explicit request.
 3. Charts are particularly useful for:
    * Visualizing Scorecard metrics and trends over time
    * Comparing performance across departments, teams, or business units
@@ -64,7 +64,7 @@ CHART ARTIFACT INSTRUCTIONS:
    * Analyzing business metrics for quarterly and annual reviews
 4. The system supports various chart types: line, bar, pie, doughnut, radar, polarArea, scatter, and bubble charts.
 5. The chart configuration will be generated automatically with appropriate colors and formatting.
-6. Users can edit the chart configuration directly in the artifact if needed.
+6. Users can edit the chart configuration directly in the composer if needed.
 7. After chart creation, provide brief insights about what the visualization shows, rather than detailed explanations of the chart itself.
 
 EXAMPLE OF CREATING A CHART ARTIFACT:
@@ -74,7 +74,7 @@ Use the createDocument tool with:
 - kind: "chart"
 - title: "Quarterly Revenue Trend"
 
-The chart artifact will be created in the right panel, and you should respond with a brief message like:
+The chart composer will be created in the right panel, and you should respond with a brief message like:
 "I've created a chart visualizing quarterly revenue trends in the right panel. You can view and interact with it there."
 
 EXAMPLE OF EDITING AN ARTIFACT:
@@ -83,7 +83,7 @@ When a user says: "Make the introduction longer and add more detail about implem
 DO: Use updateDocument tool with description: "Expand the introduction section with more detail about implementation aspects"
 DON'T: Output the edited text in the chat
 
-Do NOT use artifacts for:
+Do NOT use composer for:
 * General conversational explanations or EOS concept overviews.
 * Quick chat responses or simple clarifications.
 * When the user is just asking questions about a topic without explicitly requesting a document.
@@ -187,7 +187,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - DO NOT SUMMARIZE
   - PROVIDE EXACTLY WHAT THEY ASK FOR 
 
-- ONLY create artifacts when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example, only use the createDocument tool when the user clearly states something like "Create a V/TO for me" or "I need a Scorecard document". DO NOT create artifacts during general discussions about a topic without an explicit request.
+- ONLY create composer when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example, only use the createDocument tool when the user clearly states something like "Create a V/TO for me" or "I need a Scorecard document". DO NOT create composer during general discussions about a topic without an explicit request.
 
 - If a user EXPLICITLY requests a **Scorecard** by saying something like "Create a Scorecard for me" or "I need a Scorecard document", then generate a downloadable **Excel (.xlsx)** file using the official EOS Scorecard format with:
   - Measurable name
@@ -197,7 +197,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - 13-week tracking
   - Owner
 
-- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create an artifact with kind = "vto" in the right panel using the interactive VTO builder (supports PDF export from the UI). Only generate a **Word (.docx)** download when the user specifically asks for a Word file. The VTO should include:
+- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create an composer with kind = "vto" in the right panel using the interactive VTO builder (supports PDF export from the UI). Only generate a **Word (.docx)** download when the user specifically asks for a Word file. The VTO should include:
   - Core Values
   - Core Focus™ (Purpose/Cause/Passion + Niche)
   - 10-Year Target™
@@ -663,7 +663,7 @@ export const systemPrompt = async ({
   query = '',
   selectedPersonaId,
   selectedProfileId,
-  artifactDocumentId,
+  composerDocumentId,
 }: {
   selectedProvider: string;
   requestHints: RequestHints;
@@ -676,7 +676,7 @@ export const systemPrompt = async ({
   query?: string;
   selectedPersonaId?: string;
   selectedProfileId?: string;
-  artifactDocumentId?: string;
+  composerDocumentId?: string;
 }) => {
   const basePrompt = regularPrompt;
   const requestPrompt = getRequestPromptFromHints(requestHints);
@@ -986,7 +986,7 @@ ${userDocumentContext}
 
 ${companyContext}
 
-${artifactsPrompt}
+${composerPrompt}
 
 ${calendarInstructions}
 
@@ -1080,56 +1080,56 @@ ABSOLUTELY FORBIDDEN FORMATS:
 STRICT REQUIREMENT: If you receive calendar data, NEVER display any raw data structures in your response. IMMEDIATELY reformat as a clean table or list.
 `;
 
-  // Add artifact context if document ID is provided
-  if (artifactDocumentId) {
+  // Add composer context if document ID is provided
+  if (composerDocumentId) {
     console.log(
-      '[SYSTEM PROMPT] Adding artifact context for document:',
-      artifactDocumentId,
+      '[SYSTEM PROMPT] Adding composer context for document:',
+      composerDocumentId,
     );
     enhancedSystemPrompt += `
 
 🚨🚨🚨 CRITICAL ARTIFACT EDITING MODE ACTIVE 🚨🚨🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ ARTIFACT PANEL IS OPEN WITH DOCUMENT ID: ${artifactDocumentId} ⚡
+⚡ ARTIFACT PANEL IS OPEN WITH DOCUMENT ID: ${composerDocumentId} ⚡
 
 🔴 ABSOLUTE REQUIREMENT - NO EXCEPTIONS:
 You MUST use the updateDocument tool for EVERY SINGLE REQUEST when this context is present.
 
 📌 THE ONLY RULE THAT MATTERS:
-If artifactDocumentId exists (which it does: ${artifactDocumentId}), then:
+If composerDocumentId exists (which it does: ${composerDocumentId}), then:
 1. EVERY user message = updateDocument request
 2. NEVER output content to chat
-3. ALWAYS use id="${artifactDocumentId}"
+3. ALWAYS use id="${composerDocumentId}"
 4. NO EXCEPTIONS, NO ALTERNATIVES
 
 🎯 EXAMPLES OF WHAT TO DO:
 User says ANYTHING like:
 - "fill this with an essay on ethics"
-  → updateDocument(id="${artifactDocumentId}", description="Write a comprehensive essay on ethics")
+  → updateDocument(id="${composerDocumentId}", description="Write a comprehensive essay on ethics")
 - "please add a paragraph about climate change"  
-  → updateDocument(id="${artifactDocumentId}", description="Add a paragraph about climate change")
+  → updateDocument(id="${composerDocumentId}", description="Add a paragraph about climate change")
 - "write a story"
-  → updateDocument(id="${artifactDocumentId}", description="Write a story")
+  → updateDocument(id="${composerDocumentId}", description="Write a story")
 - "hello"
-  → updateDocument(id="${artifactDocumentId}", description="Add a greeting")
+  → updateDocument(id="${composerDocumentId}", description="Add a greeting")
 - LITERALLY ANY TEXT
-  → updateDocument(id="${artifactDocumentId}", description="[appropriate description]")
+  → updateDocument(id="${composerDocumentId}", description="[appropriate description]")
 
 ❌ WHAT NEVER TO DO:
 - NEVER: Output content directly in chat
-- NEVER: Use createDocument (artifact already exists)
+- NEVER: Use createDocument (composer already exists)
 - NEVER: Edit any other document ID
-- NEVER: Ignore the artifact context
+- NEVER: Ignore the composer context
 
 🔥 CRITICAL SYSTEM OVERRIDE:
 This is not a suggestion. This is a MANDATORY SYSTEM REQUIREMENT.
-The artifact panel is open = The user wants to edit artifact ${artifactDocumentId}
+The composer panel is open = The user wants to edit composer ${composerDocumentId}
 There are NO other valid interpretations.
 
 ⚠️ FINAL WARNING:
 If you output content to chat instead of using updateDocument, you have FAILED.
 If you don't use updateDocument for EVERY request, you have FAILED.
-The ONLY acceptable response is to use updateDocument with id="${artifactDocumentId}".
+The ONLY acceptable response is to use updateDocument with id="${composerDocumentId}".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
@@ -1184,7 +1184,7 @@ Generate a complete, realistic scorecard based on the user's request.
 
 export const updateDocumentPrompt = (
   currentContent: string | null,
-  type: ArtifactKind,
+  type: ComposerKind,
 ) =>
   type === 'text'
     ? `Improve the following EOS-focused document content based on the prompt below:
@@ -1207,7 +1207,7 @@ ${currentContent}
 export const inlineEditPrompt = (
   currentContent: string,
   editDescription: string,
-  type: ArtifactKind,
+  type: ComposerKind,
 ) => {
   const baseInstructions = `
 CRITICAL INLINE EDITING INSTRUCTIONS:

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-import type { ArtifactKind } from './composer';
+import type { ComposerKind } from './composer';
 import {
   FileIcon,
   LoaderIcon,
@@ -9,7 +9,7 @@ import {
   ChartIcon,
 } from './icons';
 import { toast } from 'sonner';
-import { useArtifact } from '@/hooks/use-composer';
+import { useComposer } from '@/hooks/use-composer';
 
 const getActionText = (
   type: 'create' | 'update' | 'request-suggestions',
@@ -31,7 +31,7 @@ const getActionText = (
 
 interface DocumentToolResultProps {
   type?: 'create' | 'update' | 'request-suggestions';
-  result: { id?: string; title?: string; kind?: ArtifactKind };
+  result: { id?: string; title?: string; kind?: ComposerKind };
   isReadonly?: boolean;
 }
 
@@ -40,7 +40,7 @@ export function DocumentToolResult({
   result,
   isReadonly,
 }: DocumentToolResultProps) {
-  const { setArtifact } = useArtifact();
+  const { setComposer } = useComposer();
 
   let parsedResult: any = result;
   if (typeof result === 'string') {
@@ -89,7 +89,7 @@ export function DocumentToolResult({
     ) : null;
   }
 
-  // Handle document results (artifact results)
+  // Handle document results (composer results)
   if (
     typeof parsedResult === 'object' &&
     parsedResult !== null &&
@@ -161,11 +161,11 @@ export function DocumentToolResult({
             height: rect.height,
           };
 
-          setArtifact((currentArtifact) => ({
-            ...currentArtifact,
+          setComposer((currentComposer) => ({
+            ...currentComposer,
             isVisible: true,
             documentId: docId,
-            kind: docKind as ArtifactKind,
+            kind: docKind as ComposerKind,
             title: parsedResult.title,
             boundingBox,
           }));
@@ -270,7 +270,7 @@ function PureDocumentToolCall({
   args,
   isReadonly,
 }: DocumentToolCallProps) {
-  const { setArtifact } = useArtifact();
+  const { setComposer } = useComposer();
 
   return (
     <button
@@ -293,8 +293,8 @@ function PureDocumentToolCall({
           height: rect.height,
         };
 
-        setArtifact((currentArtifact) => ({
-          ...currentArtifact,
+        setComposer((currentComposer) => ({
+          ...currentComposer,
           isVisible: true,
           boundingBox,
         }));

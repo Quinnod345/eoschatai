@@ -2,9 +2,9 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef } from 'react';
-import { artifactDefinitions, type ArtifactKind } from './composer';
+import { composerDefinitions, type ComposerKind } from './composer';
 import type { Suggestion } from '@/lib/db/schema';
-import { initialArtifactData, useArtifact } from '@/hooks/use-composer';
+import { initialComposerData, useComposer } from '@/hooks/use-composer';
 
 export type DataStreamDelta = {
   type:
@@ -35,7 +35,7 @@ export type DataStreamDelta = {
 
 export function DataStreamHandler({ id }: { id: string }) {
   const { data: dataStream } = useChat({ id });
-  const { artifact, setArtifact, setMetadata } = useArtifact();
+  const { composer, setComposer, setMetadata } = useComposer();
   const lastProcessedIndex = useRef(-1);
 
   useEffect(() => {
@@ -57,11 +57,11 @@ export function DataStreamHandler({ id }: { id: string }) {
         return;
       }
 
-      const artifactDefinition = artifactDefinitions.find(
-        (artifactDefinition) => artifactDefinition.kind === artifact.kind,
+      const composerDefinition = composerDefinitions.find(
+        (composerDefinition) => composerDefinition.kind === composer.kind,
       );
 
-      if (artifactDefinition?.onStreamPart) {
+      if (composerDefinition?.onStreamPart) {
         // Log chart-related data for debugging
         if (
           delta.type === 'chart-data' ||
@@ -75,59 +75,59 @@ export function DataStreamHandler({ id }: { id: string }) {
           );
         }
 
-        artifactDefinition.onStreamPart({
+        composerDefinition.onStreamPart({
           streamPart: delta,
-          setArtifact,
+          setComposer,
           setMetadata,
         });
       }
 
-      setArtifact((draftArtifact) => {
-        if (!draftArtifact) {
-          return { ...initialArtifactData, status: 'streaming' };
+      setComposer((draftComposer) => {
+        if (!draftComposer) {
+          return { ...initialComposerData, status: 'streaming' };
         }
 
         switch (delta.type) {
           case 'id':
             return {
-              ...draftArtifact,
+              ...draftComposer,
               documentId: delta.content as string,
               status: 'streaming',
             };
 
           case 'title':
             return {
-              ...draftArtifact,
+              ...draftComposer,
               title: delta.content as string,
               status: 'streaming',
             };
 
           case 'kind':
             return {
-              ...draftArtifact,
-              kind: delta.content as ArtifactKind,
+              ...draftComposer,
+              kind: delta.content as ComposerKind,
               status: 'streaming',
             };
 
           case 'clear':
             return {
-              ...draftArtifact,
+              ...draftComposer,
               content: '',
               status: 'streaming',
             };
 
           case 'finish':
             return {
-              ...draftArtifact,
+              ...draftComposer,
               status: 'idle',
             };
 
           default:
-            return draftArtifact;
+            return draftComposer;
         }
       });
     });
-  }, [dataStream, setArtifact, setMetadata, artifact]);
+  }, [dataStream, setComposer, setMetadata, composer]);
 
   return null;
 }

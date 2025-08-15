@@ -1,13 +1,13 @@
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { artifactDefinitions, type UIArtifact } from './composer';
+import { composerDefinitions, type UIComposer } from './composer';
 import { type Dispatch, memo, type SetStateAction, useState } from 'react';
-import type { ArtifactActionContext } from './create-composer';
+import type { ComposerActionContext } from './create-composer';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-interface ArtifactActionsProps {
-  artifact: UIArtifact;
+interface ComposerActionsProps {
+  composer: UIComposer;
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
   currentVersionIndex: number;
   isCurrentVersion: boolean;
@@ -16,28 +16,28 @@ interface ArtifactActionsProps {
   setMetadata: Dispatch<SetStateAction<any>>;
 }
 
-function PureArtifactActions({
-  artifact,
+function PureComposerActions({
+  composer,
   handleVersionChange,
   currentVersionIndex,
   isCurrentVersion,
   mode,
   metadata,
   setMetadata,
-}: ArtifactActionsProps) {
+}: ComposerActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const artifactDefinition = artifactDefinitions.find(
-    (definition) => definition.kind === artifact.kind,
+  const composerDefinition = composerDefinitions.find(
+    (definition) => definition.kind === composer.kind,
   );
 
-  if (!artifactDefinition) {
-    throw new Error('Artifact definition not found!');
+  if (!composerDefinition) {
+    throw new Error('Composer definition not found!');
   }
 
-  const actionContext: ArtifactActionContext = {
-    content: artifact.content,
-    title: artifact.title,
+  const actionContext: ComposerActionContext = {
+    content: composer.content,
+    title: composer.title,
     handleVersionChange,
     currentVersionIndex,
     isCurrentVersion,
@@ -48,7 +48,7 @@ function PureArtifactActions({
 
   return (
     <div className="flex flex-row gap-1">
-      {artifactDefinition.actions.map((action) => (
+      {composerDefinition.actions.map((action) => (
         <Tooltip key={action.description}>
           <TooltipTrigger asChild>
             <Button
@@ -69,7 +69,7 @@ function PureArtifactActions({
                 }
               }}
               disabled={
-                isLoading || artifact.status === 'streaming'
+                isLoading || composer.status === 'streaming'
                   ? true
                   : action.isDisabled
                     ? action.isDisabled(actionContext)
@@ -87,14 +87,14 @@ function PureArtifactActions({
   );
 }
 
-export const ArtifactActions = memo(
-  PureArtifactActions,
+export const ComposerActions = memo(
+  PureComposerActions,
   (prevProps, nextProps) => {
-    if (prevProps.artifact.status !== nextProps.artifact.status) return false;
+    if (prevProps.composer.status !== nextProps.composer.status) return false;
     if (prevProps.currentVersionIndex !== nextProps.currentVersionIndex)
       return false;
     if (prevProps.isCurrentVersion !== nextProps.isCurrentVersion) return false;
-    if (prevProps.artifact.content !== nextProps.artifact.content) return false;
+    if (prevProps.composer.content !== nextProps.composer.content) return false;
 
     return true;
   },

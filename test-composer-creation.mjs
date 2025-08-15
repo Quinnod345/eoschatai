@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
-async function testArtifactCreation() {
-  console.log('Testing artifact creation...');
+async function testComposerCreation() {
+  console.log('Testing composer creation...');
 
   try {
     // First, let's test if the API is accessible
@@ -50,8 +50,8 @@ async function testArtifactCreation() {
 
     console.log('Test completed');
   } catch (error) {
-    console.error('Error testing artifact creation:', error);
+    console.error('Error testing composer creation:', error);
   }
 }
 
-testArtifactCreation();
+testComposerCreation();

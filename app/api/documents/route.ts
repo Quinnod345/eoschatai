@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 // Inline query for listing documents by user and kind to avoid missing export
 import { document } from '@/lib/db/schema';
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 import { eq, and, desc } from 'drizzle-orm';
 
 // Define the valid document categories
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get('category');
-    const artifactKindParam = searchParams.get('artifactKind');
+    const composerKindParam = searchParams.get('composerKind');
 
     // Optional path 1: legacy uploaded documents by category
     if (categoryParam) {
@@ -64,11 +64,11 @@ export async function GET(request: Request) {
       });
     }
 
-    // Optional path 2: list AI-generated artifacts by kind for Composer dashboards
-    if (artifactKindParam) {
-      const kind = artifactKindParam as ArtifactKind;
+    // Optional path 2: list AI-generated composer by kind for Composer dashboards
+    if (composerKindParam) {
+      const kind = composerKindParam as ComposerKind;
       // Rough validation to allowed kinds defined in schema
-      const allowed: ArtifactKind[] = [
+      const allowed: ComposerKind[] = [
         'text',
         'code',
         'image',
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
       ];
       if (!allowed.includes(kind)) {
         return NextResponse.json(
-          { error: 'Invalid artifact kind' },
+          { error: 'Invalid composer kind' },
           { status: 400 },
         );
       }
@@ -102,7 +102,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { error: 'Missing query parameter: category or artifactKind' },
+      { error: 'Missing query parameter: category or composerKind' },
       { status: 400 },
     );
   } catch (error) {

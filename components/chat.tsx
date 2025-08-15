@@ -7,12 +7,12 @@ import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
 import { fetcher, generateUUID } from '@/lib/utils';
-import { Artifact } from './composer';
+import { Composer } from './composer';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
 import type { VisibilityType } from './visibility-selector';
-import { useArtifact, useArtifactSelector } from '@/hooks/use-composer';
-import type { ArtifactKind } from './composer';
+import { useComposer, useComposerSelector } from '@/hooks/use-composer';
+import type { ComposerKind } from './composer';
 import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
 import { toast } from '@/lib/toast-system';
@@ -29,7 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
 import { NexusResearchProgress } from './nexus-research-progress';
 import { NexusResearchPlan } from './nexus-research-plan';
-import { ComposerContextIndicator } from './artifact-context-indicator';
+import { ComposerContextIndicator } from './composer-context-indicator';
 
 export function Chat({
   id,
@@ -270,9 +270,9 @@ export function Chat({
         selectedPersonaId: selectedPersonaId,
         selectedProfileId: selectedProfileId,
         selectedResearchMode: selectedResearchMode,
-        artifactDocumentId:
-          artifact?.isVisible && artifact?.documentId
-            ? artifact.documentId
+        composerDocumentId:
+          composer?.isVisible && composer?.documentId
+            ? composer.documentId
             : undefined,
       };
 
@@ -284,17 +284,17 @@ export function Chat({
         timestamp: new Date().toISOString(),
       });
 
-      // Enhanced artifact debugging
-      console.log('[ARTIFACT DEBUG] Request body artifact info:', {
-        artifactState: {
-          isVisible: artifact?.isVisible,
-          documentId: artifact?.documentId,
-          kind: artifact?.kind,
-          status: artifact?.status,
-          title: artifact?.title,
+      // Enhanced composer debugging
+      console.log('[ARTIFACT DEBUG] Request body composer info:', {
+        composerState: {
+          isVisible: composer?.isVisible,
+          documentId: composer?.documentId,
+          kind: composer?.kind,
+          status: composer?.status,
+          title: composer?.title,
         },
-        artifactDocumentId: requestBody.artifactDocumentId,
-        wasIncluded: !!requestBody.artifactDocumentId,
+        composerDocumentId: requestBody.composerDocumentId,
+        wasIncluded: !!requestBody.composerDocumentId,
       });
 
       console.log('PERSONA_CLIENT: Full request body:', {
@@ -840,8 +840,8 @@ export function Chat({
   });
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
-  const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
-  const { artifact, setArtifact } = useArtifact();
+  const isComposerVisible = useComposerSelector((state) => state.isVisible);
+  const { composer, setComposer } = useComposer();
 
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1360,24 +1360,24 @@ export function Chat({
     }
   }, [documentContext, messages.length, status, append]);
 
-  // Handle dashboard and new artifact creation based on URL
+  // Handle dashboard and new composer creation based on URL
   useEffect(() => {
     const url = new URL(window.location.href);
     const dashboard = url.searchParams.get('dashboard');
     const newKind = url.searchParams.get(
-      'newArtifactKind',
-    ) as ArtifactKind | null;
-    const newTitle = url.searchParams.get('newArtifactTitle');
+      'newComposerKind',
+    ) as ComposerKind | null;
+    const newTitle = url.searchParams.get('newComposerTitle');
     const existingId = url.searchParams.get('documentId');
     const existingTitle = url.searchParams.get('documentTitle');
     const existingKind = url.searchParams.get(
-      'artifactKind',
-    ) as ArtifactKind | null;
+      'composerKind',
+    ) as ComposerKind | null;
 
-    // If creating a new artifact, set up a blank artifact and show the panel.
+    // If creating a new composer, set up a blank composer and show the panel.
     if (newKind) {
       const newDocumentId = generateUUID();
-      setArtifact((current) => ({
+      setComposer((current) => ({
         ...current,
         kind: newKind,
         title: newTitle || 'Untitled',
@@ -1387,7 +1387,7 @@ export function Chat({
         status: 'idle',
       }));
 
-      // Create empty artifact in database
+      // Create empty composer in database
       fetch(`/api/document?id=${newDocumentId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1399,13 +1399,13 @@ export function Chat({
       })
         .then(async (res) => {
           if (res.ok) {
-            console.log('[ARTIFACT DEBUG] Empty artifact saved to database:', {
+            console.log('[ARTIFACT DEBUG] Empty composer saved to database:', {
               id: newDocumentId,
               kind: newKind,
               title: newTitle || 'Untitled',
             });
           } else {
-            console.error('[ARTIFACT DEBUG] Failed to save artifact:', {
+            console.error('[ARTIFACT DEBUG] Failed to save composer:', {
               status: res.status,
               statusText: res.statusText,
               text: await res.text(),
@@ -1413,18 +1413,18 @@ export function Chat({
           }
         })
         .catch((error) => {
-          console.error('[ARTIFACT DEBUG] Error saving artifact:', error);
+          console.error('[ARTIFACT DEBUG] Error saving composer:', error);
         });
 
       // Remove the param so refreshes don't re-trigger
-      url.searchParams.delete('newArtifactKind');
-      url.searchParams.delete('newArtifactTitle');
+      url.searchParams.delete('newComposerKind');
+      url.searchParams.delete('newComposerTitle');
       window.history.replaceState({}, '', url.toString());
     }
 
-    // Opening an existing artifact from dashboard
+    // Opening an existing composer from dashboard
     if (existingId) {
-      setArtifact((current) => ({
+      setComposer((current) => ({
         ...current,
         kind: existingKind || current.kind,
         title: existingTitle || current.title || '',
@@ -1432,11 +1432,11 @@ export function Chat({
         isVisible: true,
         status: 'idle',
       }));
-      // Do not navigate. Mirroring is handled inside the Artifact component.
+      // Do not navigate. Mirroring is handled inside the Composer component.
     }
 
     // Dashboard param is consumed by dashboard UI component; no-op here.
-  }, [setArtifact]);
+  }, [setComposer]);
 
   // Handle research mode changes and save to user settings
   const handleResearchModeChange = useCallback(
@@ -1544,9 +1544,9 @@ export function Chat({
           onScrollToMessage={handleScrollToMessage}
         />
 
-        {/* Show artifact context indicator when artifact is open */}
+        {/* Show composer context indicator when composer is open */}
         <AnimatePresence>
-          {artifact?.isVisible && artifact?.documentId && (
+          {composer?.isVisible && composer?.documentId && (
             <motion.div
               initial={{ y: -6, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1554,11 +1554,11 @@ export function Chat({
               transition={{ type: 'spring', stiffness: 350, damping: 26 }}
             >
               <ComposerContextIndicator
-                documentId={artifact.documentId}
-                title={artifact.title || 'Untitled'}
-                kind={artifact.kind || 'text'}
+                documentId={composer.documentId}
+                title={composer.title || 'Untitled'}
+                kind={composer.kind || 'text'}
                 onClose={() =>
-                  setArtifact((current) => ({ ...current, isVisible: false }))
+                  setComposer((current) => ({ ...current, isVisible: false }))
                 }
               />
             </motion.div>
@@ -1575,7 +1575,7 @@ export function Chat({
           setMessages={setMessages}
           reload={reload}
           isReadonly={isReadonly}
-          isArtifactVisible={isArtifactVisible}
+          isComposerVisible={isComposerVisible}
           citations={
             selectedResearchMode === 'nexus' ? nexusCitations : citations
           }
@@ -1765,7 +1765,7 @@ export function Chat({
         <MessageLimitIndicator />
       </div>
 
-      <Artifact
+      <Composer
         chatId={id}
         input={input}
         setInput={setInput}

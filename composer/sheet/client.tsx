@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import {
   CopyIcon,
   DownloadIcon,
@@ -14,14 +14,14 @@ import { toast } from 'sonner';
 
 type Metadata = any;
 
-export const sheetArtifact = new Artifact<'sheet', Metadata>({
+export const sheetComposer = new Composer<'sheet', Metadata>({
   kind: 'sheet',
   description: 'Useful for working with spreadsheets',
   initialize: async () => {},
-  onStreamPart: ({ setArtifact, streamPart }) => {
+  onStreamPart: ({ setComposer, streamPart }) => {
     if (streamPart.type === 'sheet-delta') {
-      setArtifact((draftArtifact) => ({
-        ...draftArtifact,
+      setComposer((draftComposer) => ({
+        ...draftComposer,
         content: streamPart.content as string,
         isVisible: true,
         status: 'streaming',
@@ -108,7 +108,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
           const workbook = XLSX.utils.book_new();
           const worksheet = XLSX.utils.aoa_to_sheet(nonEmptyRows);
 
-          // Use the artifact title for the sheet name (with character limit)
+          // Use the composer title for the sheet name (with character limit)
           const sheetName = title
             ? title.substring(0, 30).replace(/[*?:/\\[\]]/g, '_')
             : 'Sheet1';
@@ -129,7 +129,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
           const a = document.createElement('a');
           a.href = url;
 
-          // Use the artifact title for the filename, with fallback
+          // Use the composer title for the filename, with fallback
           const safeTitle =
             title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'spreadsheet';
           a.download = `${safeTitle}.xlsx`;
@@ -167,7 +167,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
         appendMessage({
           role: 'user',
           content:
-            'Can you please analyze and visualize the data by creating a new code artifact in python?',
+            'Can you please analyze and visualize the data by creating a new code composer in python?',
         });
       },
     },

@@ -283,7 +283,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                               'default',
                             );
                             // Prefetch documents to warm SWR cache before navigation
-                            const key = `/api/documents?artifactKind=${item.kind}`;
+                            const key = `/api/documents?composerKind=${item.kind}`;
                             void swrMutate(
                               key,
                               fetch(key).then((r) => r.json()),

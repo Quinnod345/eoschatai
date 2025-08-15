@@ -31,7 +31,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - **🤖 Advanced AI**: Multi-provider support with streaming conversations
 - **📚 Document Intelligence**: RAG-powered knowledge extraction from your files
 - **👥 Custom Personas**: Specialized AI assistants for different business roles
-- **🎨 Rich Artifacts**: Generate code, charts, documents, and spreadsheets
+- **🎨 Rich Composer**: Generate code, charts, documents, and spreadsheets
 - **🔧 EOS-Specific Tools**: Purpose-built for EOS methodology implementation
 - **⚡ Real-time Features**: Streaming responses with resumable connections
 - **🎯 Enterprise Ready**: OAuth, role-based access, and premium features
@@ -73,9 +73,9 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 </details>
 
 <details>
-<summary><b>📄 Interactive Artifacts</b> <code>v2.0</code> <span style="background: #22c55e; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">NEW</span></summary>
+<summary><b>📄 Interactive Composer</b> <code>v2.0</code> <span style="background: #22c55e; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">NEW</span></summary>
 
-**Create rich, interactive content directly in your conversations. From code snippets to complex charts and documents, artifacts make your AI conversations more productive and visual.**
+**Create rich, interactive content directly in your conversations. From code snippets to complex charts and documents, composer make your AI conversations more productive and visual.**
 
 #### ⚡ Key Benefits
 - Monaco code editor with syntax highlighting for 50+ languages
@@ -84,7 +84,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - Excel-like spreadsheets with formulas and calculations
 - AI-assisted editing with diff view and suggestions
 - Real-time collaboration and sharing capabilities
-- Export options for all artifact types
+- Export options for all composer types
 
 #### 🎯 Use Cases & Examples
 - Generate Python scripts and edit them with AI assistance
@@ -99,7 +99,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - Share interactive content with colleagues
 - Work with code, data, and documents in one place
 
-**Tags:** `artifacts` `code` `charts` `documents` `monaco` `visualization`
+**Tags:** `composer` `code` `charts` `documents` `monaco` `visualization`
 
 </details>
 
@@ -267,7 +267,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 #### ⚡ Key Benefits
 - Quick search activation with Cmd/Ctrl+K
 - Message navigation with arrow keys
-- Artifact shortcuts for editing and creation
+- Composer shortcuts for editing and creation
 - Chat management and switching shortcuts
 - Full accessibility support for screen readers
 - Customizable shortcut preferences
@@ -390,9 +390,9 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 </details>
 
 <details>
-<summary><b>✨ Enhanced Artifact Editing</b> <code>v2.0</code> <span style="background: #22c55e; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">NEW</span></summary>
+<summary><b>✨ Enhanced Composer Editing</b> <code>v2.0</code> <span style="background: #22c55e; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">NEW</span></summary>
 
-**Next-generation artifact editing with AI assistance, visual diff comparison, and collaborative features that make content creation and editing more intuitive and powerful.**
+**Next-generation composer editing with AI assistance, visual diff comparison, and collaborative features that make content creation and editing more intuitive and powerful.**
 
 #### ⚡ Key Benefits
 - AI-assisted editing with intelligent suggestions
@@ -401,7 +401,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - Real-time collaboration capabilities
 - Version control and change tracking
 - Smart formatting and syntax correction
-- Export options for all artifact types
+- Export options for all composer types
 
 #### 🎯 Use Cases & Examples
 - Get AI suggestions while editing code
@@ -415,7 +415,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - Collaborate seamlessly with others
 - Create higher quality content faster
 
-**Tags:** `artifacts` `editing` `collaboration` `diff` `ai-assistance`
+**Tags:** `composer` `editing` `collaboration` `diff` `ai-assistance`
 
 </details>
 
@@ -567,7 +567,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
 - Seamless chat experience on mobile phones
 - Touch-friendly buttons and interactive elements
 - Responsive sidebar that adapts to screen size
-- Optimized artifact viewing on tablets
+- Optimized composer viewing on tablets
 
 #### 🚀 Experience Improvements
 - Use the app anywhere, on any device
@@ -690,7 +690,7 @@ pnpm test             # Run E2E tests
 | **Core Chat** | ✅ All features | ✅ All features |
 | **Document Intelligence** | ✅ Up to 10 docs | ✅ Unlimited |
 | **AI Personas** | ✅ 3 custom | ✅ Unlimited |
-| **Artifacts** | ✅ All types | ✅ Enhanced editing |
+| **Composer** | ✅ All types | ✅ Enhanced editing |
 | **Calendar Integration** | ✅ Basic | ✅ Advanced analytics |
 | **Search & Filtering** | ✅ Basic search | ✅ AI-powered suggestions |
 | **Nexus Research** | ❌ | ✅ Full access |

@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import {
   CopyIcon,
   DownloadIcon,
@@ -36,7 +36,7 @@ export interface ChartData {
   options?: any;
 }
 
-interface ChartArtifactMetadata {
+interface ChartComposerMetadata {
   chartData: ChartData | null;
   editMode: 'visual' | 'code';
 }
@@ -509,7 +509,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   }
 }
 
-export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
+export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
   kind: 'chart',
   description:
     'Create and display interactive charts and graphs for data visualization',
@@ -519,12 +519,12 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
       editMode: 'visual',
     });
   },
-  onStreamPart: ({ streamPart, setMetadata, setArtifact }) => {
+  onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
     if (streamPart.type === 'text-delta') {
       try {
         const contentStr = streamPart.content as string;
         console.log(
-          '[ArtifactClient onStreamPart] Received text-delta length:',
+          '[ComposerClient onStreamPart] Received text-delta length:',
           contentStr.length,
         );
 
@@ -542,13 +542,13 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
               const jsonStr = contentStr.substring(startIndex, endIndex).trim();
               parsedChartDataFromStream = JSON.parse(jsonStr) as ChartData;
               console.log(
-                '[ArtifactClient onStreamPart] Parsed chart data from markers:',
+                '[ComposerClient onStreamPart] Parsed chart data from markers:',
                 parsedChartDataFromStream.type,
               );
             }
           } catch (error) {
             console.error(
-              '[ArtifactClient onStreamPart] Failed to parse chart data between markers:',
+              '[ComposerClient onStreamPart] Failed to parse chart data between markers:',
               error,
             );
           }
@@ -566,13 +566,13 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
               );
               parsedChartDataFromStream = JSON.parse(jsonStr) as ChartData;
               console.log(
-                '[ArtifactClient onStreamPart] Parsed chart data from raw JSON:',
+                '[ComposerClient onStreamPart] Parsed chart data from raw JSON:',
                 parsedChartDataFromStream.type,
               );
             }
           } catch (error) {
             console.error(
-              '[ArtifactClient onStreamPart] Failed to parse chart data from raw JSON:',
+              '[ComposerClient onStreamPart] Failed to parse chart data from raw JSON:',
               error,
             );
           }
@@ -581,7 +581,7 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
         if (parsedChartDataFromStream) {
           setMetadata((metadata) => {
             console.log(
-              '[ArtifactClient onStreamPart] Updating metadata with chartData from stream:',
+              '[ComposerClient onStreamPart] Updating metadata with chartData from stream:',
               parsedChartDataFromStream.type,
             );
             return {
@@ -591,21 +591,21 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
           });
         }
 
-        setArtifact((draftArtifact) => ({
-          ...draftArtifact,
+        setComposer((draftComposer) => ({
+          ...draftComposer,
           // IMPORTANT: The server sends the whole block with markers as one text-delta.
-          // So, artifact.content will store the string with markers.
-          content: draftArtifact.content + (streamPart.content as string),
+          // So, composer.content will store the string with markers.
+          content: draftComposer.content + (streamPart.content as string),
           isVisible:
-            draftArtifact.status === 'streaming' &&
-            draftArtifact.content.length > 50
+            draftComposer.status === 'streaming' &&
+            draftComposer.content.length > 50
               ? true
-              : draftArtifact.isVisible,
+              : draftComposer.isVisible,
           status: 'streaming',
         }));
       } catch (error) {
         console.error(
-          '[ArtifactClient onStreamPart] Error handling stream part:',
+          '[ComposerClient onStreamPart] Error handling stream part:',
           error,
         );
       }
@@ -617,7 +617,7 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
     currentVersionIndex,
     onSaveContent,
     status,
-    metadata, // This `metadata` is from the useArtifact hook
+    metadata, // This `metadata` is from the useComposer hook
     setMetadata,
   }) => {
     const [localChartData, setLocalChartData] = useState<ChartData | null>(
@@ -626,13 +626,13 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
-      console.log('[ArtifactClient Content] useEffect for parsing triggered.');
+      console.log('[ComposerClient Content] useEffect for parsing triggered.');
       console.log(
-        '[ArtifactClient Content] Initial metadata.chartData type:',
+        '[ComposerClient Content] Initial metadata.chartData type:',
         metadata?.chartData?.type,
       );
       console.log(
-        '[ArtifactClient Content] Initial `content` prop (first 100 chars):',
+        '[ComposerClient Content] Initial `content` prop (first 100 chars):',
         content?.substring(0, 100),
       );
 
@@ -653,41 +653,41 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
                 .substring(startIndex, endIndex)
                 .trim();
               console.log(
-                '[ArtifactClient Content] Extracted JSON from markers in content string:',
+                '[ComposerClient Content] Extracted JSON from markers in content string:',
                 `${jsonStr.substring(0, 100)}...`,
               );
               const parsed = JSON.parse(jsonStr) as ChartData;
               if (parsed?.type && parsed?.data) {
                 console.log(
-                  '[ArtifactClient Content] Successfully parsed from markers:',
+                  '[ComposerClient Content] Successfully parsed from markers:',
                   parsed.type,
                 );
                 return parsed;
               }
             } else {
               console.warn(
-                '[ArtifactClient Content] Markers found but invalid substring indices.',
+                '[ComposerClient Content] Markers found but invalid substring indices.',
               );
             }
           } else {
             console.log(
-              '[ArtifactClient Content] No markers in content string, trying raw JSON parse.',
+              '[ComposerClient Content] No markers in content string, trying raw JSON parse.',
             );
             const parsed = JSON.parse(contentString) as ChartData;
             if (parsed?.type && parsed?.data) {
               console.log(
-                '[ArtifactClient Content] Successfully parsed raw JSON from content string:',
+                '[ComposerClient Content] Successfully parsed raw JSON from content string:',
                 parsed.type,
               );
               return parsed;
             }
           }
           console.warn(
-            '[ArtifactClient Content] Parsed data from content string is not valid chart data.',
+            '[ComposerClient Content] Parsed data from content string is not valid chart data.',
           );
         } catch (e) {
           console.error(
-            '[ArtifactClient Content] Error parsing content string to ChartData:',
+            '[ComposerClient Content] Error parsing content string to ChartData:',
             e,
           );
         }
@@ -696,25 +696,25 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
 
       if (metadata?.chartData) {
         console.log(
-          '[ArtifactClient Content] Using chartData directly from metadata:',
+          '[ComposerClient Content] Using chartData directly from metadata:',
           metadata.chartData.type,
         );
         setLocalChartData(metadata.chartData);
       } else if (content) {
         console.log(
-          '[ArtifactClient Content] metadata.chartData is null/undefined. Trying to parse from `content` prop.',
+          '[ComposerClient Content] metadata.chartData is null/undefined. Trying to parse from `content` prop.',
         );
         const parsedDataFromContent = parseContentStringToChartData(content);
         if (parsedDataFromContent) {
           console.log(
-            '[ArtifactClient Content] Successfully parsed chartData from `content` prop, type:',
+            '[ComposerClient Content] Successfully parsed chartData from `content` prop, type:',
             parsedDataFromContent.type,
           );
           setLocalChartData(parsedDataFromContent);
           // Update metadata to be the source of truth once parsed from content
           setMetadata((current) => {
             console.log(
-              '[ArtifactClient Content] Updating metadata with chartData parsed from content.',
+              '[ComposerClient Content] Updating metadata with chartData parsed from content.',
             );
             return {
               ...current,
@@ -723,13 +723,13 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
           });
         } else {
           console.warn(
-            '[ArtifactClient Content] Failed to parse chartData from `content` prop. `localChartData` will be null.',
+            '[ComposerClient Content] Failed to parse chartData from `content` prop. `localChartData` will be null.',
           );
           setLocalChartData(null);
         }
       } else {
         console.log(
-          '[ArtifactClient Content] No metadata.chartData and no content string. Setting `localChartData` to null.',
+          '[ComposerClient Content] No metadata.chartData and no content string. Setting `localChartData` to null.',
         );
         setLocalChartData(null);
       }
@@ -740,14 +740,14 @@ export const chartArtifact = new Artifact<'chart', ChartArtifactMetadata>({
       if (!localChartData || !canvasRef.current) {
         if (!localChartData)
           console.log(
-            '[ArtifactClient RenderEffect] No localChartData to render.',
+            '[ComposerClient RenderEffect] No localChartData to render.',
           );
         if (!canvasRef.current)
-          console.log('[ArtifactClient RenderEffect] Canvas ref not ready.');
+          console.log('[ComposerClient RenderEffect] Canvas ref not ready.');
         return;
       }
       console.log(
-        '[ArtifactClient RenderEffect] Rendering chart with localChartData, type:',
+        '[ComposerClient RenderEffect] Rendering chart with localChartData, type:',
         localChartData.type,
       );
       renderChart(canvasRef.current, localChartData);
@@ -910,7 +910,7 @@ CHART_DATA_END`
                       ? 'Processing chart configuration...'
                       : 'No chart data available yet';
                     console.log(
-                      `[ArtifactClient Content] Fallback UI: "${message}". localChartData is null. Content exists: ${!!content}. Metadata chartData exists: ${!!metadata?.chartData}`,
+                      `[ComposerClient Content] Fallback UI: "${message}". localChartData is null. Content exists: ${!!content}. Metadata chartData exists: ${!!metadata?.chartData}`,
                     );
                     return message;
                   })()}

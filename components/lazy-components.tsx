@@ -40,7 +40,7 @@ export const LazyDocumentContextModal = dynamic(
 
 export const LazyArtifact = dynamic(
   () =>
-    import('./artifact').then((mod) => ({
+    import('./composer').then((mod) => ({
       default: mod.Artifact,
     })),
   {
@@ -92,6 +92,6 @@ export const LazyKeyboardShortcutsModal = dynamic(
 // Preload function for critical components
 export const preloadCriticalComponents = () => {
   // Preload components that are likely to be used
-  import('./artifact');
+  import('./composer');
   import('./multimodal-input');
 };

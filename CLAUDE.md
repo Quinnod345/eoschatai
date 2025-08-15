@@ -75,9 +75,9 @@ pnpm upload-docs      # Upload documents to knowledge base
    - Profile management for different use cases
    - Files: `lib/ai/persona-rag.ts`, `app/api/personas/`
 
-5. **Artifact System**:
+5. **Composer System**:
    - Support for code, text, charts, and spreadsheets
-   - Server-side rendering in `/artifacts/*/server.ts`
+   - Server-side rendering in `/composer/*/server.ts`
    - Client components with enhanced editing capabilities
    - Integration with chat messages for interactive content
 
@@ -89,10 +89,10 @@ pnpm upload-docs      # Upload documents to knowledge base
 ### Key Directories
 - `/app/(auth)/` - Authentication pages and logic
 - `/app/(chat)/` - Main chat interface and API routes
-- `/components/` - React components (chat UI, artifacts, etc.)
+- `/components/` - React components (chat UI, composer, etc.)
 - `/lib/ai/` - AI providers, tools, RAG implementation
 - `/lib/db/` - Database schema and queries
-- `/artifacts/` - Artifact rendering components
+- `/composer/` - Composer rendering components
 - `/hooks/` - Custom React hooks for chat, shortcuts, etc.
 
 ### Environment Variables Required

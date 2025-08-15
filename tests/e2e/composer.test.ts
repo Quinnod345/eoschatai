@@ -1,27 +1,27 @@
 import { expect, test } from '../fixtures';
 import { ChatPage } from '../pages/chat';
-import { ArtifactPage } from '../pages/artifact';
+import { ComposerPage } from '../pages/composer';
 
-test.describe('Artifacts activity', () => {
+test.describe('Composer activity', () => {
   let chatPage: ChatPage;
-  let artifactPage: ArtifactPage;
+  let composerPage: ComposerPage;
 
   test.beforeEach(async ({ page }) => {
     chatPage = new ChatPage(page);
-    artifactPage = new ArtifactPage(page);
+    composerPage = new ComposerPage(page);
 
     await chatPage.createNewChat();
   });
 
-  test('Create a text artifact', async () => {
+  test('Create a text composer', async () => {
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
       'Help me write an essay about Silicon Valley',
     );
-    await artifactPage.isGenerationComplete();
+    await composerPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
+    expect(composerPage.composer).toBeVisible();
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
     expect(assistantMessage.content).toContain(
@@ -32,15 +32,15 @@ test.describe('Artifacts activity', () => {
     await chatPage.hasChatIdInUrl();
   });
 
-  test('Toggle artifact visibility', async () => {
+  test('Toggle composer visibility', async () => {
     await chatPage.createNewChat();
 
     await chatPage.sendUserMessage(
       'Help me write an essay about Silicon Valley',
     );
-    await artifactPage.isGenerationComplete();
+    await composerPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
+    expect(composerPage.composer).toBeVisible();
 
     const assistantMessage = await chatPage.getRecentAssistantMessage();
     expect(assistantMessage.content).toContain(
@@ -48,8 +48,8 @@ test.describe('Artifacts activity', () => {
     );
     expect(assistantMessage.content).toContain('for you in the right panel');
 
-    await artifactPage.closeArtifact();
-    await chatPage.isElementNotVisible('artifact');
+    await composerPage.closeComposer();
+    await chatPage.isElementNotVisible('composer');
   });
 
   test('Send follow up message after generation', async () => {
@@ -58,18 +58,18 @@ test.describe('Artifacts activity', () => {
     await chatPage.sendUserMessage(
       'Help me write an essay about Silicon Valley',
     );
-    await artifactPage.isGenerationComplete();
+    await composerPage.isGenerationComplete();
 
-    expect(artifactPage.artifact).toBeVisible();
+    expect(composerPage.composer).toBeVisible();
 
-    const assistantMessage = await artifactPage.getRecentAssistantMessage();
+    const assistantMessage = await composerPage.getRecentAssistantMessage();
     expect(assistantMessage.content).toContain(
       "I've created a document titled",
     );
     expect(assistantMessage.content).toContain('for you in the right panel');
 
-    await artifactPage.sendUserMessage('Thanks!');
-    await artifactPage.isGenerationComplete();
+    await composerPage.sendUserMessage('Thanks!');
+    await composerPage.isGenerationComplete();
 
     const secondAssistantMessage = await chatPage.getRecentAssistantMessage();
     expect(secondAssistantMessage.content).toBe("You're welcome!");

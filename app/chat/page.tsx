@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 
 import { ChatClientWrapper } from '@/components/chat-client-wrapper';
-import { ArtifactDashboard } from '@/components/composer-dashboard';
+import { ComposerDashboard } from '@/components/composer-dashboard';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { generateUUID } from '@/lib/utils';
@@ -19,8 +19,8 @@ export default async function ChatPage({
     documentTitle?: string;
     userDocumentId?: string;
     dashboard?: string;
-    newArtifactKind?: string;
-    newArtifactTitle?: string;
+    newComposerKind?: string;
+    newComposerTitle?: string;
   }>;
 }) {
   const session = await auth();
@@ -65,14 +65,14 @@ export default async function ChatPage({
     return (
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
         <div className="w-full h-full overflow-y-auto p-4">
-          <ArtifactDashboard />
+          <ComposerDashboard />
         </div>
       </div>
     );
   }
 
   // If dashboard param present, just render Chat normally; the client will show dashboard UI.
-  // If newArtifactKind is present, we initialize a blank artifact on the client via SWR store.
+  // If newComposerKind is present, we initialize a blank composer on the client via SWR store.
 
   const cookieStore = await cookies();
   const modelIdFromCookie = cookieStore.get('chat-model');

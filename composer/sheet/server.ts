@@ -11,7 +11,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system: sheetPrompt,
       prompt: title,
       schema: z.object({
@@ -49,7 +49,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system: inlineEditPrompt(document.content || '', description, 'sheet'),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({

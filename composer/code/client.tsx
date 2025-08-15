@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import { CodeEditor } from '@/components/code-editor';
 import {
   CopyIcon,
@@ -67,7 +67,7 @@ interface Metadata {
   outputs: Array<ConsoleOutput>;
 }
 
-export const codeArtifact = new Artifact<'code', Metadata>({
+export const codeComposer = new Composer<'code', Metadata>({
   kind: 'code',
   description:
     'Useful for code generation; Code execution is only available for python code.',
@@ -76,17 +76,17 @@ export const codeArtifact = new Artifact<'code', Metadata>({
       outputs: [],
     });
   },
-  onStreamPart: ({ streamPart, setArtifact }) => {
+  onStreamPart: ({ streamPart, setComposer }) => {
     if (streamPart.type === 'code-delta') {
-      setArtifact((draftArtifact) => ({
-        ...draftArtifact,
+      setComposer((draftComposer) => ({
+        ...draftComposer,
         content: streamPart.content as string,
         isVisible:
-          draftArtifact.status === 'streaming' &&
-          draftArtifact.content.length > 300 &&
-          draftArtifact.content.length < 310
+          draftComposer.status === 'streaming' &&
+          draftComposer.content.length > 300 &&
+          draftComposer.content.length < 310
             ? true
-            : draftArtifact.isVisible,
+            : draftComposer.isVisible,
         status: 'streaming',
       }));
     }
@@ -264,7 +264,7 @@ export const codeArtifact = new Artifact<'code', Metadata>({
         const a = document.createElement('a');
         a.href = url;
 
-        // Use the artifact title for the filename, with fallback
+        // Use the composer title for the filename, with fallback
         const safeTitle =
           title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'code';
         a.download = `${safeTitle}${extension}`;

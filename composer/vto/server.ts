@@ -43,7 +43,7 @@ Return STRICT JSON with the following shape and keys:
 Do not include any prose outside JSON. Populate reasonable placeholders when the user doesn't specify values. Keep arrays between 3 and 10 items.`;
 
     const { fullStream } = streamText({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system,
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Create a V/TO for: ${title}`,
@@ -72,7 +72,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     const system = inlineEditPrompt(document.content || '', description, 'vto');
 
     const { fullStream } = streamText({
-      model: provider.languageModel('artifact-model'),
+      model: provider.languageModel('composer-model'),
       system,
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Apply the requested edit to the VTO document.`,

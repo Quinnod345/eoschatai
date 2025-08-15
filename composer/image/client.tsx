@@ -1,4 +1,4 @@
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
 import { ImageEditor } from '@/components/image-editor';
 import { toast } from 'sonner';
@@ -17,15 +17,15 @@ function extractBase64(content: string): string | null {
   }
 }
 
-export const imageArtifact = new Artifact({
+export const imageComposer = new Composer({
   kind: 'image',
   description: 'Useful for image generation',
   initialize: async ({ documentId, setMetadata }) => {
     setMetadata({ documentId });
   },
-  onStreamPart: ({ streamPart, setArtifact }) => {
+  onStreamPart: ({ streamPart, setComposer }) => {
     if ((streamPart as any).type === 'image-gallery') {
-      setArtifact((draft) => ({
+      setComposer((draft) => ({
         ...draft,
         content: String((streamPart as any).content || ''),
         isVisible: true,
@@ -34,8 +34,8 @@ export const imageArtifact = new Artifact({
       return;
     }
     if (streamPart.type === 'image-delta') {
-      setArtifact((draftArtifact) => ({
-        ...draftArtifact,
+      setComposer((draftComposer) => ({
+        ...draftComposer,
         content: streamPart.content as string,
         isVisible: true,
         status: 'streaming',
@@ -130,7 +130,7 @@ export const imageArtifact = new Artifact({
               const a = document.createElement('a');
               a.href = url;
 
-              // Use the artifact title for the filename, with fallback
+              // Use the composer title for the filename, with fallback
               const safeTitle =
                 title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'image';
               a.download = `${safeTitle}.png`;

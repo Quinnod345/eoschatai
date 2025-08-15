@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import type { ArtifactKind } from '@/components/composer';
-import { documentHandlersByArtifactKind } from '@/lib/composer/server';
+import type { ComposerKind } from '@/components/composer';
+import { documentHandlersByComposerKind } from '@/lib/composer/server';
 import { getDocumentById, saveDocument } from '@/lib/db/queries';
 import type { DataStreamWriter } from 'ai';
 
@@ -33,11 +33,11 @@ export async function POST(request: Request) {
       mode: 'create' | 'update';
       id: string;
       title?: string;
-      kind: ArtifactKind;
+      kind: ComposerKind;
       description?: string;
     } = body;
 
-    const handler = documentHandlersByArtifactKind.find((h) => h.kind === kind);
+    const handler = documentHandlersByComposerKind.find((h) => h.kind === kind);
     if (!handler) {
       return NextResponse.json({ error: 'Unsupported kind' }, { status: 400 });
     }
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Title required' }, { status: 400 });
       }
 
-      // Call artifact create handler (it will return draft content and we persist via saveDocument)
+      // Call composer create handler (it will return draft content and we persist via saveDocument)
       const draftContentResult = await (async () => {
         // Use handler through a shim similar to createDocumentHandler
         const content = await (handler as any).onCreateDocument({
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       content: newContent || '',
     });
   } catch (error) {
-    console.error('[artifact-edit] error', error);
+    console.error('[composer-edit] error', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

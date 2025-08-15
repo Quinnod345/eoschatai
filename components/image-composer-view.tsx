@@ -74,13 +74,13 @@ function migrateBase64ToGallery(base64: string, title: string): Gallery {
   return { images: [firstImage], activeIndex: 0 };
 }
 
-// Match ArtifactContent<M> signature to satisfy the Artifact system
+// Match ComposerContent<M> signature to satisfy the Composer system
 //
 import type { Suggestion } from '@/lib/db/schema';
 type ImageMetadata = { documentId?: string } | null;
 
-// Accept the full ArtifactContent shape; unused props are ignored safely
-export function ImageArtifactView({
+// Accept the full ComposerContent shape; unused props are ignored safely
+export function ImageComposerView({
   title,
   content,
   mode, // 'edit' | 'diff' | 'changes' — we ignore non-edit render modes here
@@ -303,12 +303,12 @@ export function ImageArtifactView({
       setCreationProgress(100);
       toast.success('New image created');
 
-      // Open as a brand new artifact in the UI
+      // Open as a brand new composer in the UI
       setTimeout(() => {
         const url = new URL(window.location.href);
         url.searchParams.set('documentId', newId);
         url.searchParams.set('documentTitle', prompt);
-        url.searchParams.set('artifactKind', 'image');
+        url.searchParams.set('composerKind', 'image');
         router.replace(url.toString());
         setIsCreatingNew(false);
         setNewPrompt('');
@@ -361,7 +361,7 @@ export function ImageArtifactView({
             variant="default"
             size="sm"
             onClick={() => setIsCreatingNew(true)}
-            title="Create a brand new image artifact"
+            title="Create a brand new image composer"
           >
             <PlusIcon />
             <span className="ml-1">New Image</span>

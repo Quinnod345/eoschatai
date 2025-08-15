@@ -4,7 +4,7 @@ import { sheetDocumentHandler } from '@/composer/sheet/server';
 import { textDocumentHandler } from '@/composer/text/server';
 import { chartDocumentHandler } from '@/composer/chart/server';
 import { vtoDocumentHandler } from '@/composer/vto/server';
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 import type { DataStreamWriter } from 'ai';
 import type { Session } from 'next-auth';
 import type { Document } from '@/lib/db/schema';
@@ -13,7 +13,7 @@ import { saveDocument } from '@/lib/db/queries';
 export interface SaveDocumentProps {
   id: string;
   title: string;
-  kind: ArtifactKind;
+  kind: ComposerKind;
   content: string;
   userId: string;
 }
@@ -32,13 +32,13 @@ export interface UpdateDocumentCallbackProps {
   session: Session;
 }
 
-export interface DocumentHandler<T = ArtifactKind> {
+export interface DocumentHandler<T = ComposerKind> {
   kind: T;
   onCreateDocument: (args: CreateDocumentCallbackProps) => Promise<void>;
   onUpdateDocument: (args: UpdateDocumentCallbackProps) => Promise<void>;
 }
 
-export function createDocumentHandler<T extends ArtifactKind>(config: {
+export function createDocumentHandler<T extends ComposerKind>(config: {
   kind: T;
   onCreateDocument: (params: CreateDocumentCallbackProps) => Promise<string>;
   onUpdateDocument: (params: UpdateDocumentCallbackProps) => Promise<string>;
@@ -89,9 +89,9 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
 }
 
 /*
- * Use this array to define the document handlers for each artifact kind.
+ * Use this array to define the document handlers for each composer kind.
  */
-export const documentHandlersByArtifactKind: Array<DocumentHandler> = [
+export const documentHandlersByComposerKind: Array<DocumentHandler> = [
   textDocumentHandler,
   codeDocumentHandler,
   imageDocumentHandler,
@@ -100,7 +100,7 @@ export const documentHandlersByArtifactKind: Array<DocumentHandler> = [
   vtoDocumentHandler,
 ];
 
-export const artifactKinds = [
+export const composerKinds = [
   'text',
   'code',
   'image',

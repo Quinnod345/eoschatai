@@ -11,7 +11,7 @@ import { getDocumentTimestampByIndex } from '@/lib/utils';
 
 import { LoaderIcon } from './icons';
 import { Button } from './ui/button';
-import { useArtifact } from '@/hooks/use-composer';
+import { useComposer } from '@/hooks/use-composer';
 
 interface VersionFooterProps {
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
@@ -24,7 +24,7 @@ export const VersionFooter = ({
   documents,
   currentVersionIndex,
 }: VersionFooterProps) => {
-  const { artifact } = useArtifact();
+  const { composer } = useComposer();
 
   const { width } = useWindowSize();
   const isMobile = width < 768;
@@ -56,9 +56,9 @@ export const VersionFooter = ({
             setIsMutating(true);
 
             mutate(
-              `/api/document?id=${artifact.documentId}`,
+              `/api/document?id=${composer.documentId}`,
               await fetch(
-                `/api/document?id=${artifact.documentId}&timestamp=${getDocumentTimestampByIndex(
+                `/api/document?id=${composer.documentId}&timestamp=${getDocumentTimestampByIndex(
                   documents,
                   currentVersionIndex,
                 )}`,
