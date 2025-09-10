@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   title: 'EOS AI',
   description: 'AI-powered chat assistant for EOS Worldwide.',
   icons: {
-    icon: '/images/eos-logo.png',
-    shortcut: '/images/eos-logo.png',
-    apple: '/images/eos-logo.png',
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
   },
   verification: {
     google: 'google-site-verification-code-replace-this',
