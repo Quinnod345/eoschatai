@@ -428,6 +428,7 @@
 }
 
 /* Additional blur layer for existing chats to sit above gradient mesh */
+/* DISABLED: This was causing the entire chat window to blur in production
 .existing-chat-gradient::before {
     content: "";
     position: fixed;
@@ -435,11 +436,12 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 1; /* Above gradient (::after) but below content */
+    z-index: 1;
     pointer-events: none;
     backdrop-filter: blur(14px) saturate(120%);
     -webkit-backdrop-filter: blur(14px) saturate(120%);
 }
+*/
 
 /* Very slow background-position morph for chat mesh */
 @keyframes eosChatDrift {
