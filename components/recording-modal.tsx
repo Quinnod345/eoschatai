@@ -25,7 +25,7 @@ import {
   Pause,
   Play,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useRouter } from 'next/navigation';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {

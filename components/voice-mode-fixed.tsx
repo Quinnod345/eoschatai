@@ -14,7 +14,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';

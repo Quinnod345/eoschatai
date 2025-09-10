@@ -158,18 +158,58 @@ export function getOptimalSearchConfig(
     context.type === 'comprehensive' ||
     context.priority === 'comprehensive'
   ) {
-    baseConfig = { ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL };
+    baseConfig = {
+      ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL.scrapeOptions,
+        formats: [
+          ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL.scrapeOptions.formats,
+        ],
+      },
+    };
   } else if (context.type === 'technical') {
-    baseConfig = { ...SEARCH_CONFIGS.TECHNICAL_DEEP };
+    baseConfig = {
+      ...SEARCH_CONFIGS.TECHNICAL_DEEP,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.TECHNICAL_DEEP.scrapeOptions,
+        formats: [...SEARCH_CONFIGS.TECHNICAL_DEEP.scrapeOptions.formats],
+      },
+    };
   } else if (context.type === 'academic') {
-    baseConfig = { ...SEARCH_CONFIGS.ACADEMIC_DEEP };
+    baseConfig = {
+      ...SEARCH_CONFIGS.ACADEMIC_DEEP,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.ACADEMIC_DEEP.scrapeOptions,
+        formats: [...SEARCH_CONFIGS.ACADEMIC_DEEP.scrapeOptions.formats],
+      },
+    };
   } else if (context.type === 'recent' || context.type === 'news') {
-    baseConfig = { ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT };
+    baseConfig = {
+      ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions,
+        formats: [...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions.formats],
+      },
+    };
   } else if (context.priority === 'speed') {
-    baseConfig = { ...SEARCH_CONFIGS.QUICK_OVERVIEW };
+    baseConfig = {
+      ...SEARCH_CONFIGS.QUICK_OVERVIEW,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.QUICK_OVERVIEW.scrapeOptions,
+        formats: [...SEARCH_CONFIGS.QUICK_OVERVIEW.scrapeOptions.formats],
+      },
+    };
   } else {
     // Default to follow-up configuration
-    baseConfig = { ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP };
+    baseConfig = {
+      ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
+      scrapeOptions: {
+        ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+        formats: [
+          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+        ],
+      },
+    };
   }
 
   // Adjust based on depth preference
@@ -228,6 +268,12 @@ export function getNexusSearchConfig(
       return {
         ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
         limit: 7,
+        scrapeOptions: {
+          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+          formats: [
+            ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+          ],
+        },
       };
 
     case 'targeted':
@@ -235,6 +281,12 @@ export function getNexusSearchConfig(
       return {
         ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED,
         limit: 5,
+        scrapeOptions: {
+          ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED.scrapeOptions,
+          formats: [
+            ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED.scrapeOptions.formats,
+          ],
+        },
       };
 
     case 'final':
@@ -244,12 +296,23 @@ export function getNexusSearchConfig(
         limit: 5,
         scrapeOptions: {
           ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions,
+          formats: [
+            ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions.formats,
+          ],
           timeout: 20000, // Faster for final searches
         },
       };
 
     default:
-      return SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP;
+      return {
+        ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
+        scrapeOptions: {
+          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+          formats: [
+            ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+          ],
+        },
+      };
   }
 }
 

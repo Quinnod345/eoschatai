@@ -153,6 +153,7 @@ export function AnimatedModal({
               'p-0 border-none bg-transparent shadow-none max-h-[95vh] max-w-screen-md w-[95vw] sm:w-auto',
               className,
             )}
+            style={{ zIndex: 2147483648 }}
             forceMount
           >
             <VisuallyHidden>

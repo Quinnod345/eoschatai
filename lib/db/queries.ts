@@ -25,13 +25,14 @@ import {
   suggestion,
   message,
   vote,
+  feedback,
   type DBMessage,
   type Chat,
   stream,
   userSettings,
   pinnedMessage,
 } from './schema';
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 import { generateUUID } from '../utils';
 import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
@@ -340,7 +341,57 @@ export async function getVotesByChatId({ id }: { id: string }) {
   try {
     return await db.select().from(vote).where(eq(vote.chatId, id));
   } catch (error) {
-    console.error('Failed to get votes by chat id from database', error);
+    console.error('Failed to get votes by chat id from database');
+    throw error;
+  }
+}
+
+export async function saveFeedback({
+  chatId,
+  messageId,
+  userId,
+  isPositive,
+  category,
+  description,
+}: {
+  chatId: string;
+  messageId: string;
+  userId: string;
+  isPositive: boolean;
+  category?:
+    | 'accuracy'
+    | 'helpfulness'
+    | 'tone'
+    | 'length'
+    | 'clarity'
+    | 'other';
+  description?: string;
+}) {
+  try {
+    return await db.insert(feedback).values({
+      chatId,
+      messageId,
+      userId,
+      isPositive,
+      category: category as any,
+      description,
+    });
+  } catch (error) {
+    console.error('Failed to save feedback', error);
+    throw error;
+  }
+}
+
+export async function getUserFeedback({ userId }: { userId: string }) {
+  try {
+    return await db
+      .select()
+      .from(feedback)
+      .where(eq(feedback.userId, userId))
+      .orderBy(desc(feedback.createdAt))
+      .limit(100);
+  } catch (error) {
+    console.error('Failed to get user feedback', error);
     throw error;
   }
 }
@@ -354,7 +405,7 @@ export async function saveDocument({
 }: {
   id: string;
   title: string;
-  kind: ArtifactKind;
+  kind: ComposerKind;
   content: string;
   userId: string;
 }) {
@@ -653,7 +704,6 @@ export async function getUserSettings({ userId }: { userId: string }) {
         })
         .returning();
 
-      // Get the user's lastFeaturesVersion separately
       const userData = await db
         .select({ lastFeaturesVersion: user.lastFeaturesVersion })
         .from(user)
@@ -688,6 +738,15 @@ export async function getUserSettings({ userId }: { userId: string }) {
         selectedPersonaId: userSettings.selectedPersonaId,
         selectedProfileId: userSettings.selectedProfileId,
         selectedResearchMode: userSettings.selectedResearchMode,
+        primaryAccountabilityId: userSettings.primaryAccountabilityId,
+        primaryVtoId: userSettings.primaryVtoId,
+        primaryScorecardId: userSettings.primaryScorecardId,
+        currentBundleId: userSettings.currentBundleId,
+        contextDocumentIds: userSettings.contextDocumentIds,
+        contextComposerDocumentIds: userSettings.contextComposerDocumentIds,
+        usePrimaryDocsForContext: userSettings.usePrimaryDocsForContext,
+        usePrimaryDocsForPersona: userSettings.usePrimaryDocsForPersona,
+        personaContextDocumentIds: userSettings.personaContextDocumentIds,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -727,11 +786,15 @@ export async function updateUserSettings({
     selectedPersonaId?: string;
     selectedProfileId?: string;
     selectedResearchMode?: string;
+    primaryAccountabilityId?: string | null;
+    primaryVtoId?: string | null;
+    primaryScorecardId?: string | null;
+    currentBundleId?: string | null;
   };
 }) {
   try {
     // Extract lastFeaturesVersion from settings
-    const { lastFeaturesVersion, ...userSettingsData } = settings;
+    const { lastFeaturesVersion, ...userSettingsData } = settings as any;
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {
@@ -755,7 +818,7 @@ export async function updateUserSettings({
         .insert(userSettings)
         .values({
           userId,
-          ...userSettingsData,
+          ...(userSettingsData as any),
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -772,7 +835,7 @@ export async function updateUserSettings({
       const [updatedSettings] = await db
         .update(userSettings)
         .set({
-          ...userSettingsData,
+          ...(userSettingsData as any),
           updatedAt: new Date(),
         })
         .where(eq(userSettings.userId, userId))

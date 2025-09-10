@@ -57,7 +57,38 @@ export const personaRagContextPrompt = async (
       return '';
     }
 
-    const documentIds = personaDocs.map((pd) => pd.documentId);
+    let documentIds = personaDocs.map((pd) => pd.documentId);
+
+    // Merge in user-selected persona context documents and primary documents if enabled
+    try {
+      const { userSettings } = await import('@/lib/db/schema');
+      const { eq } = await import('drizzle-orm');
+      const [settings] = await db
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId))
+        .limit(1);
+      if (settings) {
+        const extra: string[] = Array.isArray(
+          settings.personaContextDocumentIds,
+        )
+          ? settings.personaContextDocumentIds.filter(Boolean)
+          : [];
+        const includePrimaries = settings.usePrimaryDocsForPersona ?? true;
+        if (includePrimaries) {
+          const primaryIds = [
+            settings.primaryAccountabilityId,
+            settings.primaryVtoId,
+            settings.primaryScorecardId,
+          ].filter(Boolean) as string[];
+          extra.push(...primaryIds);
+        }
+        if (extra.length) {
+          // Expand to include these extra documents
+          documentIds = Array.from(new Set([...documentIds, ...extra]));
+        }
+      }
+    } catch {}
     console.log(
       `Persona RAG context: Found ${documentIds.length} documents associated with persona "${personaData.name}"`,
     );
@@ -73,7 +104,7 @@ export const personaRagContextPrompt = async (
     const relevantDocs = await findRelevantUserContent(
       personaId, // Use persona ID as namespace instead of user ID
       query,
-      10, // Get more results for personas
+      14, // Get more results for personas
       0.5, // Lower threshold for better recall
     );
 

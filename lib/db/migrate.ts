@@ -2,12 +2,11 @@ import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { migrateUserDocuments } from './migrations/user-documents';
+// NOTE: Avoid importing migrations that rely on env before dotenv loads.
+// We'll dynamically import user-documents later.
 
 // Load environment variables from .env.local first
-config({
-  path: '.env.local',
-});
+config({ path: '.env.local' });
 
 // Get the database URL from either POSTGRES_URL or DATABASE_URL
 const getDatabaseUrl = () => {
@@ -331,8 +330,88 @@ const runMigrate = async () => {
           console.error('Error adding message action tables:', error);
         }
 
+        // Ensure UserSettings has primary/context columns and BundleDocument table exists
         try {
-          // Run UserDocuments migration
+          // Helper to add a column if missing
+          const ensureColumn = async (
+            table: string,
+            column: string,
+            typeSql: string,
+          ) => {
+            const exists = await columnExists(connection, table, column);
+            if (!exists) {
+              await connection`
+                ALTER TABLE ${connection(table)}
+                ADD COLUMN ${connection(column)} ${connection.unsafe(typeSql)}
+              `;
+              console.log(`Added ${column} to ${table}`);
+            }
+          };
+
+          // UserSettings columns
+          await ensureColumn('UserSettings', 'primaryAccountabilityId', 'UUID');
+          await ensureColumn('UserSettings', 'primaryVtoId', 'UUID');
+          await ensureColumn('UserSettings', 'primaryScorecardId', 'UUID');
+          await ensureColumn('UserSettings', 'currentBundleId', 'UUID');
+          await ensureColumn('UserSettings', 'contextDocumentIds', 'JSONB');
+          await ensureColumn(
+            'UserSettings',
+            'contextComposerDocumentIds',
+            'JSONB',
+          );
+          await ensureColumn(
+            'UserSettings',
+            'usePrimaryDocsForContext',
+            'BOOLEAN DEFAULT true',
+          );
+          await ensureColumn(
+            'UserSettings',
+            'usePrimaryDocsForPersona',
+            'BOOLEAN DEFAULT true',
+          );
+          await ensureColumn(
+            'UserSettings',
+            'personaContextDocumentIds',
+            'JSONB',
+          );
+
+          // BundleDocument table
+          const bundleTable = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = 'BundleDocument'
+            ) as "exists"
+          `;
+          if (!bundleTable[0].exists) {
+            await connection`
+              CREATE TABLE "BundleDocument" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "userId" UUID NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+                "bundleId" UUID NOT NULL,
+                "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+              )
+            `;
+            await connection`
+              CREATE UNIQUE INDEX "bundle_user_doc_unique"
+              ON "BundleDocument" ("userId", "bundleId", "documentId")
+            `;
+            console.log('Created BundleDocument table with unique index');
+          } else {
+            console.log('BundleDocument table already exists');
+          }
+        } catch (error) {
+          console.error(
+            'Error ensuring UserSettings/BundleDocument schema:',
+            error,
+          );
+        }
+
+        try {
+          // Run UserDocuments migration (dynamic import to ensure env is loaded)
+          const { migrateUserDocuments } = await import(
+            './migrations/user-documents'
+          );
           await migrateUserDocuments();
         } catch (error) {
           console.error('Error running UserDocuments migration:', error);

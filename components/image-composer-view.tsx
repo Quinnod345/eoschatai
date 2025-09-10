@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useRouter } from 'next/navigation';
 import { generateUUID } from '@/lib/utils';
 import {
@@ -407,7 +407,9 @@ export function ImageComposerView({
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <SparklesIcon className="h-5 w-5 text-primary" />
+                  <span className="h-5 w-5 text-primary">
+                    <SparklesIcon size={20} />
+                  </span>
                   Create New Image
                 </DialogTitle>
                 <DialogDescription>
@@ -464,7 +466,9 @@ export function ImageComposerView({
                               ease: 'linear',
                             }}
                           />
-                          <SparklesIcon className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-primary" />
+                          <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-primary">
+                            <SparklesIcon size={32} />
+                          </span>
                         </div>
                       </div>
                     </motion.div>
@@ -523,7 +527,9 @@ export function ImageComposerView({
                     ease: 'linear',
                   }}
                 />
-                <SparklesIcon className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary" />
+                <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary">
+                  <SparklesIcon size={24} />
+                </span>
               </div>
               <div className="text-sm text-muted-foreground">
                 {isEditingLoading ? 'Applying edits...' : 'Generating image...'}
@@ -557,7 +563,9 @@ export function ImageComposerView({
           >
             <div className="flex justify-center">
               <div className="w-24 h-24 rounded-lg bg-muted/50 flex items-center justify-center">
-                <SparklesIcon className="h-10 w-10 text-muted-foreground/50" />
+                <span className="h-10 w-10 text-muted-foreground/50">
+                  <SparklesIcon size={40} />
+                </span>
               </div>
             </div>
             <div className="space-y-2">

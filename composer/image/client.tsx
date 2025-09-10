@@ -1,7 +1,7 @@
 import { Composer } from '@/components/create-composer';
 import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
 import { ImageEditor } from '@/components/image-editor';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 function extractBase64(content: string): string | null {
   try {

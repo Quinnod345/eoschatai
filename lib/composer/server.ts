@@ -9,6 +9,7 @@ import type { DataStreamWriter } from 'ai';
 import type { Session } from 'next-auth';
 import type { Document } from '@/lib/db/schema';
 import { saveDocument } from '@/lib/db/queries';
+import { accountabilityDocumentHandler } from '@/composer/accountability/server';
 
 export interface SaveDocumentProps {
   id: string;
@@ -23,6 +24,8 @@ export interface CreateDocumentCallbackProps {
   title: string;
   dataStream: DataStreamWriter;
   session: Session;
+  maxTokens?: number;
+  context?: string;
 }
 
 export interface UpdateDocumentCallbackProps {
@@ -30,6 +33,7 @@ export interface UpdateDocumentCallbackProps {
   description: string;
   dataStream: DataStreamWriter;
   session: Session;
+  maxTokens?: number;
 }
 
 export interface DocumentHandler<T = ComposerKind> {
@@ -51,6 +55,8 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         title: args.title,
         dataStream: args.dataStream,
         session: args.session,
+        maxTokens: args.maxTokens,
+        context: args.context,
       });
 
       if (args.session?.user?.id) {
@@ -71,6 +77,7 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         description: args.description,
         dataStream: args.dataStream,
         session: args.session,
+        maxTokens: args.maxTokens,
       });
 
       if (args.session?.user?.id) {
@@ -98,6 +105,7 @@ export const documentHandlersByComposerKind: Array<DocumentHandler> = [
   sheetDocumentHandler,
   chartDocumentHandler,
   vtoDocumentHandler,
+  accountabilityDocumentHandler,
 ];
 
 export const composerKinds = [
@@ -107,4 +115,5 @@ export const composerKinds = [
   'sheet',
   'chart',
   'vto',
+  'accountability',
 ] as const;

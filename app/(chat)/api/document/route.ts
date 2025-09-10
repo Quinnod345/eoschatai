@@ -1,5 +1,5 @@
 import { auth } from '@/app/(auth)/auth';
-import type { ArtifactKind } from '@/components/composer';
+import type { ComposerKind } from '@/components/composer';
 import {
   deleteDocumentsByIdAfterTimestamp,
   getDocumentsById,
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     content,
     title,
     kind,
-  }: { content: string; title: string; kind: ArtifactKind } =
+  }: { content: string; title: string; kind: ComposerKind } =
     await request.json();
 
   const documents = await getDocumentsById({ id });

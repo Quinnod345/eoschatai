@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import type { PinnedMessage } from '@/lib/db/schema';
 
 interface UseMessageActionsProps {

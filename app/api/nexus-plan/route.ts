@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
     const researchPlan = await generateResearchPlan({
       userQuery: enrichedQuery,
       model: model || 'gpt-4o-mini',
-      domain: null,
-      userIntent: null,
+      domain: undefined,
+      userIntent: undefined,
     });
 
     // Calculate total search count

@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import type { PinnedMessage } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface PinnedMessagesBarProps {

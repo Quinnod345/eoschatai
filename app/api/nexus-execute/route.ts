@@ -124,8 +124,8 @@ export async function POST(request: NextRequest) {
                 try {
                   // Get search configuration based on phase and strategy
                   const searchConfig = getNexusSearchConfig(
-                    researchPlan.searchStrategy.depth,
-                    phaseIndex,
+                    searchNumber - 1, // 0-based index
+                    totalSearchCount,
                   );
 
                   // Execute the search with context
@@ -146,10 +146,16 @@ export async function POST(request: NextRequest) {
                     searchNumber - 1,
                     3, // max retries
                     {
-                      query: query,
-                      domain: 'research',
-                      intent: 'comprehensive',
-                      depth: researchPlan.searchStrategy.depth as any,
+                      type: 'comprehensive',
+                      priority: 'quality',
+                      depth:
+                        researchPlan.searchStrategy.depth === 'comprehensive'
+                          ? 'deep'
+                          : (researchPlan.searchStrategy.depth as
+                              | 'shallow'
+                              | 'medium'
+                              | 'deep'),
+                      timeframe: researchPlan.searchStrategy.timeframe as any,
                     },
                     totalSearchCount,
                   );
@@ -322,4 +328,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

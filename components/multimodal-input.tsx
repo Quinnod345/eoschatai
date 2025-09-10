@@ -14,7 +14,7 @@ import {
   memo,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
 import {
@@ -35,7 +35,6 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
-  AudioWaveform,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
@@ -66,6 +65,7 @@ interface MentionResource {
     | 'document'
     | 'scorecard'
     | 'vto'
+    | 'accountability'
     | 'rocks'
     | 'people'
     | 'event'
@@ -151,6 +151,17 @@ const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
     color: 'indigo',
     aliases: ['vision', 'traction', 'strategy'],
     shortcut: '@vto',
+  },
+  {
+    id: 'accountability',
+    name: 'Accountability Chart',
+    type: 'accountability',
+    category: 'resource',
+    description: 'Build or view your EOS Accountability Chart',
+    icon: <Users className="size-4" />,
+    color: 'indigo',
+    aliases: ['ac', 'orgchart', 'organization', 'roles', 'seats'],
+    shortcut: '@ac',
   },
   {
     id: 'rocks',
@@ -1125,7 +1136,7 @@ function PureMultimodalInput({
             pdfText = `${pdfText.substring(0, 15000)}... [PDF content truncated due to size]`;
           }
           // Format the PDF content with a consistent delimiter that our message component can extract
-          return `\n\n=== PDF Content from ${pdf.name} (${pdf.numPages} pages) ===\n\n${pdfText}\n\n`;
+          return `\n\n=== PDF Content from ${pdf.name} (${pdf.numPages} pages) ===\n\n${pdfText}\n\n=== End of PDF Content ===\n\n`;
         })
         .join('');
 
@@ -1145,7 +1156,7 @@ function PureMultimodalInput({
           // Format the document content
           const docType = doc.type === 'docx' ? 'Word Document' : 'Spreadsheet';
           const pageInfo = doc.pageCount ? ` (${doc.pageCount} pages)` : '';
-          return `\n\n=== ${docType} Content from ${doc.name}${pageInfo} ===\n\n${docText}\n\n`;
+          return `\n\n=== ${docType} Content from ${doc.name}${pageInfo} ===\n\n${docText}\n\n=== End of ${docType} Content ===\n\n`;
         })
         .join('');
 
@@ -1153,19 +1164,11 @@ function PureMultimodalInput({
     }
 
     // Handle image content
+    // Do NOT embed image descriptions or OCR text into the message body.
+    // Images are sent as attachments only; analysis is hidden from the bubble.
+    // This preserves a clean chat UI while keeping the image itself attached.
     if (imageContents.length > 0) {
-      hasProcessedContent = true;
-      const imageTextContent = imageContents
-        .map((img) => {
-          const imgDescription = img.description || 'No description available';
-          const imgText = img.text || 'No text detected';
-
-          // Format the image content
-          return `\n\n=== Image Analysis for ${img.name} ===\n\nDescription: ${imgDescription}\n\nExtracted Text: ${imgText}\n\n`;
-        })
-        .join('');
-
-      finalInputContent += imageTextContent; // Combine with image text
+      // Intentionally not modifying finalInputContent
     }
 
     // Ensure the submit doesn't hang by checking first
@@ -1706,9 +1709,10 @@ function PureMultimodalInput({
                       const globalIndex =
                         filteredMentionResources.indexOf(resource);
                       return (
-                        <div
+                        <button
                           key={resource.id}
-                          className={`mention-item p-3 cursor-pointer flex items-start gap-3 hover:bg-${color}-50 dark:hover:bg-${color}-900/20 transition-colors ${
+                          type="button"
+                          className={`text-left w-full mention-item p-3 cursor-pointer flex items-start gap-3 hover:bg-${color}-50 dark:hover:bg-${color}-900/20 transition-colors ${
                             globalIndex === mentionSelectionIndex
                               ? `selected bg-${color}-50 dark:bg-${color}-900/20 border-l-2 border-${color}-500`
                               : 'border-l-2 border-transparent'
@@ -1759,7 +1763,7 @@ function PureMultimodalInput({
                           {globalIndex === mentionSelectionIndex && (
                             <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
                           )}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1778,9 +1782,10 @@ function PureMultimodalInput({
               filteredMentionResources.some((r) => r.category === category),
             ) &&
               filteredMentionResources.map((resource, index) => (
-                <div
+                <button
                   key={resource.id}
-                  className={`mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
+                  type="button"
+                  className={`text-left w-full mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
                     index === mentionSelectionIndex
                       ? 'selected bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
                       : 'border-l-2 border-transparent'
@@ -1797,7 +1802,7 @@ function PureMultimodalInput({
                       {resource.description}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
 
             <div className="p-2 text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-b-lg">
@@ -2329,18 +2334,8 @@ function PureSendButton({
       className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
       onClick={(event) => {
         event.preventDefault();
-
         if (!isDisabled) {
-          // For debugging only - can be removed if not needed
-          console.log(
-            `Sending message: ${input.substring(0, 30)}${input.length > 30 ? '...' : ''}`,
-          );
-
-          // Always use direct handleSubmit which is more reliable
-          handleSubmit(event, {
-            experimental_attachments:
-              attachments.length > 0 ? attachments : undefined,
-          });
+          submitForm();
         }
       }}
       disabled={isDisabled}

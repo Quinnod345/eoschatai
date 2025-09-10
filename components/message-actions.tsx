@@ -1,6 +1,7 @@
 import type { Message } from 'ai';
 import { useSWRConfig } from 'swr';
 import { useCopyToClipboard } from 'usehooks-ts';
+import { useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
 
@@ -19,6 +20,7 @@ import { toast, toastUtils } from '@/lib/toast-system';
 import { Pin, MessageCircle, Share, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { copyRichText, processMessageParts } from '@/lib/utils/copy-utils';
+import { FeedbackModal } from './feedback-modal';
 
 export function PureMessageActions({
   chatId,
@@ -43,6 +45,10 @@ export function PureMessageActions({
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [pendingVoteType, setPendingVoteType] = useState<'up' | 'down' | null>(
+    null,
+  );
 
   const handleCopy = async () => {
     // Process message parts to get clean text with formatted mentions
@@ -84,103 +90,117 @@ export function PureMessageActions({
     }
   };
 
+  const handleFeedbackSubmit = async (feedback: {
+    category?: string;
+    description?: string;
+  }) => {
+    if (!pendingVoteType) return;
+
+    // First submit the vote
+    const votePromise = fetch('/api/vote', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        chatId,
+        messageId: message.id,
+        type: pendingVoteType,
+      }),
+    });
+
+    // Then submit the feedback
+    const feedbackPromise = fetch('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId,
+        messageId: message.id,
+        type: pendingVoteType,
+        category: feedback.category,
+        description: feedback.description,
+      }),
+    });
+
+    // Handle both promises
+    toast.promise(Promise.all([votePromise, feedbackPromise]), {
+      loading:
+        pendingVoteType === 'up'
+          ? 'Upvoting Response...'
+          : 'Downvoting Response...',
+      success: () => {
+        mutate<Array<Vote>>(
+          `/api/vote?chatId=${chatId}`,
+          (currentVotes) => {
+            if (!currentVotes) return [];
+
+            const votesWithoutCurrent = currentVotes.filter(
+              (vote) => vote.messageId !== message.id,
+            );
+
+            return [
+              ...votesWithoutCurrent,
+              {
+                chatId,
+                messageId: message.id,
+                isUpvoted: pendingVoteType === 'up',
+              },
+            ];
+          },
+          { revalidate: false },
+        );
+
+        return pendingVoteType === 'up'
+          ? 'Upvoted Response!'
+          : 'Downvoted Response!';
+      },
+      error:
+        pendingVoteType === 'up'
+          ? 'Failed to upvote response.'
+          : 'Failed to downvote response.',
+    });
+
+    setFeedbackModalOpen(false);
+    setPendingVoteType(null);
+  };
+
   if (isLoading) return null;
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <div className="flex flex-row items-center gap-2">
-        {/* Show edited indicator if message has been edited */}
-        {(message as any).isEdited && (
-          <span className="text-xs text-muted-foreground/70 italic">
-            (edited)
-          </span>
-        )}
+    <>
+      <TooltipProvider delayDuration={0}>
+        <div className="flex flex-row items-center gap-2">
+          {/* Show edited indicator if message has been edited */}
+          {(message as any).isEdited && (
+            <span className="text-xs text-muted-foreground/70 italic">
+              (edited)
+            </span>
+          )}
 
-        <div className="flex flex-row gap-1">
-          {/* Enhanced actions for all messages */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -1 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <Button
-                  className={cn(
-                    'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
-                    isPinned && 'text-eos-orange',
-                  )}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onPin?.(message.id)}
+          <div className="flex flex-row gap-1">
+            {/* Enhanced actions for all messages */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                 >
-                  <Pin className={cn('h-3 w-3', isPinned && 'fill-current')} />
-                </Button>
-              </motion.div>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isPinned ? 'Unpin message' : 'Pin message'}
-            </TooltipContent>
-          </Tooltip>
+                  <Button
+                    className={cn(
+                      'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
+                      isPinned && 'text-eos-orange',
+                    )}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPin?.(message.id)}
+                  >
+                    <Pin
+                      className={cn('h-3 w-3', isPinned && 'fill-current')}
+                    />
+                  </Button>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isPinned ? 'Unpin message' : 'Pin message'}
+              </TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -1 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <Button
-                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onReply?.(message.id)}
-                >
-                  <MessageCircle className="h-3 w-3" />
-                </Button>
-              </motion.div>
-            </TooltipTrigger>
-            <TooltipContent>Reply to message</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -1 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <Button
-                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopy}
-                >
-                  <CopyIcon />
-                </Button>
-              </motion.div>
-            </TooltipTrigger>
-            <TooltipContent>Copy message</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -1 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <Button
-                  className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleShare}
-                >
-                  <Share className="h-3 w-3" />
-                </Button>
-              </motion.div>
-            </TooltipTrigger>
-            <TooltipContent>Share message</TooltipContent>
-          </Tooltip>
-
-          {/* Edit action for user messages */}
-          {message.role === 'user' && onEdit && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <motion.div
@@ -191,21 +211,55 @@ export function PureMessageActions({
                     className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
                     variant="ghost"
                     size="sm"
-                    onClick={onEdit}
+                    onClick={() => onReply?.(message.id)}
                   >
-                    <PencilEditIcon />
+                    <MessageCircle className="h-3 w-3" />
                   </Button>
                 </motion.div>
               </TooltipTrigger>
-              <TooltipContent>Edit message</TooltipContent>
+              <TooltipContent>Reply to message</TooltipContent>
             </Tooltip>
-          )}
 
-          {/* Voting and retry actions for assistant messages only */}
-          {message.role === 'assistant' && (
-            <>
-              <div className="w-px h-6 bg-border mx-1" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Button
+                    className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopy}
+                  >
+                    <CopyIcon />
+                  </Button>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>Copy message</TooltipContent>
+            </Tooltip>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Button
+                    className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleShare}
+                  >
+                    <Share className="h-3 w-3" />
+                  </Button>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>Share message</TooltipContent>
+            </Tooltip>
+
+            {/* Edit action for user messages */}
+            {message.role === 'user' && onEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <motion.div
@@ -213,146 +267,116 @@ export function PureMessageActions({
                     whileTap={{ scale: 0.97 }}
                   >
                     <Button
-                      data-testid="message-upvote"
-                      className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
-                      disabled={vote?.isUpvoted}
+                      className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
                       variant="ghost"
                       size="sm"
-                      onClick={async () => {
-                        const upvote = fetch('/api/vote', {
-                          method: 'PATCH',
-                          body: JSON.stringify({
-                            chatId,
-                            messageId: message.id,
-                            type: 'up',
-                          }),
-                        });
-
-                        toast.promise(upvote, {
-                          loading: 'Upvoting Response...',
-                          success: () => {
-                            mutate<Array<Vote>>(
-                              `/api/vote?chatId=${chatId}`,
-                              (currentVotes) => {
-                                if (!currentVotes) return [];
-
-                                const votesWithoutCurrent = currentVotes.filter(
-                                  (vote) => vote.messageId !== message.id,
-                                );
-
-                                return [
-                                  ...votesWithoutCurrent,
-                                  {
-                                    chatId,
-                                    messageId: message.id,
-                                    isUpvoted: true,
-                                  },
-                                ];
-                              },
-                              { revalidate: false },
-                            );
-
-                            return 'Upvoted Response!';
-                          },
-                          error: 'Failed to upvote response.',
-                        });
-                      }}
+                      onClick={onEdit}
                     >
-                      <ThumbUpIcon />
+                      <PencilEditIcon />
                     </Button>
                   </motion.div>
                 </TooltipTrigger>
-                <TooltipContent>Upvote Response</TooltipContent>
+                <TooltipContent>Edit message</TooltipContent>
               </Tooltip>
+            )}
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <motion.div
-                    whileHover={{ scale: 1.03, y: -1 }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <Button
-                      data-testid="message-downvote"
-                      className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
-                      variant="ghost"
-                      size="sm"
-                      disabled={vote && !vote.isUpvoted}
-                      onClick={async () => {
-                        const downvote = fetch('/api/vote', {
-                          method: 'PATCH',
-                          body: JSON.stringify({
-                            chatId,
-                            messageId: message.id,
-                            type: 'down',
-                          }),
-                        });
+            {/* Voting and retry actions for assistant messages only */}
+            {message.role === 'assistant' && (
+              <>
+                <div className="w-px h-6 bg-border mx-1" />
 
-                        toast.promise(downvote, {
-                          loading: 'Downvoting Response...',
-                          success: () => {
-                            mutate<Array<Vote>>(
-                              `/api/vote?chatId=${chatId}`,
-                              (currentVotes) => {
-                                if (!currentVotes) return [];
-
-                                const votesWithoutCurrent = currentVotes.filter(
-                                  (vote) => vote.messageId !== message.id,
-                                );
-
-                                return [
-                                  ...votesWithoutCurrent,
-                                  {
-                                    chatId,
-                                    messageId: message.id,
-                                    isUpvoted: false,
-                                  },
-                                ];
-                              },
-                              { revalidate: false },
-                            );
-
-                            return 'Downvoted Response!';
-                          },
-                          error: 'Failed to downvote response.',
-                        });
-                      }}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.div
+                      whileHover={{ scale: 1.03, y: -1 }}
+                      whileTap={{ scale: 0.97 }}
                     >
-                      <ThumbDownIcon />
-                    </Button>
-                  </motion.div>
-                </TooltipTrigger>
-                <TooltipContent>Downvote Response</TooltipContent>
-              </Tooltip>
-
-              {/* Retry action for assistant messages */}
-              {onRetry && (
-                <>
-                  <div className="w-px h-6 bg-border mx-1" />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <motion.div
-                        whileHover={{ scale: 1.03, y: -1 }}
-                        whileTap={{ scale: 0.97 }}
+                      <Button
+                        data-testid="message-upvote"
+                        className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
+                        disabled={vote?.isUpvoted}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setPendingVoteType('up');
+                          setFeedbackModalOpen(true);
+                        }}
                       >
-                        <Button
-                          className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                          variant="ghost"
-                          size="sm"
-                          onClick={onRetry}
+                        <ThumbUpIcon />
+                      </Button>
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>Upvote Response</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.div
+                      whileHover={{ scale: 1.03, y: -1 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      <Button
+                        data-testid="message-downvote"
+                        className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
+                        variant="ghost"
+                        size="sm"
+                        disabled={vote && !vote.isUpvoted}
+                        onClick={() => {
+                          setPendingVoteType('down');
+                          setFeedbackModalOpen(true);
+                        }}
+                      >
+                        <ThumbDownIcon />
+                      </Button>
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>Downvote Response</TooltipContent>
+                </Tooltip>
+
+                {/* Retry action for assistant messages */}
+                {onRetry && (
+                  <>
+                    <div className="w-px h-6 bg-border mx-1" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <motion.div
+                          whileHover={{ scale: 1.03, y: -1 }}
+                          whileTap={{ scale: 0.97 }}
                         >
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                      </motion.div>
-                    </TooltipTrigger>
-                    <TooltipContent>Retry generation</TooltipContent>
-                  </Tooltip>
-                </>
-              )}
-            </>
-          )}
+                          <Button
+                            className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                            variant="ghost"
+                            size="sm"
+                            onClick={onRetry}
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                          </Button>
+                        </motion.div>
+                      </TooltipTrigger>
+                      <TooltipContent>Retry generation</TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+
+      {pendingVoteType && (
+        <FeedbackModal
+          isOpen={feedbackModalOpen}
+          onClose={() => {
+            setFeedbackModalOpen(false);
+            setPendingVoteType(null);
+          }}
+          messageId={message.id}
+          chatId={chatId}
+          voteType={pendingVoteType}
+          onSubmit={handleFeedbackSubmit}
+        />
+      )}
+    </>
   );
 }
 

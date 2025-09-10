@@ -7,7 +7,7 @@ import {
   SparklesIcon,
   MessageIcon,
 } from '@/components/icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useState, useEffect, useRef } from 'react';
 
 // Types for chart metadata

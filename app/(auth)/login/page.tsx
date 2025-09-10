@@ -28,6 +28,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [isSuccessful, setIsSuccessful] = useState(false);
   const [redirectPath, setRedirectPath] = useState('/chat');
+  const [mounted, setMounted] = useState(false);
 
   const [state, formAction] = useActionState<LoginActionState, FormData>(
     login,
@@ -79,37 +80,70 @@ function LoginForm() {
     }
   }, [state.status, redirectPath, router, updateSession]);
 
+  // Trigger entrance transition after hydration
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const handleSubmit = (formData: FormData) => {
     setEmail(formData.get('email') as string);
     formAction(formData);
   };
 
   return (
-    <div className="flex h-dvh w-screen items-start pt-12 md:pt-0 md:items-center justify-center bg-background">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl flex flex-col gap-12">
-        <div className="flex flex-col items-center justify-center gap-2 px-4 text-center sm:px-16">
-          <h3 className="text-xl font-semibold dark:text-zinc-50">Sign In</h3>
-          <p className="text-sm text-gray-500 dark:text-zinc-400">
-            Use your email and password to sign in
-          </p>
-        </div>
-        <AuthForm
-          action={handleSubmit}
-          defaultEmail={email}
-          callbackUrl={redirectPath}
+    <div className="relative flex h-dvh w-screen items-center justify-center bg-background overflow-hidden">
+      {/* EOS chat window gradient mesh background */}
+      <div
+        className="absolute inset-0 pointer-events-none filter blur-[80px] opacity-100"
+        style={{
+          background: `
+            radial-gradient(circle 300px at 15% 20%, rgba(255,118,0,0.25), transparent),
+            radial-gradient(circle 350px at 85% 15%, rgba(14,165,233,0.22), transparent),
+            radial-gradient(circle 280px at 10% 70%, rgba(0,46,93,0.20), transparent),
+            radial-gradient(circle 320px at 90% 80%, rgba(255,118,0,0.18), transparent),
+            radial-gradient(circle 250px at 50% 50%, rgba(14,165,233,0.15), transparent),
+            radial-gradient(circle 300px at 35% 85%, rgba(0,46,93,0.18), transparent),
+            radial-gradient(circle 280px at 65% 30%, rgba(255,118,0,0.20), transparent)
+          `,
+        }}
+      />
+
+      <div
+        className={`relative z-10 w-full max-w-md overflow-hidden rounded-2xl flex flex-col gap-10 p-6 sm:p-8 eos-glass shadow-modern-dark transform transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter] hover:translate-y-[-2px] hover:shadow-[0_20px_40px_-5px_rgba(0,46,93,0.25)] ${mounted ? 'opacity-100 translate-y-0 scale-100 blur-0' : 'opacity-0 translate-y-[6px] scale-[0.988] blur-[2px]'}`}
+      >
+        <div
+          className="flex flex-col items-center justify-center gap-2 px-2 text-center sm:px-4 opacity-0 animate-blur-in-text"
+          style={{ animationDelay: '80ms' }}
         >
-          <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
-          <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
-            {"Don't have an account? "}
-            <Link
-              href="/register"
-              className="font-semibold text-gray-800 hover:underline dark:text-zinc-200"
-            >
-              Sign up
-            </Link>
-            {' for free.'}
-          </p>
-        </AuthForm>
+          <h3 className="text-2xl font-semibold dark:text-zinc-50" style={{}}>
+            Sign In
+          </h3>
+          <p
+            className="text-sm text-gray-500 dark:text-zinc-400"
+            style={{}}
+          ></p>
+        </div>
+        <div className="relative">
+          <div className="pointer-events-none absolute -inset-12 opacity-40 blur-2xl eos-rotating-gradient" />
+          <AuthForm
+            action={handleSubmit}
+            defaultEmail={email}
+            callbackUrl={redirectPath}
+          >
+            <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
+            <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
+              {"Don't have an account? "}
+              <Link
+                href="/register"
+                className="font-semibold text-gray-800 hover:underline dark:text-zinc-200"
+              >
+                Sign up
+              </Link>
+              {' for free.'}
+            </p>
+          </AuthForm>
+        </div>
       </div>
     </div>
   );

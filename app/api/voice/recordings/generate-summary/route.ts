@@ -59,7 +59,6 @@ Keep the summary concise but comprehensive, focusing on the most important infor
         },
       ],
       temperature: 0.7,
-      max_tokens: 800,
     });
 
     const summary =

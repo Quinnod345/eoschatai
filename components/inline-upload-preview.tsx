@@ -44,8 +44,6 @@ export function InlineUploadPreview({
   const totalFiles =
     pdfContents.length + documentContents.length + imageAnalyses.length;
 
-
-
   if (totalFiles === 0) return null;
 
   return (
@@ -164,13 +162,11 @@ export function InlineUploadPreview({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm truncate">{img.name}</h4>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {img.description}
-                  </p>
+                  {/* Hide AI description in preview to avoid leaking content into the bubble */}
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="outline" className="text-xs gap-1">
                       <Eye className="h-3 w-3" />
-                      AI analyzed
+                      Image attached
                     </Badge>
                     {img.hasText && (
                       <Badge variant="secondary" className="text-xs">

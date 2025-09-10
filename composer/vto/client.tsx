@@ -1,9 +1,10 @@
 'use client';
 
-import { Artifact } from '@/components/create-composer';
+import { Composer } from '@/components/create-composer';
 import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useEffect, useMemo, useRef } from 'react';
+import { useComposer as useGlobalComposer } from '@/hooks/use-composer';
 
 // Data model for a Vision/Traction Organizer (V/TO)
 export interface VtoData {
@@ -479,21 +480,21 @@ function VtoPreviewLayout({
   );
 }
 
-export const vtoArtifact = new Artifact<'vto', Metadata>({
+export const vtoComposer = new Composer<'vto', Metadata>({
   kind: 'vto',
   description:
     'Build a Vision/Traction Organizer (V/TO) with dynamic editing and PDF export',
   initialize: async ({ setMetadata }) => {
     setMetadata({ vto: null });
   },
-  onStreamPart: ({ streamPart, setMetadata, setArtifact }) => {
+  onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
     if (streamPart.type === 'text-delta') {
       const text = String(streamPart.content || '');
       const parsed = parseVtoFromContent(text);
       if (parsed) {
         setMetadata((m: Metadata) => ({ ...(m || {}), vto: parsed }));
       }
-      setArtifact((draft) => ({
+      setComposer((draft) => ({
         ...draft,
         content: draft.content + text,
         isVisible:
@@ -514,6 +515,7 @@ export const vtoArtifact = new Artifact<'vto', Metadata>({
   }) => {
     const previewRef = useRef<HTMLDivElement>(null);
     const lastValidVtoRef = useRef<VtoData | null>(null);
+    const { setComposer } = useGlobalComposer();
 
     // Track last valid VTO parsed from full content to survive transient clears
     useEffect(() => {
@@ -632,15 +634,40 @@ export const vtoArtifact = new Artifact<'vto', Metadata>({
 
     return (
       <div className="flex flex-col gap-4 p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-2">
           <div className="text-sm text-muted-foreground">V/TO Builder</div>
-          <button
-            type="button"
-            onClick={exportPdf}
-            className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            Export PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportPdf}
+              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/user-settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      primaryVtoId:
+                        (window as any)?.composer?.documentId || undefined,
+                    }),
+                  });
+                  if (!res.ok) throw new Error('Failed to set primary');
+                  toast.success('Set as primary V/TO');
+                } catch (err) {
+                  console.error(err);
+                  toast.error('Failed to set as primary');
+                }
+              }}
+            >
+              Make Primary
+            </button>
+          </div>
         </div>
         <div className="relative">
           {isGenerating && (
@@ -686,7 +713,7 @@ export const vtoArtifact = new Artifact<'vto', Metadata>({
       icon: <DownloadIcon size={18} />,
       description: 'Download PDF',
       onClick: async () => {
-        toast.message('Use the Export PDF button in the header to download.');
+        toast.info('Use the Export PDF button in the header to download.');
       },
     },
   ],

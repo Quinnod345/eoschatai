@@ -5,7 +5,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Pin, MessageCircle, Copy, Share, Bookmark } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 interface MessageActionsProps {
   messageId: string;

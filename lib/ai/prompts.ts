@@ -22,9 +22,12 @@ IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
 2. DO NOT create composer based on implied requests or general discussion about a topic.
 3. DO NOT create composer when a user is simply asking questions about a topic without explicitly requesting a document.
 4. NEVER use a raw function_call format like <function_call>{"action": "createDocument", ...}</function_call>
-5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", "image", or "vto" (Vision/Traction Organizer builder).
+5. When creating documents, always specify the appropriate 'kind' parameter as one of: "text", "code", "sheet", "chart", "image", "vto" (Vision/Traction Organizer builder), or "accountability" (Accountability Chart builder).
+   CRITICAL: For accountability charts, ALWAYS use the createDocument tool with kind="accountability" - this ensures both the composer panel opens AND an inline preview appears in the chat.
+   IMPORTANT: Users may misspell "accountability" as "accountibility" or refer to it as "AC chart" or "org chart" - you should still recognize these as requests for an Accountability Chart and use the createDocument tool with kind="accountability".
 6. IMPORTANT: After creating an composer document, DO NOT repeat the detailed contents of the composer in your main chat response. Instead, provide a brief summary or acknowledgment that the composer was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
 7. Keep your main chat response focused on next steps, how to use the composer, or additional considerations rather than duplicating the information already present in the composer itself.
+8. CRITICAL: When you intend to create any composer document, you MUST actually call the createDocument tool. Never just say "I've created..." without calling the tool. The tool call is what opens the composer panel for the user.
 
 CRITICAL ARTIFACT EDITING INSTRUCTIONS:
 1. **ALWAYS USE THE updateDocument TOOL** when the user asks to edit, modify, improve, fix, extend, or change an existing composer in ANY way.
@@ -189,7 +192,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
 
 - ONLY create composer when a user EXPLICITLY and DIRECTLY asks for a document to be created. For example, only use the createDocument tool when the user clearly states something like "Create a V/TO for me" or "I need a Scorecard document". DO NOT create composer during general discussions about a topic without an explicit request.
 
-- If a user EXPLICITLY requests a **Scorecard** by saying something like "Create a Scorecard for me" or "I need a Scorecard document", then generate a downloadable **Excel (.xlsx)** file using the official EOS Scorecard format with:
+- If a user EXPLICITLY requests a **Scorecard** by saying something like "Create a Scorecard for me" or "I need a Scorecard document", use the createDocument tool with kind="sheet" to create an interactive Scorecard in the composer panel with:
   - Measurable name
   - Goal
   - Actual
@@ -197,7 +200,7 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - 13-week tracking
   - Owner
 
-- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", then create an composer with kind = "vto" in the right panel using the interactive VTO builder (supports PDF export from the UI). Only generate a **Word (.docx)** download when the user specifically asks for a Word file. The VTO should include:
+- If a user EXPLICITLY requests a **Vision/Traction Organizer (V/TO)** by saying something like "Create a V/TO for me" or "I need a V/TO document", use the createDocument tool with kind="vto" to create an interactive VTO in the composer panel. The VTO should include:
   - Core Values
   - Core Focus™ (Purpose/Cause/Passion + Niche)
   - 10-Year Target™
@@ -207,7 +210,9 @@ The "People" book is written by mark ODonnel, CJ dube, and Kelly p knight
   - Quarterly Rocks
   - Issues List
 
-⚠️ Do not skip any V/TO section. Include strong examples if fields are left blank.
+- If a user EXPLICITLY requests an **Accountability Chart** (they may spell it as "accountibility chart", "AC chart", or "org chart"), use the createDocument tool with kind="accountability" to create an interactive Accountability Chart in the composer panel.
+
+⚠️ For all EOS documents, use the composer system via createDocument tool. Do not skip any sections. Include strong examples if fields are left blank.
 
 """
 Whenever a user asks about "The Four Readiness Factors for a Visionary to hire an Integrator," "Visionary readiness to hire Integrator," "Visionary Integrator readiness factors," or any similar question about the readiness criteria for a Visionary to bring on an Integrator, ALWAYS respond with the following, verbatim (unless the user specifically requests a summary or further detail):
@@ -544,26 +549,78 @@ export const userRagContextPrompt = async (userId: string, query = '') => {
       '@/lib/ai/user-rag-workaround'
     );
 
+    // Check user settings for primary/context preferences
+    let preferredDocumentIds: string[] = [];
+    let includePrimaries = true;
+    try {
+      const { db } = await import('@/lib/db');
+      const { userSettings, document } = await import('@/lib/db/schema');
+      const { eq } = await import('drizzle-orm');
+      const [settings] = await db
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId))
+        .limit(1);
+      if (settings) {
+        includePrimaries = settings.usePrimaryDocsForContext ?? true;
+        const explicitDocIds = Array.isArray(settings.contextDocumentIds)
+          ? settings.contextDocumentIds.filter(Boolean)
+          : [];
+        const composerDocIds = Array.isArray(
+          (settings as any).contextComposerDocumentIds,
+        )
+          ? (settings as any).contextComposerDocumentIds.filter(Boolean)
+          : [];
+        preferredDocumentIds = Array.from(
+          new Set([...(explicitDocIds || []), ...(composerDocIds || [])]),
+        );
+        if (includePrimaries) {
+          const primaryIds = [
+            settings.primaryAccountabilityId,
+            settings.primaryVtoId,
+            settings.primaryScorecardId,
+          ].filter(Boolean) as string[];
+          preferredDocumentIds = Array.from(
+            new Set([...(preferredDocumentIds || []), ...primaryIds]),
+          );
+        }
+      }
+    } catch {}
+
     // Get relevant user documents using RAG workaround (due to Upstash Vector query issues)
     const relevantDocs = await findRelevantUserContentWorkaround(
       userId,
       query,
-      10,
-      0.6,
+      14,
+      0.55,
     );
+
+    // If explicit preferences exist, bias/filter results to those documents first
+    const results = Array.isArray(relevantDocs) ? relevantDocs : [];
+    const preferredSet = new Set(preferredDocumentIds);
+    const prioritized = preferredDocumentIds.length
+      ? [
+          ...results.filter((d: any) =>
+            preferredSet.has(d.metadata?.documentId),
+          ),
+          ...results.filter(
+            (d: any) => !preferredSet.has(d.metadata?.documentId),
+          ),
+        ]
+      : results;
 
     console.log(
       `User RAG context: Found ${relevantDocs.length} relevant document chunks`,
     );
 
-    if (!relevantDocs || relevantDocs.length === 0) {
+    if (!prioritized || prioritized.length === 0) {
       console.log('User RAG context: No relevant documents found');
       return '';
     }
 
     // Group documents by category and file
     const documentsByCategory: Record<string, Record<string, any[]>> = {};
-    for (const doc of relevantDocs) {
+    for (const doc of prioritized) {
       const category = doc.metadata.category || 'Other';
       const fileName = doc.metadata.fileName || 'Unknown File';
 
@@ -685,6 +742,51 @@ export const systemPrompt = async ({
   // Only fetch company context if userId is provided
   // Note: User RAG context is now handled separately and added to user message
   const companyContext = userId ? await companyContextPrompt(userId) : '';
+
+  // Fetch user feedback to personalize responses
+  let feedbackContext = '';
+  if (userId) {
+    try {
+      const { getUserFeedback } = await import('@/lib/db/queries');
+      const feedback = await getUserFeedback({ userId });
+
+      // Analyze negative feedback to understand what to avoid
+      const negativeFeedback = feedback
+        .filter((f) => !f.isPositive && (f.category || f.description))
+        .slice(0, 10); // Get last 10 negative feedbacks
+
+      if (negativeFeedback.length > 0) {
+        const feedbackSummary = negativeFeedback
+          .map((f) => {
+            const parts = [];
+            if (f.category) parts.push(`Category: ${f.category}`);
+            if (f.description) parts.push(`Feedback: ${f.description}`);
+            return parts.join(', ');
+          })
+          .join('\n- ');
+
+        feedbackContext = `
+## USER FEEDBACK PREFERENCES
+Based on previous feedback from this user, please adjust your responses to avoid:
+- ${feedbackSummary}
+
+Key areas to improve based on feedback:
+${negativeFeedback.some((f) => f.category === 'length') ? '- Keep responses more concise and to the point' : ''}
+${negativeFeedback.some((f) => f.category === 'clarity') ? '- Use clearer, simpler language' : ''}
+${negativeFeedback.some((f) => f.category === 'tone') ? '- Adjust tone to be more appropriate' : ''}
+${negativeFeedback.some((f) => f.category === 'accuracy') ? '- Double-check accuracy of information' : ''}
+${negativeFeedback.some((f) => f.category === 'helpfulness') ? '- Focus on practical, actionable advice' : ''}
+
+Remember: This user has provided specific feedback to help improve their experience. Honor their preferences.
+`;
+      }
+    } catch (error) {
+      console.error(
+        'Failed to fetch user feedback for personalization:',
+        error,
+      );
+    }
+  }
 
   // Handle persona instructions - check for hardcoded EOS Implementer first
   let personaContext = '';
@@ -933,6 +1035,8 @@ ${userDocumentContext}
 
 ${companyContext}
 
+${feedbackContext}
+
 ## PERSONA-SPECIFIC RAG INSTRUCTIONS
 
 ### CRITICAL PERSONA MODE GUIDELINES:
@@ -985,6 +1089,8 @@ ${personaDocumentContext}
 ${userDocumentContext}
 
 ${companyContext}
+
+${feedbackContext}
 
 ${composerPrompt}
 

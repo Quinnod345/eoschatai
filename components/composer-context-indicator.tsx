@@ -9,6 +9,7 @@ import {
   Table,
   BarChart2,
   Target,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ComposerKind } from './composer';
@@ -28,6 +29,7 @@ const composerIcons: Record<ComposerKind, React.ReactNode> = {
   sheet: <Table className="w-4 h-4" />,
   chart: <BarChart2 className="w-4 h-4" />,
   vto: <Target className="w-4 h-4" />,
+  accountability: <Users className="w-4 h-4" />,
 };
 
 export const ComposerContextIndicator = memo(function ComposerContextIndicator({

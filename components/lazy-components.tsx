@@ -41,7 +41,7 @@ export const LazyDocumentContextModal = dynamic(
 export const LazyArtifact = dynamic(
   () =>
     import('./composer').then((mod) => ({
-      default: mod.Artifact,
+      default: mod.Composer,
     })),
   {
     loading: LoadingComponent,

@@ -208,12 +208,12 @@
 }
 
 .animate-blur-in-char {
-  animation: blurInChar 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  animation: blurInChar 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, filter, opacity;
 }
 
 .animate-blur-in-text {
-  animation: blurInText 0.8s ease-out forwards;
+  animation: blurInText 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, filter, opacity;
 }
 

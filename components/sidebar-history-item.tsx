@@ -26,7 +26,7 @@ import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle } from '@/lib/utils/chat-utils';
 import { Pin, Bookmark } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useChatPreloader } from '@/hooks/use-chat-preloader';
 import { useLoading } from '@/hooks/use-loading';
 
@@ -153,9 +153,9 @@ const PureChatItem = ({
           isActive={isActive}
           size="lg"
           className={cn(
-            'rounded-lg !h-11 py-3 px-3 text-[14px] leading-6 font-normal transition-all duration-200 mr-0 text-sidebar-foreground/90',
+            'rounded-lg !h-11 py-3 px-3 text-[14px] leading-6 font-normal transition-all duration-200 mr-0 text-sidebar-foreground',
             isActive
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+              ? 'active-glass-button'
               : 'hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
           )}
         >
@@ -168,16 +168,20 @@ const PureChatItem = ({
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            className="relative flex items-center w-full"
+            className={cn(
+              'relative flex items-center w-full rounded-md',
+              isBookmarked &&
+                'ring-1 ring-sky-400/70 shadow-[0_0_0_2px_rgba(56,189,248,0.25),0_0_22px_rgba(56,189,248,0.35)] hover:shadow-[0_0_0_2px_rgba(56,189,248,0.3),0_0_30px_rgba(56,189,248,0.5)]',
+            )}
           >
             {/* Title area - expands fully by default; on hover/active, add padding to avoid the right overlay */}
             <div
               className={cn(
                 'min-w-0 flex-1 pr-0 transition-[padding] duration-150',
-                // Pull back even less
-                isActive && ((pinnedCount ?? 0) > 0 || isBookmarked) && 'pr-7',
-                isActive && !((pinnedCount ?? 0) > 0 || isBookmarked) && 'pr-6',
-                (pinnedCount ?? 0) > 0 || isBookmarked
+                // Adjust only for visible right-side indicators (exclude bookmark icon)
+                isActive && (pinnedCount ?? 0) > 0 && 'pr-7',
+                isActive && !((pinnedCount ?? 0) > 0) && 'pr-6',
+                (pinnedCount ?? 0) > 0
                   ? 'group-hover/item:pr-7'
                   : 'group-hover/item:pr-6',
               )}
@@ -199,9 +203,6 @@ const PureChatItem = ({
                   )}
                 </div>
               )}
-              {isBookmarked && (
-                <Bookmark className="h-4 w-4 text-blue-500 fill-current" />
-              )}
 
               <DropdownMenu modal={true}>
                 <DropdownMenuTrigger asChild>
@@ -213,9 +214,10 @@ const PureChatItem = ({
                     }}
                     className={cn(
                       'pointer-events-auto inline-flex p-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-                      isActive
-                        ? 'text-white dark:text-blue-400'
-                        : 'group-hover/item:text-white dark:group-hover/item:text-blue-400',
+                      // Light mode: always dark text; Dark mode: use accent
+                      'text-sidebar-foreground dark:text-sidebar-accent-foreground',
+                      !isActive &&
+                        'group-hover/item:text-sidebar-foreground dark:group-hover/item:text-sidebar-accent-foreground',
                       'opacity-0 transition-opacity duration-150 group-hover/item:opacity-100 data-[state=open]:opacity-100',
                       'transition-none transform-none hover:transform-none active:transform-none hover:scale-100 hover:translate-y-0 hover:shadow-none active:scale-100 active:translate-y-0',
                       isActive && 'opacity-100',

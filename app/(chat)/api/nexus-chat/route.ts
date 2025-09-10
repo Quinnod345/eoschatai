@@ -208,7 +208,13 @@ export async function POST(request: NextRequest) {
                     {
                       type: 'comprehensive',
                       priority: 'quality',
-                      depth: researchPlan.searchStrategy.depth,
+                      depth:
+                        researchPlan.searchStrategy.depth === 'comprehensive'
+                          ? 'deep'
+                          : (researchPlan.searchStrategy.depth as
+                              | 'shallow'
+                              | 'medium'
+                              | 'deep'),
                       timeframe: researchPlan.searchStrategy.timeframe as any,
                     },
                   );

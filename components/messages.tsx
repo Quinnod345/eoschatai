@@ -28,7 +28,8 @@ interface MessagesProps {
   setMessages: UseChatHelpers['setMessages'];
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
-  isArtifactVisible: boolean;
+  isArtifactVisible?: boolean;
+  isComposerVisible?: boolean;
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
@@ -162,8 +163,26 @@ function PureMessages({
 
   // Show loading skeleton when messages are being loaded
   // Don't show skeleton for new chats (when pathname is exactly /chat)
-  const isNewChat = pathname === '/chat';
+  const isNewChat = pathname === '/chat' && messages.length === 0;
   const isLoading = messages.length === 0 && status === 'ready' && !isNewChat;
+
+  // Debug logging and set global class
+  useEffect(() => {
+    console.log('Chat mesh debug:', {
+      pathname,
+      isNewChat,
+      hasSentMessage,
+      messagesLength: messages.length,
+      shouldShowMesh: true,
+    });
+
+    // Always enable chat mesh styling for both new and existing chats
+    document.body.classList.add('has-chat-mesh');
+
+    return () => {
+      document.body.classList.remove('has-chat-mesh');
+    };
+  }, [pathname]);
 
   // Detect dashboard mode
   const [dashboardKind, setDashboardKind] = useState<string | null>(null);
@@ -188,11 +207,18 @@ function PureMessages({
     );
   }
 
+  const isExistingChatView = !(isNewChat && !hasSentMessage);
+  const meshClasses = `eos-chat-mesh eos-chat-active${
+    isExistingChatView ? ' existing-chat-gradient' : ''
+  }`;
+
   return (
     <div
       ref={messagesContainerRef}
-      className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
+      className={`${meshClasses} flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent`}
     >
+      {/* Spacer (like SwiftUI Spacer()) */}
+      <div className="shrink-0 h-12 sm:h-24 md:h-28 lg:h-32" />
       {isLoading ? (
         <MessageSkeleton count={3} />
       ) : (
@@ -240,7 +266,6 @@ function PureMessages({
             citations={citations}
             searchProgress={searchProgress}
             meetingMetadata={meetingMetadata}
-            onRetry={onRetry}
           />
         ))
       )}

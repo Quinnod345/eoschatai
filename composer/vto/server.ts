@@ -9,7 +9,7 @@ import { inlineEditPrompt } from '@/lib/ai/prompts';
 
 export const vtoDocumentHandler = createDocumentHandler<'vto'>({
   kind: 'vto',
-  onCreateDocument: async ({ title, dataStream }) => {
+  onCreateDocument: async ({ title, dataStream, maxTokens }) => {
     let draft = '';
 
     const provider = createCustomProvider();
@@ -45,6 +45,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     const { fullStream } = streamText({
       model: provider.languageModel('composer-model'),
       system,
+      maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Create a V/TO for: ${title}`,
     });
@@ -65,7 +66,12 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
 
     return draft;
   },
-  onUpdateDocument: async ({ document, description, dataStream }) => {
+  onUpdateDocument: async ({
+    document,
+    description,
+    dataStream,
+    maxTokens,
+  }) => {
     let draft = '';
 
     const provider = createCustomProvider();
@@ -74,6 +80,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     const { fullStream } = streamText({
       model: provider.languageModel('composer-model'),
       system,
+      maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Apply the requested edit to the VTO document.`,
     });

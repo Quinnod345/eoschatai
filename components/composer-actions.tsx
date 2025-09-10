@@ -4,7 +4,7 @@ import { composerDefinitions, type UIComposer } from './composer';
 import { type Dispatch, memo, type SetStateAction, useState } from 'react';
 import type { ComposerActionContext } from './create-composer';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 interface ComposerActionsProps {
   composer: UIComposer;

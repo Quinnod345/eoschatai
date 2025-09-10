@@ -26,7 +26,7 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { isProductionEnvironment } from '@/lib/constants';
-import { DEFAULT_PROVIDER, createCustomProvider } from '@/lib/ai/providers';
+import { createCustomProvider } from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
 import {
   postRequestBodySchema,
@@ -56,6 +56,7 @@ import {
   extractCitationsFromResults,
   type Citation,
 } from '@/lib/ai/citation-formatter';
+import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 export const maxDuration = 60;
 
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
       message,
       selectedChatModel,
       selectedVisibilityType,
-      selectedProvider = DEFAULT_PROVIDER,
+      selectedProvider = 'openai',
       selectedPersonaId,
       selectedProfileId,
       selectedResearchMode,
@@ -1116,7 +1117,7 @@ DOCUMENT CREATION AND EDITING GUIDE:
 FOR CREATING NEW DOCUMENTS:
 When asked to create a document or composer, such as a Vision/Traction Organizer™, Accountability Chart™, or Scorecard:
 1. Use the createDocument tool with the appropriate parameters
-2. Always provide a descriptive title and the correct kind parameter ("text", "code", or "sheet")
+2. Always provide a descriptive title and the correct kind parameter ("text", "code", "sheet", "chart", "image", "vto", or "accountability")
 3. NEVER use raw function call syntax like <function_call>{"action": "createDocument", ...}</function_call>
 4. Always use the proper tool invocation mechanism provided by this system
 5. For most EOS documents, use "text" kind unless specifically creating a spreadsheet or code
@@ -1385,6 +1386,13 @@ Always prioritize the user's document content over generic information. If speci
           ? Math.min(32768, Math.max(1024, preflightMaxTokens))
           : Math.min(safeHardLimit, Math.max(512, preflightMaxTokens));
 
+        // Compute artifact token multiplier without disrupting preflight
+        // Slight boost: 1.4x up to a reasonable cap
+        const artifactMaxTokens = Math.min(
+          12000,
+          Math.floor((preflightMaxTokens || 2000) * 1.4),
+        );
+
         console.log('[DEBUG] Nexus mode check:', {
           selectedResearchMode,
           hasQueryText: !!queryText,
@@ -1394,6 +1402,40 @@ Always prioritize the user's document content over generic information. If speci
             queryText &&
             !nexusResearchContext,
         });
+
+        // Auto-create composers when the user explicitly requests it and the model might ignore tools
+        // This prevents failures like "I've created..." without actually opening the composer.
+        const lowerQuery = (queryText || '').toLowerCase();
+        const wantsCreate =
+          /\b(create|build|make|start|open|generate|draft)\b/.test(lowerQuery);
+        // More flexible detection for accountability charts - handle misspellings and variations
+        const wantsAccountability =
+          /accountab\w*\s*chart/i.test(lowerQuery) || // Matches accountability/accountibility chart
+          /ac\s+chart/i.test(lowerQuery) || // Matches "AC chart"
+          /accountability\s+ch/i.test(lowerQuery) || // Partial match
+          /accountab\w*\s+org\s*chart/i.test(lowerQuery); // Matches "accountability org chart"
+
+        let preCreatedComposerNote = '';
+        console.log('[AUTO-CREATE] Check:', {
+          wantsCreate,
+          wantsAccountability,
+          lowerQuery,
+        });
+
+        // Instead of auto-creating, we'll enhance the prompt to ensure the AI uses the tool
+        if (wantsCreate && wantsAccountability) {
+          console.log('[TOOL-HINT] User wants to create accountability chart');
+
+          // Extract title if provided
+          const titleMatch =
+            (queryText || '').match(/titled\s+["""']([^"""']+)["""']?/i) ||
+            (queryText || '').match(/called\s+["""']([^"""']+)["""']?/i) ||
+            (queryText || '').match(/title\s+is\s+["""']([^"""']+)["""']?/i);
+          const suggestedTitle = titleMatch?.[1] || 'Accountability Chart';
+
+          // Add a strong hint to the system prompt to use the createDocument tool
+          preCreatedComposerNote = `\n\nCRITICAL: The user is asking to create an Accountability Chart (they may have misspelled it). You MUST use the createDocument tool with kind="accountability" and title="${suggestedTitle}". DO NOT just say you created it - actually call the createDocument tool to open the composer panel.`;
+        }
 
         if (
           selectedResearchMode === 'nexus' &&
@@ -1705,7 +1747,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
           try {
             const result = streamText({
               model: provider.languageModel(finalChatModel),
-              system: finalSystemPrompt,
+              system: `${finalSystemPrompt}${preCreatedComposerNote}`,
               messages: modifiedMessages,
               maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
               experimental_activeTools: [
@@ -1726,8 +1768,18 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
               tools: {
                 getWeather,
-                createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream }),
+                createDocument: createDocument({
+                  session,
+                  dataStream,
+                  artifactMaxTokens,
+                  // Provide the original chat query so artifact generators can honor it
+                  context: queryText || '',
+                }),
+                updateDocument: updateDocument({
+                  session,
+                  dataStream,
+                  artifactMaxTokens,
+                }),
                 requestSuggestions: requestSuggestions({
                   session,
                   dataStream,
@@ -2494,7 +2546,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 `[${isNexusMode ? 'NEXUS' : 'NORMAL'}] Starting response streaming`,
               );
 
-              result.consumeStream();
+              // Important: Don't consume the stream before merging if we've pre-created content
+              // The consumeStream() call was preventing pre-created data from reaching the client
               result.mergeIntoDataStream(dataStream);
             } catch (streamError) {
               console.error('RAG ERROR: Error processing stream:', streamError);

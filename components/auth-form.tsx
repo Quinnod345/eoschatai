@@ -71,21 +71,32 @@ export function AuthForm({
     >
       {showSocial && (
         <>
-          <GoogleSignInButton callbackUrl={callbackUrl} />
-          <div className="relative my-2">
+          <div
+            className="opacity-0 animate-blur-in-char"
+            style={{ animationDelay: '360ms' }}
+          >
+            <GoogleSignInButton callbackUrl={callbackUrl} />
+          </div>
+          <div
+            className="relative my-2 opacity-0 animate-blur-in-text"
+            style={{ animationDelay: '460ms' }}
+          >
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-zinc-700" />
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 text-gray-500 bg-background dark:text-zinc-400">
-                or continue with
+                or continue with email
               </span>
             </div>
           </div>
         </>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div
+        className="flex flex-col gap-2 opacity-0 animate-blur-in-char"
+        style={{ animationDelay: '560ms' }}
+      >
         <Label
           htmlFor="email"
           className="text-zinc-600 font-normal dark:text-zinc-400"
@@ -106,7 +117,10 @@ export function AuthForm({
         />
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div
+        className="flex flex-col gap-2 opacity-0 animate-blur-in-char"
+        style={{ animationDelay: '640ms' }}
+      >
         <Label
           htmlFor="password"
           className="text-zinc-600 font-normal dark:text-zinc-400"
@@ -123,7 +137,12 @@ export function AuthForm({
         />
       </div>
 
-      {children}
+      <div
+        className="opacity-0 animate-blur-in-char"
+        style={{ animationDelay: '720ms' }}
+      >
+        {children}
+      </div>
     </form>
   );
 }

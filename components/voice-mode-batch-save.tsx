@@ -17,7 +17,7 @@ import {
   Navigation,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
@@ -1584,7 +1584,8 @@ export default function VoiceModeBatchSave({
                       ) : (
                         "Speak naturally, I'm here to help!"
                       ))}
-                    {(sessionState as VoiceSessionState) === VOICE_STATES.SESSION.ENDING &&
+                    {(sessionState as VoiceSessionState) ===
+                      VOICE_STATES.SESSION.ENDING &&
                       (isSaving
                         ? 'Saving conversation...'
                         : isNavigating

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
 import { useLoading } from '@/hooks/use-loading';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import useSWR from 'swr';
 import { format } from 'date-fns';
 import { ScrollArea } from './ui/scroll-area';

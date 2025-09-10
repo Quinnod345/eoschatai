@@ -12,7 +12,7 @@ import {
   UndoIcon,
 } from '@/components/icons';
 import type { Suggestion } from '@/lib/db/schema';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { getSuggestions } from '../actions';
 // Document library will be imported dynamically
 

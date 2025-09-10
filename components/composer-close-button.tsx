@@ -19,7 +19,7 @@ function PureComposerCloseButton() {
           const next =
             currentComposer.status === 'streaming'
               ? { ...currentComposer, isVisible: false }
-              : { ...initialComposerData, status: 'idle' };
+              : { ...initialComposerData, status: 'idle' as const };
           return next;
         });
 

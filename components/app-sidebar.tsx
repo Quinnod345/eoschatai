@@ -6,11 +6,20 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { mutate as swrMutate } from 'swr';
 import { useTheme } from 'next-themes';
+import Script from 'next/script';
+
+// Type declarations for liquidGL
+declare global {
+  interface Window {
+    liquidGL?: any;
+    html2canvas?: any;
+  }
+}
 
 import {
   PlusIcon,
@@ -20,6 +29,7 @@ import {
   TargetIcon,
 } from '@/components/icons';
 import { FileSpreadsheet } from 'lucide-react';
+import { Users2 } from 'lucide-react';
 import { SidebarHistory } from '@/components/sidebar-history';
 import { Button } from '@/components/ui/button';
 import {
@@ -47,17 +57,63 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   const router = useRouter();
   const { setOpenMobile, state } = useSidebar();
   const { theme, resolvedTheme } = useTheme();
+  // Ensure we react immediately to theme changes even before mount flags settle
+  const isDarkTheme = (resolvedTheme ?? theme) === 'dark';
   const [mounted, setMounted] = useState(false);
   const [selectedComposerKind, setSelectedComposerKind] = useState<
-    'text' | 'sheet' | 'image' | 'code' | 'vto' | null
+    'text' | 'sheet' | 'image' | 'code' | 'vto' | 'accountability' | null
   >(null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [liquidGLReady, setLiquidGLReady] = useState(false);
+  const liquidGLInitialized = useRef(false);
 
   // Once mounted on client, we can safely show the UI without hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Initialize liquidGL after scripts are loaded
+  useEffect(() => {
+    if (liquidGLReady && !liquidGLInitialized.current && state === 'expanded') {
+      // Wait a bit for DOM to be ready
+      setTimeout(() => {
+        try {
+          // @ts-ignore
+          if (window.liquidGL && window.html2canvas) {
+            // Initialize liquidGL on the dedicated lens layer
+            // @ts-ignore
+            window.liquidGL({
+              snapshot: 'body',
+              target: '.liquid-gl-lens',
+              resolution: 2.2,
+              // Stronger refraction and crisper edge bevels for a flawless glass look
+              refraction: 0.02,
+              bevelDepth: 0.08,
+              bevelWidth: 0.22,
+              // Add subtle frost to increase perceived blur within the lens
+              frost: 0.08,
+              shadow: false,
+              specular: true,
+              reveal: 'fade',
+              tilt: false,
+              tiltFactor: 3,
+              // Slightly stronger magnification to emphasize edge refraction
+              magnify: 1.08,
+              on: {
+                init(instance: any) {
+                  console.log('LiquidGL initialized on sidebar');
+                  liquidGLInitialized.current = true;
+                },
+              },
+            });
+          }
+        } catch (error) {
+          console.error('Failed to initialize liquidGL:', error);
+        }
+      }, 100);
+    }
+  }, [liquidGLReady, state]);
 
   // Determine which logo to use based on theme
   // Keep composer selection in sync with URL (?dashboard=...)
@@ -65,7 +121,9 @@ export function AppSidebar({ user }: { user: User | undefined }) {
     const dash = searchParams?.get('dashboard');
     if (dash) {
       setSelectedComposerKind(
-        ['text', 'sheet', 'image', 'code', 'vto'].includes(dash)
+        ['text', 'sheet', 'image', 'code', 'vto', 'accountability'].includes(
+          dash,
+        )
           ? (dash as any)
           : null,
       );
@@ -76,7 +134,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   }, [pathname, searchParams]);
 
   const logoSrc =
-    mounted && (theme === 'dark' || resolvedTheme === 'dark')
+    mounted && isDarkTheme
       ? '/images/eos-logo-dark-mode.png'
       : '/images/eos-logo.png';
 
@@ -146,14 +204,14 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                   className="flex flex-row gap-3 items-center"
                 >
                   <motion.div
-                    className="px-3 py-1.5 hover:bg-muted rounded-md cursor-pointer"
+                    className="px-3 py-1.5 rounded-md cursor-pointer"
                     whileHover={{
-                      backgroundColor: 'rgba(var(--primary-rgb), 0.1)',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                      y: -1,
                       transition: { duration: 0.2, ease: 'easeOut' },
                     }}
                   >
                     <Image
+                      key={isDarkTheme ? 'logo-dark' : 'logo-light'}
                       src={logoSrc}
                       alt="EOS Logo"
                       width={96}
@@ -249,6 +307,12 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                       icon: TargetIcon,
                       tooltip: 'Vision/Traction Organizer',
                     },
+                    {
+                      kind: 'accountability',
+                      label: 'A/C',
+                      icon: Users2,
+                      tooltip: 'Accountability Charts',
+                    },
                   ].map((item) => (
                     <SidebarMenuItem
                       key={item.kind}
@@ -266,10 +330,10 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                         <SidebarMenuButton
                           size="lg"
                           className={cn(
-                            'rounded-lg !h-11 py-3 px-3 text-[14px] leading-6 font-normal transition-all duration-200 mr-0 justify-start',
+                            'rounded-lg !h-11 py-3 px-3 text-[14px] leading-6 font-normal transition-all duration-200 mr-0 justify-start text-sidebar-foreground',
                             selectedComposerKind === item.kind
-                              ? 'bg-sidebar-accent/60 text-sidebar-foreground shadow-sm'
-                              : 'text-sidebar-foreground/90 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
+                              ? 'active-glass-button'
+                              : 'hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
                           )}
                           tooltip={item.tooltip}
                           onClick={() => {
@@ -326,6 +390,28 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </motion.div>
         )}
       </Sidebar>
+
+      {/* Load liquidGL dependencies */}
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log('html2canvas loaded');
+          if (typeof window !== 'undefined' && window.liquidGL) {
+            setLiquidGLReady(true);
+          }
+        }}
+      />
+      <Script
+        src="/scripts/liquidGL.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log('liquidGL loaded');
+          if (typeof window !== 'undefined' && window.html2canvas) {
+            setLiquidGLReady(true);
+          }
+        }}
+      />
     </>
   );
 }

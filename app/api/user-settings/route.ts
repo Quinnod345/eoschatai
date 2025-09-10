@@ -32,43 +32,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const {
-      notificationsEnabled,
-      language,
-      fontSize,
-      displayName,
-      companyName,
-      companyType,
-      companyDescription,
-      profilePicture,
-      lastFeaturesVersion,
-      selectedChatModel,
-      selectedProvider,
-      selectedVisibilityType,
-      selectedPersonaId,
-      selectedProfileId,
-      selectedResearchMode,
-    } = body;
-
     const settings = await updateUserSettings({
       userId: session.user.id,
-      settings: {
-        notificationsEnabled,
-        language,
-        fontSize,
-        displayName,
-        companyName,
-        companyType,
-        companyDescription,
-        profilePicture,
-        lastFeaturesVersion,
-        selectedChatModel,
-        selectedProvider,
-        selectedVisibilityType,
-        selectedPersonaId,
-        selectedProfileId,
-        selectedResearchMode,
-      },
+      settings: body,
     });
 
     return NextResponse.json(settings);

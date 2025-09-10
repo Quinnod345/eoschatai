@@ -1,440 +1,225 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
-  MessageSquare,
-  FileText,
-  Users,
-  BarChart,
-  Calendar,
-  Bot,
-  Brain,
-  Globe,
   Sparkles,
   ArrowRight,
-  Shield,
-  Target,
-  Search,
-  Download,
-  Upload,
+  Bot,
+  Search as SearchIcon,
   Mic,
-  Eye,
-  Layers,
-  Database,
-  Lock,
-  RefreshCw,
-  Activity,
-  Filter,
-  GitBranch,
-  CheckSquare,
-  Hash,
-  Settings,
-  MousePointer,
-  Keyboard,
-  Languages,
-  Moon,
-  Palette,
-  Type,
-  Award,
-  BookOpen,
-  Workflow,
+  Upload,
+  Calendar,
+  Globe,
+  MessageSquare,
 } from 'lucide-react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import {
+  FEATURE_CATEGORIES,
+  getAllFeatures,
+  type Feature,
+} from '@/lib/features/config';
 
-const featureCategories = [
-  {
-    id: 'core-chat',
-    title: 'Advanced AI Chat Interface',
-    description:
-      'Real-time AI responses with comprehensive conversation management',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: MessageSquare,
-        title: 'Streaming Responses',
-        description: 'Real-time AI responses with token streaming',
-      },
-      {
-        icon: RefreshCw,
-        title: 'Multi-turn Conversations',
-        description: 'Context-aware conversations with message history',
-      },
-      {
-        icon: Settings,
-        title: 'Message Actions',
-        description: 'Copy, edit, regenerate, pin, and bookmark messages',
-      },
-      {
-        icon: Sparkles,
-        title: 'Smart Suggestions',
-        description: 'Context-aware follow-up suggestions',
-      },
-      {
-        icon: Keyboard,
-        title: 'Keyboard Shortcuts',
-        description: 'Comprehensive keyboard navigation (Cmd+K for search)',
-      },
-      {
-        icon: Mic,
-        title: 'Voice Input',
-        description: 'Speech-to-text capabilities for hands-free interaction',
-      },
-      {
-        icon: Upload,
-        title: 'File Attachments',
-        description: 'Upload images, PDFs, and documents for AI analysis',
-      },
-    ],
-  },
-  {
-    id: 'ai-models',
-    title: 'Multiple AI Model Support',
-    description:
-      'Leverage the best AI models with dynamic switching capabilities',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: Bot,
-        title: 'OpenAI Integration',
-        description: 'Advanced AI provider using the latest GPT models',
-      },
-      {
-        icon: Brain,
-        title: 'OpenAI Models',
-        description: 'GPT-4, GPT-3.5-turbo support with seamless switching',
-      },
-      {
-        icon: GitBranch,
-        title: 'Provider Switching',
-        description: 'Dynamic model selection per conversation',
-      },
-      {
-        icon: Target,
-        title: 'Custom System Prompts',
-        description: 'Tailored prompts optimized for EOS expertise',
-      },
-    ],
-  },
-  {
-    id: 'composer',
-    title: 'Rich Composer System',
-    description:
-      'Create and manipulate various content types with AI assistance',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: FileText,
-        title: 'Code Composer',
-        description: 'Syntax-highlighted code with multiple language support',
-      },
-      {
-        icon: BarChart,
-        title: 'Chart Generation',
-        description: 'Interactive charts using Chart.js with real-time data',
-      },
-      {
-        icon: Layers,
-        title: 'Spreadsheet Creation',
-        description:
-          'Excel-like spreadsheets with formulas and data manipulation',
-      },
-      {
-        icon: BookOpen,
-        title: 'Text Documents',
-        description: 'Rich text editing with markdown support and formatting',
-      },
-      {
-        icon: Eye,
-        title: 'Image Handling',
-        description: 'Image upload, preview, and advanced editing capabilities',
-      },
-    ],
-  },
-  {
-    id: 'eos-specific',
-    title: 'EOS-Specific Features',
-    description: 'Specialized tools designed for EOS implementation success',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: Award,
-        title: 'EOS Implementer Personas',
-        description:
-          'Pre-configured expert personas for different EOS components',
-      },
-      {
-        icon: Target,
-        title: 'Custom Instructions',
-        description: 'Each persona has specialized knowledge and context',
-      },
-      {
-        icon: Database,
-        title: 'Document Context',
-        description:
-          'Personas access relevant EOS documents and best practices',
-      },
-      {
-        icon: Workflow,
-        title: 'Category Organization',
-        description: 'Organized by Scorecard, VTO, Rocks, and Core Process',
-      },
-      {
-        icon: CheckSquare,
-        title: 'File Support',
-        description: 'PDF, DOCX, TXT with automatic content extraction',
-      },
-      {
-        icon: Activity,
-        title: 'Version Control',
-        description: 'Track document updates and changes over time',
-      },
-    ],
-  },
-  {
-    id: 'knowledge-base',
-    title: 'Knowledge Base Integration',
-    description: 'Intelligent information retrieval and management system',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: Search,
-        title: 'Vector Search',
-        description:
-          'Semantic search across all documents with AI-powered relevance',
-      },
-      {
-        icon: Brain,
-        title: 'Contextual Retrieval',
-        description:
-          'AI automatically pulls relevant information for responses',
-      },
-      {
-        icon: Hash,
-        title: 'Namespace Isolation',
-        description:
-          'Separate knowledge bases for different contexts and teams',
-      },
-      {
-        icon: Shield,
-        title: 'Fallback Systems',
-        description: 'PostgreSQL pgvector as backup to Upstash for reliability',
-      },
-    ],
-  },
-  {
-    id: 'rag',
-    title: 'Retrieval-Augmented Generation',
-    description: 'Advanced document processing and knowledge extraction',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: Layers,
-        title: 'Document Chunking',
-        description: 'Intelligent text segmentation for optimal processing',
-      },
-      {
-        icon: Sparkles,
-        title: 'Embedding Generation',
-        description:
-          'OpenAI embeddings (1536 dimensions) for semantic understanding',
-      },
-      {
-        icon: Database,
-        title: 'Vector Storage',
-        description:
-          'Dual storage in Upstash Vector and PostgreSQL for redundancy',
-      },
-      {
-        icon: Search,
-        title: 'Semantic Search',
-        description: 'Find relevant content across all documents intelligently',
-      },
-    ],
-  },
-  {
-    id: 'personalization',
-    title: 'User Profiles & Personalization',
-    description: 'Tailored experience for every user and organization',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: Globe,
-        title: 'Company Context',
-        description: 'Store company name, type, and detailed description',
-      },
-      {
-        icon: Eye,
-        title: 'Profile Pictures',
-        description: 'Custom avatars with advanced image cropping tools',
-      },
-      {
-        icon: Type,
-        title: 'Display Names',
-        description: 'Personalized user identification and branding',
-      },
-      {
-        icon: Languages,
-        title: 'Language Preferences',
-        description: 'Multi-language support for global teams',
-      },
-      {
-        icon: Palette,
-        title: 'UI Customization',
-        description: 'Font size, theme preferences, and interface density',
-      },
-    ],
-  },
-  {
-    id: 'authentication',
-    title: 'Authentication & Security',
-    description: 'Enterprise-grade security and access control',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: Globe,
-        title: 'Google OAuth',
-        description: 'Seamless single sign-on with Google Workspace',
-      },
-      {
-        icon: Lock,
-        title: 'Email/Password Auth',
-        description: 'Traditional authentication with secure password handling',
-      },
-      {
-        icon: Users,
-        title: 'Guest Access',
-        description: 'Limited features for trial users and demonstrations',
-      },
-      {
-        icon: Shield,
-        title: 'Role-based Access',
-        description: 'Guest, regular, and premium user tiers with permissions',
-      },
-    ],
-  },
-  {
-    id: 'calendar',
-    title: 'Calendar Integration',
-    description: 'Seamless integration with your scheduling workflow',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: Calendar,
-        title: 'Google Calendar Sync',
-        description:
-          'Connect and sync with Google Calendar for comprehensive scheduling',
-      },
-      {
-        icon: Settings,
-        title: 'Event Management',
-        description:
-          'View and manage calendar events directly from the interface',
-      },
-      {
-        icon: MessageSquare,
-        title: 'Meeting Context',
-        description:
-          'Pull meeting information into conversations for better context',
-      },
-      {
-        icon: BookOpen,
-        title: 'Calendar Briefings',
-        description: 'AI-generated daily and weekly summaries of your schedule',
-      },
-    ],
-  },
-  {
-    id: 'ui-ux',
-    title: 'Modern User Interface',
-    description: 'Beautiful, responsive, and accessible design',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: MousePointer,
-        title: 'Responsive Design',
-        description: 'Optimized for mobile, tablet, and desktop devices',
-      },
-      {
-        icon: Moon,
-        title: 'Dark/Light Themes',
-        description: 'System-aware theme switching with custom preferences',
-      },
-      {
-        icon: Sparkles,
-        title: 'Smooth Animations',
-        description: 'Smooth animations for delightful interactions',
-      },
-      {
-        icon: Activity,
-        title: 'Loading States',
-        description: 'Skeleton screens and progress indicators for better UX',
-      },
-    ],
-  },
-  {
-    id: 'search',
-    title: 'Enhanced Search',
-    description: 'Powerful search capabilities across all content',
-    color: 'from-eos-orange to-eos-orangeLight',
-    features: [
-      {
-        icon: Search,
-        title: 'Advanced Search Modal',
-        description:
-          'Full-text search across conversations with powerful filters',
-      },
-      {
-        icon: Filter,
-        title: 'Filter Options',
-        description: 'Date ranges, message types, personas, and custom filters',
-      },
-      {
-        icon: Sparkles,
-        title: 'Search Suggestions',
-        description: 'Auto-complete and recent searches for faster navigation',
-      },
-      {
-        icon: Target,
-        title: 'Fuzzy Matching',
-        description: 'Find content even with typos and partial matches',
-      },
-    ],
-  },
-  {
-    id: 'collaboration',
-    title: 'Collaboration Features',
-    description: 'Work together seamlessly across teams',
-    color: 'from-eos-navy to-eos-navyLight',
-    features: [
-      {
-        icon: Eye,
-        title: 'Chat Sharing',
-        description: 'Public/private visibility settings for conversations',
-      },
-      {
-        icon: BookOpen,
-        title: 'Bookmarks',
-        description: 'Save important conversations for easy access',
-      },
-      {
-        icon: Target,
-        title: 'Pinned Messages',
-        description: 'Highlight key information within conversations',
-      },
-      {
-        icon: Download,
-        title: 'Export Options',
-        description: 'Download conversations and composer in multiple formats',
-      },
-    ],
-  },
-];
+gsap.registerPlugin(ScrollTrigger);
 
 export default function FeaturesPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const pulseRef = useRef<HTMLDivElement>(null);
+  const colorOverlayRef = useRef<HTMLDivElement>(null);
+
+  const allFeatures = useMemo(() => getAllFeatures(), []);
+  const [activeCatId, setActiveCatId] = useState<string | null>(
+    FEATURE_CATEGORIES[0]?.id ?? null,
+  );
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const ctx = gsap.context(() => {
+      // Pin the system map while scrolling steps
+      if (mapSectionRef.current && mapRef.current) {
+        ScrollTrigger.create({
+          trigger: mapSectionRef.current,
+          start: 'top top',
+          end: '+=1500',
+          pin: mapRef.current,
+          pinSpacing: true,
+        });
+      }
+
+      // Reveal steps and highlight nodes
+      const stepEls = stepsRef.current?.querySelectorAll('[data-step]') ?? [];
+      stepEls.forEach((el) => {
+        const targetId = (el as HTMLElement).dataset.step as string;
+        ScrollTrigger.create({
+          trigger: el as Element,
+          start: 'top 70%',
+          onEnter: () => highlightNode(targetId),
+          onEnterBack: () => highlightNode(targetId),
+          onLeave: () =>
+            (el as HTMLElement).classList.remove('ring-2', 'ring-eos-orange'),
+          onToggle: (self) => {
+            if (self.isActive)
+              (el as HTMLElement).classList.add('ring-2', 'ring-eos-orange');
+          },
+        });
+      });
+
+      // Snap between steps
+      if (stepsRef.current && stepEls.length > 1) {
+        ScrollTrigger.create({
+          trigger: stepsRef.current,
+          start: 'top top',
+          end: 'bottom bottom',
+          snap: 1 / (stepEls.length - 1),
+        });
+      }
+
+      // Float nodes subtly
+      gsap.to('.node', {
+        y: 8,
+        repeat: -1,
+        yoyo: true,
+        duration: 2,
+        ease: 'sine.inOut',
+        stagger: 0.15,
+      });
+
+      // Vertical progress rail fill
+      if (stepsRef.current) {
+        const railFill = stepsRef.current.querySelector(
+          '.rail-fill',
+        ) as HTMLElement | null;
+        if (railFill) {
+          ScrollTrigger.create({
+            trigger: stepsRef.current,
+            start: 'top 80%',
+            end: 'bottom 20%',
+            scrub: true,
+            onUpdate: (self) => {
+              railFill.style.height = `${Math.max(0, Math.min(1, self.progress)) * 100}%`;
+            },
+          });
+        }
+      }
+    }, containerRef);
+
+    function highlightNode(id: string) {
+      const nodes = mapRef.current?.querySelectorAll('.node') ?? [];
+      nodes.forEach((n) => n.classList.remove('ring-2', 'ring-eos-orange'));
+      const active = mapRef.current?.querySelector(`[data-node="${id}"]`);
+      if (active) {
+        active.classList.add('ring-2', 'ring-eos-orange');
+        gsap.fromTo(
+          active,
+          { scale: 1 },
+          {
+            scale: 1.06,
+            duration: 0.4,
+            ease: 'power2.out',
+            yoyo: true,
+            repeat: 1,
+          },
+        );
+      }
+
+      // Animate connector lines
+      const lines = mapRef.current?.querySelectorAll('.connector-line') as
+        | NodeListOf<SVGLineElement>
+        | undefined;
+      lines?.forEach((line) => {
+        const total = Number.parseFloat(
+          line.getAttribute('stroke-dasharray') || '0',
+        );
+        gsap.to(line, {
+          strokeDashoffset: total,
+          duration: 0.4,
+          ease: 'power2.out',
+        });
+      });
+      const activeLine = mapRef.current?.querySelector(
+        `.connector-line[data-line="${id}"]`,
+      ) as SVGLineElement | null;
+      if (activeLine) {
+        gsap.to(activeLine, {
+          strokeDashoffset: 0,
+          duration: 0.8,
+          ease: 'power2.out',
+        });
+      }
+
+      // Pulse dot from center to active node
+      const idx = FEATURE_CATEGORIES.findIndex((c) => c.id === id);
+      if (idx >= 0 && pulseRef.current) {
+        gsap.fromTo(
+          pulseRef.current,
+          { x: 0, y: 0, opacity: 0.2, scale: 0.8 },
+          {
+            x: positions[idx].x,
+            y: positions[idx].y,
+            opacity: 1,
+            scale: 1,
+            duration: 0.6,
+            ease: 'power3.out',
+          },
+        );
+      }
+
+      // Dynamic color overlay tint per category
+      if (colorOverlayRef.current) {
+        const tint = getTintForCategory(id);
+        gsap.to(colorOverlayRef.current, {
+          background: tint,
+          duration: 0.4,
+          ease: 'power2.out',
+        });
+      }
+
+      setActiveCatId(id);
+    }
+
+    function getTintForCategory(catId: string): string {
+      switch (catId) {
+        case 'core':
+          return 'linear-gradient(135deg, rgba(255,118,0,0.12), rgba(0,0,0,0))';
+        case 'productivity':
+          return 'linear-gradient(135deg, rgba(0,46,93,0.12), rgba(0,0,0,0))';
+        case 'integration':
+          return 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(0,0,0,0))';
+        case 'advanced':
+          return 'linear-gradient(135deg, rgba(250,204,21,0.12), rgba(0,0,0,0))';
+        case 'eos':
+          return 'linear-gradient(135deg, rgba(244,63,94,0.12), rgba(0,0,0,0))';
+        case 'ui':
+          return 'linear-gradient(135deg, rgba(236,72,153,0.12), rgba(0,0,0,0))';
+        default:
+          return 'linear-gradient(135deg, rgba(255,118,0,0.08), rgba(0,0,0,0))';
+      }
+    }
+
+    return () => ctx.revert();
+  }, []);
+
+  // Precompute positions for category nodes around the center
+  const positions = useMemo(() => {
+    const r = 220; // radius
+    const cx = 0;
+    const cy = 0;
+    const total = FEATURE_CATEGORIES.length;
+    return FEATURE_CATEGORIES.map((_, i) => {
+      const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      return { x, y };
+    });
+  }, []);
 
   return (
     <div
@@ -517,18 +302,17 @@ export default function FeaturesPage() {
             <div className="max-w-4xl mx-auto">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-eos-orange/10 text-eos-orange text-sm font-medium mb-8 glass-morphism">
                 <Sparkles className="w-4 h-4" />
-                Complete Feature Overview
+                System Map & Capabilities
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-                Everything You Need for{' '}
-                <span className="gradient-text">EOS Success</span>
+                Explore How <span className="gradient-text">EOS AI</span> Fits
+                Together
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-                Discover the comprehensive suite of AI-powered tools and
-                features designed specifically for Entrepreneurial Operating
-                System implementation and mastery.
+                A cohesive view of chat, composer, RAG, voice, search, personas,
+                calendar and more—without the grid of cards.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -556,53 +340,141 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* Feature Categories */}
-        {featureCategories.map((category, categoryIndex) => (
-          <section
-            key={category.id}
-            className="py-16 md:py-20 relative overflow-hidden"
-          >
-            {categoryIndex % 2 === 1 && (
-              <div className="absolute inset-0 bg-muted/30" />
-            )}
+        {/* System Map + Scrollytelling */}
+        <section ref={mapSectionRef} className="py-16 md:py-24 relative">
+          <div className="container mx-auto px-4 md:px-6 grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+            {/* Pinned Map */}
+            <div ref={mapRef} className="map-pin lg:sticky lg:top-24">
+              <div className="relative h-[520px] glass-morphism rounded-3xl border border-border/40 flex items-center justify-center overflow-hidden">
+                {/* dynamic color overlay */}
+                <div
+                  ref={colorOverlayRef}
+                  className="absolute inset-0 pointer-events-none"
+                />
+                {/* center */}
+                <div className="relative z-10 w-40 h-40 rounded-full glass-morphism flex items-center justify-center shadow-glow">
+                  <Image
+                    src="/images/eosai.png"
+                    alt="EOS AI"
+                    width={96}
+                    height={32}
+                    className="object-contain"
+                  />
+                </div>
 
-            <div className="container mx-auto px-4 md:px-6 relative z-10">
-              <div className="text-center mb-16">
-                <h2 className="text-3xl md:text-4xl font-bold mb-4 gradient-text">
-                  {category.title}
-                </h2>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                  {category.description}
-                </p>
-              </div>
+                {/* orbiting nodes + connectors */}
+                <svg className="absolute inset-0" viewBox="-320 -320 640 640">
+                  <circle
+                    cx="0"
+                    cy="0"
+                    r="220"
+                    className="stroke-eos-orange/20 fill-transparent"
+                    strokeWidth="1"
+                  />
+                  {FEATURE_CATEGORIES.map((cat, i) => (
+                    <line
+                      key={`line-${cat.id}`}
+                      data-line={cat.id}
+                      x1={0}
+                      y1={0}
+                      x2={positions[i].x}
+                      y2={positions[i].y}
+                      stroke="currentColor"
+                      className="connector-line text-eos-orange/30"
+                      strokeWidth="1.5"
+                      strokeDasharray="240"
+                      strokeDashoffset="240"
+                    />
+                  ))}
+                </svg>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {category.features.map((feature, featureIndex) => {
-                  const IconComponent = feature.icon;
-                  return (
-                    <div
-                      key={`${category.id}-feature-${featureIndex}`}
-                      className="glass-morphism rounded-2xl p-6 depth-shadow card-3d group hover:shadow-glow-sm transition-all duration-300"
-                    >
-                      <div
-                        className={`mb-4 inline-flex p-3 rounded-lg bg-gradient-to-r ${category.color} text-white group-hover:scale-110 transition-transform duration-300`}
-                      >
-                        <IconComponent className="w-6 h-6" />
-                      </div>
+                {FEATURE_CATEGORIES.map((cat, i) => (
+                  <div
+                    key={cat.id}
+                    data-node={cat.id}
+                    className="node absolute w-28 h-28 rounded-2xl glass-morphism border border-border/40 flex items-center justify-center text-center px-3"
+                    style={{
+                      transform: `translate(${positions[i].x}px, ${positions[i].y}px)`,
+                    }}
+                  >
+                    <span className="text-xs font-medium">{cat.title}</span>
+                  </div>
+                ))}
 
-                      <h3 className="text-lg font-semibold mb-2 group-hover:text-eos-orange transition-colors duration-300">
-                        {feature.title}
-                      </h3>
-                      <p className="text-muted-foreground text-sm leading-relaxed">
-                        {feature.description}
-                      </p>
-                    </div>
-                  );
-                })}
+                {/* pulse dot */}
+                <div
+                  ref={pulseRef}
+                  className="absolute z-20 w-3 h-3 rounded-full bg-eos-orange shadow-glow"
+                  style={{ transform: 'translate(0px, 0px)' }}
+                />
+                {/* Active overlay */}
+                <div className="absolute bottom-4 left-4 right-4 glass-morphism rounded-2xl border border-border/40 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    {
+                      FEATURE_CATEGORIES.find((c) => c.id === activeCatId)
+                        ?.description
+                    }
+                  </p>
+                </div>
               </div>
             </div>
-          </section>
-        ))}
+
+            {/* Scroll Steps */}
+            <div ref={stepsRef} className="relative space-y-12">
+              {/* Progress rail */}
+              <div className="absolute left-[-12px] top-0 bottom-0 w-0.5 bg-border/50 rounded-full" />
+              <div className="rail-fill absolute left-[-12px] top-0 w-0.5 bg-eos-orange rounded-full h-0" />
+              {FEATURE_CATEGORIES.map((cat) => {
+                const items: Feature[] = allFeatures.filter(
+                  (f) => f.category === (cat.id as Feature['category']),
+                );
+                return (
+                  <div
+                    key={cat.id}
+                    data-step={cat.id}
+                    className="glass-morphism rounded-3xl p-8 border border-border/40"
+                  >
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-eos-orange/10 text-eos-orange text-xs font-medium mb-4">
+                      <Sparkles className="w-3.5 h-3.5" /> Category
+                    </div>
+                    <h3 className="text-2xl font-semibold mb-2">{cat.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {cat.description}
+                    </p>
+                    {items.length > 0 && (
+                      <ul className="text-sm text-muted-foreground space-y-2">
+                        {items.slice(0, 5).map((f) => (
+                          <li key={f.id} className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-eos-orange/70" />{' '}
+                            {f.title}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Quick capability strip */}
+              <div className="glass-morphism rounded-3xl p-6 border border-border/40">
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50">
+                    <Bot className="w-4 h-4" /> Streaming Chat
+                  </span>
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50">
+                    <Upload className="w-4 h-4" /> RAG Uploads
+                  </span>
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50">
+                    <SearchIcon className="w-4 h-4" /> Global Search
+                  </span>
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50">
+                    <Mic className="w-4 h-4" /> Voice Mode
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* CTA Section */}
         <section className="py-20 md:py-32 relative overflow-hidden">

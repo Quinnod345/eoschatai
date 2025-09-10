@@ -8,7 +8,7 @@ import {
   PencilEditIcon,
   ChartIcon,
 } from './icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { useComposer } from '@/hooks/use-composer';
 
 const getActionText = (

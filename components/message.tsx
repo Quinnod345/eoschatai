@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { memo, useState, useMemo, useEffect } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
-import { PencilEditIcon, AILoaderIcon } from './icons';
+import { PencilEditIcon, AILoaderIcon, AIActiveLoaderIcon } from './icons';
 import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
@@ -360,8 +360,21 @@ const PurePreviewMessage = ({
           );
 
           // Remove all document sections with a more comprehensive regex
+          // Make the end marker optional to handle legacy messages without explicit terminators
           cleanedText = cleanedText.replace(
-            /===\s+(?:PDF Content from|Word Document Content from|Spreadsheet Content from|Image Analysis for)[^=]+===[\s\S]*?(?:===\s+End of[^=]+===\s*)/gi,
+            /===\s+(?:PDF Content from|Word Document Content from|Spreadsheet Content from|Image Analysis for)[^=]+===[\s\S]*?(?:===\s+End of[^=]+===\s*)?/gi,
+            '',
+          );
+
+          // Extra defensive cleanup for any residual image analysis text blocks
+          cleanedText = cleanedText.replace(
+            /(?:^|\n)Description:[\s\S]*?(?:===\s*End\s*of\s*Image\s*Analysis\s*===\s*)/gi,
+            '',
+          );
+
+          // Remove any stray end markers left behind
+          cleanedText = cleanedText.replace(
+            /===\s*End\s*of\s*(?:PDF\s*Content|Word\s*Document\s*Content|Spreadsheet\s*Content|Image\s*Analysis)\s*===/gi,
             '',
           );
 
@@ -434,9 +447,9 @@ const PurePreviewMessage = ({
           )}
         >
           {message.role === 'assistant' && (
-            <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
+            <div className="size-8 flex items-center rounded-full justify-center shrink-0 bg-background">
               <div className="translate-y-px">
-                <AILoaderIcon size={14} />
+                <AILoaderIcon size={40} />
               </div>
             </div>
           )}
@@ -448,13 +461,11 @@ const PurePreviewMessage = ({
           >
             {/* Show inline upload preview for user messages */}
             {message.role === 'user' &&
-              (pdfContents.length > 0 ||
-                documentContents.length > 0 ||
-                imageAnalyses.length > 0) && (
+              (pdfContents.length > 0 || documentContents.length > 0) && (
                 <InlineUploadPreview
                   pdfContents={pdfContents}
                   documentContents={documentContents}
-                  imageAnalyses={imageAnalyses}
+                  imageAnalyses={[]}
                   isUserMessage={true}
                 />
               )}
@@ -477,13 +488,11 @@ const PurePreviewMessage = ({
 
             {/* Show inline upload preview for assistant messages */}
             {message.role === 'assistant' &&
-              (pdfContents.length > 0 ||
-                documentContents.length > 0 ||
-                imageAnalyses.length > 0) && (
+              (pdfContents.length > 0 || documentContents.length > 0) && (
                 <InlineUploadPreview
                   pdfContents={pdfContents}
                   documentContents={documentContents}
-                  imageAnalyses={imageAnalyses}
+                  imageAnalyses={[]}
                   isUserMessage={false}
                 />
               )}
@@ -756,6 +765,7 @@ const PurePreviewMessage = ({
                 isLoading={isLoading}
                 onPin={onPin}
                 onReply={onReply}
+                onEdit={() => setMode('edit')}
                 isPinned={isPinned}
               />
             )}
@@ -920,8 +930,8 @@ export const ThinkingMessage = ({
           },
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border animate-pulse">
-          <AILoaderIcon size={14} />
+        <div className="size-8 flex items-center rounded-full justify-center shrink-0">
+          <AIActiveLoaderIcon size={40} />
         </div>
 
         <div className="flex flex-col gap-2 w-full">

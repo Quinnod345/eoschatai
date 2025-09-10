@@ -55,7 +55,6 @@ export async function POST(request: Request) {
             ],
           },
         ],
-        max_tokens: 1000,
       });
 
       const analysisResult = visionResponse.choices[0]?.message?.content || '';
@@ -78,7 +77,6 @@ export async function POST(request: Request) {
           },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 1500,
       });
 
       const parsedResult = JSON.parse(

@@ -13,7 +13,7 @@ import React, { memo, useEffect, useRef, useState, useCallback } from 'react';
 import type { Suggestion } from '@/lib/db/schema';
 import { Button } from './ui/button';
 import { SparklesIcon, CodeIcon, WarningIcon, RocketIcon } from './icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 type EnhancedCodeEditorProps = {
   content: string;

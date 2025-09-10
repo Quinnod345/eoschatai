@@ -205,18 +205,19 @@ export function ProfilesDropdown({
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="outline"
+              variant="ghost"
               className={`
                 relative overflow-hidden group
                 h-9 px-3 md:h-10 md:px-4
-                border-2 border-transparent
-                bg-gradient-to-r from-background to-background/80
+                border-2 
+                !bg-zinc-50 dark:!bg-zinc-800
+                border-zinc-200 dark:border-zinc-700
                 ${selectedTheme.hoverBg}
+                hover:!bg-zinc-100 dark:hover:!bg-zinc-700
                 hover:${selectedTheme.borderColor}
                 transition-all duration-300 ease-out
                 shadow-sm hover:shadow-md
-                backdrop-blur-sm
-                ${isOpen ? `${selectedTheme.borderColor} bg-opacity-5` : ''}
+                ${isOpen ? `${selectedTheme.borderColor} !bg-eos-orange/5 dark:!bg-eos-orange/10` : ''}
                 ${selectedProfile ? `ring-2 ring-opacity-20 ${selectedTheme.borderColor.replace('border-', 'ring-')}` : ''}
               `}
               disabled={disabled || isLoading}

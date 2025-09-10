@@ -357,7 +357,7 @@ export async function executeNexusSearch(
                 // Emit detailed search progress
                 dataStream.writeData({
                   type: 'nexus-search-detail',
-                  searchIndex: searchIndex,
+                  searchIndex: searchIndex as number,
                   query: searchQuery,
                   status: progress.status,
                   sitesFound: progress.sitesFound ?? 0,
@@ -368,7 +368,9 @@ export async function executeNexusSearch(
                   sourcesFound,
                   streamId: state.streamId,
                   // Include cost estimation for better transparency
-                  costEstimate: progress.costEstimate,
+                  ...(progress.costEstimate
+                    ? { costEstimate: progress.costEstimate }
+                    : {}),
                 });
               },
               searchIndex,

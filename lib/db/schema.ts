@@ -141,6 +141,40 @@ export const vote = pgTable(
 
 export type Vote = InferSelectModel<typeof vote>;
 
+// Feedback table for detailed user feedback on messages
+export const feedback = pgTable(
+  'Feedback',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    chatId: uuid('chatId')
+      .notNull()
+      .references(() => chat.id),
+    messageId: uuid('messageId')
+      .notNull()
+      .references(() => message.id),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    isPositive: boolean('isPositive').notNull(), // true for thumbs up, false for thumbs down
+    category: varchar('category', {
+      enum: ['accuracy', 'helpfulness', 'tone', 'length', 'clarity', 'other'],
+    }),
+    description: text('description'), // Detailed feedback text
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      userMessageIdx: index('feedback_user_message_idx').on(
+        table.userId,
+        table.messageId,
+      ),
+      chatIdx: index('feedback_chat_idx').on(table.chatId),
+    };
+  },
+);
+
+export type Feedback = InferSelectModel<typeof feedback>;
+
 export const pinnedMessage = pgTable(
   'PinnedMessage',
   {
@@ -200,7 +234,7 @@ export const document = pgTable('Document', {
   title: text('title').notNull(),
   content: text('content'),
   kind: varchar('kind', {
-    enum: ['text', 'code', 'image', 'sheet', 'chart', 'vto'],
+    enum: ['text', 'code', 'image', 'sheet', 'chart', 'vto', 'accountability'],
   })
     .notNull()
     .default('text'),
@@ -311,7 +345,40 @@ export const userSettings = pgTable('UserSettings', {
   selectedPersonaId: uuid('selectedPersonaId'),
   selectedProfileId: uuid('selectedProfileId'),
   selectedResearchMode: text('selectedResearchMode').default('off'),
+  // Primary bindings for key EOS artifacts
+  primaryAccountabilityId: uuid('primaryAccountabilityId'),
+  primaryVtoId: uuid('primaryVtoId'),
+  primaryScorecardId: uuid('primaryScorecardId'),
+  currentBundleId: uuid('currentBundleId'),
+  // Context settings
+  contextDocumentIds: jsonb('contextDocumentIds'), // array of Document.id strings
+  contextComposerDocumentIds: jsonb('contextComposerDocumentIds'), // array of composer Document.id strings
+  usePrimaryDocsForContext: boolean('usePrimaryDocsForContext').default(true),
+  usePrimaryDocsForPersona: boolean('usePrimaryDocsForPersona').default(true),
+  personaContextDocumentIds: jsonb('personaContextDocumentIds'),
 });
+
+export const bundleDocument = pgTable(
+  'BundleDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    bundleId: uuid('bundleId').notNull(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueBinding: uniqueIndex('bundle_user_doc_unique').on(
+      table.userId,
+      table.bundleId,
+      table.documentId,
+    ),
+  }),
+);
 
 export const userDocuments = pgTable('UserDocuments', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
@@ -323,7 +390,7 @@ export const userDocuments = pgTable('UserDocuments', {
   fileSize: integer('fileSize').notNull(),
   fileType: varchar('fileType', { length: 255 }).notNull(),
   category: varchar('category', {
-    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process'],
+    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process', 'Other'],
   }).notNull(),
   content: text('content').notNull(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
@@ -460,6 +527,97 @@ export const voiceTranscript = pgTable('VoiceTranscript', {
 });
 
 export type VoiceTranscript = InferSelectModel<typeof voiceTranscript>;
+
+// L10 Meeting tables for EOS Level 10 meetings
+export const l10Meeting = pgTable('L10Meeting', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  composerId: varchar('composerId', { length: 255 }).notNull(), // AC composer instance ID
+  title: varchar('title', { length: 255 }).notNull(),
+  date: timestamp('date').notNull(),
+  status: varchar('status', { enum: ['active', 'completed', 'archived'] })
+    .notNull()
+    .default('active'),
+  attendees: json('attendees').notNull(), // Array of seat IDs
+  rating: integer('rating'), // 1-10 meeting rating
+  notes: text('notes'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export type L10Meeting = InferSelectModel<typeof l10Meeting>;
+
+// L10 Agenda Items table
+export const l10AgendaItem = pgTable('L10AgendaItem', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  meetingId: uuid('meetingId')
+    .notNull()
+    .references(() => l10Meeting.id, { onDelete: 'cascade' }),
+  type: varchar('type', {
+    enum: [
+      'segue',
+      'scorecard',
+      'rocks',
+      'headlines',
+      'todo',
+      'ids',
+      'conclusion',
+    ],
+  }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  duration: integer('duration').notNull(), // Expected duration in minutes
+  actualDuration: integer('actualDuration'), // Actual duration in seconds
+  completed: boolean('completed').notNull().default(false),
+  notes: text('notes'),
+  recordingId: uuid('recordingId').references(() => voiceRecording.id),
+  startTime: timestamp('startTime'),
+  endTime: timestamp('endTime'),
+  orderIndex: integer('orderIndex').notNull(),
+});
+
+export type L10AgendaItem = InferSelectModel<typeof l10AgendaItem>;
+
+// L10 Issues table
+export const l10Issue = pgTable('L10Issue', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  meetingId: uuid('meetingId')
+    .notNull()
+    .references(() => l10Meeting.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  priority: varchar('priority', { enum: ['high', 'medium', 'low'] })
+    .notNull()
+    .default('medium'),
+  status: varchar('status', {
+    enum: ['identified', 'discussing', 'solving', 'solved'],
+  })
+    .notNull()
+    .default('identified'),
+  owner: varchar('owner', { length: 255 }), // Seat ID
+  recordingId: uuid('recordingId').references(() => voiceRecording.id),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  resolvedAt: timestamp('resolvedAt'),
+});
+
+export type L10Issue = InferSelectModel<typeof l10Issue>;
+
+// L10 ToDos table
+export const l10Todo = pgTable('L10Todo', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  meetingId: uuid('meetingId')
+    .notNull()
+    .references(() => l10Meeting.id, { onDelete: 'cascade' }),
+  task: text('task').notNull(),
+  owner: varchar('owner', { length: 255 }).notNull(), // Seat ID
+  dueDate: timestamp('dueDate'),
+  completed: boolean('completed').notNull().default(false),
+  completedAt: timestamp('completedAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+});
+
+export type L10Todo = InferSelectModel<typeof l10Todo>;
 
 // Nexus Research tables for storing research sessions and results
 export const nexusResearchSession = pgTable('NexusResearchSession', {

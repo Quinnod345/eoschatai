@@ -22,7 +22,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/0 backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'fixed inset-0 z-[2147483646] bg-black/0 backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}
     {...props}
@@ -41,18 +41,20 @@ const DialogContent = React.forwardRef<
 >(({ className, children, hideCloseButton = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content asChild>
+    <DialogPrimitive.Content
+      ref={ref}
+      className="fixed inset-0 z-[2147483647] grid place-items-center p-4"
+      {...props}
+    >
       <motion.div
-        ref={ref as any}
         initial={{ opacity: 0, scale: 0.98, y: -6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: -6 }}
         transition={{ type: 'spring', stiffness: 350, damping: 26 }}
         className={cn(
-          'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 bg-background/80 p-6 shadow-enhanced backdrop-blur-[10px] border border-white/30 dark:border-zinc-700/30 sm:rounded-2xl',
+          'relative w-full max-w-lg gap-4 bg-background/80 p-6 shadow-enhanced backdrop-blur-[10px] border border-white/30 dark:border-zinc-700/30 sm:rounded-2xl pointer-events-auto',
           className,
         )}
-        {...(props as any)}
       >
         {children}
         {!hideCloseButton && (

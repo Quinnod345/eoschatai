@@ -1377,44 +1377,96 @@ export function Chat({
     // If creating a new composer, set up a blank composer and show the panel.
     if (newKind) {
       const newDocumentId = generateUUID();
+
+      // For accountability charts, generate a proper title
+      const generatedTitle =
+        newKind === 'accountability'
+          ? `${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} Accountability Chart`
+          : newTitle || 'Untitled';
+
       setComposer((current) => ({
         ...current,
         kind: newKind,
-        title: newTitle || 'Untitled',
+        title: generatedTitle,
         documentId: newDocumentId,
         content: '',
         isVisible: true,
         status: 'idle',
       }));
 
-      // Create empty composer in database
-      fetch(`/api/document?id=${newDocumentId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle || 'Untitled',
-          kind: newKind,
-          content: '',
-        }),
-      })
-        .then(async (res) => {
-          if (res.ok) {
-            console.log('[ARTIFACT DEBUG] Empty composer saved to database:', {
-              id: newDocumentId,
-              kind: newKind,
-              title: newTitle || 'Untitled',
-            });
-          } else {
-            console.error('[ARTIFACT DEBUG] Failed to save composer:', {
-              status: res.status,
-              statusText: res.statusText,
-              text: await res.text(),
-            });
-          }
+      // Create composer via AI generation for accountability charts
+      if (newKind === 'accountability') {
+        // Use the composer edit API to generate initial content with AI
+        fetch('/api/composer/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'create',
+            id: newDocumentId,
+            title: generatedTitle,
+            kind: newKind,
+          }),
         })
-        .catch((error) => {
-          console.error('[ARTIFACT DEBUG] Error saving composer:', error);
-        });
+          .then(async (res) => {
+            if (res.ok) {
+              const data = await res.json();
+              console.log(
+                '[ARTIFACT DEBUG] AC composer created with AI:',
+                data,
+              );
+              // Update the composer with the generated content
+              setComposer((current) => ({
+                ...current,
+                content: data.content || '',
+                title: data.title || generatedTitle,
+              }));
+            } else {
+              console.error('[ARTIFACT DEBUG] Failed to create AC composer:', {
+                status: res.status,
+                statusText: res.statusText,
+                text: await res.text(),
+              });
+            }
+          })
+          .catch((error) => {
+            console.error(
+              '[ARTIFACT DEBUG] Error creating AC composer:',
+              error,
+            );
+          });
+      } else {
+        // For other types, create empty composer in database
+        fetch(`/api/document?id=${newDocumentId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: generatedTitle,
+            kind: newKind,
+            content: '',
+          }),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              console.log(
+                '[ARTIFACT DEBUG] Empty composer saved to database:',
+                {
+                  id: newDocumentId,
+                  kind: newKind,
+                  title: generatedTitle,
+                },
+              );
+            } else {
+              console.error('[ARTIFACT DEBUG] Failed to save composer:', {
+                status: res.status,
+                statusText: res.statusText,
+                text: await res.text(),
+              });
+            }
+          })
+          .catch((error) => {
+            console.error('[ARTIFACT DEBUG] Error saving composer:', error);
+          });
+      }
 
       // Remove the param so refreshes don't re-trigger
       url.searchParams.delete('newComposerKind');

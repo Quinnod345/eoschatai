@@ -9,7 +9,7 @@ import {
   RedoIcon,
   UndoIcon,
 } from '@/components/icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { generateUUID } from '@/lib/utils';
 import {
   Console,

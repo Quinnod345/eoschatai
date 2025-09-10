@@ -19,7 +19,7 @@ import type { Persona, PersonaProfile } from '@/lib/db/schema';
 import { AdvancedSearch } from '@/components/advanced-search';
 import { Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { SavedContentDropdown } from '@/components/saved-content-dropdown';
 import type { UIMessage } from 'ai';
 
@@ -236,95 +236,100 @@ function PureChatHeader({
 
   return (
     <>
-      <header className="flex sticky top-0 bg-background py-1.5 items-center px-2 md:px-2 gap-1 md:gap-2 z-50">
-        {/* Left Section - Navigation */}
-        <div className="flex items-center gap-1 md:gap-2">
-          <SidebarToggle />
+      <header className="absolute top-0 left-0 right-0 py-1.5 px-2 md:px-2 z-40 bg-transparent pointer-events-none">
+        <div className="flex items-center gap-1 md:gap-2 w-full">
+          {/* Left Section - Navigation */}
+          <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
+            <SidebarToggle />
 
-          {/* EOS Personas Dropdown */}
-          <PersonasDropdown
-            selectedPersonaId={selectedPersonaId}
-            onPersonaSelect={handlePersonaSelect}
-            onCreatePersona={handleCreatePersona}
-            onEditPersona={handleEditPersona}
-          />
-
-          {/* EOS Profiles Dropdown - only show when a persona is selected */}
-          <ProfilesDropdown
-            selectedPersonaId={selectedPersonaId || null}
-            selectedProfileId={selectedProfileId || null}
-            onProfileSelect={handleProfileSelect}
-            onCreateProfile={handleCreateProfile}
-            onEditProfile={handleEditProfile}
-            disabled={!selectedPersonaId}
-          />
-        </div>
-
-        {/* Center Section - Tools (only when sidebar closed or mobile) */}
-        {shouldShowCenterTools && (
-          <div className="flex items-center gap-1 md:gap-2">
-            <AdvancedSearch />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-2 md:px-3"
-                  onClick={() => {
-                    router.push('/chat');
-                    router.refresh();
-                  }}
-                >
-                  <PlusIcon size={16} />
-                  <span className="hidden md:inline ml-1">New Chat</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New Chat</TooltipContent>
-            </Tooltip>
-          </div>
-        )}
-
-        {/* Right Section - Actions */}
-        <div className="flex items-center gap-1 md:gap-2 ml-auto">
-          {/* Saved Content Dropdown */}
-          {isUserAuthenticated && (
-            <SavedContentDropdown
-              currentChatId={chatId}
-              messages={messages || []}
-              onScrollToMessage={onScrollToMessage || (() => {})}
+            {/* EOS Personas Dropdown */}
+            <PersonasDropdown
+              selectedPersonaId={selectedPersonaId}
+              onPersonaSelect={handlePersonaSelect}
+              onCreatePersona={handleCreatePersona}
+              onEditPersona={handleEditPersona}
             />
+
+            {/* EOS Profiles Dropdown - only show when a persona is selected */}
+            <ProfilesDropdown
+              selectedPersonaId={selectedPersonaId || null}
+              selectedProfileId={selectedProfileId || null}
+              onProfileSelect={handleProfileSelect}
+              onCreateProfile={handleCreateProfile}
+              onEditProfile={handleEditProfile}
+              disabled={!selectedPersonaId}
+            />
+          </div>
+
+          {/* Center Section - Tools (only when sidebar closed or mobile) */}
+          {shouldShowCenterTools && (
+            <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
+              <AdvancedSearch />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-2 md:px-3 border border-zinc-200 dark:border-zinc-700 !bg-zinc-50 dark:!bg-zinc-800 hover:!bg-zinc-100 dark:hover:!bg-zinc-700"
+                    onClick={() => {
+                      router.push('/chat');
+                      router.refresh();
+                    }}
+                  >
+                    <PlusIcon size={16} />
+                    <span className="hidden md:inline ml-1">New Chat</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Chat</TooltipContent>
+              </Tooltip>
+            </div>
           )}
 
-          {/* Bookmark Button */}
-          {shouldShowBookmark && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn('h-9 w-9 p-0', isBookmarked && 'text-blue-500')}
-                  onClick={handleBookmarkToggle}
-                  disabled={isBookmarkLoading}
-                >
-                  <Bookmark
+          {/* Right Section - Actions */}
+          <div className="flex items-center gap-1 md:gap-2 ml-auto pointer-events-auto">
+            {/* Saved Content Dropdown */}
+            {isUserAuthenticated && (
+              <SavedContentDropdown
+                currentChatId={chatId}
+                messages={messages || []}
+                onScrollToMessage={onScrollToMessage || (() => {})}
+              />
+            )}
+
+            {/* Bookmark Button */}
+            {shouldShowBookmark && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className={cn(
-                      'h-4 w-4 transition-all',
-                      isBookmarked && 'fill-current',
+                      'h-9 w-9 p-0',
+                      isBookmarked && 'text-blue-500',
                     )}
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}
-              </TooltipContent>
-            </Tooltip>
-          )}
+                    onClick={handleBookmarkToggle}
+                    disabled={isBookmarkLoading}
+                  >
+                    <Bookmark
+                      className={cn(
+                        'h-4 w-4 transition-all',
+                        isBookmarked && 'fill-current',
+                      )}
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-          {/* User account button */}
-          {isUserAuthenticated && (
-            <SidebarUserNav user={session.user} className="header-user-nav" />
-          )}
+            {/* User account button */}
+            {isUserAuthenticated && (
+              <SidebarUserNav user={session.user} className="header-user-nav" />
+            )}
+          </div>
         </div>
       </header>
 

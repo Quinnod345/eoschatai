@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patent Specification Technical Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            page-break-before: always;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+        h3 {
+            color: #7f8c8d;
+            margin-top: 20px;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+            page-break-inside: avoid;
+            min-height: 200px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        p {
+            text-align: justify;
+            margin: 15px 0;
+        }
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        @media print {
+            body {
+                max-width: 100%;
+                margin: 0;
+                padding: 20px;
+            }
+            h1 {
+                page-break-before: always;
+            }
+            .mermaid {
+                page-break-inside: avoid;
+            }
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        hr {
+            margin: 40px 0;
+            border: none;
+            border-top: 2px solid #ecf0f1;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#e1f5fe',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#7C8E9A',
+                lineColor: '#5C6BC0',
+                secondaryColor: '#fff3e0',
+                tertiaryColor: '#f3e5f5',
+                background: 'white',
+                mainBkg: '#e8f5e8',
+                secondBkg: '#fce4ec',
+                tertiaryBkg: '#f0f4c3'
+            },
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 15
+            },
+            classDiagram: {
+                padding: 15
+            },
+            graph: {
+                padding: 15
+            },
+            securityLevel: 'loose'
+        });
+    </script>
+<h1>Patent Specification Technical Diagrams</h1>
+<h2>EOS AI Bot: Preflight Screening and Artifact System Architecture</h2><hr><h2>FIG. 8: Preflight Screening Process Flow</h2><h3>Detailed Preflight Query Analysis and Model Selection</h3><pre class="mermaid">flowchart TD
+    %% Start
+    UserQuery[User Query Input] --&gt; PreflightModule[Preflight Screening Module&lt;br/&gt;GPT-4.1-nano]
+    
+    %% Feature Extraction
+    PreflightModule --&gt; FeatureExtract[Query Feature Extraction&lt;br/&gt;50ms]
+    
+    FeatureExtract --&gt; FE1[Text Length Analysis]
+    FeatureExtract --&gt; FE2[Linguistic Complexity Score]
+    FeatureExtract --&gt; FE3[Code Block Detection]
+    FeatureExtract --&gt; FE4[Mathematical Expression Check]
+    FeatureExtract --&gt; FE5[Semantic Depth Indicators]
+    
+    %% Context Evaluation
+    FE1 &amp; FE2 &amp; FE3 &amp; FE4 &amp; FE5 --&gt; ContextEval[Conversation Context Evaluation&lt;br/&gt;30ms]
+    
+    ContextEval --&gt; CE1[Active Artifacts Check]
+    ContextEval --&gt; CE2[Conversation Mode&lt;br/&gt;Standard/Nexus]
+    ContextEval --&gt; CE3[Historical Patterns]
+    ContextEval --&gt; CE4[User Profile Type]
+    
+    %% Rapid Analysis
+    CE1 &amp; CE2 &amp; CE3 &amp; CE4 --&gt; RapidAnalysis[Nano Model Analysis&lt;br/&gt;100ms]
+    
+    RapidAnalysis --&gt; AnalysisFactors[Multi-Factor Decision Matrix]
+    
+    %% Decision Factors
+    AnalysisFactors --&gt; DF1[Query Complexity Score: 0-10]
+    AnalysisFactors --&gt; DF2[Technical Content: Boolean]
+    AnalysisFactors --&gt; DF3[Expected Response Depth: 1-5]
+    AnalysisFactors --&gt; DF4[Resource Requirements: Low/Med/High]
+    
+    %% Model Selection
+    DF1 &amp; DF2 &amp; DF3 &amp; DF4 --&gt; ModelSelect{Model Selection&lt;br/&gt;Decision Engine}
+    
+    ModelSelect --&gt;|Simple Query&lt;br/&gt;Score 0-2| GPT41[GPT-4.1 Standard]
+    ModelSelect --&gt;|Complex Query&lt;br/&gt;Score 3-7| GPT41Heavy[GPT-4.1 Enhanced]
+    ModelSelect --&gt;|Advanced Query&lt;br/&gt;Score 8-10| GPT5[GPT-5]
+    ModelSelect --&gt;|Extreme Complexity&lt;br/&gt;Plus Reasoning| GPT5Think[GPT-5 with Thinking]
+    
+    %% Token Allocation
+    DF1 &amp; DF2 &amp; DF3 &amp; DF4 --&gt; TokenAlloc{Token Budget&lt;br/&gt;Allocation Engine}
+    
+    TokenAlloc --&gt;|Minimal| T1[200-400 tokens&lt;br/&gt;Brief responses]
+    TokenAlloc --&gt;|Light| T2[400-900 tokens&lt;br/&gt;Standard answers]
+    TokenAlloc --&gt;|Standard| T3[900-1800 tokens&lt;br/&gt;Detailed guidance]
+    TokenAlloc --&gt;|Comprehensive| T4[1800-3200 tokens&lt;br/&gt;In-depth analysis]
+    TokenAlloc --&gt;|Extensive| T5[3200-6000 tokens&lt;br/&gt;Complex solutions]
+    TokenAlloc --&gt;|Massive| T6[6000-12000 tokens&lt;br/&gt;Exhaustive coverage]
+    
+    %% Intelligence Signals
+    subgraph ISP[Intelligence Signal Processing]
+        IS1[Keywords: comprehensive,&lt;br/&gt;in-depth, step-by-step]
+        IS2[Code/Math Detection:&lt;br/&gt;Plus 30-40% tokens]
+        IS3[Multi-part Requests:&lt;br/&gt;Plus 50% tokens]
+        IS4[Quick/Brief/Summary:&lt;br/&gt;Minus 50% tokens]
+    end
+    
+    IS1 &amp; IS2 &amp; IS3 &amp; IS4 --&gt; TokenAlloc
+    
+    %% Preflight Decision Output
+    GPT41 &amp; GPT41Heavy &amp; GPT5 &amp; GPT5Think --&gt; PreflightDecision[Preflight Decision Package]
+    T1 &amp; T2 &amp; T3 &amp; T4 &amp; T5 &amp; T6 --&gt; PreflightDecision
+    
+    PreflightDecision --&gt; MainPipeline[Main Processing Pipeline&lt;br/&gt;with Optimized Resources]
+    
+    %% Performance Metrics
+    PreflightModule -.-&gt; Metrics[Performance Metrics&lt;br/&gt;Under 200ms total]
+    Metrics --&gt; M1[Feature Extraction: 50ms]
+    Metrics --&gt; M2[Context Evaluation: 30ms]
+    Metrics --&gt; M3[Model Analysis: 100ms]
+    Metrics --&gt; M4[Decision Output: 20ms]
+    
+    %% Styling
+    style UserQuery fill:#e1f5fe
+    style PreflightModule fill:#fff3e0
+    style RapidAnalysis fill:#f3e5f5
+    style ModelSelect fill:#e8f5e8
+    style TokenAlloc fill:#fce4ec
+    style PreflightDecision fill:#f0f4c3
+    style MainPipeline fill:#e8eaf6
+    style Metrics fill:#ffebee</pre><h3>Preflight Decision Logic Detail</h3><pre class="mermaid">graph LR
+    %% Query Analysis
+    Query[User Query] --&gt; Analyzer[Query Analyzer]
+    
+    Analyzer --&gt; ComplexityScore{Complexity Score}
+    
+    ComplexityScore --&gt;|0-2| Simple[Simple Query&lt;br/&gt;- Yes/No questions&lt;br/&gt;- Basic definitions&lt;br/&gt;- Quick lookups]
+    ComplexityScore --&gt;|3-5| Moderate[Moderate Query&lt;br/&gt;- Implementation steps&lt;br/&gt;- Tool explanations&lt;br/&gt;- Process guidance]
+    ComplexityScore --&gt;|6-8| Complex[Complex Query&lt;br/&gt;- Multi-step reasoning&lt;br/&gt;- Strategic planning&lt;br/&gt;- Integration scenarios]
+    ComplexityScore --&gt;|9-10| Extreme[Extreme Query&lt;br/&gt;- Enterprise planning&lt;br/&gt;- Mathematical proofs&lt;br/&gt;- System architecture]
+    
+    %% Model Mapping
+    Simple --&gt; ModelSimple[GPT-4.1&lt;br/&gt;200-900 tokens]
+    Moderate --&gt; ModelModerate[GPT-4.1&lt;br/&gt;900-3200 tokens]
+    Complex --&gt; ModelComplex[GPT-5&lt;br/&gt;3200-6000 tokens]
+    Extreme --&gt; ModelExtreme[GPT-5 + Thinking&lt;br/&gt;6000-12000 tokens]
+    
+    %% Special Cases
+    subgraph SC[Special Case Handling]
+        SC1[Code Present: +40% tokens]
+        SC2[Math Present: +40% tokens]
+        SC3[Artifact Open: Consider UI space]
+        SC4[Nexus Mode: Higher baseline]
+    end
+    
+    SC1 &amp; SC2 &amp; SC3 &amp; SC4 -.-&gt; ModelSimple
+    SC1 &amp; SC2 &amp; SC3 &amp; SC4 -.-&gt; ModelModerate
+    SC1 &amp; SC2 &amp; SC3 &amp; SC4 -.-&gt; ModelComplex
+    SC1 &amp; SC2 &amp; SC3 &amp; SC4 -.-&gt; ModelExtreme</pre><hr><h2>FIG. 9: Artifact System Architecture</h2><h3>Comprehensive Artifact Generation and Management System</h3><pre class="mermaid">flowchart TB
+    %% Core Module
+    AGM[Artifact Generation Module&lt;br/&gt;components/artifact.tsx] --&gt; Coordinator[Artifact Coordinator&lt;br/&gt;Type Detection &amp; Routing]
+    
+    %% Artifact Type Detection
+    Coordinator --&gt; TypeDetect{Artifact Type&lt;br/&gt;Detection Engine}
+    
+    TypeDetect --&gt;|Text Request| TextEngine[Text Editor Engine&lt;br/&gt;artifacts/text/client.tsx]
+    TypeDetect --&gt;|Code Request| CodeEngine[Code Editor Engine&lt;br/&gt;artifacts/code/client.tsx]
+    TypeDetect --&gt;|Data/Table| SpreadEngine[Spreadsheet Engine&lt;br/&gt;artifacts/sheet/client.tsx]
+    TypeDetect --&gt;|Visualization| ChartEngine[Chart Renderer&lt;br/&gt;artifacts/chart/client.tsx]
+    TypeDetect --&gt;|Image Request| ImageEngine[Image Generator&lt;br/&gt;artifacts/image/client.tsx]
+    TypeDetect --&gt;|V/TO Request| VTOEngine[V/TO Builder&lt;br/&gt;artifacts/vto/client.tsx]
+    
+    %% Text Editor Features
+    TextEngine --&gt; TE1[Rich Text Formatting&lt;br/&gt;Markdown Support]
+    TextEngine --&gt; TE2[Real-time Collaboration&lt;br/&gt;Conflict Resolution]
+    TextEngine --&gt; TE3[Version History&lt;br/&gt;Change Tracking]
+    
+    %% Code Editor Features
+    CodeEngine --&gt; CE1[Monaco Editor Core&lt;br/&gt;VS Code Engine]
+    CodeEngine --&gt; CE2[Syntax Highlighting&lt;br/&gt;50+ Languages]
+    CodeEngine --&gt; CE3[IntelliSense&lt;br/&gt;Auto-completion]
+    CodeEngine --&gt; CE4[Multi-file Support&lt;br/&gt;Project Structure]
+    
+    %% Spreadsheet Features
+    SpreadEngine --&gt; SE1[Formula Engine&lt;br/&gt;Excel Compatible]
+    SpreadEngine --&gt; SE2[Cell Formatting&lt;br/&gt;Conditional Styles]
+    SpreadEngine --&gt; SE3[Data Validation&lt;br/&gt;Input Controls]
+    SpreadEngine --&gt; SE4[Pivot Tables&lt;br/&gt;Data Analysis]
+    
+    %% Chart Features
+    ChartEngine --&gt; CHE1[Chart.js Core&lt;br/&gt;Dynamic Rendering]
+    ChartEngine --&gt; CHE2[Multiple Chart Types&lt;br/&gt;Line/Bar/Pie/Scatter]
+    ChartEngine --&gt; CHE3[Interactive Controls&lt;br/&gt;Zoom/Pan/Filter]
+    ChartEngine --&gt; CHE4[Real-time Updates&lt;br/&gt;Live Data Binding]
+    
+    %% Image Features
+    ImageEngine --&gt; IE1[AI Generation&lt;br/&gt;DALL-E Integration]
+    ImageEngine --&gt; IE2[Style Controls&lt;br/&gt;Artistic Parameters]
+    ImageEngine --&gt; IE3[Resolution Options&lt;br/&gt;Quality Settings]
+    
+    %% V/TO Builder Features
+    VTOEngine --&gt; VE1[EOS Structure&lt;br/&gt;All 8 Components]
+    VTOEngine --&gt; VE2[Interactive Forms&lt;br/&gt;Guided Input]
+    VTOEngine --&gt; VE3[Validation Rules&lt;br/&gt;EOS Compliance]
+    VTOEngine --&gt; VE4[PDF Generation&lt;br/&gt;Professional Output]
+    
+    %% Shared Systems
+    TextEngine &amp; CodeEngine &amp; SpreadEngine &amp; ChartEngine &amp; ImageEngine &amp; VTOEngine --&gt; SharedSystems[Shared Infrastructure]
+    
+    SharedSystems --&gt; Version[Version Control System&lt;br/&gt;lib/artifacts/version-control.ts]
+    SharedSystems --&gt; Export[Export Module&lt;br/&gt;lib/artifacts/export.ts]
+    SharedSystems --&gt; Stream[Streaming Protocol&lt;br/&gt;lib/artifacts/streaming.ts]
+    SharedSystems --&gt; Persist[Persistence Layer&lt;br/&gt;lib/db/artifacts.ts]
+    SharedSystems --&gt; Collab[Collaboration Engine&lt;br/&gt;lib/artifacts/collaboration.ts]
+    
+    %% Version Control Detail
+    Version --&gt; VC1[Change Tracking&lt;br/&gt;Diff Generation]
+    Version --&gt; VC2[Branch Management&lt;br/&gt;Merge Conflicts]
+    Version --&gt; VC3[Rollback Support&lt;br/&gt;History Navigation]
+    
+    %% Export Options
+    Export --&gt; EX1[PDF Export&lt;br/&gt;Print-ready]
+    Export --&gt; EX2[Word/Excel&lt;br/&gt;Native Formats]
+    Export --&gt; EX3[JSON/CSV&lt;br/&gt;Data Exchange]
+    Export --&gt; EX4[Image Export&lt;br/&gt;PNG/JPEG/SVG]
+    
+    %% Streaming Detail
+    Stream --&gt; ST1[WebSocket Protocol&lt;br/&gt;Real-time Updates]
+    Stream --&gt; ST2[Chunk Management&lt;br/&gt;Progressive Rendering]
+    Stream --&gt; ST3[Error Recovery&lt;br/&gt;Resilient Streaming]
+    
+    %% Persistence Detail
+    Persist --&gt; DB[(PostgreSQL&lt;br/&gt;Artifact Storage)]
+    Persist --&gt; Cache[(Redis Cache&lt;br/&gt;Performance Layer)]
+    Persist --&gt; S3[(S3 Storage&lt;br/&gt;Large Files)]
+    
+    %% UI Integration
+    SharedSystems --&gt; UILayer[UI Integration Layer]
+    UILayer --&gt; SidePanel[Side Panel View&lt;br/&gt;components/artifact-panel.tsx]
+    UILayer --&gt; FullScreen[Full Screen Mode&lt;br/&gt;Immersive Editing]
+    UILayer --&gt; Preview[Preview Mode&lt;br/&gt;Read-only Display]
+    
+    %% Styling
+    style AGM fill:#e1f5fe
+    style Coordinator fill:#fff3e0
+    style SharedSystems fill:#f0f4c3
+    style TextEngine fill:#e8f5e8
+    style CodeEngine fill:#f3e5f5
+    style SpreadEngine fill:#ffebee
+    style ChartEngine fill:#fce4ec
+    style ImageEngine fill:#fff8e1
+    style VTOEngine fill:#e8eaf6</pre><h3>Artifact Lifecycle and Data Flow</h3><pre class="mermaid">sequenceDiagram
+    participant User
+    participant Chat
+    participant Preflight
+    participant AGM as Artifact Module
+    participant Engine as Specific Engine
+    participant Stream as Streaming Protocol
+    participant UI as User Interface
+    participant DB as Database
+    
+    User-&gt;&gt;Chat: Sends query
+    Chat-&gt;&gt;Preflight: Analyze query
+    Preflight-&gt;&gt;Chat: Determine artifact need
+    
+    alt Artifact Required
+        Chat-&gt;&gt;AGM: Initialize artifact
+        AGM-&gt;&gt;Engine: Create specific type
+        Engine-&gt;&gt;Stream: Begin streaming
+        
+        loop Real-time Generation
+            Engine-&gt;&gt;Stream: Send content chunks
+            Stream-&gt;&gt;UI: Update display
+            UI-&gt;&gt;User: Show progress
+        end
+        
+        Engine-&gt;&gt;DB: Save artifact
+        DB-&gt;&gt;AGM: Return artifact ID
+        AGM-&gt;&gt;Chat: Artifact ready
+        Chat-&gt;&gt;User: Brief acknowledgment
+    else Standard Response
+        Chat-&gt;&gt;User: Text response only
+    end
+    
+    %% User Editing
+    User-&gt;&gt;UI: Edit artifact
+    UI-&gt;&gt;Engine: Process changes
+    Engine-&gt;&gt;DB: Update version
+    Engine-&gt;&gt;Stream: Broadcast changes
+    Stream-&gt;&gt;UI: Sync all viewers</pre><h3>V/TO Builder Component Architecture</h3><pre class="mermaid">graph TD
+    %% V/TO Structure
+    VTO[V/TO Builder] --&gt; Components[8 Core Components]
+    
+    Components --&gt; CV[Core Values&lt;br/&gt;3-7 values]
+    Components --&gt; CF[Core Focus&lt;br/&gt;Purpose + Niche]
+    Components --&gt; TYT[10-Year Target&lt;br/&gt;BHAG]
+    Components --&gt; MS[Marketing Strategy]
+    Components --&gt; TYP[3-Year Picture]
+    Components --&gt; OYP[1-Year Plan]
+    Components --&gt; QR[Quarterly Rocks]
+    Components --&gt; IL[Issues List]
+    
+    %% Marketing Strategy Breakdown
+    MS --&gt; MS1[Target Market]
+    MS --&gt; MS2[3 Uniques]
+    MS --&gt; MS3[Proven Process]
+    MS --&gt; MS4[Guarantee]
+    
+    %% 3-Year Picture Breakdown
+    TYP --&gt; TYP1[Future Date]
+    TYP --&gt; TYP2[Revenue Target]
+    TYP --&gt; TYP3[Profit Target]
+    TYP --&gt; TYP4[Measurables]
+    
+    %% Interactive Features
+    subgraph "Interactive Editing"
+        IE1[Inline Editing]
+        IE2[Drag &amp; Drop]
+        IE3[Auto-save]
+        IE4[Validation]
+    end
+    
+    CV &amp; CF &amp; TYT &amp; MS &amp; TYP &amp; OYP &amp; QR &amp; IL --&gt; IE1
+    CV &amp; CF &amp; TYT &amp; MS &amp; TYP &amp; OYP &amp; QR &amp; IL --&gt; IE2
+    CV &amp; CF &amp; TYT &amp; MS &amp; TYP &amp; OYP &amp; QR &amp; IL --&gt; IE3
+    CV &amp; CF &amp; TYT &amp; MS &amp; TYP &amp; OYP &amp; QR &amp; IL --&gt; IE4
+    
+    %% Export Options
+    VTO --&gt; Export[Export Options]
+    Export --&gt; PDF[PDF Export&lt;br/&gt;Professional Format]
+    Export --&gt; Word[Word Export&lt;br/&gt;Editable Document]
+    Export --&gt; Share[Share Link&lt;br/&gt;Collaboration]</pre><hr><h2>Integration Between Preflight and Artifact Systems</h2><h3>Combined System Flow</h3><pre class="mermaid">flowchart LR
+    %% Query Processing
+    Query[User Query] --&gt; Preflight[Preflight Analysis]
+    
+    Preflight --&gt; Decision{Resource Allocation}
+    
+    Decision --&gt; ModelChoice[Model: GPT-4.1/5&lt;br/&gt;Tokens: 200-12k]
+    Decision --&gt; ArtifactCheck{Artifact Needed?}
+    
+    ArtifactCheck --&gt;|Yes| ArtifactInit[Initialize Artifact]
+    ArtifactCheck --&gt;|No| StandardResponse[Text Response]
+    
+    %% Artifact Creation
+    ArtifactInit --&gt; ArtifactType{Determine Type}
+    
+    ArtifactType --&gt; CreateDoc[Create Document]
+    ArtifactType --&gt; CreateCode[Create Code]
+    ArtifactType --&gt; CreateSheet[Create Spreadsheet]
+    ArtifactType --&gt; CreateChart[Create Chart]
+    ArtifactType --&gt; CreateVTO[Create V/TO]
+    
+    %% Parallel Processing
+    ModelChoice --&gt; AIGeneration[AI Content Generation]
+    
+    CreateDoc &amp; CreateCode &amp; CreateSheet &amp; CreateChart &amp; CreateVTO --&gt; Stream[Stream to UI]
+    AIGeneration --&gt; Stream
+    
+    Stream --&gt; Display[Display to User]
+    
+    %% Feedback Loop
+    Display --&gt; UserEdit[User Edits]
+    UserEdit --&gt; UpdateArtifact[Update Artifact]
+    UpdateArtifact --&gt; SaveVersion[Save Version]
+    
+    %% Performance Monitoring
+    Preflight -.-&gt; Metrics[Performance Metrics]
+    Stream -.-&gt; Metrics
+    Metrics --&gt; Analytics[Analytics Dashboard]
+    
+    %% Styling
+    style Query fill:#e1f5fe
+    style Preflight fill:#fff3e0
+    style ArtifactInit fill:#f3e5f5
+    style Stream fill:#e8f5e8
+    style Display fill:#fce4ec</pre><hr><h2>Technical Implementation Details</h2><h3>Preflight Configuration Schema</h3><pre class="mermaid">classDiagram
+    class PreflightConfig {
+        +ModelSelectionCriteria criteria
+        +TokenAllocationRules tokenRules
+        +PerformanceThresholds thresholds
+        +IntelligenceSignals signals
+        +decideModel(query) Model
+        +allocateTokens(query) number
+    }
+    
+    class ModelSelectionCriteria {
+        +complexityThresholds: number[]
+        +modelMapping: Map~string, Model~
+        +specialCaseRules: Rule[]
+        +evaluate(features) string
+    }
+    
+    class TokenAllocationRules {
+        +baseTiers: TokenTier[]
+        +modifiers: TokenModifier[]
+        +calculate(features) number
+    }
+    
+    class TokenTier {
+        +name: string
+        +minTokens: number
+        +maxTokens: number
+        +description: string
+    }
+    
+    class IntelligenceSignal {
+        +keyword: string
+        +impact: number
+        +operation: string
+    }
+    
+    PreflightConfig --&gt; ModelSelectionCriteria
+    PreflightConfig --&gt; TokenAllocationRules
+    TokenAllocationRules --&gt; TokenTier
+    PreflightConfig --&gt; IntelligenceSignal</pre><h3>Artifact Type Registry</h3><pre class="mermaid">classDiagram
+    class ArtifactRegistry {
+        +types: Map
+        +register(type) void
+        +create(kind, params) Artifact
+        +getRenderer(kind) Renderer
+    }
+    
+    class ArtifactType {
+        &lt;&lt;interface&gt;&gt;
+        +kind: string
+        +description: string
+        +supportedFormats: string[]
+        +createEngine() Engine
+        +createRenderer() Renderer
+    }
+    
+    class TextArtifact {
+        +kind: text
+        +richTextCapabilities: boolean
+        +collaborationEnabled: boolean
+    }
+    
+    class CodeArtifact {
+        +kind: code
+        +languages: string[]
+        +monacoConfig: object
+    }
+    
+    class VTOArtifact {
+        +kind: vto
+        +eosComponents: Component[]
+        +validationRules: Rule[]
+    }
+    
+    ArtifactRegistry --&gt; ArtifactType
+    TextArtifact ..|&gt; ArtifactType
+    CodeArtifact ..|&gt; ArtifactType
+    VTOArtifact ..|&gt; ArtifactType</pre><hr><h2>Summary</h2><p>These diagrams illustrate the sophisticated technical architecture of the EOS AI Bot's preflight screening and artifact generation systems. The preflight system provides intelligent resource optimization with sub-200ms decision making, while the artifact system transforms conversational AI into a comprehensive document creation and collaboration platform. Together, they represent significant innovations in AI-powered business methodology implementation.
+</p>
+    <script>
+        // Ensure Mermaid renders after page load
+        window.addEventListener('load', function() {
+            mermaid.init();
+        });
+    </script>
+</body>
+</html>

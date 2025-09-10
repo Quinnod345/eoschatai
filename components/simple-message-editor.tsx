@@ -5,7 +5,7 @@ import type { Message } from 'ai';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { LoaderIcon } from 'lucide-react';
 import { EditConfirmationDialog } from './edit-confirmation-dialog';

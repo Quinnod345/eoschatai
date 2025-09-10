@@ -136,18 +136,18 @@ export function PersonasDropdown({
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="outline"
+              variant="ghost"
               className={`
                 relative overflow-hidden group
                 h-9 px-3 md:h-10 md:px-4
-                border-2 border-transparent
-                bg-gradient-to-r from-background to-background/80
-                hover:from-eos-orange/5 hover:to-eos-orangeLight/5
-                hover:border-eos-orange/20
+                border-2 
+                !bg-zinc-50 dark:!bg-zinc-800
+                border-zinc-200 dark:border-zinc-700
+                hover:!bg-zinc-100 dark:hover:!bg-zinc-700
+                hover:border-eos-orange/30 dark:hover:border-eos-orange/30
                 transition-all duration-300 ease-out
                 shadow-sm hover:shadow-md
-                backdrop-blur-sm
-                ${isOpen ? 'border-eos-orange/30 bg-eos-orange/5' : ''}
+                ${isOpen ? 'border-eos-orange/30 !bg-eos-orange/5 dark:!bg-eos-orange/10' : ''}
                 ${selectedPersona ? 'ring-2 ring-eos-orange/20' : ''}
               `}
               disabled={isLoading}

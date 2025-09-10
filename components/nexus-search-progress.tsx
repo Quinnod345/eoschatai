@@ -116,7 +116,7 @@ export function NexusSearchProgress({ data }: NexusSearchProgressProps) {
   // Track status history for transparency
   useEffect(() => {
     if (data.message) {
-      setStatusHistory((prev) => [...prev.slice(-4), data.message]);
+      setStatusHistory((prev) => [...prev.slice(-4), data.message!]);
     }
   }, [data.message]);
 
@@ -203,7 +203,7 @@ export function NexusSearchProgress({ data }: NexusSearchProgressProps) {
             Total searches planned:{' '}
             <span className="font-medium">{data.totalSearches}</span>
           </p>
-          {data.phases && (
+          {(data as any).phases && (
             <p className="text-muted-foreground">
               Research phases:{' '}
               <span className="font-medium">{data.totalPhases}</span>
@@ -655,7 +655,8 @@ export function NexusSearchProgress({ data }: NexusSearchProgressProps) {
                   <BookOpen className="w-5 h-5 text-green-500 mx-auto mb-1" />
                   <p className="text-xs text-muted-foreground">Cited</p>
                   <p className="text-sm font-medium">
-                    {data.citations?.length || 0}
+                    {data.sites?.filter((site) => site.citationNumber)
+                      ?.length || 0}
                   </p>
                 </div>
                 <div className="text-center">

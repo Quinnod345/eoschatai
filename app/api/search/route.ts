@@ -7,11 +7,65 @@ import {
   chat,
   message,
   userDocuments,
+  document,
   persona,
   pinnedMessage,
   bookmarkedChat,
 } from '@/lib/db/schema';
-import { desc, eq, and, or, like, gte, sql, inArray } from 'drizzle-orm';
+import { desc, eq, and, or, gte, sql, inArray } from 'drizzle-orm';
+
+// Fuzzy search function with better scoring
+function calculateRelevanceScore(text: string, query: string): number {
+  if (!text || !query) return 0;
+
+  const textLower = text.toLowerCase();
+  const queryLower = query.toLowerCase();
+  const queryWords = queryLower.split(/\s+/);
+
+  let score = 0;
+
+  // Exact match gets highest score
+  if (textLower === queryLower) return 1.0;
+
+  // Contains exact query
+  if (textLower.includes(queryLower)) {
+    score += 0.8;
+  }
+
+  // All words present (in any order)
+  const allWordsPresent = queryWords.every((word) => textLower.includes(word));
+  if (allWordsPresent) {
+    score += 0.6;
+  }
+
+  // Individual word matches
+  const wordMatchCount = queryWords.filter((word) =>
+    textLower.includes(word),
+  ).length;
+  score += (wordMatchCount / queryWords.length) * 0.4;
+
+  // Fuzzy match for typos (simple Levenshtein distance approximation)
+  for (const word of queryWords) {
+    if (word.length > 3) {
+      // Check for words that are similar (1-2 character difference)
+      const textWords = textLower.split(/\s+/);
+      for (const textWord of textWords) {
+        if (Math.abs(textWord.length - word.length) <= 2) {
+          let differences = 0;
+          for (let i = 0; i < Math.min(word.length, textWord.length); i++) {
+            if (word[i] !== textWord[i]) differences++;
+          }
+          if (differences <= 2) {
+            score += 0.2;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return Math.min(score, 1.0);
+}
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -26,13 +80,15 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get('q') || '';
   const dateRange = searchParams.get('dateRange') || 'all';
-  const types = (searchParams.get('types') || 'chat,message,document').split(
-    ',',
-  );
+  const types = (
+    searchParams.get('types') || 'chat,message,document,composer'
+  ).split(',');
   const personas =
     searchParams.get('personas')?.split(',').filter(Boolean) || [];
   const documentTypes =
     searchParams.get('documentTypes')?.split(',').filter(Boolean) || [];
+  const limitParam = Number.parseInt(searchParams.get('limit') || '200', 10);
+  const offsetParam = Number.parseInt(searchParams.get('offset') || '0', 10);
   const hasBookmarks = searchParams.get('hasBookmarks');
   const hasPins = searchParams.get('hasPins');
 
@@ -127,7 +183,7 @@ export async function GET(request: NextRequest) {
       filteredChatIds = pinnedChatIds;
     }
 
-    // Search Chats - Enhanced with better debugging and more robust search
+    // Search Chats - Enhanced to include message-matched chats and robust filtering
     if (types.includes('chat')) {
       console.log(
         `Search: Looking for chats with query "${query}" for user ${session.user.id}`,
@@ -141,12 +197,71 @@ export async function GET(request: NextRequest) {
       }> = [];
 
       if (query.trim()) {
-        // When there's a query, search for matching titles
         const searchQuery = `%${query.trim()}%`;
         console.log(`Search: Using search pattern "${searchQuery}"`);
 
         try {
-          // Use ILIKE for case-insensitive search
+          // First get chatIds from message matches (distinct), respecting user and optional filters
+          const messageChatConditions = [
+            sql`${message.chatId} IN (SELECT id FROM "Chat" WHERE "userId" = ${session.user.id})`,
+            sql`${message.parts}::text ILIKE ${searchQuery}`,
+          ];
+          if (dateFilter) {
+            messageChatConditions.push(gte(message.createdAt, dateFilter));
+          }
+          if (filteredChatIds !== null) {
+            if (filteredChatIds.length === 0) {
+              // No chats will match
+            } else {
+              messageChatConditions.push(
+                inArray(message.chatId, filteredChatIds),
+              );
+            }
+          }
+
+          const messageMatchedChatRows = await db
+            .selectDistinct({ chatId: message.chatId })
+            .from(message)
+            .where(and(...messageChatConditions));
+          const messageMatchedChatIds = messageMatchedChatRows.map(
+            (r) => r.chatId,
+          );
+
+          // Build chat conditions: user, optional persona/date filters, and title OR message match
+          const chatConditions: any[] = [eq(chat.userId, session.user.id)];
+          if (dateFilter) {
+            chatConditions.push(gte(chat.createdAt, dateFilter));
+          }
+          if (personas.length > 0) {
+            const personaRecords = await db
+              .select({ id: persona.id })
+              .from(persona)
+              .where(
+                and(
+                  eq(persona.userId, session.user.id),
+                  inArray(persona.name, personas),
+                ),
+              );
+            if (personaRecords.length > 0) {
+              const personaIds = personaRecords.map((p) => p.id);
+              chatConditions.push(inArray(chat.personaId, personaIds));
+            }
+          }
+          if (filteredChatIds !== null) {
+            if (filteredChatIds.length === 0) {
+              // force no results
+              chatConditions.push(sql`false`);
+            } else {
+              chatConditions.push(inArray(chat.id, filteredChatIds));
+            }
+          }
+
+          const titleMatch = sql`${chat.title} ILIKE ${searchQuery}`;
+          const messageIdMatch =
+            messageMatchedChatIds.length > 0
+              ? inArray(chat.id, messageMatchedChatIds)
+              : sql`false`;
+
           chats = await db
             .select({
               id: chat.id,
@@ -155,55 +270,16 @@ export async function GET(request: NextRequest) {
               personaId: chat.personaId,
             })
             .from(chat)
-            .where(
-              and(
-                eq(chat.userId, session.user.id),
-                sql`${chat.title} ILIKE ${searchQuery}`,
-              ),
-            )
+            .where(and(...chatConditions, or(titleMatch, messageIdMatch)))
             .orderBy(desc(chat.createdAt))
-            .limit(20);
+            .limit(Math.max(50, limitParam));
 
-          console.log(`Search: ILIKE search found ${chats.length} chats`);
-
-          // If ILIKE didn't work, fall back to manual filtering
-          if (chats.length === 0) {
-            console.log(`Search: ILIKE found no results, trying manual filter`);
-
-            const allUserChats = await db
-              .select({
-                id: chat.id,
-                title: chat.title,
-                createdAt: chat.createdAt,
-                personaId: chat.personaId,
-              })
-              .from(chat)
-              .where(eq(chat.userId, session.user.id))
-              .orderBy(desc(chat.createdAt))
-              .limit(50);
-
-            chats = allUserChats.filter((c) =>
-              getDisplayTitle(c.title)
-                .toLowerCase()
-                .includes(query.toLowerCase()),
-            );
-
-            console.log(`Search: Manual filter found ${chats.length} chats`);
-          }
+          console.log(
+            `Search: Title/message union found ${chats.length} chats (title OR message matches)`,
+          );
         } catch (searchError) {
           console.error('Search: Error in chat search:', searchError);
-          // Fallback to getting recent chats
-          chats = await db
-            .select({
-              id: chat.id,
-              title: chat.title,
-              createdAt: chat.createdAt,
-              personaId: chat.personaId,
-            })
-            .from(chat)
-            .where(eq(chat.userId, session.user.id))
-            .orderBy(desc(chat.createdAt))
-            .limit(10);
+          chats = [];
         }
       } else {
         // No query - get recent chats
@@ -233,6 +309,15 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Apply bookmark/pin filtering at SQL-level to avoid truncation before limit
+        if (filteredChatIds !== null) {
+          if (filteredChatIds.length === 0) {
+            conditions.push(sql`false`);
+          } else {
+            conditions.push(inArray(chat.id, filteredChatIds));
+          }
+        }
+
         chats = await db
           .select({
             id: chat.id,
@@ -243,18 +328,7 @@ export async function GET(request: NextRequest) {
           .from(chat)
           .where(conditions.length > 1 ? and(...conditions) : conditions[0])
           .orderBy(desc(chat.createdAt))
-          .limit(10);
-      }
-
-      // Apply bookmark/pin filtering if needed
-      if (filteredChatIds !== null) {
-        if (filteredChatIds.length === 0) {
-          // No chats match the filter criteria
-          chats = [];
-        } else {
-          // Filter chats to only those in filteredChatIds
-          chats = chats.filter((c) => filteredChatIds.includes(c.id));
-        }
+          .limit(Math.max(50, limitParam));
       }
 
       console.log(`Search: Found ${chats.length} chats total`);
@@ -337,13 +411,99 @@ export async function GET(request: NextRequest) {
       results.push(...chatResults);
     }
 
-    // Search Messages
-    if (types.includes('message') && query) {
+    // Include pinned messages when pins filter is active (regardless of query)
+    if (types.includes('message') && hasPins === 'true') {
+      console.log(
+        `Search: Fetching pinned messages${query ? ` with query "${query}"` : ''}`,
+      );
+
+      const pinConditions = [eq(pinnedMessage.userId, session.user.id)];
+      if (filteredChatIds && filteredChatIds.length > 0) {
+        pinConditions.push(inArray(pinnedMessage.chatId, filteredChatIds));
+      }
+
+      const pinnedMsgs = await db
+        .select({
+          id: message.id,
+          chatId: message.chatId,
+          parts: message.parts,
+          createdAt: message.createdAt,
+          pinnedAt: pinnedMessage.pinnedAt,
+        })
+        .from(pinnedMessage)
+        .innerJoin(message, eq(message.id, pinnedMessage.messageId))
+        .where(
+          query.trim()
+            ? and(
+                ...pinConditions,
+                sql`${message.parts}::text ILIKE ${searchQuery}`,
+              )
+            : and(...pinConditions),
+        )
+        .orderBy(desc(pinnedMessage.pinnedAt))
+        .limit(100);
+
+      const pinnedResults = pinnedMsgs.map((m) => {
+        let textContent = '';
+        try {
+          const parts = m.parts as any[];
+          parts.forEach((part) => {
+            if (part.type === 'text' && part.text) {
+              textContent += `${part.text} `;
+            }
+          });
+        } catch (e) {
+          textContent = JSON.stringify(m.parts);
+        }
+
+        const normalized = textContent.trim();
+        const idx = query
+          ? normalized.toLowerCase().indexOf(query.toLowerCase())
+          : -1;
+        let preview =
+          idx >= 0
+            ? normalized.substring(
+                Math.max(0, idx - 50),
+                Math.min(normalized.length, idx + query.length + 50),
+              )
+            : normalized.substring(0, 150);
+        if (idx > 50) preview = `...${preview}`;
+        if (idx >= 0 && idx + query.length + 50 < normalized.length)
+          preview = `${preview}...`;
+
+        return {
+          id: m.id,
+          type: 'message' as const,
+          title: 'Pinned message',
+          preview: (preview || normalized || 'Pinned message').trim(),
+          createdAt: m.createdAt,
+          chatId: m.chatId,
+          matches: query ? [query] : [],
+        };
+      });
+
+      console.log(`Search: Returning ${pinnedResults.length} pinned messages`);
+      results.push(...pinnedResults);
+    }
+
+    // Search Messages (general) when not restricted to pins
+    if (types.includes('message') && query && hasPins !== 'true') {
       console.log(`Search: Looking for messages with query "${query}"`);
 
       const messageConditions = [
         sql`${message.chatId} IN (SELECT id FROM "Chat" WHERE "userId" = ${session.user.id})`,
       ];
+
+      // If filtering by bookmarked/pinned chats, narrow at SQL level
+      if (filteredChatIds !== null) {
+        if (filteredChatIds.length === 0) {
+          console.log(
+            'Search: Skipping message query due to empty filteredChatIds',
+          );
+        } else {
+          messageConditions.push(inArray(message.chatId, filteredChatIds));
+        }
+      }
 
       if (dateFilter) {
         messageConditions.push(gte(message.createdAt, dateFilter));
@@ -353,7 +513,7 @@ export async function GET(request: NextRequest) {
         `Search: Message conditions count: ${messageConditions.length}`,
       );
 
-      // Search in message parts JSON
+      // Search in message parts JSON using ILIKE on serialized parts
       const messages = await db
         .select({
           id: message.id,
@@ -362,72 +522,144 @@ export async function GET(request: NextRequest) {
           createdAt: message.createdAt,
         })
         .from(message)
-        .where(and(...messageConditions))
+        .where(
+          and(
+            ...messageConditions,
+            sql`${message.parts}::text ILIKE ${searchQuery}`,
+          ),
+        )
         .orderBy(desc(message.createdAt))
-        .limit(20);
+        .limit(100);
 
       console.log(
         `Search: Found ${messages.length} messages from user's chats`,
       );
 
       // Filter messages that contain the search query in their parts
-      const messageResults = messages
-        .filter((m) => {
-          // Apply bookmark/pin filtering if needed
-          if (filteredChatIds !== null) {
-            if (!filteredChatIds.includes(m.chatId)) {
-              return false;
+      const messageResults = messages.map((m) => {
+        // Extract text from parts
+        let textContent = '';
+        try {
+          const parts = m.parts as any[];
+          parts.forEach((part) => {
+            if (part.type === 'text' && part.text) {
+              textContent += `${part.text} `;
             }
-          }
+          });
+        } catch (e) {
+          textContent = JSON.stringify(m.parts);
+        }
 
-          const partsString = JSON.stringify(m.parts);
-          const matches = partsString
-            .toLowerCase()
-            .includes(query.toLowerCase());
-          return matches;
-        })
-        .map((m) => {
-          // Extract text from parts
-          let textContent = '';
-          try {
-            const parts = m.parts as any[];
-            parts.forEach((part) => {
-              if (part.type === 'text' && part.text) {
-                textContent += `${part.text} `;
-              }
-            });
-          } catch (e) {
-            textContent = JSON.stringify(m.parts);
-          }
+        // Create preview
+        const queryIndex = textContent
+          .toLowerCase()
+          .indexOf(query.toLowerCase());
+        let preview = textContent.substring(
+          Math.max(0, queryIndex - 50),
+          Math.min(textContent.length, queryIndex + query.length + 50),
+        );
 
-          // Create preview
-          const queryIndex = textContent
-            .toLowerCase()
-            .indexOf(query.toLowerCase());
-          let preview = textContent.substring(
-            Math.max(0, queryIndex - 50),
-            Math.min(textContent.length, queryIndex + query.length + 50),
-          );
+        if (queryIndex > 50) preview = `...${preview}`;
+        if (queryIndex + query.length + 50 < textContent.length)
+          preview = `${preview}...`;
 
-          if (queryIndex > 50) preview = `...${preview}`;
-          if (queryIndex + query.length + 50 < textContent.length)
-            preview = `${preview}...`;
-
-          return {
-            id: m.id,
-            type: 'message' as const,
-            title: 'Message',
-            preview: preview.trim(),
-            createdAt: m.createdAt,
-            chatId: m.chatId,
-            matches: [query],
-          };
-        });
+        return {
+          id: m.id,
+          type: 'message' as const,
+          title: 'Message',
+          preview: preview.trim(),
+          createdAt: m.createdAt,
+          chatId: m.chatId,
+          matches: [query],
+        };
+      });
 
       console.log(
         `Search: Filtered to ${messageResults.length} matching messages`,
       );
       results.push(...messageResults);
+    }
+
+    // Search Composers
+    if (types.includes('composer')) {
+      console.log(`Search: Looking for composers with query "${query}"`);
+
+      const composerConditions = [eq(document.userId, session.user.id)];
+
+      if (query) {
+        const composerSearchQuery = `%${query}%`;
+        const searchCondition = or(
+          sql`${document.title} ILIKE ${composerSearchQuery}`,
+          sql`${document.content} ILIKE ${composerSearchQuery}`,
+        );
+        if (searchCondition) {
+          composerConditions.push(searchCondition);
+        }
+      }
+
+      if (dateFilter) {
+        composerConditions.push(gte(document.createdAt, dateFilter));
+      }
+
+      // Filter by composer types if specified
+      const composerTypes =
+        searchParams.get('composerTypes')?.split(',').filter(Boolean) || [];
+      if (composerTypes.length > 0) {
+        composerConditions.push(inArray(document.kind, composerTypes as any));
+      }
+
+      const composers = await db
+        .select({
+          id: document.id,
+          title: document.title,
+          content: document.content,
+          kind: document.kind,
+          createdAt: document.createdAt,
+        })
+        .from(document)
+        .where(
+          composerConditions.length > 1
+            ? and(...composerConditions)
+            : composerConditions[0],
+        )
+        .orderBy(desc(document.createdAt))
+        .limit(100);
+
+      const composerResults = composers.map((c) => {
+        // Create preview from content
+        let preview =
+          c.content?.substring(0, 150) || 'No content preview available';
+        if (c.content && c.content.length > 150) preview = `${preview}...`;
+
+        if (query && c.content) {
+          const queryIndex = c.content
+            .toLowerCase()
+            .indexOf(query.toLowerCase());
+          if (queryIndex !== -1) {
+            preview = c.content.substring(
+              Math.max(0, queryIndex - 50),
+              Math.min(c.content.length, queryIndex + query.length + 50),
+            );
+
+            if (queryIndex > 50) preview = `...${preview}`;
+            if (queryIndex + query.length + 50 < c.content.length)
+              preview = `${preview}...`;
+          }
+        }
+
+        return {
+          id: c.id,
+          type: 'composer' as const,
+          title: c.title,
+          preview: preview.trim(),
+          createdAt: c.createdAt,
+          composerType: c.kind,
+          matches: query ? [query] : [],
+        };
+      });
+
+      console.log(`Search: Found ${composerResults.length} composers`);
+      results.push(...composerResults);
     }
 
     // Search Documents - Enhanced with RAG search
@@ -438,8 +670,8 @@ export async function GET(request: NextRequest) {
       if (query) {
         const docSearchQuery = `%${query}%`;
         const searchCondition = or(
-          like(userDocuments.fileName, docSearchQuery),
-          like(userDocuments.content, docSearchQuery),
+          sql`${userDocuments.fileName} ILIKE ${docSearchQuery}`,
+          sql`${userDocuments.content} ILIKE ${docSearchQuery}`,
         );
         if (searchCondition) {
           docConditions.push(searchCondition);
@@ -469,7 +701,7 @@ export async function GET(request: NextRequest) {
           docConditions.length > 1 ? and(...docConditions) : docConditions[0],
         )
         .orderBy(desc(userDocuments.createdAt))
-        .limit(20);
+        .limit(100);
 
       const docResults = documents.map((d) => {
         // Create preview from content
@@ -520,11 +752,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Sort all results by date
-    results.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    // Calculate relevance scores for all results if there's a query
+    if (query.trim()) {
+      results.forEach((result) => {
+        const titleScore = calculateRelevanceScore(result.title, query) * 2; // Title matches are more important
+        const previewScore = calculateRelevanceScore(result.preview, query);
+        result.score = Math.min((titleScore + previewScore) / 2, 1.0);
+      });
+    }
+
+    // Sort results by relevance score (if query exists) or by date
+    results.sort((a, b) => {
+      if (query.trim() && a.score !== undefined && b.score !== undefined) {
+        // Sort by relevance score first
+        if (Math.abs(a.score - b.score) > 0.1) {
+          return b.score - a.score;
+        }
+      }
+      // Fall back to date sorting
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     // Generate suggestions based on recent searches and popular terms
     const suggestions = await generateSearchSuggestions(session.user.id);
@@ -545,9 +792,18 @@ export async function GET(request: NextRequest) {
       results.slice(0, 3).map((r) => ({ type: r.type, title: r.title })),
     );
 
+    const limit = Math.min(Math.max(1, limitParam), 500);
+    const offset = Math.max(0, offsetParam);
+    const pagedResults = results.slice(offset, offset + limit);
+    const nextOffset = offset + pagedResults.length;
+    const hasMore = nextOffset < results.length;
+
     return NextResponse.json({
-      results: results.slice(0, 50), // Limit total results
+      results: pagedResults,
       suggestions,
+      nextOffset,
+      hasMore,
+      total: results.length,
     });
   } catch (error) {
     console.error('Search error:', error);

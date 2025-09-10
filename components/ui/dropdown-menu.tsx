@@ -60,21 +60,26 @@ DropdownMenuSubContent.displayName =
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+>(({ className, sideOffset = 4, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content asChild sideOffset={sideOffset}>
+    <DropdownMenuPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      className={cn(
+        'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md menu-solid',
+        className,
+      )}
+      {...props}
+    >
       <motion.div
-        ref={ref as any}
         initial={{ opacity: 0, scale: 0.98, y: -4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: -4 }}
         transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-        className={cn(
-          'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-          className,
-        )}
-        {...(props as any)}
-      />
+        className="contents"
+      >
+        {children}
+      </motion.div>
     </DropdownMenuPrimitive.Content>
   </DropdownMenuPrimitive.Portal>
 ));

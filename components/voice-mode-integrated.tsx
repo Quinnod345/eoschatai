@@ -4,9 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, PhoneOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
@@ -252,7 +251,7 @@ export default function VoiceModeIntegrated({
     } catch (error: any) {
       console.error('Connection error:', error);
       setConnectionStatus('error');
-      toast.error(error.message || 'Failed to connect to voice service');
+      customToast.error(error.message || 'Failed to connect to voice service');
     }
   }, [connectionStatus, selectedPersonaId, selectedProfileId, chatId]);
 
@@ -337,16 +336,13 @@ export default function VoiceModeIntegrated({
         case 'input_audio_buffer.speech_started':
           setIsListening(true);
           // If there's an ongoing assistant message, save it as interrupted
-          if (
-            currentAssistantMessage &&
-            currentAssistantMessage.content.trim()
-          ) {
+          if (currentAssistantMessage?.content.trim()) {
             console.log(
               'Voice Mode: User interrupted, saving partial assistant response',
             );
             saveMessagesToDB(undefined, {
               ...currentAssistantMessage,
-              content: currentAssistantMessage.content + ' [interrupted]',
+              content: `${currentAssistantMessage.content} [interrupted]`,
             });
             setCurrentAssistantMessage(null);
           }
@@ -511,10 +507,7 @@ export default function VoiceModeIntegrated({
 
         case 'response.done':
           // Response is completely done, save the assistant message
-          if (
-            currentAssistantMessage &&
-            currentAssistantMessage.content.trim()
-          ) {
+          if (currentAssistantMessage?.content.trim()) {
             console.log(
               'Voice Mode: Response done, saving assistant message:',
               currentAssistantMessage.content,
@@ -533,7 +526,7 @@ export default function VoiceModeIntegrated({
 
         case 'error':
           console.error('Realtime API error:', event.error);
-          toast.error(
+          customToast.error(
             `Voice error: ${event.error?.message || 'Unknown error'}`,
           );
           break;
@@ -564,7 +557,7 @@ export default function VoiceModeIntegrated({
         default:
           console.log('Realtime event:', event.type, event);
           // Log any transcript-related events we might be missing
-          if (event.type && event.type.includes('transcript')) {
+          if (event.type?.includes('transcript')) {
             console.log('Transcript event details:', event);
             // Check if this is a transcript event we should ignore
             if (

@@ -32,6 +32,7 @@ import { ImageCropper } from '@/components/image-cropper';
 import { toast } from '@/lib/toast-system';
 import Image from 'next/image';
 import type { Persona, UserDocument } from '@/lib/db/schema';
+import { ComposerPickerModal } from '@/components/composer-picker-modal';
 
 interface PersonaWizardProps {
   isOpen: boolean;
@@ -141,6 +142,29 @@ export function PersonaWizard({
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isNavigatingToSettings, setIsNavigatingToSettings] = useState(false);
 
+  // Composer context selection state (for persona RAG extras via user settings)
+  const [usePrimaryDocsForPersona, setUsePrimaryDocsForPersona] =
+    useState(true);
+  const [composerContext, setComposerContext] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [composerDocs, setComposerDocs] = useState<
+    Record<string, { id: string; title: string; kind: string }[]>
+  >({});
+  const [composerLoading, setComposerLoading] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [showComposerPicker, setShowComposerPicker] = useState(false);
+  const [pickerFilter, setPickerFilter] = useState<
+    | 'all'
+    | 'scorecard'
+    | 'vto'
+    | 'accountability'
+    | 'text'
+    | 'code'
+    | 'image'
+    | 'chart'
+  >('all');
+
   // Icon upload states
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [cropperImage, setCropperImage] = useState<string | null>(null);
@@ -162,6 +186,8 @@ export function PersonaWizard({
   useEffect(() => {
     if (isOpen) {
       fetchDocuments();
+      fetchComposerDocs();
+      fetchComposerSettings();
       if (persona) {
         fetchPersonaDetails();
       } else if (!isNavigatingToSettings) {
@@ -175,6 +201,107 @@ export function PersonaWizard({
       setIsNavigatingToSettings(false);
     }
   }, [isOpen, persona, isNavigatingToSettings]);
+
+  // Fetch composer documents by kind for picker tabs - initial and on-demand
+  const fetchComposerDocs = async (specificKind?: string) => {
+    setComposerLoading(true);
+    setComposerError(null);
+    try {
+      if (specificKind) {
+        const res = await fetch(`/api/documents?composerKind=${specificKind}`);
+        if (res.ok) {
+          const data = await res.json();
+          setComposerDocs((prev) => ({
+            ...prev,
+            [specificKind]: data.documents || [],
+          }));
+        }
+      } else {
+        const kinds = [
+          'sheet',
+          'vto',
+          'accountability',
+          'text',
+          'code',
+          'image',
+          'chart',
+        ] as const;
+        const results: Record<string, any[]> = {};
+        await Promise.all(
+          kinds.map(async (kind) => {
+            const res = await fetch(`/api/documents?composerKind=${kind}`);
+            if (res.ok) {
+              const data = await res.json();
+              results[kind] = data.documents || [];
+            } else {
+              results[kind] = [];
+            }
+          }),
+        );
+        setComposerDocs(results as any);
+      }
+    } catch (e) {
+      console.error('Failed to fetch composer docs', e);
+      setComposerError('Failed to load composer documents. Please try again.');
+    } finally {
+      setComposerLoading(false);
+    }
+  };
+
+  // Fetch user settings for persona composer context
+  const fetchComposerSettings = async () => {
+    try {
+      const res = await fetch('/api/user-settings');
+      if (!res.ok) return;
+      const s = await res.json();
+      setUsePrimaryDocsForPersona(Boolean(s?.usePrimaryDocsForPersona ?? true));
+      const ctxMap: { [key: string]: boolean } = {};
+      if (Array.isArray(s?.personaContextDocumentIds)) {
+        for (const id of s.personaContextDocumentIds) ctxMap[id] = true;
+      }
+      setComposerContext(ctxMap);
+    } catch {}
+  };
+
+  // Save user settings for persona composer context
+  const saveComposerSettings = async () => {
+    try {
+      const ids = Object.entries(composerContext)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      const res = await fetch('/api/user-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personaContextDocumentIds: ids,
+          usePrimaryDocsForPersona: usePrimaryDocsForPersona,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save settings');
+      toast.success('Persona RAG context updated');
+    } catch {
+      toast.error('Failed to save persona context');
+    }
+  };
+
+  // Fetch composer documents when picker filter changes (on-demand)
+  useEffect(() => {
+    if (showComposerPicker && pickerFilter !== 'all') {
+      const kindMap: Record<string, string> = {
+        scorecard: 'sheet',
+        vto: 'vto',
+        accountability: 'accountability',
+        text: 'text',
+        code: 'code',
+        image: 'image',
+        chart: 'chart',
+      };
+      const kind = kindMap[pickerFilter];
+      if (kind && !composerDocs[kind]) {
+        fetchComposerDocs(kind);
+      }
+    }
+  }, [showComposerPicker, pickerFilter, composerDocs]);
 
   // Listen for settings modal close to reopen persona wizard
   useEffect(() => {
@@ -766,7 +893,8 @@ export function PersonaWizard({
                   </Label>
                   <div className="grid grid-cols-2 gap-3">
                     {PERSONALITY_TEMPLATES.map((template) => (
-                      <div
+                      <button
+                        type="button"
                         key={template.id}
                         className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
                           selectedTemplate === template.id
@@ -798,7 +926,7 @@ export function PersonaWizard({
                             </p>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -929,8 +1057,9 @@ export function PersonaWizard({
                     className="hidden"
                   />
 
-                  <div
-                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-all duration-200 group"
+                  <button
+                    type="button"
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-all duration-200 group w-full"
                     onClick={() => documentFileInputRef.current?.click()}
                   >
                     <div className="mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors">
@@ -942,7 +1071,7 @@ export function PersonaWizard({
                     <p className="text-xs text-muted-foreground mt-1">
                       PDF, Word, Text, CSV, or Excel (max 10MB)
                     </p>
-                  </div>
+                  </button>
 
                   {/* Uploaded Files List */}
                   {uploadedFiles.length > 0 && (
@@ -1009,6 +1138,124 @@ export function PersonaWizard({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Composer Documents for Persona RAG */}
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <Label className="text-sm font-medium">
+                        Composer Documents
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Choose which of your composers should be used as persona
+                        RAG context.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowComposerPicker(true)}
+                    >
+                      Choose Composers
+                    </Button>
+                  </div>
+
+                  <div className="mb-3 p-3 bg-muted/30 rounded-md flex items-center justify-between">
+                    <label className="text-xs flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={usePrimaryDocsForPersona}
+                        onChange={(e) =>
+                          setUsePrimaryDocsForPersona(e.target.checked)
+                        }
+                        className="w-4 h-4"
+                      />
+                      Use primary composers automatically for this persona
+                    </label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveComposerSettings}
+                    >
+                      Save Composer Context
+                    </Button>
+                  </div>
+
+                  {/* List selected composers */}
+                  <div className="mt-2">
+                    {Object.entries(composerContext).filter(([, v]) => v)
+                      .length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Selected composers:
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {Object.entries(composerContext)
+                            .filter(([, v]) => v)
+                            .map(([docId]) => {
+                              const doc = Object.values(composerDocs)
+                                .flat()
+                                .find((d) => d.id === docId);
+                              if (!doc) return null;
+                              const icon =
+                                doc.kind === 'sheet'
+                                  ? '📊'
+                                  : doc.kind === 'vto'
+                                    ? '🎯'
+                                    : doc.kind === 'accountability'
+                                      ? '👥'
+                                      : doc.kind === 'text'
+                                        ? '📝'
+                                        : doc.kind === 'code'
+                                          ? '💻'
+                                          : doc.kind === 'image'
+                                            ? '🎨'
+                                            : doc.kind === 'chart'
+                                              ? '📈'
+                                              : '📄';
+                              const typeName =
+                                doc.kind === 'sheet'
+                                  ? 'Scorecard'
+                                  : doc.kind === 'vto'
+                                    ? 'V/TO'
+                                    : doc.kind === 'accountability'
+                                      ? 'A/C'
+                                      : doc.kind === 'text'
+                                        ? 'Document'
+                                        : doc.kind === 'code'
+                                          ? 'Code'
+                                          : doc.kind === 'image'
+                                            ? 'Image'
+                                            : doc.kind === 'chart'
+                                              ? 'Chart'
+                                              : doc.kind;
+                              return (
+                                <div
+                                  key={docId}
+                                  className="flex items-center gap-2 p-2 bg-muted/30 rounded-md"
+                                >
+                                  <span className="text-lg">{icon}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {doc.title || 'Untitled'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {typeName}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })
+                            .filter(Boolean)}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">
+                        No composers selected. Click "Choose Composers" to
+                        select documents for persona context.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1348,6 +1595,19 @@ export function PersonaWizard({
           aspectRatio={1}
         />
       )}
+      {/* Composer Picker Modal */}
+      <ComposerPickerModal
+        isOpen={showComposerPicker}
+        onClose={() => setShowComposerPicker(false)}
+        composerDocs={composerDocs}
+        composerContext={composerContext}
+        setComposerContext={setComposerContext}
+        composerLoading={composerLoading}
+        composerError={composerError}
+        pickerFilter={pickerFilter}
+        setPickerFilter={setPickerFilter}
+        onSave={saveComposerSettings}
+      />
     </Dialog>
   );
 }

@@ -6,13 +6,14 @@ import { z } from 'zod';
 
 export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
   kind: 'sheet',
-  onCreateDocument: async ({ title, dataStream }) => {
+  onCreateDocument: async ({ title, dataStream, maxTokens }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
       system: sheetPrompt,
+      maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       prompt: title,
       schema: z.object({
         csv: z.string().describe('CSV data'),
@@ -44,13 +45,19 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
 
     return draftContent;
   },
-  onUpdateDocument: async ({ document, description, dataStream }) => {
+  onUpdateDocument: async ({
+    document,
+    description,
+    dataStream,
+    maxTokens,
+  }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
       system: inlineEditPrompt(document.content || '', description, 'sheet'),
+      maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({
         csv: z.string(),

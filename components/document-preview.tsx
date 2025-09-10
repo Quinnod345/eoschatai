@@ -361,6 +361,77 @@ const DocumentContent = ({ document }: { document: Document }) => {
   };
 
   // Parse and render compact VTO preview
+  const renderAccountabilityPreview = () => {
+    try {
+      const content = document.content || '';
+      const hasBegin = content.includes('AC_DATA_BEGIN');
+      const hasEnd = content.includes('AC_DATA_END');
+      let jsonStr = '';
+      if (hasBegin && hasEnd) {
+        const start = content.indexOf('AC_DATA_BEGIN') + 'AC_DATA_BEGIN'.length;
+        const end = content.indexOf('AC_DATA_END');
+        jsonStr = content.substring(start, end).trim();
+      } else {
+        // Fallback to finding JSON
+        const s = content.indexOf('{');
+        const e = content.lastIndexOf('}') + 1;
+        if (s >= 0 && e > s) jsonStr = content.substring(s, e);
+      }
+      if (!jsonStr) return null;
+
+      const ac = JSON.parse(jsonStr) as any;
+
+      // Recursive function to render seat nodes
+      const renderSeatNode = (node: any, level = 0) => {
+        if (!node) return null;
+
+        return (
+          <div key={node.id} className={level > 0 ? 'ml-4 mt-2' : ''}>
+            <div
+              className="border rounded-lg p-2 bg-white dark:bg-gray-800"
+              style={{ borderColor: node.accent || '#3b82f6' }}
+            >
+              <div
+                className="font-semibold text-xs"
+                style={{ color: node.accent || '#3b82f6' }}
+              >
+                {node.name}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {node.holder || 'Open Seat'}
+              </div>
+              {node.roles && node.roles.length > 0 && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {node.roles.slice(0, 2).join(' • ')}
+                  {node.roles.length > 2 && ` +${node.roles.length - 2} more`}
+                </div>
+              )}
+            </div>
+            {node.children && node.children.length > 0 && (
+              <div className="mt-1">
+                {node.children.map((child: any) =>
+                  renderSeatNode(child, level + 1),
+                )}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="p-4">
+          <div className="text-sm font-semibold mb-2">
+            {ac.title || 'Accountability Chart'}
+          </div>
+          <div className="overflow-x-auto">{renderSeatNode(ac.root)}</div>
+        </div>
+      );
+    } catch (e) {
+      console.error('Error rendering AC preview:', e);
+      return null;
+    }
+  };
+
   const renderVtoPreview = () => {
     try {
       const content = document.content || '';
@@ -484,6 +555,8 @@ const DocumentContent = ({ document }: { document: Document }) => {
         renderChartPreview()
       ) : document.kind === 'vto' ? (
         renderVtoPreview()
+      ) : document.kind === 'accountability' ? (
+        renderAccountabilityPreview()
       ) : null}
     </div>
   );

@@ -9,7 +9,7 @@ import {
 } from '@/components/icons';
 import { SpreadsheetEditor } from '@/components/sheet-editor';
 import { parse, unparse } from 'papaparse';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 // Import will be done dynamically to avoid SSR issues
 
 type Metadata = any;
@@ -145,6 +145,27 @@ export const sheetComposer = new Composer<'sheet', Metadata>({
         } catch (error) {
           console.error('Error creating Excel file:', error);
           toast.error('Failed to create Excel file');
+        }
+      },
+    },
+    {
+      icon: <SparklesIcon />,
+      description: 'Make Primary',
+      onClick: async () => {
+        try {
+          const res = await fetch('/api/user-settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              primaryScorecardId:
+                (window as any)?.composer?.documentId || undefined,
+            }),
+          });
+          if (!res.ok) throw new Error('Failed');
+          toast.success('Set as primary Scorecard');
+        } catch (e) {
+          console.error(e);
+          toast.error('Failed to set as primary');
         }
       },
     },

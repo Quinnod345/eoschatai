@@ -8,13 +8,20 @@ import type { ComposerKind } from '@/components/composer';
 import { eq, and, desc } from 'drizzle-orm';
 
 // Define the valid document categories
-type DocumentCategory = 'Scorecard' | 'VTO' | 'Rocks' | 'A/C' | 'Core Process';
+type DocumentCategory =
+  | 'Scorecard'
+  | 'VTO'
+  | 'Rocks'
+  | 'A/C'
+  | 'Core Process'
+  | 'Other';
 const validCategories: DocumentCategory[] = [
   'Scorecard',
   'VTO',
   'Rocks',
   'A/C',
   'Core Process',
+  'Other',
 ];
 
 export async function GET(request: Request) {
@@ -75,6 +82,7 @@ export async function GET(request: Request) {
         'sheet',
         'chart',
         'vto',
+        'accountability',
       ];
       if (!allowed.includes(kind)) {
         return NextResponse.json(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 export interface UploadProgress {
   fileId: string;

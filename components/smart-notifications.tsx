@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import { Bell, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Notification {
@@ -36,7 +36,16 @@ export function useSmartNotifications() {
       error: <AlertCircle className="h-4 w-4" />,
     }[notification.type];
 
-    toast(notification.title, {
+    const show =
+      notification.type === 'success'
+        ? toast.success
+        : notification.type === 'error'
+          ? toast.error
+          : notification.type === 'warning'
+            ? toast.warning
+            : toast.info;
+
+    show(notification.title, {
       description: notification.message,
       icon,
       action: notification.action

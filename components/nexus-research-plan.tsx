@@ -47,7 +47,7 @@ export function NexusResearchPlan({
         researchApproach: plan.researchApproach || 'comprehensive',
         phases: plan.phases || [],
         estimatedDuration: plan.estimatedDuration || 180,
-        totalSearches: plan.totalSearches || 0,
+        totalSearches: (plan as any).totalSearches || 0,
       }
     : {
         mainQuery: '',

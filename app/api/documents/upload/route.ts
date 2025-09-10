@@ -93,7 +93,7 @@ async function extractTextFromFile(
                 [Provide a detailed 2-3 paragraph summary explaining what this document appears to be, its purpose, key information it contains, and its structure]`,
               },
             ],
-            max_tokens: 4000,
+            max_completion_tokens: 4000,
           });
 
           console.log(
@@ -145,7 +145,7 @@ async function extractTextFromFile(
                 [Create a structured representation of what this type of document typically contains, which can be used as AI context]`,
               },
             ],
-            max_tokens: 4000,
+            max_completion_tokens: 4000,
           });
 
           console.log(
@@ -280,6 +280,7 @@ export async function POST(request: Request) {
       'Rocks',
       'A/C',
       'Core Process',
+      'Other',
     ];
     if (!validCategories.includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
@@ -347,7 +348,8 @@ export async function POST(request: Request) {
         | 'VTO'
         | 'Rocks'
         | 'A/C'
-        | 'Core Process';
+        | 'Core Process'
+        | 'Other';
 
       const newDocument = await db
         .insert(userDocuments)

@@ -23,7 +23,7 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { getDisplayTitle } from '@/lib/utils/chat-utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 import type { UIMessage } from 'ai';
 import { useRouter } from 'next/navigation';
 import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
@@ -190,9 +190,9 @@ export function SavedContentDropdown({
       {/* Saved content dropdown trigger styled like persona button */}
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-9 flex items-center gap-2 px-3 text-sm"
+          className="h-9 flex items-center gap-2 px-3 text-sm border border-zinc-200 dark:border-zinc-700 !bg-zinc-50 dark:!bg-zinc-800 hover:!bg-zinc-100 dark:hover:!bg-zinc-700"
         >
           <Archive className="h-4 w-4" />
           <span>Saved Content</span>

@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  startTransition,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -27,6 +28,7 @@ import { sheetComposer } from '@/composer/sheet/client';
 import { textComposer } from '@/composer/text/client';
 import { chartComposer } from '@/composer/chart/client';
 import { vtoComposer } from '@/composer/vto/client';
+import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
@@ -38,6 +40,7 @@ export const composerDefinitions = [
   sheetComposer,
   chartComposer,
   vtoComposer,
+  accountabilityComposer,
 ];
 export type ComposerKind = (typeof composerDefinitions)[number]['kind'];
 
@@ -249,24 +252,29 @@ function PureComposer({
       }
 
       // If we already have documents cached, append a new version locally
-      mutate<Array<Document>>(
-        `/api/document?id=${composer.documentId}`,
-        (currentDocuments) => {
-          if (!currentDocuments || currentDocuments.length === 0)
-            return currentDocuments;
-          const currentDocument = currentDocuments.at(-1);
-          if (!currentDocument) return currentDocuments;
-          if (currentDocument.content === updatedContent)
-            return currentDocuments;
-          const newDocument = {
-            ...currentDocument,
-            content: updatedContent,
-            createdAt: new Date(),
-          } as Document;
-          return [...currentDocuments, newDocument];
-        },
-        { revalidate: false },
-      );
+      // Schedule mutate outside of the current render cycle to avoid React warnings
+      setTimeout(() => {
+        startTransition(() => {
+          mutate<Array<Document>>(
+            `/api/document?id=${composer.documentId}`,
+            (currentDocuments) => {
+              if (!currentDocuments || currentDocuments.length === 0)
+                return currentDocuments;
+              const currentDocument = currentDocuments.at(-1);
+              if (!currentDocument) return currentDocuments;
+              if (currentDocument.content === updatedContent)
+                return currentDocuments;
+              const newDocument = {
+                ...currentDocument,
+                content: updatedContent,
+                createdAt: new Date(),
+              } as Document;
+              return [...currentDocuments, newDocument];
+            },
+            { revalidate: false },
+          );
+        });
+      }, 0);
     },
     [composer, mutate],
   );

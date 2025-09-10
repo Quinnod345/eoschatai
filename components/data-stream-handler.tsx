@@ -44,7 +44,10 @@ export function DataStreamHandler({ id }: { id: string }) {
     const newDeltas = dataStream.slice(lastProcessedIndex.current + 1);
     lastProcessedIndex.current = dataStream.length - 1;
 
+    console.log('[DataStreamHandler] Processing deltas:', newDeltas);
+
     (newDeltas as DataStreamDelta[]).forEach((delta: DataStreamDelta) => {
+      console.log('[DataStreamHandler] Delta:', delta);
       // Handle Nexus search events
       if (delta.type?.startsWith('nexus-')) {
         // These events are handled by the Messages component
@@ -107,6 +110,8 @@ export function DataStreamHandler({ id }: { id: string }) {
               ...draftComposer,
               kind: delta.content as ComposerKind,
               status: 'streaming',
+              // Open the composer immediately on kind selection to ensure UI is visible
+              isVisible: true,
             };
 
           case 'clear':

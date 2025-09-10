@@ -8,9 +8,14 @@ import { documentHandlersByComposerKind } from '@/lib/composer/server';
 interface UpdateDocumentProps {
   session: Session;
   dataStream: DataStreamWriter;
+  artifactMaxTokens?: number;
 }
 
-export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
+export const updateDocument = ({
+  session,
+  dataStream,
+  artifactMaxTokens,
+}: UpdateDocumentProps) =>
   tool({
     description:
       'Update an existing document or composer with the given description. MANDATORY: Use this tool WHENEVER the user asks to edit, modify, extend, improve, fix, change, expand, shorten, rewrite, polish, wordsmith, add to, remove from, or update existing content in ANY way. NEVER output edited text in the chat - always use this tool instead.',
@@ -61,6 +66,7 @@ export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
         description,
         dataStream,
         session,
+        maxTokens: artifactMaxTokens,
       });
 
       // Send completion signal with AI edit metadata

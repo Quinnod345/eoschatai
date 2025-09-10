@@ -20,7 +20,7 @@ import {
 } from '@/lib/editor/suggestions';
 import { Button } from './ui/button';
 import { SparklesIcon } from './icons';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-system';
 
 type EnhancedEditorProps = {
   content: string;
