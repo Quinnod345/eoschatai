@@ -19,7 +19,8 @@ function isAppHostname(hostname: string) {
 }
 
 export default async function Home() {
-  const hostHeader = headers().get('host')?.toLowerCase() ?? '';
+  const headersList = await headers();
+  const hostHeader = headersList.get('host')?.toLowerCase() ?? '';
   const hostname = hostHeader.split(':')[0];
 
   if (!hostname || !isAppHostname(hostname)) {

@@ -504,18 +504,19 @@ Return your response in JSON format:
 
     const relatedTopics = sanitizeStringArray(result.relatedTopics);
 
-    let references: Array<{
-      number: number;
-      title: string;
-      url: string;
-      snippet?: string;
-    }> | undefined;
+    let references:
+      | Array<{
+          number: number;
+          title: string;
+          url: string;
+          snippet?: string;
+        }>
+      | undefined;
 
     if (Array.isArray(result.references)) {
       const sanitized = result.references
         .map((ref: any, index: number) => {
-          const title =
-            typeof ref?.title === 'string' ? ref.title.trim() : '';
+          const title = typeof ref?.title === 'string' ? ref.title.trim() : '';
           const url = typeof ref?.url === 'string' ? ref.url.trim() : '';
           if (!title || !url) {
             return null;
@@ -528,12 +529,21 @@ Return your response in JSON format:
               : undefined;
           return { number, title, url, snippet };
         })
-        .filter((ref): ref is {
-          number: number;
-          title: string;
-          url: string;
-          snippet?: string;
-        } => Boolean(ref));
+        .filter(
+          (
+            ref: {
+              number: number;
+              title: string;
+              url: string;
+              snippet?: string;
+            } | null,
+          ): ref is {
+            number: number;
+            title: string;
+            url: string;
+            snippet?: string;
+          } => Boolean(ref),
+        );
       if (sanitized.length > 0) {
         references = sanitized;
       }
