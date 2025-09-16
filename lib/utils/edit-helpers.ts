@@ -81,11 +81,11 @@ export function getEditDiff(
 export function autoFormat(text: string): string {
   let formatted = text;
 
-  // Fix common spacing issues
-  formatted = formatted.replace(/\s+/g, ' '); // Multiple spaces to single
-  formatted = formatted.replace(/\s+([,.!?;:])/g, '$1'); // Remove space before punctuation
-  formatted = formatted.replace(/([,.!?;:])\s*/g, '$1 '); // Add space after punctuation
-  formatted = formatted.replace(/\s+$/gm, ''); // Trim trailing spaces
+  // Fix common spacing issues while preserving intentional line breaks
+  formatted = formatted.replace(/[^\S\r\n]+/g, ' '); // Multiple spaces/tabs to single space
+  formatted = formatted.replace(/[^\S\r\n]+([,.!?;:])/g, '$1'); // Remove space before punctuation
+  formatted = formatted.replace(/([,.!?;:])[^\S\r\n]*/g, '$1 '); // Add space after punctuation (keep newlines)
+  formatted = formatted.replace(/[^\S\r\n]+$/gm, ''); // Trim trailing spaces without removing newlines
 
   // Fix common typos
   const typoMap: Record<string, string> = {
