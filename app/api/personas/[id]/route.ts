@@ -1,6 +1,11 @@
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { persona, personaDocument } from '@/lib/db/schema';
+import {
+  persona,
+  personaDocument,
+  personaComposerDocument,
+  document,
+} from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -94,6 +99,12 @@ export async function GET(
       .from(personaDocument)
       .where(eq(personaDocument.personaId, id));
 
+    // Get associated composer documents for user personas
+    const composerDocs = await db
+      .select({ documentId: personaComposerDocument.documentId })
+      .from(personaComposerDocument)
+      .where(eq(personaComposerDocument.personaId, id));
+
     console.log('PERSONA_API: Successfully fetched user persona', {
       personaId: id,
       personaName: userPersona.name,
@@ -103,6 +114,7 @@ export async function GET(
     return NextResponse.json({
       ...userPersona,
       documentIds: documents.map((d) => d.documentId),
+      composerDocumentIds: composerDocs.map((d) => d.documentId),
     });
   } catch (error) {
     console.error('PERSONA_API: Error fetching persona:', {
@@ -130,7 +142,13 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, description, instructions, documentIds = [] } = body;
+    const {
+      name,
+      description,
+      instructions,
+      documentIds = [],
+      composerDocumentIds,
+    } = body;
 
     if (!name || !instructions) {
       return NextResponse.json(
@@ -247,6 +265,67 @@ export async function PUT(
       } catch (error) {
         console.error('PERSONA_API: Error updating persona documents:', error);
         // Don't fail the entire operation if document processing fails
+      }
+    }
+
+    // Update composer document associations if provided
+    if (composerDocumentIds !== undefined) {
+      // Get current associations
+      const currentComposerDocs = await db
+        .select()
+        .from(personaComposerDocument)
+        .where(eq(personaComposerDocument.personaId, id));
+
+      const currentIds = currentComposerDocs.map((d) => d.documentId);
+      const newIdsSet = new Set((composerDocumentIds as string[]) || []);
+      const currentIdsSet = new Set(currentIds);
+
+      const toAdd = (composerDocumentIds as string[]).filter(
+        (docId) => !currentIdsSet.has(docId),
+      );
+      const toRemove = currentIds.filter((docId) => !newIdsSet.has(docId));
+
+      if (toRemove.length > 0) {
+        await db
+          .delete(personaComposerDocument)
+          .where(
+            and(
+              eq(personaComposerDocument.personaId, id),
+              inArray(personaComposerDocument.documentId, toRemove),
+            ),
+          );
+      }
+
+      if (toAdd.length > 0) {
+        const newRows = toAdd.map((documentId: string) => ({
+          personaId: id,
+          documentId,
+        }));
+        await db.insert(personaComposerDocument).values(newRows);
+      }
+
+      // Process newly added composer docs into persona namespace
+      try {
+        if (toAdd.length > 0) {
+          const { processUserDocument } = await import('@/lib/ai/user-rag');
+          // Fetch documents to get content and metadata
+          const docs = await db
+            .select()
+            .from(document)
+            .where(inArray(document.id, toAdd));
+
+          for (const d of docs) {
+            if (d.content) {
+              await processUserDocument(id, d.id, d.content, {
+                fileName: d.title || 'Composer Document',
+                category: (d.kind || 'text') as any,
+                fileType: d.kind,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('PERSONA_API: Error processing composer docs:', e);
       }
     }
 

@@ -330,6 +330,40 @@ const runMigrate = async () => {
           console.error('Error adding message action tables:', error);
         }
 
+        // Ensure PersonaComposerDocument table exists
+        try {
+          const personaComposerExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = 'PersonaComposerDocument'
+            ) as "exists"
+          `;
+          if (!personaComposerExists[0].exists) {
+            await connection`
+              CREATE TABLE "PersonaComposerDocument" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "personaId" UUID NOT NULL REFERENCES "Persona"("id") ON DELETE CASCADE,
+                "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+              )
+            `;
+            await connection`
+              CREATE UNIQUE INDEX "persona_composer_doc_unique"
+              ON "PersonaComposerDocument" ("personaId", "documentId")
+            `;
+            console.log(
+              'Created PersonaComposerDocument table with unique index',
+            );
+          } else {
+            console.log('PersonaComposerDocument table already exists');
+          }
+        } catch (error) {
+          console.error(
+            'Error ensuring PersonaComposerDocument schema:',
+            error,
+          );
+        }
+
         // Ensure UserSettings has primary/context columns and BundleDocument table exists
         try {
           // Helper to add a column if missing

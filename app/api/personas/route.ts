@@ -1,7 +1,12 @@
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { persona, personaDocument } from '@/lib/db/schema';
-import { eq, or, isNull, and, ne } from 'drizzle-orm';
+import {
+  persona,
+  personaDocument,
+  personaComposerDocument,
+  document,
+} from '@/lib/db/schema';
+import { eq, or, isNull, and, ne, inArray } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -90,7 +95,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, description, instructions, documentIds = [] } = body;
+    const {
+      name,
+      description,
+      instructions,
+      documentIds = [],
+      composerDocumentIds = [],
+    } = body;
 
     if (!name || !instructions) {
       return NextResponse.json(
@@ -150,6 +161,35 @@ export async function POST(request: NextRequest) {
         );
         // Don't fail the entire operation if document processing fails
         // The documents are still associated in the database
+      }
+    }
+
+    // Create composer document associations
+    if (composerDocumentIds && composerDocumentIds.length > 0) {
+      const rows = composerDocumentIds.map((documentId: string) => ({
+        personaId: newPersona.id,
+        documentId,
+      }));
+      await db.insert(personaComposerDocument).values(rows);
+
+      // Process composer documents into persona namespace
+      try {
+        const { processUserDocument } = await import('@/lib/ai/user-rag');
+        const docs = await db
+          .select()
+          .from(document)
+          .where(inArray(document.id, composerDocumentIds));
+        for (const d of docs) {
+          if (d.content) {
+            await processUserDocument(newPersona.id, d.id, d.content, {
+              fileName: d.title || 'Composer Document',
+              category: (d.kind || 'text') as any,
+              fileType: d.kind,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('PERSONA_API: Error processing composer documents:', e);
       }
     }
 

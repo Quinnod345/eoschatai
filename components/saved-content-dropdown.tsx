@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ChevronRight,
   Copy,
@@ -28,8 +28,7 @@ import type { UIMessage } from 'ai';
 import { useRouter } from 'next/navigation';
 import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
 import { useLoading } from '@/hooks/use-loading';
-import { usePins } from '@/hooks/use-pins';
-import { useBookmarks } from '@/hooks/use-bookmarks';
+import { useRobustSavedContent } from '@/hooks/use-robust-saved-content';
 
 interface SavedContentDropdownProps {
   currentChatId: string;
@@ -62,35 +61,25 @@ export function SavedContentDropdown({
   );
   const [pinScope, setPinScope] = useState<'chat' | 'global'>('chat');
 
-  // Use the new robust hooks
-  const {
-    pins: chatPins,
-    isLoading: chatPinsLoading,
-    error: chatPinsError,
-    unpinMessage,
-  } = usePins({
-    chatId: currentChatId,
-    scope: 'chat',
-    enabled: open && activeTab === 'pinned' && pinScope === 'chat',
-  });
+  // Always-on saved content state for accurate badge counts
+  const robustSaved = useRobustSavedContent(currentChatId);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const chatPinsCount = robustSaved.chatPins.pins.length;
+  const globalPinsCount = robustSaved.globalPins.pins.length;
+  const bookmarksCount = robustSaved.bookmarks.bookmarks.length;
 
-  const {
-    pins: globalPins,
-    isLoading: globalPinsLoading,
-    error: globalPinsError,
-  } = usePins({
-    scope: 'global',
-    enabled: open && activeTab === 'pinned' && pinScope === 'global',
-  });
-
-  const {
-    bookmarks,
-    isLoading: bookmarksLoading,
-    error: bookmarksError,
-    removeBookmark,
-  } = useBookmarks({
-    enabled: open && activeTab === 'bookmarks',
-  });
+  // Derive data from robust saved state
+  const chatPins = robustSaved.chatPins.pins;
+  const globalPins = robustSaved.globalPins.pins;
+  const bookmarks = robustSaved.bookmarks.bookmarks;
+  const chatPinsLoading = robustSaved.chatPins.isLoading;
+  const globalPinsLoading = robustSaved.globalPins.isLoading;
+  const bookmarksLoading = robustSaved.bookmarks.isLoading;
+  const chatPinsError = robustSaved.chatPins.error;
+  const globalPinsError = robustSaved.globalPins.error;
+  const bookmarksError = robustSaved.bookmarks.error;
+  const { unpinMessage } = robustSaved.chatPins;
+  const { removeBookmark } = robustSaved.bookmarks;
 
   // Get current pins based on scope
   const currentPins = pinScope === 'chat' ? chatPins : globalPins;
@@ -123,14 +112,36 @@ export function SavedContentDropdown({
           .filter((item): item is NonNullable<typeof item> => item !== null)
       : currentPins; // Global pins already have content
 
+  // Sort by most recently pinned first
+  const sortedPinnedWithContent = useMemo(() => {
+    return [...pinnedWithContent].sort((a: any, b: any) => {
+      const aTime = new Date((a as any).pinnedAt).getTime();
+      const bTime = new Date((b as any).pinnedAt).getTime();
+      return bTime - aTime;
+    });
+  }, [pinnedWithContent]);
+
   // Filter content based on search
-  const filteredPinned = pinnedWithContent.filter((item) =>
+  const filteredPinned = sortedPinnedWithContent.filter((item) =>
     'content' in item && typeof item.content === 'string'
       ? item.content.toLowerCase().includes(searchQuery.toLowerCase())
       : true,
   );
 
-  const filteredBookmarks = bookmarks.filter(
+  // Sort bookmarks by recency (lastMessageAt, createdAt, or bookmarkedAt)
+  const sortedBookmarks = useMemo(() => {
+    return [...bookmarks].sort((a: any, b: any) => {
+      const getTime = (x: any) => {
+        if (x?.lastMessageAt) return new Date(x.lastMessageAt).getTime();
+        if (x?.createdAt) return new Date(x.createdAt).getTime();
+        if (x?.bookmarkedAt) return new Date(x.bookmarkedAt).getTime();
+        return 0;
+      };
+      return getTime(b) - getTime(a);
+    });
+  }, [bookmarks]);
+
+  const filteredBookmarks = sortedBookmarks.filter(
     (chat) =>
       searchQuery === '' ||
       ('title' in chat &&
@@ -183,7 +194,7 @@ export function SavedContentDropdown({
     }
   };
 
-  const totalSaved = currentPins.length + bookmarks.length;
+  const totalSaved = robustSaved.getTotalSavedCount();
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -226,14 +237,38 @@ export function SavedContentDropdown({
             </Button>
           </div>
 
-          {/* Search input */}
+          {/* Summary and Search */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                Pins {chatPinsCount + globalPinsCount}
+              </Badge>
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                Bookmarks {bookmarksCount}
+              </Badge>
+            </div>
+          </div>
           <div className="relative mb-3">
             <Input
+              ref={searchInputRef}
               placeholder="Search saved content..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9"
+              className="h-9 pr-8"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Tabs for pinned messages and bookmarks - default to bookmarks */}
@@ -244,10 +279,10 @@ export function SavedContentDropdown({
           >
             <TabsList className="grid w-full grid-cols-2 h-9">
               <TabsTrigger value="bookmarks" className="text-xs">
-                All Bookmarks ({bookmarks.length})
+                All Bookmarks ({bookmarksCount})
               </TabsTrigger>
               <TabsTrigger value="pinned" className="text-xs">
-                Chat Pins ({currentPins.length})
+                Chat Pins ({chatPinsCount})
               </TabsTrigger>
             </TabsList>
 
@@ -263,7 +298,7 @@ export function SavedContentDropdown({
                     onClick={() => setPinScope('chat')}
                   >
                     <MessageSquare className="h-3 w-3 mr-1" />
-                    This Chat
+                    This Chat ({chatPinsCount})
                   </Button>
                   <Button
                     size="sm"
@@ -272,7 +307,7 @@ export function SavedContentDropdown({
                     onClick={() => setPinScope('global')}
                   >
                     <Globe className="h-3 w-3 mr-1" />
-                    All Chats
+                    All Chats ({globalPinsCount})
                   </Button>
                 </div>
 
@@ -295,6 +330,8 @@ export function SavedContentDropdown({
                     <div
                       key={pinned?.id}
                       className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         if (pinScope === 'chat') {
                           handleNavigateToPinnedMessage(
@@ -306,6 +343,25 @@ export function SavedContentDropdown({
                             pinned?.chatId,
                             pinned?.messageId,
                           );
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === 'Enter' ||
+                          e.key === ' ' ||
+                          e.key === 'Spacebar'
+                        ) {
+                          if (pinScope === 'chat') {
+                            handleNavigateToPinnedMessage(
+                              currentChatId,
+                              pinned?.messageId,
+                            );
+                          } else {
+                            handleNavigateToPinnedMessage(
+                              pinned?.chatId,
+                              pinned?.messageId,
+                            );
+                          }
                         }
                       }}
                     >
@@ -411,7 +467,18 @@ export function SavedContentDropdown({
                       <div
                         key={chat.id}
                         className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => handleNavigateToChat(chat.chatId)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === 'Enter' ||
+                            e.key === ' ' ||
+                            e.key === 'Spacebar'
+                          ) {
+                            handleNavigateToChat(chat.chatId);
+                          }
+                        }}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
@@ -445,8 +512,8 @@ export function SavedContentDropdown({
                               </span>
                               <span>
                                 {'messageCount' in chat &&
-                                typeof chat.messageCount === 'number'
-                                  ? chat.messageCount
+                                chat.messageCount != null
+                                  ? Number((chat as any).messageCount)
                                   : 0}{' '}
                                 messages
                               </span>

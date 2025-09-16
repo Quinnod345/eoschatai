@@ -21,9 +21,13 @@ export type DataStreamDelta = {
     | 'chart-data'
     | 'ai-edit-start'
     | 'ai-edit-complete'
+    // Firesearch/Nexus standardized events
+    | 'nexus-phase'
     | 'nexus-search-start'
     | 'nexus-search-progress'
     | 'nexus-search-detail'
+    | 'nexus-query'
+    | 'nexus-source'
     | 'nexus-sites-found'
     | 'nexus-search-error'
     | 'nexus-search-complete'
@@ -48,15 +52,8 @@ export function DataStreamHandler({ id }: { id: string }) {
 
     (newDeltas as DataStreamDelta[]).forEach((delta: DataStreamDelta) => {
       console.log('[DataStreamHandler] Delta:', delta);
-      // Handle Nexus search events
+      // Handle Nexus search events (skip to avoid duplicate handling/logging)
       if (delta.type?.startsWith('nexus-')) {
-        // These events are handled by the Messages component
-        // We just log them here for debugging
-        console.log(
-          '[DataStreamHandler] Nexus event:',
-          delta.type,
-          delta.content,
-        );
         return;
       }
 

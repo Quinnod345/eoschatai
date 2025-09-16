@@ -457,6 +457,32 @@ export const personaDocument = pgTable(
 
 export type PersonaDocument = InferSelectModel<typeof personaDocument>;
 
+// Junction table for persona to composer-generated documents (Document table)
+export const personaComposerDocument = pgTable(
+  'PersonaComposerDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    personaId: uuid('personaId')
+      .notNull()
+      .references(() => persona.id, { onDelete: 'cascade' }),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique persona-composer-document pairs
+    personaComposerDocumentUnique: unique().on(
+      table.personaId,
+      table.documentId,
+    ),
+  }),
+);
+
+export type PersonaComposerDocument = InferSelectModel<
+  typeof personaComposerDocument
+>;
+
 // EOS Persona Profiles table for sub-groups within personas (e.g., Vision Building Day 2, etc.)
 export const personaProfile = pgTable('PersonaProfile', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),

@@ -95,6 +95,10 @@ export function ComposerPickerModal({
               <p className="text-sm text-muted-foreground mt-1">
                 Select composers to use as persona context. Click to toggle.
               </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selections are saved per persona when used in the Persona
+                Wizard.
+              </p>
             </div>
             <button
               type="button"

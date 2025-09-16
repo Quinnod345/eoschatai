@@ -145,7 +145,7 @@ export function CitationReferences({
       <div className="grid gap-2">
         {citations.map((citation) => (
           <CitationButton
-            key={citation.number}
+            key={`${citation.number}-${citation.url}`}
             number={citation.number}
             title={citation.title}
             url={citation.url}

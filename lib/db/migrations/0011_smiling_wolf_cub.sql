@@ -19,14 +19,14 @@ CREATE TABLE IF NOT EXISTS "UserDocumentEmbedding" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "Suggestion" DROP CONSTRAINT "Suggestion_documentId_documentCreatedAt_Document_id_createdAt_fk";
+ALTER TABLE "Suggestion" DROP CONSTRAINT IF EXISTS "Suggestion_documentId_documentCreatedAt_Document_id_createdAt_fk";
 --> statement-breakpoint
-ALTER TABLE "Stream" DROP CONSTRAINT "Stream_id_pk";--> statement-breakpoint
-ALTER TABLE "Suggestion" DROP CONSTRAINT "Suggestion_id_pk";--> statement-breakpoint
+ALTER TABLE "Stream" DROP CONSTRAINT IF EXISTS "Stream_id_pk";--> statement-breakpoint
+ALTER TABLE "Suggestion" DROP CONSTRAINT IF EXISTS "Suggestion_id_pk";--> statement-breakpoint
 ALTER TABLE "Stream" ADD PRIMARY KEY ("id");--> statement-breakpoint
 ALTER TABLE "Suggestion" ADD PRIMARY KEY ("id");--> statement-breakpoint
-ALTER TABLE "Embeddings" ADD COLUMN "embedding" vector(1536) NOT NULL;--> statement-breakpoint
-ALTER TABLE "UserSettings" ADD COLUMN "profilePicture" text;--> statement-breakpoint
+ALTER TABLE "Embeddings" ADD COLUMN IF NOT EXISTS "embedding" vector(1536) NOT NULL;--> statement-breakpoint
+ALTER TABLE "UserSettings" ADD COLUMN IF NOT EXISTS "profilePicture" text;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "UserDocument" ADD CONSTRAINT "UserDocument_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION

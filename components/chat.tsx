@@ -27,9 +27,10 @@ import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 import { ReplyIndicator } from './reply-indicator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
-import { NexusResearchProgress } from './nexus-research-progress';
 import { NexusResearchPlan } from './nexus-research-plan';
 import { ComposerContextIndicator } from './composer-context-indicator';
+import { FiresearchFollowUpQuestions } from './firesearch-followup-questions';
+import { FiresearchDisplay } from './firesearch-display';
 
 export function Chat({
   id,
@@ -99,6 +100,8 @@ export function Chat({
   // Add state for Nexus search progress
   const [nexusSearchData, setNexusSearchData] = useState<any>(null);
   const [nexusResearchPlan, setNexusResearchPlan] = useState<any>(null);
+  const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
+  const [nexusSearchEvents, setNexusSearchEvents] = useState<any[]>([]);
   const [nexusCitations, setNexusCitations] = useState<
     Array<{
       number: number;
@@ -241,6 +244,11 @@ export function Chat({
       // Reset performance tracking for new requests
       responseStartTimeRef.current = performance.now();
       responseSizeRef.current = 0;
+
+      // Clear Nexus search events for new message
+      setNexusSearchEvents([]);
+      setNexusSearchData(null);
+      setNexusResearchPlan(null);
 
       console.log('PERSONA_CLIENT: Preparing request body', {
         chatId: id,
@@ -446,67 +454,104 @@ export function Chat({
     }
   }, [id]);
 
+  // Track processed Nexus events to avoid duplicates
+  const processedEventsRef = useRef<Set<string>>(new Set());
+
   // Handle Nexus search events from data stream
   useEffect(() => {
     if (!data || data.length === 0) return;
 
-    const lastData = data[data.length - 1];
-    if (lastData && typeof lastData === 'object' && 'type' in lastData) {
-      const eventType = lastData.type as string;
-      if (eventType.startsWith('nexus-')) {
-        console.log('[Chat] Nexus event received:', eventType, lastData);
-
-        // Handle different Nexus events
-        switch (eventType) {
-          case 'nexus-progress':
-            setNexusSearchData(lastData);
-            break;
-          case 'nexus-plan-complete':
-            setNexusResearchPlan(lastData.plan);
-            setNexusSearchData({ ...lastData, type: 'nexus-progress' });
-            break;
-          case 'nexus-search-update':
-            setNexusSearchData((prev: any) => ({
-              ...prev,
-              currentStep: lastData.currentStep,
-              questionsSearched: lastData.questionsSearched,
-              message: lastData.message,
-            }));
-            break;
-          case 'nexus-search-complete':
-            setNexusSearchData((prev: any) => ({
-              ...prev,
-              totalResults: lastData.totalResults,
-            }));
-            break;
-          case 'nexus-analysis-update':
-            setNexusSearchData((prev: any) => ({
-              ...prev,
-              currentAnalysisStep: lastData.stepNumber,
-            }));
-            break;
-          case 'nexus-synthesis-complete':
-            // Store citations for display
-            if (lastData.citations && Array.isArray(lastData.citations)) {
-              setNexusCitations(
-                lastData.citations as Array<{
-                  number: number;
-                  title: string;
-                  url: string;
-                }>,
-              );
-            }
-            // Auto-dismiss the progress UI after a short delay
-            setTimeout(() => {
-              setNexusSearchData(null);
-              setNexusResearchPlan(null);
-            }, 2000);
-            break;
-          default:
-            setNexusSearchData(lastData);
+    // Process only new events that haven't been processed yet
+    const newEvents = data.filter((item: any) => {
+      if (
+        item &&
+        typeof item === 'object' &&
+        'type' in item &&
+        item.type.startsWith('nexus-')
+      ) {
+        // Create a unique key for this event
+        const eventKey = `${item.type}-${JSON.stringify(item)}-${data.indexOf(item)}`;
+        if (!processedEventsRef.current.has(eventKey)) {
+          processedEventsRef.current.add(eventKey);
+          return true;
         }
       }
-    }
+      return false;
+    });
+
+    // Process each new event
+    newEvents.forEach((eventData: any) => {
+      const eventType = eventData.type as string;
+      console.log('[Chat] Nexus event received:', eventType, eventData);
+
+      // Add all events to the events array for FiresearchDisplay
+      setNexusSearchEvents((prev) => [...prev, eventData]);
+
+      // Handle different Nexus events
+      switch (eventType) {
+        case 'nexus-progress':
+          setNexusSearchData(eventData);
+          break;
+        case 'nexus-plan-complete':
+          setNexusResearchPlan(eventData.plan);
+          setNexusSearchData({ ...eventData, type: 'nexus-progress' });
+          break;
+        case 'nexus-search-update':
+          setNexusSearchData((prev: any) => ({
+            ...prev,
+            currentStep: eventData.currentStep,
+            questionsSearched: eventData.questionsSearched,
+            message: eventData.message,
+          }));
+          break;
+        case 'nexus-search-complete':
+          setNexusSearchData((prev: any) => ({
+            ...prev,
+            totalResults: eventData.totalResults,
+          }));
+          // Extract citations from complete event
+          if (eventData.citations) {
+            setNexusCitations(eventData.citations);
+          }
+          // Extract follow-up questions
+          if (eventData.followUpQuestions) {
+            setFollowUpQuestions(eventData.followUpQuestions);
+          }
+          break;
+        case 'nexus-analysis-update':
+          setNexusSearchData((prev: any) => ({
+            ...prev,
+            currentAnalysisStep: eventData.stepNumber,
+          }));
+          break;
+        case 'nexus-synthesis-complete':
+          // Store citations for display
+          if (eventData.citations && Array.isArray(eventData.citations)) {
+            setNexusCitations(
+              eventData.citations as Array<{
+                number: number;
+                title: string;
+                url: string;
+              }>,
+            );
+          }
+          // Auto-dismiss the progress UI after a short delay
+          setTimeout(() => {
+            setNexusSearchData(null);
+            setNexusResearchPlan(null);
+          }, 2000);
+          break;
+        case 'nexus-followup-questions':
+          console.log(
+            '[Chat] Follow-up questions received:',
+            eventData.questions,
+          );
+          setFollowUpQuestions(eventData.questions || []);
+          break;
+        default:
+          setNexusSearchData(eventData);
+      }
+    });
   }, [data, id]);
 
   // Process data stream for web search events
@@ -1637,6 +1682,26 @@ export function Chat({
           onRetry={handleRetry}
         />
 
+        {/* Show follow-up questions if available */}
+        {followUpQuestions.length > 0 && selectedResearchMode === 'nexus' && (
+          <div className="fixed bottom-4 right-4 z-30 max-w-md w-[92vw] sm:w-[420px] pointer-events-auto">
+            <FiresearchFollowUpQuestions
+              className="shadow-lg"
+              questions={followUpQuestions}
+              onQuestionSelect={(question) => {
+                setFollowUpQuestions([]);
+                setInput(question);
+                setTimeout(() => {
+                  handleSubmitAdapter();
+                }, 100);
+              }}
+              onRefresh={() => {
+                console.log('Refresh follow-up questions');
+              }}
+            />
+          </div>
+        )}
+
         {/* Show Nexus search progress if active */}
         {nexusResearchPlan?.plan && (
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
@@ -1750,15 +1815,9 @@ export function Chat({
           </div>
         )}
 
-        {nexusSearchData && nexusSearchData.type === 'nexus-progress' && (
+        {selectedResearchMode === 'nexus' && nexusSearchEvents.length > 0 && (
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
-            <NexusResearchProgress
-              phase={nexusSearchData.phase || 'planning'}
-              message={nexusSearchData.message}
-              plan={nexusSearchData.plan || nexusResearchPlan}
-              currentStep={nexusSearchData.currentStep}
-              totalResults={nexusSearchData.totalResults}
-            />
+            <FiresearchDisplay events={nexusSearchEvents} />
           </div>
         )}
 

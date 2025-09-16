@@ -1,6 +1,11 @@
 import { findRelevantUserContent } from './user-rag';
 import { db } from '@/lib/db';
-import { persona, personaDocument, userDocuments } from '@/lib/db/schema';
+import {
+  persona,
+  personaDocument,
+  userDocuments,
+  personaComposerDocument,
+} from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 
 /**
@@ -44,22 +49,25 @@ export const personaRagContextPrompt = async (
       return '';
     }
 
-    // Get the document IDs associated with this persona
+    // Get the document IDs associated with this persona (uploaded user docs)
     const personaDocs = await db
       .select()
       .from(personaDocument)
       .where(eq(personaDocument.personaId, personaId));
 
-    if (personaDocs.length === 0) {
-      console.log(
-        'Persona RAG context: No documents associated with this persona',
-      );
-      return '';
-    }
+    // Get composer document IDs associated with this persona (AI-generated docs)
+    const composerDocs = await db
+      .select()
+      .from(personaComposerDocument)
+      .where(eq(personaComposerDocument.personaId, personaId));
 
-    let documentIds = personaDocs.map((pd) => pd.documentId);
+    let documentIds = [
+      ...personaDocs.map((pd) => pd.documentId),
+      ...composerDocs.map((cd) => cd.documentId),
+    ];
 
-    // Merge in user-selected persona context documents and primary documents if enabled
+    // Merge in primary composer documents if the user has enabled it in settings.
+    // We intentionally do NOT merge global personaContextDocumentIds to avoid cross-persona leakage.
     try {
       const { userSettings } = await import('@/lib/db/schema');
       const { eq } = await import('drizzle-orm');
@@ -69,11 +77,6 @@ export const personaRagContextPrompt = async (
         .where(eq(userSettings.userId, userId))
         .limit(1);
       if (settings) {
-        const extra: string[] = Array.isArray(
-          settings.personaContextDocumentIds,
-        )
-          ? settings.personaContextDocumentIds.filter(Boolean)
-          : [];
         const includePrimaries = settings.usePrimaryDocsForPersona ?? true;
         if (includePrimaries) {
           const primaryIds = [
@@ -81,14 +84,20 @@ export const personaRagContextPrompt = async (
             settings.primaryVtoId,
             settings.primaryScorecardId,
           ].filter(Boolean) as string[];
-          extra.push(...primaryIds);
-        }
-        if (extra.length) {
-          // Expand to include these extra documents
-          documentIds = Array.from(new Set([...documentIds, ...extra]));
+          if (primaryIds.length) {
+            documentIds = Array.from(new Set([...documentIds, ...primaryIds]));
+          }
         }
       }
     } catch {}
+    documentIds = Array.from(new Set(documentIds));
+    if (documentIds.length === 0) {
+      console.log(
+        'Persona RAG context: No documents associated with this persona',
+      );
+      return '';
+    }
+
     console.log(
       `Persona RAG context: Found ${documentIds.length} documents associated with persona "${personaData.name}"`,
     );

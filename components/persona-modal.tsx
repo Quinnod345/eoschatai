@@ -140,39 +140,51 @@ export function PersonaModal({
     }
   };
 
-  // Fetch user settings for persona composer context
+  // Fetch global toggle only; composer selections are per-persona
   const fetchComposerSettings = async () => {
     try {
       const res = await fetch('/api/user-settings');
       if (!res.ok) return;
       const s = await res.json();
       setUsePrimaryDocsForPersona(Boolean(s?.usePrimaryDocsForPersona ?? true));
-      const ctxMap: { [key: string]: boolean } = {};
-      if (Array.isArray(s?.personaContextDocumentIds)) {
-        for (const id of s.personaContextDocumentIds) ctxMap[id] = true;
-      }
-      setComposerContext(ctxMap);
     } catch {}
   };
 
-  // Save user settings for persona composer context
+  // Save per-persona composer selection and global toggle
   const saveComposerSettings = async () => {
     try {
-      const ids = Object.entries(composerContext)
-        .filter(([, v]) => v)
-        .map(([k]) => k);
-      const res = await fetch('/api/user-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          personaContextDocumentIds: ids,
-          usePrimaryDocsForPersona: usePrimaryDocsForPersona,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to save settings');
-      toast.success('Persona RAG context updated');
+      // Save global toggle
+      try {
+        await fetch('/api/user-settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usePrimaryDocsForPersona: usePrimaryDocsForPersona,
+          }),
+        });
+      } catch {}
+
+      // Save per-persona composer docs if editing
+      if (isEditing && persona?.id) {
+        const ids = Object.entries(composerContext)
+          .filter(([, v]) => v)
+          .map(([k]) => k);
+        const res = await fetch(`/api/personas/${persona.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            description: formData.description,
+            instructions: formData.instructions,
+            documentIds: formData.documentIds,
+            composerDocumentIds: ids,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to save composer selection');
+      }
+      toast.success('Composer selection saved');
     } catch {
-      toast.error('Failed to save persona context');
+      toast.error('Failed to save composer selection');
     }
   };
 
@@ -258,6 +270,12 @@ export function PersonaModal({
           documentIds: data.documentIds || [],
           iconUrl: data.iconUrl || '',
         });
+        // Load per-persona composer selections
+        const ctxMap: { [key: string]: boolean } = {};
+        if (Array.isArray(data?.composerDocumentIds)) {
+          for (const id of data.composerDocumentIds) ctxMap[id] = true;
+        }
+        setComposerContext(ctxMap);
       }
     } catch (error) {
       console.error('Error fetching persona details:', error);
@@ -282,7 +300,12 @@ export function PersonaModal({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          composerDocumentIds: Object.entries(composerContext)
+            .filter(([, v]) => v)
+            .map(([k]) => k),
+        }),
       });
 
       if (response.ok) {

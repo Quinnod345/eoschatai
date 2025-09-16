@@ -284,14 +284,59 @@ export function useWebSearchProgress() {
       console.log(`[WebSearchProgress] Data stream message:`, data);
 
       switch (data.type) {
+        case 'nexus-query':
+          // Initialize based on planned queries if start event wasn't sent
+          if (Array.isArray(data.queries)) {
+            handleSearchStart(data.queries.length);
+          }
+          break;
+        case 'nexus-progress':
+          handleSearchProgress({
+            currentSearch: data.currentQuery,
+            searchIndex: data.queriesCompleted,
+            searchesCompleted: data.queriesCompleted,
+            totalSearches: data.totalQueries,
+          });
+          break;
+        case 'nexus-phase':
+          // Treat generic phase updates as processing status
+          handlePhaseUpdate({
+            phase:
+              data.phase === 'searching' || data.phase === 'research'
+                ? 'research'
+                : 'generating',
+            message: data.message || data.phase,
+          });
+          break;
         case 'nexus-search-start':
           handleSearchStart(data.totalSearches);
           break;
         case 'nexus-search-progress':
-          handleSearchProgress(data);
+          handleSearchProgress({
+            currentSearch: data.currentQuery,
+            searchIndex: data.queriesCompleted,
+            searchesCompleted: data.queriesCompleted,
+            totalSearches: data.totalQueries,
+          });
           break;
         case 'nexus-search-detail':
           handleSearchDetail(data);
+          break;
+        case 'nexus-source':
+          // Append a single visited site based on source
+          throttledUpdate(() => {
+            setSearchProgress((prev) => ({
+              ...prev,
+              sitesVisited: [
+                ...prev.sitesVisited,
+                {
+                  url: data?.data?.source?.url,
+                  title: data?.data?.source?.title,
+                  status: 'completed' as const,
+                },
+              ],
+            }));
+          });
           break;
         case 'nexus-sites-found':
           handleSitesFound(data);

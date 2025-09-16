@@ -56,7 +56,7 @@ import {
   extractCitationsFromResults,
   type Citation,
 } from '@/lib/ai/citation-formatter';
-import { documentHandlersByComposerKind } from '@/lib/composer/server';
+// import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 export const maxDuration = 60;
 
@@ -999,14 +999,8 @@ SPECIAL INSTRUCTIONS FOR CORE PROCESS QUESTIONS:
 
     const getSoftTokenGuidance = () => {
       if (isNexusMode) {
-        // For Nexus mode, use maximum available tokens based on model
-        if (selectedChatModel.includes('gpt-4o-mini')) {
-          return 16000; // Leave some buffer from the 16,384 limit
-        } else if (selectedChatModel.includes('gpt-4o')) {
-          return 4000; // Leave some buffer from the 4,096 limit
-        }
-        // Default for other models in Nexus mode
-        return 8000;
+        // For Nexus mode, target comprehensive research output
+        return 6000;
       } else {
         // Standard mode - keep responses concise
         return 1500;
@@ -1355,43 +1349,50 @@ Always prioritize the user's document content over generic information. If speci
         const providerForDecision = createCustomProvider(selectedProvider);
         let preflightModel: 'gpt-4.1' | 'gpt-5' = 'gpt-4.1';
         let preflightMaxTokens = 2000;
-        try {
-          const decision = await decideModelWithNano({
-            provider: providerForDecision,
-            queryText: queryText || '',
-            hasCodeOrMath,
-            mode: isNexusMode ? 'nexus' : 'standard',
-            hasComposerOpen: Boolean(composerDocumentId),
-          });
-          preflightModel = decision.model;
-          preflightMaxTokens = decision.maxTokens;
-        } catch (e) {
-          console.warn(
-            'Preflight decision failed, falling back to defaults',
-            e,
-          );
+        // Remove preflight entirely when in Nexus (Deep Research) mode
+        if (!isNexusMode) {
+          try {
+            const decision = await decideModelWithNano({
+              provider: providerForDecision,
+              queryText: queryText || '',
+              hasCodeOrMath,
+              mode: 'standard',
+              hasComposerOpen: Boolean(composerDocumentId),
+            });
+            preflightModel = decision.model;
+            preflightMaxTokens = decision.maxTokens;
+          } catch (e) {
+            console.warn(
+              'Preflight decision failed, falling back to defaults',
+              e,
+            );
+          }
         }
 
         // Apply conservative override: favor GPT-4.1 unless Nexus forces otherwise
         // Nexus mode uses GPT-4.1 by default per requirements; otherwise use preflight selection
         // Nexus uses the preflight-selected model as well, but preflight is conservative with GPT-5
+        // Use preflight model selection for all modes
         const finalChatModel = preflightModel;
 
         // Establish safe hard limit based on final model
-        const safeHardLimit = finalChatModel.includes('gpt-4.1') ? 3800 : 7500;
-        const temperature = isNexusMode ? 0.8 : 0.8;
+        // Increase safe hard limits; allow ~50k tokens in Nexus with GPT-5
+        const safeHardLimit = finalChatModel.includes('gpt-4.1')
+          ? 16000
+          : 50000;
+        // Set temperature based on model
+        const temperature = 0.8;
 
-        // For Nexus mode, allow very high cap; otherwise, clamp by both preflight and model limit
+        // For Nexus mode, allow reasonable cap; otherwise, clamp by both preflight and model limit
         const nexusTokenLimit = isNexusMode
-          ? Math.min(32768, Math.max(1024, preflightMaxTokens))
+          ? 8000
           : Math.min(safeHardLimit, Math.max(512, preflightMaxTokens));
 
         // Compute artifact token multiplier without disrupting preflight
         // Slight boost: 1.4x up to a reasonable cap
-        const artifactMaxTokens = Math.min(
-          12000,
-          Math.floor((preflightMaxTokens || 2000) * 1.4),
-        );
+        const artifactMaxTokens = isNexusMode
+          ? 12000
+          : Math.min(12000, Math.floor((preflightMaxTokens || 2000) * 1.4));
 
         console.log('[DEBUG] Nexus mode check:', {
           selectedResearchMode,
@@ -1445,19 +1446,22 @@ Always prioritize the user's document content over generic information. If speci
           console.log('[NEXUS MODE] Starting AI-powered research');
 
           try {
-            // Import the Nexus orchestrator
-            const { runNexusResearch } = await import(
-              '@/lib/ai/nexus-orchestrator'
+            // Import the Firesearch orchestrator
+            const { runFiresearchResearch } = await import(
+              '@/lib/ai/firesearch-orchestrator'
             );
 
-            // Run the complete Nexus research flow
-            const nexusResult = await runNexusResearch(queryText, dataStream);
+            // Run the complete Firesearch deep research flow
+            const firesearchResult = await runFiresearchResearch(
+              queryText,
+              dataStream,
+            );
 
             // Set the research context for the chat model
-            nexusResearchContext = nexusResult.researchContext;
+            nexusResearchContext = firesearchResult.researchContext;
 
             // Store citations for later use
-            (globalThis as any).__nexusCitations = nexusResult.citations;
+            (globalThis as any).__nexusCitations = firesearchResult.citations;
 
             // Add Nexus-specific synthesis instructions
             nexusResearchContext += `
@@ -1467,13 +1471,18 @@ Always prioritize the user's document content over generic information. If speci
 You are now synthesizing deep research conducted through multiple phases. Follow these guidelines:
 
 1. **Comprehensive Integration**: Integrate ALL research findings into a cohesive, authoritative response
-2. **Citation Usage**: Use inline citations [1], [2], etc. when referencing specific information from sources
+2. **Citation Usage (MANDATORY)**: Use inline bracketed citations like [1], [2] immediately after any factual claim, figure, or quote. Ensure every paragraph contains at least one citation.
 3. **Progressive Depth**: Start with overview, then dive deeper into specifics from the research
 4. **Key Insights**: Highlight the most important discoveries and patterns found across sources
 5. **Practical Application**: Focus on actionable insights and practical implementation guidance
 6. **Authoritative Tone**: Write with confidence based on the comprehensive research conducted
 7. **Structured Response**: Use clear headings and subheadings to organize the information
 8. **Complete Coverage**: Ensure all aspects of the user's query are thoroughly addressed
+
+FORMAT REQUIREMENTS:
+- Provide a short Executive Summary first.
+- Use rich markdown (headings, lists, tables where helpful).
+- End with a "References" section listing each source in order [1]..[N] with title and URL from the citations provided.
 
 Remember: You have conducted extensive research. Present the findings as a comprehensive expert analysis.
 `;
