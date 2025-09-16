@@ -317,9 +317,16 @@ export async function POST(request: Request) {
 
     const previousMessages = await getMessagesByChatId({ id });
 
+    const normalizedPreviousMessages = previousMessages.map((dbMessage) => ({
+      ...dbMessage,
+      experimental_attachments: Array.isArray(dbMessage.attachments)
+        ? dbMessage.attachments
+        : [],
+    }));
+
     const messages = appendClientMessage({
       // @ts-expect-error: todo add type conversion from DBMessage[] to UIMessage[]
-      messages: previousMessages,
+      messages: normalizedPreviousMessages,
       message,
     });
 
