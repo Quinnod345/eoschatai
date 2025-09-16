@@ -21,7 +21,7 @@ export type DataStreamDelta = {
     | 'chart-data'
     | 'ai-edit-start'
     | 'ai-edit-complete'
-    // Firesearch/Nexus standardized events
+    // Nexus standardized events
     | 'nexus-phase'
     | 'nexus-search-start'
     | 'nexus-search-progress'

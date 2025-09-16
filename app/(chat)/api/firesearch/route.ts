@@ -446,7 +446,7 @@ function formatResearchContext(result: any): string {
   const summary = result.summary || '';
 
   let context = `
-# Deep Research Results
+# Nexus Research Results
 
 ${summary}
 

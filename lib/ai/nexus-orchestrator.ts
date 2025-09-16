@@ -215,7 +215,7 @@ function buildResearchContext(
   analyses: StepAnalysis[],
   citations: any[],
 ): string {
-  let context = `## Nexus Deep Research Results\n\n`;
+  let context = `## Nexus Research Results\n\n`;
   context += `**Query:** ${userQuery}\n`;
   context += `**Research Objective:** ${plan.mainObjective}\n\n`;
 

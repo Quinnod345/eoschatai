@@ -1,4 +1,4 @@
-// Firecrawl Search Configuration for Nexus Deep Research Mode
+// Firecrawl Search Configuration for Nexus Research Mode
 // Based on https://docs.firecrawl.dev/features/search
 
 export interface FirecrawlSearchConfig {
@@ -40,10 +40,10 @@ export const TIME_FILTERS = {
   all: undefined, // No time filter
 } as const;
 
-// Optimized configurations for Nexus Deep Research Mode
+// Optimized configurations for Nexus Research Mode
 export const SEARCH_CONFIGS = {
   // Initial exploration - comprehensive with full content
-  DEEP_RESEARCH_INITIAL: {
+  NEXUS_RESEARCH_INITIAL: {
     limit: 10,
     scrapeOptions: {
       formats: ['markdown', 'links', 'html'],
@@ -57,7 +57,7 @@ export const SEARCH_CONFIGS = {
   },
 
   // Follow-up searches - balanced approach
-  DEEP_RESEARCH_FOLLOWUP: {
+  NEXUS_RESEARCH_FOLLOWUP: {
     limit: 7,
     scrapeOptions: {
       formats: ['markdown', 'links'],
@@ -71,7 +71,7 @@ export const SEARCH_CONFIGS = {
   },
 
   // Targeted search for specific information
-  DEEP_RESEARCH_TARGETED: {
+  NEXUS_RESEARCH_TARGETED: {
     limit: 5,
     scrapeOptions: {
       formats: ['markdown'],
@@ -85,7 +85,7 @@ export const SEARCH_CONFIGS = {
   },
 
   // Latest information and trends
-  DEEP_RESEARCH_RECENT: {
+  NEXUS_RESEARCH_RECENT: {
     limit: 8,
     scrapeOptions: {
       formats: ['markdown', 'links'],
@@ -159,11 +159,11 @@ export function getOptimalSearchConfig(
     context.priority === 'comprehensive'
   ) {
     baseConfig = {
-      ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL,
+      ...SEARCH_CONFIGS.NEXUS_RESEARCH_INITIAL,
       scrapeOptions: {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL.scrapeOptions,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_INITIAL.scrapeOptions,
         formats: [
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL.scrapeOptions.formats,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_INITIAL.scrapeOptions.formats,
         ],
       },
     };
@@ -185,10 +185,10 @@ export function getOptimalSearchConfig(
     };
   } else if (context.type === 'recent' || context.type === 'news') {
     baseConfig = {
-      ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT,
+      ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT,
       scrapeOptions: {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions,
-        formats: [...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions.formats],
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions,
+        formats: [...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions.formats],
       },
     };
   } else if (context.priority === 'speed') {
@@ -202,11 +202,11 @@ export function getOptimalSearchConfig(
   } else {
     // Default to follow-up configuration
     baseConfig = {
-      ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
+      ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP,
       scrapeOptions: {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions,
         formats: [
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions.formats,
         ],
       },
     };
@@ -255,10 +255,10 @@ export function getNexusSearchConfig(
     case 'initial':
       // First searches: comprehensive with full content extraction
       return {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_INITIAL,
         limit: 10,
         scrapeOptions: {
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_INITIAL.scrapeOptions,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_INITIAL.scrapeOptions,
           formats: ['markdown', 'links', 'html', 'screenshot'],
         },
       };
@@ -266,12 +266,12 @@ export function getNexusSearchConfig(
     case 'exploration':
       // Middle searches: balanced depth and breadth
       return {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP,
         limit: 7,
         scrapeOptions: {
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions,
           formats: [
-            ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+            ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions.formats,
           ],
         },
       };
@@ -279,12 +279,12 @@ export function getNexusSearchConfig(
     case 'targeted':
       // Late searches: focused on specific gaps
       return {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_TARGETED,
         limit: 5,
         scrapeOptions: {
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED.scrapeOptions,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_TARGETED.scrapeOptions,
           formats: [
-            ...SEARCH_CONFIGS.DEEP_RESEARCH_TARGETED.scrapeOptions.formats,
+            ...SEARCH_CONFIGS.NEXUS_RESEARCH_TARGETED.scrapeOptions.formats,
           ],
         },
       };
@@ -292,12 +292,12 @@ export function getNexusSearchConfig(
     case 'final':
       // Final searches: recent updates and verification
       return {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT,
         limit: 5,
         scrapeOptions: {
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions,
           formats: [
-            ...SEARCH_CONFIGS.DEEP_RESEARCH_RECENT.scrapeOptions.formats,
+            ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions.formats,
           ],
           timeout: 20000, // Faster for final searches
         },
@@ -305,11 +305,11 @@ export function getNexusSearchConfig(
 
     default:
       return {
-        ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP,
+        ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP,
         scrapeOptions: {
-          ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions,
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions,
           formats: [
-            ...SEARCH_CONFIGS.DEEP_RESEARCH_FOLLOWUP.scrapeOptions.formats,
+            ...SEARCH_CONFIGS.NEXUS_RESEARCH_FOLLOWUP.scrapeOptions.formats,
           ],
         },
       };

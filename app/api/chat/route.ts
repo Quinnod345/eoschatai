@@ -1356,7 +1356,7 @@ Always prioritize the user's document content over generic information. If speci
         const providerForDecision = createCustomProvider(selectedProvider);
         let preflightModel: 'gpt-4.1' | 'gpt-5' = 'gpt-4.1';
         let preflightMaxTokens = 2000;
-        // Remove preflight entirely when in Nexus (Deep Research) mode
+        // Remove preflight entirely when in Nexus mode
         if (!isNexusMode) {
           try {
             const decision = await decideModelWithNano({
@@ -1453,22 +1453,23 @@ Always prioritize the user's document content over generic information. If speci
           console.log('[NEXUS MODE] Starting AI-powered research');
 
           try {
-            // Import the Firesearch orchestrator
-            const { runFiresearchResearch } = await import(
+            // Import the Nexus research orchestrator
+            const { runNexusResearch } = await import(
               '@/lib/ai/firesearch-orchestrator'
             );
 
-            // Run the complete Firesearch deep research flow
-            const firesearchResult = await runFiresearchResearch(
+            // Run the complete Nexus research flow
+            const nexusResearchResult = await runNexusResearch(
               queryText,
               dataStream,
             );
 
             // Set the research context for the chat model
-            nexusResearchContext = firesearchResult.researchContext;
+            nexusResearchContext = nexusResearchResult.researchContext;
 
             // Store citations for later use
-            (globalThis as any).__nexusCitations = firesearchResult.citations;
+            (globalThis as any).__nexusCitations =
+              nexusResearchResult.citations;
 
             // Add Nexus-specific synthesis instructions
             nexusResearchContext += `

@@ -24,14 +24,14 @@ const researchModes: Array<{
   {
     id: 'off',
     label: 'Standard',
-    description: 'Regular chat without deep research',
+    description: 'Regular chat without Nexus research',
     icon: <SearchIcon size={16} />,
   },
   {
     id: 'nexus',
-    label: 'Deep Research',
+    label: 'Nexus',
     description:
-      'AI-powered comprehensive web research with follow-up questions',
+      'AI-powered Nexus research with comprehensive web analysis and follow-ups',
     icon: <Telescope className="size-4" />,
     color: 'text-purple-600 dark:text-purple-400',
   },
