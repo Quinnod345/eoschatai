@@ -112,6 +112,28 @@ function getStreamContext() {
   return globalStreamContext;
 }
 
+function createTextStreamResponse(
+  stream: ReadableStream<string> | null | undefined,
+  init: ResponseInit = {},
+) {
+  if (!stream) {
+    return new Response(null, init);
+  }
+
+  const headers = new Headers(init.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'text/plain; charset=utf-8');
+  }
+  if (!headers.has('X-Vercel-AI-Data-Stream')) {
+    headers.set('X-Vercel-AI-Data-Stream', 'v1');
+  }
+
+  return new Response(stream.pipeThrough(new TextEncoderStream()), {
+    ...init,
+    headers,
+  });
+}
+
 // Lightweight preflight to pick model and suggest a token budget using GPT-4.1-nano
 async function decideModelWithNano(args: {
   provider: ReturnType<typeof createCustomProvider>;
@@ -2901,16 +2923,23 @@ ${
           return responseStream;
         });
 
+        if (!resumableStream) {
+          console.log(
+            '[NEXUS MODE] Resumable stream unavailable, using direct stream',
+          );
+          return createTextStreamResponse(responseStream);
+        }
+
         console.log(
           `[NEXUS MODE] Resumable stream created for ID: ${streamId}`,
         );
-        return new Response(resumableStream);
+        return createTextStreamResponse(resumableStream);
       } catch (streamError) {
         console.error(
           `[NEXUS MODE] Error with resumable stream: ${streamError}`,
         );
         console.log('[NEXUS MODE] Falling back to direct response stream');
-        return new Response(responseStream);
+        return createTextStreamResponse(responseStream);
       }
     }
 
@@ -2945,17 +2974,24 @@ ${
           return responseStream;
         });
 
+        if (!resumableStream) {
+          console.log(
+            'Resumable stream unavailable, using direct response stream',
+          );
+          return createTextStreamResponse(responseStream);
+        }
+
         console.log(`Resumable stream created for ID: ${streamId}`);
         console.log('Resumable stream type:', typeof resumableStream);
-        return new Response(resumableStream);
+        return createTextStreamResponse(resumableStream);
       } catch (streamError) {
         console.error(`Error with resumable stream: ${streamError}`);
         console.log('Falling back to direct response stream');
-        return new Response(responseStream);
+        return createTextStreamResponse(responseStream);
       }
     } else {
       console.log('Using direct response stream (no resumable context)');
-      return new Response(responseStream);
+      return createTextStreamResponse(responseStream);
     }
   } catch (error) {
     console.error('Unhandled error in chat POST route:', error);
@@ -3112,15 +3148,14 @@ export async function GET(request: Request) {
   });
 
   try {
-    return new Response(
-      await streamContext.resumableStream(
-        recentStreamId,
-        () => emptyDataStream,
-      ),
-      {
-        status: 200,
-      },
+    const resumableStream = await streamContext.resumableStream(
+      recentStreamId,
+      () => emptyDataStream,
     );
+
+    return createTextStreamResponse(resumableStream, {
+      status: 200,
+    });
   } catch (error) {
     console.error('Error creating resumable stream:', error);
     // Fallback to minimal response if stream creation fails
