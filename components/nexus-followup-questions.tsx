@@ -1,6 +1,6 @@
 /**
- * Firesearch Follow-up Questions Component
- * Displays and handles follow-up questions from deep research
+ * Nexus Follow-up Questions Component
+ * Displays and handles follow-up questions from Nexus research
  */
 
 'use client';
@@ -11,19 +11,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronRight, Sparkles, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface FiresearchFollowUpQuestionsProps {
+interface NexusFollowUpQuestionsProps {
   questions: string[];
   onQuestionSelect: (question: string) => void;
   onRefresh?: () => void;
   className?: string;
 }
 
-export function FiresearchFollowUpQuestions({
+export function NexusFollowUpQuestions({
   questions,
   onQuestionSelect,
   onRefresh,
   className,
-}: FiresearchFollowUpQuestionsProps) {
+}: NexusFollowUpQuestionsProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 

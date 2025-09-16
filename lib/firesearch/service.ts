@@ -15,6 +15,35 @@ import type {
 import FirecrawlApp from '@mendable/firecrawl-js';
 import { OpenAI } from 'openai';
 
+function safeJsonParse<T>(
+  value: string | null | undefined,
+  fallback: T,
+  context: string,
+): T {
+  if (!value) {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(value) as T;
+    if (parsed === null || parsed === undefined) {
+      return fallback;
+    }
+    return parsed;
+  } catch (error) {
+    console.warn(`[FiresearchService] Failed to parse ${context}`, error);
+    return fallback;
+  }
+}
+
+function sanitizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0);
+}
+
 export class FiresearchService {
   private firecrawl: FirecrawlApp;
   private openai: OpenAI;
@@ -237,10 +266,24 @@ Return your response in JSON format:
       response_format: { type: 'json_object' },
     });
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeJsonParse<any>(
+      response.choices[0].message.content,
+      {},
+      'research plan response',
+    );
+    const queries = sanitizeStringArray(result.queries);
+    if (queries.length === 0) {
+      queries.push(query.query);
+    }
+
+    const strategy =
+      typeof result.strategy === 'string' && result.strategy.trim().length > 0
+        ? result.strategy.trim()
+        : 'Standard research approach';
+
     return {
-      queries: result.queries || [],
-      strategy: result.strategy || 'Standard research approach',
+      queries,
+      strategy,
     };
   }
 
@@ -332,7 +375,17 @@ Return your analysis in JSON format:
       response_format: { type: 'json_object' },
     });
 
-    return JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeJsonParse<any>(
+      response.choices[0].message.content,
+      {},
+      'analysis response',
+    );
+
+    return {
+      keyFindings: sanitizeStringArray(result.keyFindings),
+      contradictions: sanitizeStringArray(result.contradictions),
+      gaps: sanitizeStringArray(result.gaps),
+    };
   }
 
   /**
@@ -367,13 +420,19 @@ Return your analysis in JSON format:
       content: (s.content || s.snippet || '').slice(0, MAX_CONTENT_CHARS),
     }));
 
+    const keyFindings = sanitizeStringArray(analysis?.keyFindings);
+    const keyFindingsSection =
+      keyFindings.length > 0
+        ? keyFindings.join('\n')
+        : 'No key findings were returned by the analysis step.';
+
     const prompt = `
 You are a world-class research analyst tasked with creating an EXTREMELY comprehensive and detailed research report.
 
 RESEARCH QUERY: "${query}"
 
 KEY FINDINGS FROM ANALYSIS:
-${analysis.keyFindings.join('\n')}
+${keyFindingsSection}
 
 ALL RESEARCH SOURCES (${sources.length} total):
 ${sourcesForSynthesis
@@ -432,7 +491,59 @@ Return your response in JSON format:
       response_format: { type: 'json_object' },
     } as any);
 
-    return JSON.parse(response.choices[0].message.content || '{}');
+    const result = safeJsonParse<any>(
+      response.choices[0].message.content,
+      {},
+      'synthesis response',
+    );
+
+    const summary =
+      typeof result.summary === 'string' && result.summary.trim().length > 0
+        ? result.summary
+        : 'No summary generated.';
+
+    const relatedTopics = sanitizeStringArray(result.relatedTopics);
+
+    let references: Array<{
+      number: number;
+      title: string;
+      url: string;
+      snippet?: string;
+    }> | undefined;
+
+    if (Array.isArray(result.references)) {
+      const sanitized = result.references
+        .map((ref: any, index: number) => {
+          const title =
+            typeof ref?.title === 'string' ? ref.title.trim() : '';
+          const url = typeof ref?.url === 'string' ? ref.url.trim() : '';
+          if (!title || !url) {
+            return null;
+          }
+          const number =
+            typeof ref?.number === 'number' ? ref.number : index + 1;
+          const snippet =
+            typeof ref?.snippet === 'string' && ref.snippet.trim().length > 0
+              ? ref.snippet.trim()
+              : undefined;
+          return { number, title, url, snippet };
+        })
+        .filter((ref): ref is {
+          number: number;
+          title: string;
+          url: string;
+          snippet?: string;
+        } => Boolean(ref));
+      if (sanitized.length > 0) {
+        references = sanitized;
+      }
+    }
+
+    return {
+      summary,
+      relatedTopics,
+      references,
+    };
   }
 
   /**
@@ -468,8 +579,12 @@ Return your response in JSON format:
       response_format: { type: 'json_object' },
     });
 
-    const result = JSON.parse(response.choices[0].message.content || '{}');
-    return result.questions || [];
+    const result = safeJsonParse<any>(
+      response.choices[0].message.content,
+      {},
+      'follow-up questions response',
+    );
+    return sanitizeStringArray(result.questions);
   }
 
   /**

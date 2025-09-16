@@ -14,7 +14,7 @@ interface Source {
   relevanceScore?: number;
 }
 
-interface FiresearchSourcesPanelProps {
+interface NexusSourcesPanelProps {
   sources: Source[];
   isOpen: boolean;
   onClose: () => void;
@@ -29,11 +29,11 @@ function getFaviconUrl(url: string): string {
   }
 }
 
-export function FiresearchSourcesPanel({
+export function NexusSourcesPanel({
   sources,
   isOpen,
   onClose,
-}: FiresearchSourcesPanelProps) {
+}: NexusSourcesPanelProps) {
   const [expandedSourceIndex, setExpandedSourceIndex] = useState<number | null>(
     null,
   );

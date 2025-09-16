@@ -264,12 +264,12 @@ export function NexusSearchProgress({ data }: NexusSearchProgressProps) {
             {data.phase === 'planning'
               ? 'Creating Research Strategy'
               : data.phase === 'research'
-                ? 'Conducting Deep Research'
+                ? 'Conducting Nexus Research'
                 : data.phase === 'analyzing'
                   ? 'Analyzing Research Findings'
                   : data.phase === 'complete'
                     ? 'Research Complete'
-                    : 'Nexus Research Mode'}
+                    : 'Nexus Research'}
           </h3>
         </div>
 

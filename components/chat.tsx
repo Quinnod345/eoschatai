@@ -29,8 +29,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
 import { NexusResearchPlan } from './nexus-research-plan';
 import { ComposerContextIndicator } from './composer-context-indicator';
-import { FiresearchFollowUpQuestions } from './firesearch-followup-questions';
-import { FiresearchDisplay } from './firesearch-display';
+import { NexusFollowUpQuestions } from './nexus-followup-questions';
+import { NexusResearchDisplay } from './nexus-research-display';
 
 export function Chat({
   id,
@@ -484,7 +484,7 @@ export function Chat({
       const eventType = eventData.type as string;
       console.log('[Chat] Nexus event received:', eventType, eventData);
 
-      // Add all events to the events array for FiresearchDisplay
+      // Add all events to the events array for NexusResearchDisplay
       setNexusSearchEvents((prev) => [...prev, eventData]);
 
       // Handle different Nexus events
@@ -1685,7 +1685,7 @@ export function Chat({
         {/* Show follow-up questions if available */}
         {followUpQuestions.length > 0 && selectedResearchMode === 'nexus' && (
           <div className="fixed bottom-4 right-4 z-30 max-w-md w-[92vw] sm:w-[420px] pointer-events-auto">
-            <FiresearchFollowUpQuestions
+            <NexusFollowUpQuestions
               className="shadow-lg"
               questions={followUpQuestions}
               onQuestionSelect={(question) => {
@@ -1817,7 +1817,7 @@ export function Chat({
 
         {selectedResearchMode === 'nexus' && nexusSearchEvents.length > 0 && (
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
-            <FiresearchDisplay events={nexusSearchEvents} />
+            <NexusResearchDisplay events={nexusSearchEvents} />
           </div>
         )}
 

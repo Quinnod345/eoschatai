@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FiresearchSourcesPanel } from './firesearch-sources-panel';
+import { NexusSourcesPanel } from './nexus-sources-panel';
 import { cn } from '@/lib/utils';
 
 interface Source {
@@ -12,17 +12,17 @@ interface Source {
   relevanceScore?: number;
 }
 
-interface FiresearchMessageProps {
+interface NexusMessageProps {
   content: string;
   sources: Source[];
   className?: string;
 }
 
-export function FiresearchMessage({
+export function NexusMessage({
   content,
   sources,
   className,
-}: FiresearchMessageProps) {
+}: NexusMessageProps) {
   const [showSourcesPanel, setShowSourcesPanel] = useState(false);
 
   return (
@@ -34,7 +34,7 @@ export function FiresearchMessage({
 
       {/* Sources panel trigger and panel */}
       {sources.length > 0 && (
-        <FiresearchSourcesPanel
+        <NexusSourcesPanel
           sources={sources}
           isOpen={showSourcesPanel}
           onClose={() => setShowSourcesPanel(!showSourcesPanel)}

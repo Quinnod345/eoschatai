@@ -1,13 +1,13 @@
 /**
- * Firesearch Orchestrator
- * Replaces the old Nexus orchestrator with Firesearch integration
+ * Nexus Research Orchestrator
+ * Modern orchestrator that uses the Firesearch service under the hood
  */
 
 import { getFiresearchService } from '@/lib/firesearch';
 import type { ResearchResult, ResearchSource } from '@/lib/firesearch/types';
 import type { DataStreamWriter } from 'ai';
 
-export interface FiresearchResult {
+export interface NexusResearchResult {
   citations: Array<{
     number: number;
     title: string;
@@ -19,14 +19,14 @@ export interface FiresearchResult {
 }
 
 /**
- * Run Firesearch deep research
+ * Run Nexus research workflow
  */
-export async function runFiresearchResearch(
+export async function runNexusResearch(
   userQuery: string,
   dataStream: DataStreamWriter,
-): Promise<FiresearchResult> {
+): Promise<NexusResearchResult> {
   console.log(
-    '[Firesearch Orchestrator] Starting deep research for:',
+    '[Nexus Research Orchestrator] Starting Nexus research for:',
     userQuery,
   );
 
@@ -42,7 +42,7 @@ export async function runFiresearchResearch(
   }> = [];
 
   try {
-    // Create research stream with high token budget for deep research
+    // Create research stream with high token budget for comprehensive research
     const researchStream = firesearch.research({
       query: userQuery,
       depth: 'comprehensive',
@@ -65,7 +65,7 @@ export async function runFiresearchResearch(
           break;
 
         case 'query':
-          // Emit Firesearch-style query list for UI
+          // Emit Nexus-style query list for UI
           dataStream.writeData({
             type: 'nexus-query',
             queries: event.data.queries,
@@ -121,7 +121,7 @@ export async function runFiresearchResearch(
           break;
 
         case 'error':
-          console.error('[Firesearch Orchestrator] Error:', event.data);
+          console.error('[Nexus Research Orchestrator] Error:', event.data);
           dataStream.writeData({
             type: 'nexus-error',
             error: event.data.message,
@@ -161,7 +161,7 @@ export async function runFiresearchResearch(
 
     const duration = Date.now() - startTime;
     console.log(
-      '[Firesearch Orchestrator] Research completed in',
+      '[Nexus Research Orchestrator] Research completed in',
       duration,
       'ms',
     );
@@ -172,7 +172,7 @@ export async function runFiresearchResearch(
       researchContext,
     };
   } catch (error) {
-    console.error('[Firesearch Orchestrator] Fatal error:', error);
+    console.error('[Nexus Research Orchestrator] Fatal error:', error);
 
     dataStream.writeData({
       type: 'nexus-error',

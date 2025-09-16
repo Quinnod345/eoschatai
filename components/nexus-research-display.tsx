@@ -31,9 +31,6 @@ interface SearchStep {
   status: 'pending' | 'active' | 'completed';
 }
 
-// Firesearch-style colors
-const FIRESEARCH_ORANGE = '#FF6B35';
-
 // Helper functions for favicons
 function getFaviconUrl(url: string): string {
   try {
@@ -264,7 +261,7 @@ function FoundSourcesGroup({
   );
 }
 
-export function FiresearchDisplay({ events }: { events: SearchEvent[] }) {
+export function NexusResearchDisplay({ events }: { events: SearchEvent[] }) {
   const [steps, setSteps] = useState<SearchStep[]>([]);
   const [showFinalResult, setShowFinalResult] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
