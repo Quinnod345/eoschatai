@@ -146,10 +146,20 @@ async function transcribeInBackground(
 
     // Save error state to database so UI can show it
     try {
+      // Check if this is a format error specifically
+      const isFormatError =
+        error.message?.includes('Invalid file format') ||
+        error.message?.includes('Audio format not supported') ||
+        error.status === 400;
+
+      const errorMessage = isFormatError
+        ? 'Audio format not supported. Please use MP3, M4A, WAV, or other supported formats.'
+        : error.message || 'Transcription failed due to an unknown error.';
+
       await db.insert(voiceTranscript).values({
         recordingId,
         fullTranscript: '',
-        content: `[Transcription Error: ${error.message || 'Unknown error'}]`,
+        content: `ERROR:${errorMessage}`, // Mark content as error with specific prefix
         segments: [] as any,
         speakerCount: 0,
       });

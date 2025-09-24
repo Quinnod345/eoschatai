@@ -1281,10 +1281,19 @@ function PureMultimodalInput({
                   clearInterval(pollInterval);
                   setAudioContents((prev) =>
                     prev.map((a) =>
-                      a.id === recordingId ? { ...a, status: 'error' } : a,
+                      a.id === recordingId
+                        ? {
+                            ...a,
+                            status: 'error',
+                            transcript:
+                              statusData.error || 'Transcription failed',
+                          }
+                        : a,
                     ),
                   );
-                  toast.error('Transcription failed');
+                  toast.error(
+                    `Transcription failed: ${statusData.error || 'Unknown error'}`,
+                  );
                 }
               }
             } catch (error) {
@@ -1458,8 +1467,9 @@ function PureMultimodalInput({
     if (allAudioContents.length > 0) {
       hasProcessedContent = true;
 
-      // Use the new embedded content format
+      // Use the new embedded content format - only include ready audio (no errors)
       const audioEmbeddedContent = allAudioContents
+        .filter((audio) => audio.status === 'ready') // Only include successfully transcribed audio
         .map((audio) => {
           const embeddedContent = {
             type: 'audio' as const,
@@ -1467,15 +1477,9 @@ function PureMultimodalInput({
             metadata: {
               status: audio.status,
               duration: audio.duration,
-              transcript:
-                audio.status === 'ready' ? audio.transcript : undefined,
-              error:
-                audio.status === 'error'
-                  ? audio.transcript ||
-                    'Transcription failed. Audio format may not be supported.'
-                  : undefined,
+              transcript: audio.transcript,
             },
-            content: audio.status === 'ready' ? audio.transcript : undefined,
+            content: audio.transcript,
           };
 
           return `[EMBEDDED_CONTENT_START]${JSON.stringify(embeddedContent)}[EMBEDDED_CONTENT_END]`;
@@ -1491,6 +1495,15 @@ function PureMultimodalInput({
     );
     if (processingAudio.length > 0) {
       toast.error('Please wait for audio transcription to complete!');
+      return;
+    }
+
+    // Check if any audio has errors
+    const errorAudio = audioContents.filter((a) => a.status === 'error');
+    if (errorAudio.length > 0) {
+      toast.error(
+        `Cannot send message with failed audio attachments. Please remove the failed audio files (${errorAudio.map((a) => a.name).join(', ')}) or try uploading in a supported format.`,
+      );
       return;
     }
 
@@ -2474,19 +2487,34 @@ function PureMultimodalInput({
                     <line x1="12" x2="12" y1="19" y2="22" />
                   </svg>
                 ) : (
-                  <>
+                  <div
+                    className="flex flex-col items-center justify-center cursor-help"
+                    title={audio.transcript || 'Transcription failed'}
+                  >
                     <div className="text-red-500">
                       <XIcon size={24} />
                     </div>
-                    <span className="text-[10px] text-red-500 mt-1">Error</span>
-                  </>
+                    <span className="text-[10px] text-red-500 mt-1">
+                      Failed
+                    </span>
+                  </div>
                 )}
 
                 {audio.status !== 'uploading' && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                    className={cn(
+                      'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm',
+                      audio.status === 'error'
+                        ? 'hover:bg-destructive hover:text-destructive-foreground bg-destructive/10'
+                        : 'hover:bg-destructive hover:text-destructive-foreground',
+                    )}
+                    title={
+                      audio.status === 'error'
+                        ? 'Remove failed audio'
+                        : 'Remove audio'
+                    }
                     onClick={() => {
                       setAudioContents((current) =>
                         current.filter((a) => a.id !== audio.id),

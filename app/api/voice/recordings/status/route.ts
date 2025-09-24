@@ -50,13 +50,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // If we already have a transcript, it's ready
+    // If we already have a transcript, check if it's an error or success
     const [tr] = await db
       .select({ id: voiceTranscript.id, content: voiceTranscript.content })
       .from(voiceTranscript)
       .where(eq(voiceTranscript.recordingId, recordingId))
       .limit(1);
     if (tr) {
+      // Check if content indicates an error
+      if (tr.content?.startsWith('ERROR:')) {
+        const errorMessage = tr.content.substring(6); // Remove "ERROR:" prefix
+        return NextResponse.json({
+          status: 'error',
+          error: errorMessage,
+          transcript: '', // Don't return error text as transcript
+        });
+      }
       return NextResponse.json({
         status: 'ready',
         transcript: tr.content || '',

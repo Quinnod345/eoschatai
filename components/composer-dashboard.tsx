@@ -43,6 +43,7 @@ export function ComposerDashboard() {
   const { open } = useSidebar();
   const { width: windowWidth } = useWindowSize();
   const { data: session } = useSession();
+  const [mounted, setMounted] = useState(false);
 
   // Recordings view support
   const isRecordings = params.get('dashboard') === 'recordings';
@@ -83,6 +84,11 @@ export function ComposerDashboard() {
     '/api/user-settings',
     fetcher,
   );
+
+  // Set mounted state to prevent hydration mismatches
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close global loading overlay once initial list is available or after a short safety timeout
   useEffect(() => {
@@ -244,7 +250,7 @@ export function ComposerDashboard() {
         </div>
 
         {/* Center: search + new chat when sidebar is closed or on mobile */}
-        {(!open || (windowWidth ?? 0) < 768) && (
+        {mounted && (!open || (windowWidth ?? 0) < 768) && (
           <div className="flex items-center gap-1 md:gap-2">
             <AdvancedSearch />
             <Button
