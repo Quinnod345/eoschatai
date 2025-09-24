@@ -26,19 +26,13 @@ import {
   Monitor,
   Bell,
   Shield,
-  Building2,
   Zap,
   X,
   Check,
   Camera,
   Palette,
-  MessageSquare,
-  Mic,
   Download,
   Trash2,
-  Eye,
-  EyeOff,
-  Clock,
   Database,
   ExternalLink,
   AlertTriangle,
@@ -47,8 +41,141 @@ import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
 import { AnimatedModal } from '@/components/ui/animated-modal';
 import { useUISettings } from '@/components/ui-settings-provider';
+import { useUserSettings } from '@/components/user-settings-provider';
 import { useTheme } from 'next-themes';
-import { Slider } from '@/components/ui/slider';
+
+function MemoriesManager() {
+  const [query, setQuery] = React.useState('');
+  const [status, setStatus] = React.useState<string>('');
+  const [type, setType] = React.useState<string>('');
+  const [loading, setLoading] = React.useState(false);
+  const [memories, setMemories] = React.useState<any[]>([]);
+
+  const load = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (status) params.set('status', status);
+      if (type) params.set('type', type);
+      const res = await fetch(`/api/memories?${params.toString()}`);
+      const data = await res.json();
+      setMemories(Array.isArray(data.memories) ? data.memories : []);
+    } catch (e) {
+      console.error('Failed to load memories', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [query, status, type]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/memories?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      setMemories((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      console.error('Failed to delete memory', e);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Input
+          placeholder="Search memories"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Select
+          value={status || 'all'}
+          onValueChange={(v) => setStatus(v === 'all' ? '' : v)}
+        >
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="archived">Archived</SelectItem>
+            <SelectItem value="dismissed">Dismissed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={type || 'all'}
+          onValueChange={(v) => setType(v === 'all' ? '' : v)}
+        >
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="preference">Preference</SelectItem>
+            <SelectItem value="profile">Profile</SelectItem>
+            <SelectItem value="company">Company</SelectItem>
+            <SelectItem value="task">Task</SelectItem>
+            <SelectItem value="knowledge">Knowledge</SelectItem>
+            <SelectItem value="personal">Personal</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={load} disabled={loading} className="whitespace-nowrap">
+          {loading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </div>
+
+      <div className="rounded-lg border divide-y">
+        {memories.length === 0 && (
+          <div className="p-6 text-sm text-muted-foreground">
+            No memories found.
+          </div>
+        )}
+        {memories.map((m) => (
+          <div key={m.id} className="p-4 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="font-medium truncate">{m.summary}</div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase">
+                  {m.memoryType}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase">
+                  {m.status}
+                </span>
+              </div>
+              {m.topic && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Topic: {m.topic}
+                </div>
+              )}
+              {m.content && (
+                <div className="text-sm text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap">
+                  {m.content}
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-2">
+                Saved {new Date(m.createdAt).toLocaleString()}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDelete(m.id)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -61,9 +188,15 @@ interface UserSettings {
   companyName?: string;
   companyType?: string;
   companyDescription?: string;
+  companyIndustry?: string;
+  companySize?: string;
+  companyWebsite?: string;
+  companyCountry?: string;
+  companyState?: string;
   language?: string;
   fontSize?: string;
   notificationsEnabled?: boolean;
+  autocompleteEnabled?: boolean;
   googleCalendarConnected?: boolean;
 }
 
@@ -74,6 +207,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = React.useState(false);
   const { theme, setTheme } = useTheme();
   const { updateSettings: updateUISettings } = useUISettings();
+  const { settings: globalUserSettings, updateSettings: updateGlobalSettings } =
+    useUserSettings();
 
   const [activeSection, setActiveSection] = React.useState('profile');
   const [settings, setSettings] = React.useState<UserSettings>({
@@ -82,9 +217,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     companyName: '',
     companyType: '',
     companyDescription: '',
+    companyIndustry: '',
+    companySize: '',
+    companyWebsite: '',
+    companyCountry: '',
+    companyState: '',
     language: 'english',
     fontSize: 'medium',
     notificationsEnabled: true,
+    autocompleteEnabled: true,
     googleCalendarConnected: false,
   });
 
@@ -114,11 +255,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // Navigation items
   const navigationItems = [
     { id: 'profile', label: 'Profile', icon: UserCircle },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
+    { id: 'personalization', label: 'Personalization', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'company', label: 'Company', icon: Building2 },
     { id: 'integrations', label: 'Integrations', icon: Zap },
     { id: 'privacy', label: 'Privacy', icon: Shield },
+    { id: 'memories', label: 'Memories', icon: Database },
   ];
 
   // Fetch settings on mount and when URL parameters change
@@ -150,6 +291,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [isOpen, session]);
 
+  // Also sync with global settings when they change
+  React.useEffect(() => {
+    if (globalUserSettings && isOpen) {
+      setSettings((prev) => ({
+        ...prev,
+        displayName: globalUserSettings.displayName || '',
+        profilePicture: globalUserSettings.profilePicture || '',
+        companyName: globalUserSettings.companyName || '',
+        companyType: globalUserSettings.companyType || '',
+        companyDescription: globalUserSettings.companyDescription || '',
+        companyIndustry: globalUserSettings.companyIndustry || '',
+        companySize: globalUserSettings.companySize || '',
+        companyWebsite: globalUserSettings.companyWebsite || '',
+        companyCountry: globalUserSettings.companyCountry || '',
+        companyState: globalUserSettings.companyState || '',
+        language: globalUserSettings.language || 'english',
+        fontSize: globalUserSettings.fontSize || 'medium',
+        notificationsEnabled: globalUserSettings.notificationsEnabled ?? true,
+        autocompleteEnabled: globalUserSettings.autocompleteEnabled ?? true,
+      }));
+    }
+  }, [globalUserSettings, isOpen]);
+
   const fetchUserSettings = async () => {
     try {
       setLoading(true);
@@ -167,15 +331,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         ? await calendarResponse.json()
         : { connected: false };
 
+      console.log('Fetched settings data:', settingsData);
+
       setSettings({
         displayName: settingsData.displayName || '',
         profilePicture: settingsData.profilePicture || '',
         companyName: settingsData.companyName || '',
         companyType: settingsData.companyType || '',
         companyDescription: settingsData.companyDescription || '',
+        companyIndustry: settingsData.companyIndustry || '',
+        companySize: settingsData.companySize || '',
+        companyWebsite: settingsData.companyWebsite || '',
+        companyCountry: settingsData.companyCountry || '',
+        companyState: settingsData.companyState || '',
         language: settingsData.language || 'english',
         fontSize: settingsData.fontSize || 'medium',
         notificationsEnabled: settingsData.notificationsEnabled ?? true,
+        // new toggle
+        autocompleteEnabled: settingsData.autocompleteEnabled ?? true,
         googleCalendarConnected: calendarData.connected ?? false,
       });
     } catch (error) {
@@ -189,30 +362,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleSaveChanges = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/user-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
 
-      if (response.ok) {
-        toast.success('Settings saved successfully');
+      // Log what we're sending
+      console.log('Saving settings:', settings);
 
-        if (updateUISettings) {
-          updateUISettings((prev) => ({
-            ...prev,
-            fontSize: settings.fontSize || 'medium',
-          }));
-        }
+      // Remove googleCalendarConnected from settings as it's not a user setting
+      const { googleCalendarConnected, ...settingsToSave } = settings;
 
-        if (settings.displayName) {
-          await updateSession({ displayName: settings.displayName });
-        }
+      // Update through the context to trigger global updates
+      await updateGlobalSettings(settingsToSave);
 
-        onClose();
-      } else {
-        throw new Error('Failed to save settings');
+      toast.success('Settings saved successfully');
+
+      if (updateUISettings) {
+        updateUISettings((prev) => ({
+          ...prev,
+          fontSize: settings.fontSize || 'medium',
+        }));
       }
+
+      if (settings.displayName) {
+        await updateSession({ displayName: settings.displayName });
+      }
+
+      if (settings.profilePicture) {
+        await updateSession({ profilePicture: settings.profilePicture });
+      }
+
+      onClose();
     } catch (error) {
       console.error('Error saving settings:', error);
       toast.error('Failed to save settings');
@@ -251,6 +428,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (response.ok) {
         const data = await response.json();
         setSettings((prev) => ({ ...prev, profilePicture: data.url }));
+
+        // Update global settings context immediately
+        await updateGlobalSettings({ profilePicture: data.url });
+
         toast.success('Profile picture updated');
         await updateSession({ profilePicture: data.url });
       } else {
@@ -448,12 +629,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           style={{
             width: 'min(1100px, 95vw)',
             height: 'min(80vh, 700px)',
-            overflow: 'hidden',
             maxWidth: '100%',
           }}
         >
           <div
-            className="absolute inset-0 settings-modal-grid"
+            className="absolute inset-0 settings-modal-grid overflow-hidden"
             style={{
               display: 'grid',
               gridTemplateColumns: 'minmax(180px, 224px) minmax(300px, 1fr)',
@@ -745,13 +925,44 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                   )}
 
-                  {/* Company Section */}
-                  {activeSection === 'company' && (
+                  {/* Personalization Section (moved, combines appearance + company + autocomplete) */}
+                  {activeSection === 'personalization' && (
                     <div>
                       <h3 className="text-xl font-semibold mb-6">
-                        Company Information
+                        Personalization
                       </h3>
                       <div className="space-y-6">
+                        {/* Predictive suggestions toggle */}
+                        <div className="rounded-xl border bg-card p-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="font-medium">
+                                Predictive suggestions
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Show autocomplete suggestions in new chats while
+                                typing
+                              </div>
+                            </div>
+                            <button
+                              className="inline-flex items-center px-3 py-2 rounded-md border hover:bg-accent text-sm"
+                              onClick={() =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  autocompleteEnabled:
+                                    !prev.autocompleteEnabled,
+                                }))
+                              }
+                              type="button"
+                            >
+                              {settings.autocompleteEnabled ? 'On' : 'Off'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <Separator className="my-4" />
+
+                        <h4 className="text-lg font-medium">Company</h4>
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="companyName">Company Name</Label>
@@ -819,6 +1030,163 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               rows={4}
                               className="resize-none w-full"
                             />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyIndustry">Industry</Label>
+                            <Select
+                              value={settings.companyIndustry || ''}
+                              onValueChange={(value) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companyIndustry: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger id="companyIndustry">
+                                <SelectValue placeholder="Select your industry" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="technology">
+                                  Technology
+                                </SelectItem>
+                                <SelectItem value="healthcare">
+                                  Healthcare
+                                </SelectItem>
+                                <SelectItem value="finance">Finance</SelectItem>
+                                <SelectItem value="manufacturing">
+                                  Manufacturing
+                                </SelectItem>
+                                <SelectItem value="retail">Retail</SelectItem>
+                                <SelectItem value="professional-services">
+                                  Professional Services
+                                </SelectItem>
+                                <SelectItem value="education">
+                                  Education
+                                </SelectItem>
+                                <SelectItem value="construction">
+                                  Construction
+                                </SelectItem>
+                                <SelectItem value="real-estate">
+                                  Real Estate
+                                </SelectItem>
+                                <SelectItem value="hospitality">
+                                  Hospitality
+                                </SelectItem>
+                                <SelectItem value="transportation">
+                                  Transportation
+                                </SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companySize">Company Size</Label>
+                            <Select
+                              value={settings.companySize || ''}
+                              onValueChange={(value) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companySize: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger id="companySize">
+                                <SelectValue placeholder="Select company size" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1-10">
+                                  1-10 employees
+                                </SelectItem>
+                                <SelectItem value="11-50">
+                                  11-50 employees
+                                </SelectItem>
+                                <SelectItem value="51-200">
+                                  51-200 employees
+                                </SelectItem>
+                                <SelectItem value="201-500">
+                                  201-500 employees
+                                </SelectItem>
+                                <SelectItem value="501-1000">
+                                  501-1000 employees
+                                </SelectItem>
+                                <SelectItem value="1000+">
+                                  1000+ employees
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="companyWebsite">
+                              Company Website
+                            </Label>
+                            <Input
+                              id="companyWebsite"
+                              type="url"
+                              value={settings.companyWebsite}
+                              onChange={(e) =>
+                                setSettings((prev) => ({
+                                  ...prev,
+                                  companyWebsite: e.target.value,
+                                }))
+                              }
+                              placeholder="https://www.example.com"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Headquarters Location</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Select
+                                  value={settings.companyCountry || ''}
+                                  onValueChange={(value) =>
+                                    setSettings((prev) => ({
+                                      ...prev,
+                                      companyCountry: value,
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select country" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="us">
+                                      United States
+                                    </SelectItem>
+                                    <SelectItem value="ca">Canada</SelectItem>
+                                    <SelectItem value="uk">
+                                      United Kingdom
+                                    </SelectItem>
+                                    <SelectItem value="au">
+                                      Australia
+                                    </SelectItem>
+                                    <SelectItem value="de">Germany</SelectItem>
+                                    <SelectItem value="fr">France</SelectItem>
+                                    <SelectItem value="jp">Japan</SelectItem>
+                                    <SelectItem value="cn">China</SelectItem>
+                                    <SelectItem value="in">India</SelectItem>
+                                    <SelectItem value="br">Brazil</SelectItem>
+                                    <SelectItem value="mx">Mexico</SelectItem>
+                                    <SelectItem value="other">Other</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Input
+                                  value={settings.companyState}
+                                  onChange={(e) =>
+                                    setSettings((prev) => ({
+                                      ...prev,
+                                      companyState: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="State/Province"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1272,6 +1640,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Memories Section */}
+                  {activeSection === 'memories' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">Memories</h3>
+                      <MemoriesManager />
                     </div>
                   )}
                 </div>

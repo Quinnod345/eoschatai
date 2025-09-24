@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UISettingsProvider } from '@/components/ui-settings-provider';
 import { LoadingProvider } from '@/components/providers/loading-provider';
+import { UserSettingsProvider } from '@/components/user-settings-provider';
 import { Analytics } from '@vercel/analytics/next';
 
 import './globals.css';
@@ -98,10 +99,12 @@ export default async function RootLayout({
         >
           <ToastProvider />
           <SessionProvider>
-            <UISettingsProvider>
-              <LoadingProvider />
-              {children}
-            </UISettingsProvider>
+            <UserSettingsProvider>
+              <UISettingsProvider>
+                <LoadingProvider />
+                {children}
+              </UISettingsProvider>
+            </UserSettingsProvider>
           </SessionProvider>
           <Analytics />
         </ThemeProvider>

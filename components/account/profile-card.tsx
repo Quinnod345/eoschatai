@@ -15,35 +15,14 @@ import { SettingsModal } from '@/components/settings-modal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Mail, Calendar } from 'lucide-react';
 import RecordingModal from '@/components/recording-modal';
+import { useUserSettings } from '@/components/user-settings-provider';
+import { AvatarImage } from '@/components/ui/avatar';
 
 export function ProfileCard() {
   const { data: session } = useSession();
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isRecordingModalOpen, setIsRecordingModalOpen] = React.useState(false);
-  const [settings, setSettings] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    if (session?.user) {
-      fetchUserSettings();
-    }
-  }, [session]);
-
-  const fetchUserSettings = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/user-settings');
-
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch user settings:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { settings, loading } = useUserSettings();
 
   // Function to generate avatar initials
   const getInitials = () => {
@@ -74,9 +53,16 @@ export function ProfileCard() {
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center gap-4">
           <Avatar className="h-14 w-14">
-            <AvatarFallback className="text-lg font-medium">
-              {getInitials()}
-            </AvatarFallback>
+            {settings?.profilePicture ? (
+              <AvatarImage
+                src={settings.profilePicture}
+                alt={settings?.displayName || session?.user?.email || ''}
+              />
+            ) : (
+              <AvatarFallback className="text-lg font-medium">
+                {getInitials()}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div className="flex-1">
             <CardTitle>
@@ -126,7 +112,7 @@ export function ProfileCard() {
           isOpen={isSettingsOpen}
           onClose={() => {
             setIsSettingsOpen(false);
-            fetchUserSettings();
+            // Settings automatically update via context
           }}
         />
       )}

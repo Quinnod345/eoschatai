@@ -727,6 +727,11 @@ export async function getUserSettings({ userId }: { userId: string }) {
         companyName: userSettings.companyName,
         companyType: userSettings.companyType,
         companyDescription: userSettings.companyDescription,
+        companyIndustry: userSettings.companyIndustry,
+        companySize: userSettings.companySize,
+        companyWebsite: userSettings.companyWebsite,
+        companyCountry: userSettings.companyCountry,
+        companyState: userSettings.companyState,
         profilePicture: userSettings.profilePicture,
         dailyMessageCount: userSettings.dailyMessageCount,
         lastMessageCountReset: userSettings.lastMessageCountReset,
@@ -744,9 +749,11 @@ export async function getUserSettings({ userId }: { userId: string }) {
         currentBundleId: userSettings.currentBundleId,
         contextDocumentIds: userSettings.contextDocumentIds,
         contextComposerDocumentIds: userSettings.contextComposerDocumentIds,
+        contextRecordingIds: userSettings.contextRecordingIds,
         usePrimaryDocsForContext: userSettings.usePrimaryDocsForContext,
         usePrimaryDocsForPersona: userSettings.usePrimaryDocsForPersona,
         personaContextDocumentIds: userSettings.personaContextDocumentIds,
+        autocompleteEnabled: userSettings.autocompleteEnabled,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -778,7 +785,6 @@ export async function updateUserSettings({
     companyName?: string;
     companyType?: string;
     companyDescription?: string;
-    profilePicture?: string;
     lastFeaturesVersion?: string;
     selectedChatModel?: string;
     selectedProvider?: string;
@@ -790,11 +796,77 @@ export async function updateUserSettings({
     primaryVtoId?: string | null;
     primaryScorecardId?: string | null;
     currentBundleId?: string | null;
+    // personalization extras
+    companyIndustry?: string | null;
+    companySize?: string | null;
+    companyWebsite?: string | null;
+    companyCountry?: string | null;
+    companyState?: string | null;
+    autocompleteEnabled?: boolean;
+    profilePicture?: string;
   };
 }) {
   try {
+    console.log(
+      '[updateUserSettings] Input settings:',
+      JSON.stringify(settings, null, 2),
+    );
+
     // Extract lastFeaturesVersion from settings
-    const { lastFeaturesVersion, ...userSettingsData } = settings as any;
+    const { lastFeaturesVersion, ...incoming } = settings as any;
+
+    // Whitelist allowed columns only to avoid SQL errors
+    const allowed: any = {};
+    const allow = (key: string, value: any) => {
+      if (value !== undefined) {
+        // Convert empty strings to null for optional fields
+        if (
+          value === '' &&
+          key !== 'displayName' &&
+          key !== 'language' &&
+          key !== 'fontSize'
+        ) {
+          allowed[key] = null;
+          console.log(
+            `[updateUserSettings] Allowing (empty->null): ${key} = null`,
+          );
+        } else {
+          allowed[key] = value;
+          console.log(`[updateUserSettings] Allowing: ${key} = ${value}`);
+        }
+      }
+    };
+
+    allow('notificationsEnabled', incoming.notificationsEnabled);
+    allow('language', incoming.language);
+    allow('fontSize', incoming.fontSize);
+    allow('displayName', incoming.displayName);
+    allow('companyName', incoming.companyName);
+    allow('companyType', incoming.companyType);
+    allow('companyDescription', incoming.companyDescription);
+    allow('companyIndustry', incoming.companyIndustry);
+    allow('companySize', incoming.companySize);
+    allow('companyWebsite', incoming.companyWebsite);
+    allow('companyCountry', incoming.companyCountry);
+    allow('companyState', incoming.companyState);
+    allow('profilePicture', incoming.profilePicture);
+    allow('selectedChatModel', incoming.selectedChatModel);
+    allow('selectedProvider', incoming.selectedProvider);
+    allow('selectedVisibilityType', incoming.selectedVisibilityType);
+    allow('selectedPersonaId', incoming.selectedPersonaId);
+    allow('selectedProfileId', incoming.selectedProfileId);
+    allow('selectedResearchMode', incoming.selectedResearchMode);
+    allow('primaryAccountabilityId', incoming.primaryAccountabilityId);
+    allow('primaryVtoId', incoming.primaryVtoId);
+    allow('primaryScorecardId', incoming.primaryScorecardId);
+    allow('currentBundleId', incoming.currentBundleId);
+    allow('contextDocumentIds', incoming.contextDocumentIds);
+    allow('contextComposerDocumentIds', incoming.contextComposerDocumentIds);
+    allow('contextRecordingIds', incoming.contextRecordingIds);
+    allow('usePrimaryDocsForContext', incoming.usePrimaryDocsForContext);
+    allow('usePrimaryDocsForPersona', incoming.usePrimaryDocsForPersona);
+    allow('personaContextDocumentIds', incoming.personaContextDocumentIds);
+    allow('autocompleteEnabled', incoming.autocompleteEnabled);
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {
@@ -812,17 +884,26 @@ export async function updateUserSettings({
       .from(userSettings)
       .where(eq(userSettings.userId, userId));
 
+    console.log(
+      '[updateUserSettings] Existing settings count:',
+      existingSettings.length,
+    );
+    console.log('[updateUserSettings] Allowed fields:', allowed);
+
     if (existingSettings.length === 0) {
       // Create new settings
+      console.log('[updateUserSettings] Creating new settings...');
       const [newSettings] = await db
         .insert(userSettings)
         .values({
           userId,
-          ...(userSettingsData as any),
+          ...(allowed as any),
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning();
+
+      console.log('[updateUserSettings] Created settings:', newSettings);
 
       return {
         ...newSettings,
@@ -832,14 +913,17 @@ export async function updateUserSettings({
       };
     } else {
       // Update existing settings
+      console.log('[updateUserSettings] Updating existing settings...');
       const [updatedSettings] = await db
         .update(userSettings)
         .set({
-          ...(userSettingsData as any),
+          ...(allowed as any),
           updatedAt: new Date(),
         })
         .where(eq(userSettings.userId, userId))
         .returning();
+
+      console.log('[updateUserSettings] Updated settings:', updatedSettings);
 
       return {
         ...updatedSettings,

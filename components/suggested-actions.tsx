@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { memo } from 'react';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
@@ -46,6 +45,14 @@ function PureSuggestedActions({
   selectedVisibilityType,
 }: SuggestedActionsProps) {
   const [greeting, setGreeting] = useState('');
+  const quickSend = (text: string) =>
+    append(
+      {
+        role: 'user',
+        content: text,
+      },
+      {},
+    );
 
   // Set time-appropriate random greeting
   useEffect(() => {

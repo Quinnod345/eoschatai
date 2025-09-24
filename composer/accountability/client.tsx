@@ -25,7 +25,14 @@ import 'reactflow/dist/style.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Users, Mic, Square, FileAudio, Plus } from 'lucide-react';
+import {
+  Users,
+  Mic,
+  Square,
+  FileAudio,
+  Plus,
+  Calendar as CalendarIcon,
+} from 'lucide-react';
 
 // EOS data model extensions
 type EosGwc = {
@@ -551,10 +558,62 @@ function SeatCard({
   const [draftName, setDraftName] = useState('');
   const [draftHolder, setDraftHolder] = useState('');
   const [draftRoles, setDraftRoles] = useState<string[]>([]);
+  const scheduleQuarterlySession = useCallback(async () => {
+    try {
+      const now = new Date();
+      // Next Tuesday at 9:00 local, 4 hours
+      const day = now.getDay();
+      const daysUntilTue = (2 - day + 7) % 7 || 7;
+      const start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + daysUntilTue,
+        9,
+        0,
+        0,
+      );
+      const end = new Date(start.getTime() + 4 * 60 * 60000);
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: 'Quarterly Session',
+          description:
+            'EOS Quarterly Session – scheduled from Accountability Chart',
+          startDateTime: start.toISOString(),
+          endDateTime: end.toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create event');
+      }
+      const data = await res.json();
+      toast.success('Quarterly Session scheduled');
+      if (data?.htmlLink) {
+        try {
+          window.open(data.htmlLink, '_blank');
+        } catch (_) {}
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to schedule');
+    }
+  }, []);
   return (
     <div className="border rounded-lg overflow-hidden bg-white dark:bg-zinc-900 w-[260px]">
-      <div className="bg-slate-700 text-white px-4 py-2 text-sm font-semibold tracking-wide">
-        {node.name || 'Seat'}
+      <div className="bg-slate-700 text-white px-4 py-2 text-sm font-semibold tracking-wide flex items-center justify-between">
+        <span>{node.name || 'Seat'}</span>
+        {isRoot && (
+          <button
+            type="button"
+            className="text-[11px] px-2 py-1 rounded-md bg-white/10 hover:bg-white/20"
+            onClick={scheduleQuarterlySession}
+            title="Schedule Quarterly Session"
+          >
+            <CalendarIcon className="w-3.5 h-3.5 inline-block mr-1" />
+            Schedule
+          </button>
+        )}
       </div>
       <div className="p-3 flex flex-col gap-2">
         <SeatField
@@ -1606,9 +1665,6 @@ function L10MeetingPanel({
   onUpdateMeeting,
   onStartRecording,
   onStopRecording,
-  isRecording,
-  currentAgendaItem,
-  composerId,
   onOpenRecordingSuite,
 }: {
   meeting: L10Meeting;
@@ -1616,16 +1672,27 @@ function L10MeetingPanel({
   onUpdateMeeting: (meeting: L10Meeting) => void;
   onStartRecording: (itemId?: string) => void;
   onStopRecording: () => void;
-  isRecording: boolean;
-  currentAgendaItem?: string;
-  composerId?: string;
-  onOpenRecordingSuite?: () => void;
+  onOpenRecordingSuite: () => void;
 }) {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showTodoModal, setShowTodoModal] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Wrap start/stop to synchronize local state
+  const startRecordingWrapped = useCallback(
+    (itemId?: string) => {
+      setIsRecording(true);
+      onStartRecording(itemId);
+    },
+    [onStartRecording],
+  );
+  const stopRecordingWrapped = useCallback(() => {
+    setIsRecording(false);
+    onStopRecording();
+  }, [onStopRecording]);
 
   // Sync AC data to L10
   const syncACData = useCallback(() => {
@@ -1730,7 +1797,7 @@ function L10MeetingPanel({
   }, []);
 
   useEffect(() => {
-    if (activeItemId && !timerRef.current) {
+    if (activeItemId) {
       const startTime = Date.now();
       timerRef.current = setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
@@ -1743,6 +1810,7 @@ function L10MeetingPanel({
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, [activeItemId]);
@@ -1810,375 +1878,435 @@ function L10MeetingPanel({
     return 'Unknown';
   };
 
+  const scheduleNextL10 = useCallback(async () => {
+    try {
+      const base = new Date(meeting.date || Date.now());
+      // Next week same weekday at 10:00, 90 minutes
+      const weekday = new Date(meeting.date || Date.now()).getDay();
+      const today = new Date();
+      const daysUntil = ((weekday - today.getDay() + 7) % 7) + 7; // push to next week
+      const start = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() + daysUntil,
+        10,
+        0,
+        0,
+      );
+      const end = new Date(start.getTime() + 90 * 60000);
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: 'Level 10 Meeting',
+          description: 'EOS L10 – auto scheduled from Accountability composer',
+          startDateTime: start.toISOString(),
+          endDateTime: end.toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create event');
+      }
+      const data = await res.json();
+      toast.success('Next L10 scheduled');
+      if (data?.htmlLink) {
+        try {
+          window.open(data.htmlLink, '_blank');
+        } catch (_) {}
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to schedule');
+    }
+  }, [meeting.date]);
+
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg border p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Users className="w-5 h-5" />
           L10 Meeting - {new Date(meeting.date).toLocaleDateString()}
         </h3>
-        <div className="flex items-center gap-4">
-          {isRecording && (
-            <Badge variant="destructive" className="animate-pulse">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-2" />
-              Recording
-            </Badge>
-          )}
-          <Button
-            size="sm"
-            variant={isRecording ? 'destructive' : 'default'}
-            onClick={() =>
-              isRecording ? onStopRecording() : onStartRecording()
-            }
-          >
-            {isRecording ? (
-              <>
-                <Square className="w-4 h-4 mr-2" />
-                Stop Recording
-              </>
-            ) : (
-              <>
-                <Mic className="w-4 h-4 mr-2" />
-                Start Recording
-              </>
-            )}
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={scheduleNextL10}
+          className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          title="Create next L10"
+        >
+          <CalendarIcon className="w-3.5 h-3.5 inline-block mr-1" />
+          Create next L10
+        </button>
       </div>
+      {/* existing panel content below */}
+      <div className="bg-white dark:bg-zinc-900 rounded-lg border p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            L10 Meeting - {new Date(meeting.date).toLocaleDateString()}
+          </h3>
+          <div className="flex items-center gap-4">
+            {isRecording && (
+              <Badge variant="destructive" className="animate-pulse">
+                <div className="w-2 h-2 bg-red-500 rounded-full mr-2" />
+                Recording
+              </Badge>
+            )}
+            <Button
+              size="sm"
+              variant={isRecording ? 'destructive' : 'default'}
+              onClick={() =>
+                isRecording ? stopRecordingWrapped() : startRecordingWrapped()
+              }
+            >
+              {isRecording ? (
+                <>
+                  <Square className="w-4 h-4 mr-2" />
+                  Stop Recording
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4 mr-2" />
+                  Start Recording
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
 
-      {/* Scorecard Summary - Shows rocks and measurables from AC */}
-      {activeItemId === 'scorecard' && (
-        <div className="space-y-3 mb-6 p-4 bg-gray-50 dark:bg-zinc-800 rounded-lg">
-          <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
-            Scorecard Summary
-          </h4>
-          <div className="space-y-4">
-            {/* Rocks Summary */}
-            <div>
-              <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Rocks This Quarter
-              </h5>
-              <div className="space-y-1">
-                {seats
-                  .flatMap((seat) => {
-                    const allSeats: SeatNode[] = [];
-                    const collectSeats = (node: SeatNode) => {
-                      allSeats.push(node);
-                      node.children.forEach(collectSeats);
-                    };
-                    collectSeats(seat);
-                    return allSeats;
-                  })
-                  .flatMap((seat) =>
-                    (seat.eos?.rocks || []).map((rock) => (
-                      <div
-                        key={rock.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span>
-                          {rock.title} ({seat.name})
-                        </span>
-                        <Badge
-                          variant={
-                            rock.status === 'done'
-                              ? 'default'
-                              : rock.status === 'onTrack'
-                                ? 'secondary'
-                                : 'destructive'
-                          }
-                          className="text-xs"
+        {/* Scorecard Summary - Shows rocks and measurables from AC */}
+        {activeItemId === 'scorecard' && (
+          <div className="space-y-3 mb-6 p-4 bg-gray-50 dark:bg-zinc-800 rounded-lg">
+            <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
+              Scorecard Summary
+            </h4>
+            <div className="space-y-4">
+              {/* Rocks Summary */}
+              <div>
+                <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                  Rocks This Quarter
+                </h5>
+                <div className="space-y-1">
+                  {seats
+                    .flatMap((seat) => {
+                      const allSeats: SeatNode[] = [];
+                      const collectSeats = (node: SeatNode) => {
+                        allSeats.push(node);
+                        node.children.forEach(collectSeats);
+                      };
+                      collectSeats(seat);
+                      return allSeats;
+                    })
+                    .flatMap((seat) =>
+                      (seat.eos?.rocks || []).map((rock) => (
+                        <div
+                          key={rock.id}
+                          className="flex items-center justify-between text-sm"
                         >
-                          {rock.status}
-                        </Badge>
-                      </div>
-                    )),
-                  )}
-              </div>
-            </div>
-
-            {/* People Analyzer Summary */}
-            <div>
-              <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                People Analyzer (GWC)
-              </h5>
-              <div className="space-y-1">
-                {seats
-                  .flatMap((seat) => {
-                    const allSeats: SeatNode[] = [];
-                    const collectSeats = (node: SeatNode) => {
-                      allSeats.push(node);
-                      node.children.forEach(collectSeats);
-                    };
-                    collectSeats(seat);
-                    return allSeats;
-                  })
-                  .map((seat) => {
-                    const gwc = seat.eos?.gwc;
-                    if (!gwc) return null;
-                    const hasIssue =
-                      !gwc.getsIt || !gwc.wantsIt || !gwc.capacity;
-                    if (!hasIssue) return null;
-
-                    return (
-                      <div
-                        key={seat.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span>
-                          {seat.name} - {seat.holder || 'Empty'}
-                        </span>
-                        <div className="flex gap-1">
+                          <span>
+                            {rock.title} ({seat.name})
+                          </span>
                           <Badge
-                            variant={gwc.getsIt ? 'default' : 'destructive'}
+                            variant={
+                              rock.status === 'done'
+                                ? 'default'
+                                : rock.status === 'onTrack'
+                                  ? 'secondary'
+                                  : 'destructive'
+                            }
                             className="text-xs"
                           >
-                            G{gwc.getsIt ? '✓' : '✗'}
-                          </Badge>
-                          <Badge
-                            variant={gwc.wantsIt ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            W{gwc.wantsIt ? '✓' : '✗'}
-                          </Badge>
-                          <Badge
-                            variant={gwc.capacity ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            C{gwc.capacity ? '✓' : '✗'}
+                            {rock.status}
                           </Badge>
                         </div>
-                      </div>
-                    );
-                  })
-                  .filter(Boolean)}
+                      )),
+                    )}
+                </div>
+              </div>
+
+              {/* People Analyzer Summary */}
+              <div>
+                <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                  People Analyzer (GWC)
+                </h5>
+                <div className="space-y-1">
+                  {seats
+                    .flatMap((seat) => {
+                      const allSeats: SeatNode[] = [];
+                      const collectSeats = (node: SeatNode) => {
+                        allSeats.push(node);
+                        node.children.forEach(collectSeats);
+                      };
+                      collectSeats(seat);
+                      return allSeats;
+                    })
+                    .map((seat) => {
+                      const gwc = seat.eos?.gwc;
+                      if (!gwc) return null;
+                      const hasIssue =
+                        !gwc.getsIt || !gwc.wantsIt || !gwc.capacity;
+                      if (!hasIssue) return null;
+
+                      return (
+                        <div
+                          key={seat.id}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span>
+                            {seat.name} - {seat.holder || 'Empty'}
+                          </span>
+                          <div className="flex gap-1">
+                            <Badge
+                              variant={gwc.getsIt ? 'default' : 'destructive'}
+                              className="text-xs"
+                            >
+                              G{gwc.getsIt ? '✓' : '✗'}
+                            </Badge>
+                            <Badge
+                              variant={gwc.wantsIt ? 'default' : 'destructive'}
+                              className="text-xs"
+                            >
+                              W{gwc.wantsIt ? '✓' : '✗'}
+                            </Badge>
+                            <Badge
+                              variant={gwc.capacity ? 'default' : 'destructive'}
+                              className="text-xs"
+                            >
+                              C{gwc.capacity ? '✓' : '✗'}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })
+                    .filter(Boolean)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Agenda Items */}
-      <div className="space-y-3">
-        <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
-          Meeting Agenda
-        </h4>
-        <div className="space-y-2">
-          {meeting.agenda.map((item) => (
-            <div
-              key={item.id}
-              className={cn(
-                'flex items-center justify-between p-3 rounded-lg border transition-all',
-                activeItemId === item.id
-                  ? 'bg-eos-orange/10 border-eos-orange'
-                  : item.completed
-                    ? 'bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'
-                    : 'bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 hover:border-gray-300',
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
-                    item.completed
-                      ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                      : activeItemId === item.id
-                        ? 'bg-eos-orange text-white'
-                        : 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400',
-                  )}
-                >
-                  {item.completed ? '✓' : item.duration}
-                </div>
-                <div>
-                  <div className="font-medium">{item.title}</div>
-                  {activeItemId === item.id && (
-                    <div className="text-sm text-eos-orange">
-                      {formatTime(elapsedTime)} / {item.duration}:00
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {item.recordingId && (
-                  <FileAudio className="w-4 h-4 text-gray-400" />
-                )}
-                {!item.completed && activeItemId !== item.id && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStartAgendaItem(item.id)}
-                  >
-                    Start
-                  </Button>
-                )}
-                {activeItemId === item.id && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => handleCompleteAgendaItem(item.id)}
-                  >
-                    Complete
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Issues Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        {/* Agenda Items */}
+        <div className="space-y-3">
           <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
-            Issues List
+            Meeting Agenda
           </h4>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowIssueModal(true)}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Issue
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {meeting.issues.map((issue) => (
-            <div
-              key={issue.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-white dark:bg-zinc-900"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    'w-2 h-2 rounded-full',
-                    issue.priority === 'high'
-                      ? 'bg-red-500'
-                      : issue.priority === 'medium'
-                        ? 'bg-yellow-500'
-                        : 'bg-green-500',
-                  )}
-                />
-                <div>
-                  <div className="font-medium">{issue.title}</div>
-                  {issue.owner && (
-                    <div className="text-sm text-gray-500">
-                      Owner: {getSeatName(issue.owner)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <Badge
-                variant={
-                  issue.status === 'solved'
-                    ? 'default'
-                    : issue.status === 'discussing'
-                      ? 'secondary'
-                      : 'outline'
-                }
+          <div className="space-y-2">
+            {meeting.agenda.map((item) => (
+              <div
+                key={item.id}
+                className={cn(
+                  'flex items-center justify-between p-3 rounded-lg border transition-all',
+                  activeItemId === item.id
+                    ? 'bg-eos-orange/10 border-eos-orange'
+                    : item.completed
+                      ? 'bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'
+                      : 'bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 hover:border-gray-300',
+                )}
               >
-                {issue.status}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* To-Dos Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
-            To-Do List
-          </h4>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowTodoModal(true)}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add To-Do
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {meeting.todos.map((todo) => (
-            <div
-              key={todo.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-white dark:bg-zinc-900"
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={todo.completed}
-                  onChange={(e) => {
-                    const updatedTodos = meeting.todos.map((t) =>
-                      t.id === todo.id
-                        ? { ...t, completed: e.target.checked }
-                        : t,
-                    );
-                    onUpdateMeeting({ ...meeting, todos: updatedTodos });
-                  }}
-                  className="w-4 h-4"
-                />
-                <div>
+                <div className="flex items-center gap-3">
                   <div
                     className={cn(
-                      'font-medium',
-                      todo.completed && 'line-through opacity-50',
+                      'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
+                      item.completed
+                        ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                        : activeItemId === item.id
+                          ? 'bg-eos-orange text-white'
+                          : 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400',
                     )}
                   >
-                    {todo.task}
+                    {item.completed ? '✓' : item.duration}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {getSeatName(todo.owner)}
-                    {todo.dueDate &&
-                      ` • Due: ${new Date(todo.dueDate).toLocaleDateString()}`}
+                  <div>
+                    <div className="font-medium">{item.title}</div>
+                    {activeItemId === item.id && (
+                      <div className="text-sm text-eos-orange">
+                        {formatTime(elapsedTime)} / {item.duration}:00
+                      </div>
+                    )}
                   </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  {item.recordingId && (
+                    <FileAudio className="w-4 h-4 text-gray-400" />
+                  )}
+                  {!item.completed && activeItemId !== item.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStartAgendaItem(item.id)}
+                    >
+                      Start
+                    </Button>
+                  )}
+                  {activeItemId === item.id && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleCompleteAgendaItem(item.id)}
+                    >
+                      Complete
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Meeting Rating */}
-      <div className="border-t pt-4">
-        <div className="flex items-center justify-between">
-          <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
-            Meeting Rating
-          </h4>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rating) => (
-              <button
-                type="button"
-                key={rating}
-                onClick={() => onUpdateMeeting({ ...meeting, rating })}
-                className={cn(
-                  'w-8 h-8 rounded-full text-sm font-medium transition-all',
-                  meeting.rating === rating
-                    ? 'bg-eos-orange text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-zinc-800 dark:text-gray-400 dark:hover:bg-zinc-700',
-                )}
-              >
-                {rating}
-              </button>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Modals */}
-      {showIssueModal && (
-        <AddIssueModal
-          seats={seats}
-          onAdd={handleAddIssue}
-          onClose={() => setShowIssueModal(false)}
-        />
-      )}
-      {showTodoModal && (
-        <AddTodoModal
-          seats={seats}
-          onAdd={handleAddTodo}
-          onClose={() => setShowTodoModal(false)}
-        />
-      )}
+        {/* Issues Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
+              Issues List
+            </h4>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowIssueModal(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Issue
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {meeting.issues.map((issue) => (
+              <div
+                key={issue.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-white dark:bg-zinc-900"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      'w-2 h-2 rounded-full',
+                      issue.priority === 'high'
+                        ? 'bg-red-500'
+                        : issue.priority === 'medium'
+                          ? 'bg-yellow-500'
+                          : 'bg-green-500',
+                    )}
+                  />
+                  <div>
+                    <div className="font-medium">{issue.title}</div>
+                    {issue.owner && (
+                      <div className="text-sm text-gray-500">
+                        Owner: {getSeatName(issue.owner)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Badge
+                  variant={
+                    issue.status === 'solved'
+                      ? 'default'
+                      : issue.status === 'discussing'
+                        ? 'secondary'
+                        : 'outline'
+                  }
+                >
+                  {issue.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* To-Dos Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
+              To-Do List
+            </h4>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowTodoModal(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add To-Do
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {meeting.todos.map((todo) => (
+              <div
+                key={todo.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-white dark:bg-zinc-900"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={todo.completed}
+                    onChange={(e) => {
+                      const updatedTodos = meeting.todos.map((t) =>
+                        t.id === todo.id
+                          ? { ...t, completed: e.target.checked }
+                          : t,
+                      );
+                      onUpdateMeeting({ ...meeting, todos: updatedTodos });
+                    }}
+                    className="w-4 h-4"
+                  />
+                  <div>
+                    <div
+                      className={cn(
+                        'font-medium',
+                        todo.completed && 'line-through opacity-50',
+                      )}
+                    >
+                      {todo.task}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {getSeatName(todo.owner)}
+                      {todo.dueDate &&
+                        ` • Due: ${new Date(todo.dueDate).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Meeting Rating */}
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
+              Meeting Rating
+            </h4>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rating) => (
+                <button
+                  type="button"
+                  key={rating}
+                  onClick={() => onUpdateMeeting({ ...meeting, rating })}
+                  className={cn(
+                    'w-8 h-8 rounded-full text-sm font-medium transition-all',
+                    meeting.rating === rating
+                      ? 'bg-eos-orange text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-zinc-800 dark:text-gray-400 dark:hover:bg-zinc-700',
+                  )}
+                >
+                  {rating}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Modals */}
+        {showIssueModal && (
+          <AddIssueModal
+            seats={seats}
+            onAdd={handleAddIssue}
+            onClose={() => setShowIssueModal(false)}
+          />
+        )}
+        {showTodoModal && (
+          <AddTodoModal
+            seats={seats}
+            onAdd={handleAddTodo}
+            onClose={() => setShowTodoModal(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -4568,7 +4696,6 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
             <L10MeetingPanel
               meeting={activeMeeting}
               seats={ac ? [ac.root] : []}
-              composerId={composerId}
               onUpdateMeeting={(meeting) => {
                 setMetadata((m: Metadata) => ({
                   ...(m as Metadata),
@@ -4600,8 +4727,6 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
                   },
                 }));
               }}
-              isRecording={isSessionRecording}
-              currentAgendaItem={currentRecordingItemId}
               onOpenRecordingSuite={() => setShowRecordingModal(true)}
             />
           </div>

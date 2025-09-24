@@ -165,7 +165,14 @@ export function PureMessageActions({
   return (
     <>
       <TooltipProvider delayDuration={0}>
-        <div className="flex flex-row items-center gap-2">
+        <div
+          className={cn(
+            'flex flex-row items-center gap-2',
+            // Show actions only on hover for user messages
+            message.role === 'user' &&
+              'opacity-0 transition-opacity group-hover:opacity-100 group-hover/message:opacity-100',
+          )}
+        >
           {/* Show edited indicator if message has been edited */}
           {(message as any).isEdited && (
             <span className="text-xs text-muted-foreground/70 italic">

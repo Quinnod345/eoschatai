@@ -30,6 +30,7 @@ import {
 } from '@/components/icons';
 import { FileSpreadsheet } from 'lucide-react';
 import { Users2 } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { SidebarHistory } from '@/components/sidebar-history';
 import { Button } from '@/components/ui/button';
 import {
@@ -313,6 +314,12 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                       icon: Users2,
                       tooltip: 'Accountability Charts',
                     },
+                    {
+                      kind: 'recordings',
+                      label: 'Recordings',
+                      icon: Mic,
+                      tooltip: 'Manage voice recordings',
+                    },
                   ].map((item) => (
                     <SidebarMenuItem
                       key={item.kind}
@@ -338,7 +345,18 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                           tooltip={item.tooltip}
                           onClick={() => {
                             setOpenMobile(false);
-                            setSelectedComposerKind(item.kind as any);
+                            if (
+                              item.kind === 'text' ||
+                              item.kind === 'sheet' ||
+                              item.kind === 'image' ||
+                              item.kind === 'code' ||
+                              item.kind === 'vto' ||
+                              item.kind === 'accountability'
+                            ) {
+                              setSelectedComposerKind(item.kind as any);
+                            } else {
+                              setSelectedComposerKind(null);
+                            }
                             // Show global loading overlay for better perceived speed
                             const { setLoading } = useLoading.getState();
                             setLoading(
@@ -346,14 +364,23 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                               `Loading ${item.label.toLowerCase()}…`,
                               'default',
                             );
-                            // Prefetch documents to warm SWR cache before navigation
-                            const key = `/api/documents?composerKind=${item.kind}`;
-                            void swrMutate(
-                              key,
-                              fetch(key).then((r) => r.json()),
-                              { revalidate: false, populateCache: true },
-                            );
-                            router.push(`/chat?dashboard=${item.kind}`);
+                            if (item.kind === 'recordings') {
+                              const key = `/api/voice/recordings`;
+                              void swrMutate(
+                                key,
+                                fetch(key).then((r) => r.json()),
+                                { revalidate: false, populateCache: true },
+                              );
+                              router.push(`/chat?dashboard=recordings`);
+                            } else {
+                              const key = `/api/documents?composerKind=${item.kind}`;
+                              void swrMutate(
+                                key,
+                                fetch(key).then((r) => r.json()),
+                                { revalidate: false, populateCache: true },
+                              );
+                              router.push(`/chat?dashboard=${item.kind}`);
+                            }
                           }}
                         >
                           <div className="relative flex items-center w-full">

@@ -37,9 +37,23 @@ Return STRICT JSON with the following shape and keys:
     "profit": string,
     "goals": string[]
   },
-  "rocks": { "futureDate": string, "revenue"?: string, "profit"?: string, "rocks": string[] },
+  "rocks": {
+    "futureDate": string,
+    "revenue"?: string,
+    "profit"?: string,
+    "rocks": Array<{ "title": string, "metric": string, "owner": string, "dueDate": string }>
+  },
   "issuesList": string[]
 }
+
+SMART ROCKS REQUIREMENTS:
+- For every rock in rocks.rocks, produce SMART fields by default:
+  - title: Specific outcome (clear, action-oriented)
+  - metric: Measurable statement that includes a target (e.g., "MQLs/week to 100")
+  - owner: Single owner (role or name)
+  - dueDate: Time-bound date (use the quarter end if not specified, formatted like "March 31, 2025" or "Q1 2025")
+- Ensure at least 90% of rocks include all three: metric, owner, dueDate.
+
 Do not include any prose outside JSON. Populate reasonable placeholders when the user doesn't specify values. Keep arrays between 3 and 10 items.`;
 
     const { fullStream } = streamText({

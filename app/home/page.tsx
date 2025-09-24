@@ -1,32 +1,31 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
-  Users,
+  ArrowRight,
   BarChart,
   Bot,
-  Sparkles,
-  Search as SearchIcon,
   Mic,
+  SearchIcon,
+  Sparkles,
   Upload,
-  ArrowRight,
+  Users,
 } from 'lucide-react';
-// unique narrative: no direct feature grid import
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
-  const sectionsRef = useRef<HTMLDivElement[]>([]);
   const storySectionRef = useRef<HTMLDivElement>(null);
   const storyPinRef = useRef<HTMLDivElement>(null);
   const storyStepsRef = useRef<HTMLDivElement>(null);
+  const sectionsRef = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     if (!containerRef.current) return;

@@ -332,6 +332,12 @@ export const userSettings = pgTable('UserSettings', {
   companyName: varchar('companyName', { length: 128 }),
   companyType: varchar('companyType', { length: 64 }),
   companyDescription: text('companyDescription'),
+  // Company extras
+  companyIndustry: text('companyIndustry'),
+  companySize: text('companySize'),
+  companyWebsite: text('companyWebsite'),
+  companyCountry: text('companyCountry'),
+  companyState: text('companyState'),
   // Profile picture URL from Vercel Blob
   profilePicture: text('profilePicture'),
   // Daily message tracking
@@ -353,8 +359,11 @@ export const userSettings = pgTable('UserSettings', {
   // Context settings
   contextDocumentIds: jsonb('contextDocumentIds'), // array of Document.id strings
   contextComposerDocumentIds: jsonb('contextComposerDocumentIds'), // array of composer Document.id strings
+  contextRecordingIds: jsonb('contextRecordingIds'), // array of VoiceRecording.id strings
   usePrimaryDocsForContext: boolean('usePrimaryDocsForContext').default(true),
   usePrimaryDocsForPersona: boolean('usePrimaryDocsForPersona').default(true),
+  // Feature toggles
+  autocompleteEnabled: boolean('autocompleteEnabled').default(true),
   personaContextDocumentIds: jsonb('personaContextDocumentIds'),
 });
 
@@ -398,6 +407,67 @@ export const userDocuments = pgTable('UserDocuments', {
 });
 
 export type UserDocument = InferSelectModel<typeof userDocuments>;
+
+// User Memories tables
+export const userMemory = pgTable('UserMemory', {
+  id: uuid('id').primaryKey().notNull().defaultRandom(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  sourceMessageId: uuid('sourceMessageId').references(() => message.id, {
+    onDelete: 'set null',
+  }),
+  summary: text('summary').notNull(),
+  content: text('content'),
+  topic: varchar('topic', { length: 128 }),
+  memoryType: varchar('memoryType', {
+    enum: [
+      'preference',
+      'profile',
+      'company',
+      'task',
+      'knowledge',
+      'personal',
+      'other',
+    ],
+  })
+    .notNull()
+    .default('other'),
+  confidence: integer('confidence').notNull().default(60), // 0-100
+  status: varchar('status', {
+    enum: ['active', 'pending', 'archived', 'dismissed'],
+  })
+    .notNull()
+    .default('active'),
+  tags: jsonb('tags'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  expiresAt: timestamp('expiresAt'),
+});
+
+export type UserMemory = InferSelectModel<typeof userMemory>;
+
+export const userMemoryEmbedding = pgTable(
+  'UserMemoryEmbedding',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    memoryId: uuid('memoryId')
+      .notNull()
+      .references(() => userMemory.id, { onDelete: 'cascade' }),
+    chunk: text('chunk').notNull(),
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    userMemoryEmbeddingIdx: index('user_memory_embedding_idx').using(
+      'hnsw',
+      table.embedding.op('vector_cosine_ops'),
+    ),
+    memoryIdIdx: index('user_memory_id_idx').on(table.memoryId),
+  }),
+);
+
+export type UserMemoryEmbedding = InferSelectModel<typeof userMemoryEmbedding>;
 
 // Google Calendar token table to store OAuth credentials
 export const googleCalendarToken = pgTable(
@@ -545,6 +615,7 @@ export const voiceTranscript = pgTable('VoiceTranscript', {
     .notNull()
     .references(() => voiceRecording.id, { onDelete: 'cascade' }),
   fullTranscript: text('fullTranscript').notNull(),
+  content: text('content'), // Plain text content for easy access
   segments: json('segments').notNull(), // Array of { speaker: number, text: string, start?: number, end?: number }
   speakerCount: integer('speakerCount').notNull().default(1),
   summary: text('summary'), // AI-generated summary
@@ -765,3 +836,124 @@ export const nexusResearchReport = pgTable(
 );
 
 export type NexusResearchReport = InferSelectModel<typeof nexusResearchReport>;
+
+// Document History tables for undo/redo functionality
+export const documentHistory = pgTable(
+  'DocumentHistory',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    operation: varchar('operation', {
+      enum: ['create', 'update', 'delete', 'restore'],
+    }).notNull(),
+    timestamp: timestamp('timestamp').notNull().defaultNow(),
+    metadata: jsonb('metadata'), // Store additional operation details
+  },
+  (table) => ({
+    documentIdx: index('doc_history_document_idx').on(table.documentId),
+    userIdx: index('doc_history_user_idx').on(table.userId),
+    timestampIdx: index('doc_history_timestamp_idx').on(table.timestamp),
+  }),
+);
+
+export type DocumentHistory = InferSelectModel<typeof documentHistory>;
+
+// Document Version table for storing actual content versions
+export const documentVersion = pgTable(
+  'DocumentVersion',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    historyId: uuid('historyId')
+      .notNull()
+      .references(() => documentHistory.id, { onDelete: 'cascade' }),
+    versionNumber: integer('versionNumber').notNull(),
+    title: text('title').notNull(),
+    content: text('content'),
+    kind: varchar('kind', {
+      enum: [
+        'text',
+        'code',
+        'image',
+        'sheet',
+        'chart',
+        'vto',
+        'accountability',
+      ],
+    }).notNull(),
+    createdAt: timestamp('createdAt').notNull(),
+    metadata: jsonb('metadata'), // Store version-specific metadata
+  },
+  (table) => ({
+    documentVersionIdx: uniqueIndex('doc_version_idx').on(
+      table.documentId,
+      table.versionNumber,
+    ),
+    historyIdx: index('doc_version_history_idx').on(table.historyId),
+  }),
+);
+
+export type DocumentVersion = InferSelectModel<typeof documentVersion>;
+
+// Document Edit Session table for grouping related edits
+export const documentEditSession = pgTable(
+  'DocumentEditSession',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    startedAt: timestamp('startedAt').notNull().defaultNow(),
+    endedAt: timestamp('endedAt'),
+    isActive: boolean('isActive').notNull().default(true),
+    editCount: integer('editCount').notNull().default(0),
+  },
+  (table) => ({
+    documentUserIdx: index('edit_session_doc_user_idx').on(
+      table.documentId,
+      table.userId,
+    ),
+    activeIdx: index('edit_session_active_idx').on(table.isActive),
+  }),
+);
+
+export type DocumentEditSession = InferSelectModel<typeof documentEditSession>;
+
+// Document Undo Stack for managing undo/redo operations per user per document
+export const documentUndoStack = pgTable(
+  'DocumentUndoStack',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id),
+    currentVersionId: uuid('currentVersionId')
+      .notNull()
+      .references(() => documentVersion.id),
+    undoStack: jsonb('undoStack').notNull().default('[]'), // Array of version IDs
+    redoStack: jsonb('redoStack').notNull().default('[]'), // Array of version IDs
+    maxStackSize: integer('maxStackSize').notNull().default(50),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    documentUserUniqueIdx: uniqueIndex('undo_stack_doc_user_idx').on(
+      table.documentId,
+      table.userId,
+    ),
+  }),
+);
+
+export type DocumentUndoStack = InferSelectModel<typeof documentUndoStack>;

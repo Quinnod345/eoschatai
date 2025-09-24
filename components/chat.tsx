@@ -1481,13 +1481,20 @@ export function Chat({
           });
       } else {
         // For other types, create empty composer in database
+        // Initialize with a space to ensure the editor can initialize properly
+        const initialContent = ' ';
+        setComposer((current) => ({
+          ...current,
+          content: initialContent,
+        }));
+
         fetch(`/api/document?id=${newDocumentId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: generatedTitle,
             kind: newKind,
-            content: '',
+            content: initialContent,
           }),
         })
           .then(async (res) => {

@@ -44,6 +44,14 @@ export function ComposerDashboard() {
   const { width: windowWidth } = useWindowSize();
   const { data: session } = useSession();
 
+  // Recordings view support
+  const isRecordings = params.get('dashboard') === 'recordings';
+  const { data: recordingsData, isLoading: recordingsLoading } = useSWR<any>(
+    isRecordings ? '/api/voice/recordings' : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
   const { data, mutate, isLoading, isValidating } = useSWR<{
     documents: Row[];
   }>(kind ? `/api/documents?composerKind=${kind}` : null, fetcher, {
@@ -53,12 +61,20 @@ export function ComposerDashboard() {
     revalidateOnReconnect: true,
   });
 
-  const rows = useMemo(() => data?.documents ?? [], [data]);
+  const rows = useMemo(
+    () =>
+      (data?.documents ?? []).filter(
+        (d) => !/^User Note:/i.test(d.title || ''),
+      ),
+    [data],
+  );
   const [cachedRows, setCachedRows] = useState<Row[]>([]);
   useEffect(() => {
     if (rows && rows.length > 0) setCachedRows(rows);
   }, [rows]);
-  const displayRows = rows.length > 0 ? rows : cachedRows;
+  const displayRows = (rows.length > 0 ? rows : cachedRows).filter(
+    (d) => !/^User Note:/i.test(d.title || ''),
+  );
   const isInitialLoading = isLoading && displayRows.length === 0;
   const isRefreshing = !isLoading && isValidating;
 
@@ -70,10 +86,10 @@ export function ComposerDashboard() {
 
   // Close global loading overlay once initial list is available or after a short safety timeout
   useEffect(() => {
-    if (!isInitialLoading) {
+    if (!isInitialLoading && !recordingsLoading) {
       setLoading(false);
     }
-  }, [isInitialLoading, setLoading]);
+  }, [isInitialLoading, recordingsLoading, setLoading]);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 3000);
@@ -81,10 +97,14 @@ export function ComposerDashboard() {
   }, [setLoading]);
 
   const handleCreate = useCallback(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('dashboard');
-    url.searchParams.set('newComposerKind', kind);
-    router.replace(url.toString());
+    if (isRecordings) {
+      router.replace('/chat?dashboard=recordings');
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('dashboard');
+      url.searchParams.set('newComposerKind', kind);
+      router.replace(url.toString());
+    }
   }, [router, kind]);
 
   const handleOpen = useCallback(
@@ -205,7 +225,8 @@ export function ComposerDashboard() {
 
   return (
     <motion.div
-      className="w-full h-full px-2 md:px-2 pt-0 pb-3"
+      className="composer-dashboard w-full h-full px-2 md:px-2 pt-4 pb-6"
+      data-testid="composer"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
@@ -250,7 +271,7 @@ export function ComposerDashboard() {
       </motion.header>
 
       {/* Section title + create button */}
-      <div className="flex items-center justify-between mt-2 px-2 md:px-2">
+      <div className="flex items-center justify-between mt-2 mb-6 px-2 md:px-2">
         <div className="text-base font-semibold">{displayPlural}</div>
         <Button size="sm" onClick={handleCreate}>
           {displayName === 'Document'
@@ -741,7 +762,9 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
             </div>
 
             {/* Rocks Section */}
-            {vto?.rocks?.rocks?.filter((r: string) => r?.trim()).length > 0 && (
+            {vto?.rocks?.rocks?.filter((r: any) =>
+              typeof r === 'string' ? r?.trim() : r?.title?.trim(),
+            ).length > 0 && (
               <div className="mt-1.5 bg-white/70 dark:bg-zinc-800/70 rounded p-1.5">
                 <div className="font-semibold text-slate-700 dark:text-slate-300 text-[9px] mb-0.5 flex items-center gap-1">
                   <svg
@@ -764,27 +787,40 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
                     />
                   </svg>
                   Rocks (
-                  {vto.rocks.rocks.filter((r: string) => r?.trim()).length})
+                  {
+                    vto.rocks.rocks.filter((r: any) =>
+                      typeof r === 'string' ? r?.trim() : r?.title?.trim(),
+                    ).length
+                  }
+                  )
                 </div>
                 <div className="text-[8px] text-muted-foreground space-y-0.5">
                   {vto.rocks.rocks
-                    .filter((r: string) => r?.trim())
+                    .filter((r: any) =>
+                      typeof r === 'string' ? r?.trim() : r?.title?.trim(),
+                    )
                     .slice(0, 2)
-                    .map((rock: string, idx: number) => (
-                      <div
-                        key={`${id}-rock-${idx}-${rock.slice(0, 10)}`}
-                        className="truncate"
-                        title={rock}
-                      >
-                        • {rock}
-                      </div>
-                    ))}
-                  {vto.rocks.rocks.filter((r: string) => r?.trim()).length >
-                    2 && (
+                    .map((rock: any, idx: number) => {
+                      const text =
+                        typeof rock === 'string' ? rock : rock?.title || '';
+                      return (
+                        <div
+                          key={`${id}-rock-${idx}-${text.slice(0, 10)}`}
+                          className="truncate"
+                          title={text}
+                        >
+                          • {text}
+                        </div>
+                      );
+                    })}
+                  {vto.rocks.rocks.filter((r: any) =>
+                    typeof r === 'string' ? r?.trim() : r?.title?.trim(),
+                  ).length > 2 && (
                     <div className="opacity-60">
                       +
-                      {vto.rocks.rocks.filter((r: string) => r?.trim()).length -
-                        2}{' '}
+                      {vto.rocks.rocks.filter((r: any) =>
+                        typeof r === 'string' ? r?.trim() : r?.title?.trim(),
+                      ).length - 2}{' '}
                       more
                     </div>
                   )}

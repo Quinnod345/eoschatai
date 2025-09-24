@@ -90,6 +90,18 @@ export function DocumentContextModal({
   const [processingRag, setProcessingRag] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // New: recordings as context
+  const [recordings, setRecordings] = React.useState<
+    Array<{
+      id: string;
+      title: string;
+      createdAt: string;
+      status: 'uploading' | 'transcribing' | 'ready' | 'unknown';
+      isSelected: boolean;
+    }>
+  >([]);
+  const [loadingRecordings, setLoadingRecordings] = React.useState(false);
+
   // New: composer context selection state
   const [composerContext, setComposerContext] = React.useState<{
     [kind: string]: boolean;
@@ -119,6 +131,14 @@ export function DocumentContextModal({
         for (const id of s.contextDocumentIds) ctxMap[id] = true;
       }
       setComposerContext(ctxMap);
+
+      // Initialize recordings selection
+      const selectedRecs = Array.isArray((s as any)?.contextRecordingIds)
+        ? ((s as any).contextRecordingIds as string[])
+        : [];
+      setRecordings((prev) =>
+        prev.map((r) => ({ ...r, isSelected: selectedRecs.includes(r.id) })),
+      );
     } catch {}
   }, []);
 
@@ -127,12 +147,16 @@ export function DocumentContextModal({
       const ids = Object.entries(composerContext)
         .filter(([, v]) => v)
         .map(([k]) => k);
+      const recordingIds = recordings
+        .filter((r) => r.isSelected)
+        .map((r) => r.id);
       await fetch('/api/user-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contextDocumentIds: ids,
           contextComposerDocumentIds: ids,
+          contextRecordingIds: recordingIds,
           usePrimaryDocsForContext: usePrimaryDocs,
         }),
       });
@@ -140,7 +164,7 @@ export function DocumentContextModal({
     } catch {
       toast.error('Failed to save context settings');
     }
-  }, [composerContext, usePrimaryDocs]);
+  }, [composerContext, usePrimaryDocs, recordings]);
 
   const fetchUserDocuments = React.useCallback(async () => {
     if (!session?.user) return;
@@ -221,14 +245,71 @@ export function DocumentContextModal({
     [session?.user],
   );
 
+  const fetchRecordings = React.useCallback(async () => {
+    try {
+      setLoadingRecordings(true);
+      const res = await fetch('/api/voice/recordings');
+      if (!res.ok) throw new Error('Failed to load recordings');
+      const data = await res.json();
+      const list: Array<
+        { id: string; title: string; createdAt: string } & {
+          hasTranscript: boolean;
+        }
+      > = (data?.recordings || []).map((row: any) => ({
+        id: row?.recording?.id,
+        title: row?.recording?.title || 'Untitled Recording',
+        createdAt: row?.recording?.createdAt,
+        hasTranscript: Boolean(row?.transcript?.id),
+      }));
+
+      // Enrich with status from status endpoint (best-effort)
+      const enriched: typeof recordings = await Promise.all(
+        list.map(async (r) => {
+          let status: 'uploading' | 'transcribing' | 'ready' | 'unknown' =
+            r.hasTranscript ? 'ready' : 'unknown';
+          try {
+            if (!r.hasTranscript) {
+              const st = await fetch(
+                `/api/voice/recordings/status?recordingId=${encodeURIComponent(r.id)}`,
+              );
+              if (st.ok) {
+                const js = await st.json();
+                status = (js?.status as any) || status;
+              }
+            }
+          } catch {}
+          return {
+            id: r.id,
+            title: r.title,
+            createdAt: r.createdAt,
+            status,
+            isSelected: false,
+          };
+        }),
+      );
+      setRecordings(enriched);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingRecordings(false);
+    }
+  }, []);
+
   // Fetch documents and context settings when the modal opens or category changes
   React.useEffect(() => {
     if (isOpen) {
       fetchUserDocuments();
       fetchComposerDocs(); // Initial load of all docs
       fetchComposerSettings();
+      fetchRecordings();
     }
-  }, [isOpen, fetchUserDocuments, fetchComposerDocs, fetchComposerSettings]);
+  }, [
+    isOpen,
+    fetchUserDocuments,
+    fetchComposerDocs,
+    fetchComposerSettings,
+    fetchRecordings,
+  ]);
 
   // Fetch composer documents when picker filter changes (on-demand loading)
   React.useEffect(() => {
@@ -519,9 +600,14 @@ export function DocumentContextModal({
           continue;
         }
 
-        // Check file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`File too large: ${file.name}. Maximum size is 10MB.`);
+        // Check file size (max 50MB for PDFs, 10MB for others)
+        const maxSize =
+          file.type === 'application/pdf' ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        const maxSizeMB = file.type === 'application/pdf' ? 50 : 10;
+        if (file.size > maxSize) {
+          toast.error(
+            `File too large: ${file.name}. Maximum size is ${maxSizeMB}MB.`,
+          );
           continue;
         }
 
@@ -925,6 +1011,67 @@ export function DocumentContextModal({
                 {/* Document List */}
                 {renderDocumentList()}
               </div>
+            </div>
+          </div>
+
+          {/* Recordings Context Section */}
+          <div className="rounded-lg border bg-card p-4 sm:p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-base font-semibold">Recordings</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Use voice transcripts as context. Newly uploaded audio will
+                  transcribe in the background.
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {loadingRecordings ? (
+                <div className="text-sm text-muted-foreground">
+                  Loading recordings…
+                </div>
+              ) : recordings.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No recordings yet.
+                </div>
+              ) : (
+                recordings.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between p-2 rounded-md border"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {r.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleString()} •{' '}
+                        {r.status === 'ready'
+                          ? 'Ready'
+                          : r.status === 'transcribing'
+                            ? 'Transcribing'
+                            : 'Queued'}
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={r.isSelected}
+                        onChange={(e) =>
+                          setRecordings((prev) =>
+                            prev.map((x) =>
+                              x.id === r.id
+                                ? { ...x, isSelected: e.target.checked }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
+                      Use as context
+                    </label>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

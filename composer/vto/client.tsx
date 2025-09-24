@@ -1,12 +1,30 @@
 'use client';
 
 import { Composer } from '@/components/create-composer';
-import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
+import {
+  CopyIcon,
+  DownloadIcon,
+  RedoIcon,
+  UndoIcon,
+  InfoIcon,
+} from '@/components/icons';
 import { toast } from '@/lib/toast-system';
 import { useEffect, useMemo, useRef } from 'react';
 import { useComposer as useGlobalComposer } from '@/hooks/use-composer';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // Data model for a Vision/Traction Organizer (V/TO)
+export interface VtoRock {
+  title: string;
+  metric: string;
+  owner: string;
+  dueDate: string;
+}
+
 export interface VtoData {
   coreValues: string[];
   coreFocus: { purpose: string; niche: string };
@@ -33,7 +51,7 @@ export interface VtoData {
     futureDate: string;
     revenue?: string;
     profit?: string;
-    rocks: string[];
+    rocks: Array<string | VtoRock>;
   };
   issuesList: string[];
 }
@@ -94,8 +112,13 @@ function parseVtoFromContent(content: string | undefined): VtoData | null {
   }
 }
 
-function isNonEmpty(str: string | undefined | null): boolean {
-  return !!str && str.trim().length > 0;
+function isNonEmpty(val: any): boolean {
+  if (val == null) return false;
+  if (typeof val === 'object' && typeof (val as any).title === 'string') {
+    return ((val as any).title as string).trim().length > 0;
+  }
+  const str = String(val);
+  return str.trim().length > 0;
 }
 
 function isMeaningfulVto(vto: VtoData | null | undefined): boolean {
@@ -166,7 +189,7 @@ function LabeledText({
     <div className="flex flex-col gap-1">
       <div className="font-semibold text-[13px]">{label}</div>
       <input
-        className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900"
+        className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -179,43 +202,248 @@ function BulletedList({
   onChange,
   addLabel,
 }: {
-  items: string[];
+  items: Array<string | any>;
   onChange: (items: string[]) => void;
   addLabel?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
-      {items.map((item, idx) => (
-        <div
-          key={`${idx}-${item.slice(0, 3)}-${items.length}`}
-          className="flex items-center gap-2"
-        >
-          <div className="text-sm text-muted-foreground w-4">{idx + 1}.</div>
-          <input
-            className="flex-1 border rounded-md px-3 py-2 text-sm dark:bg-zinc-900"
-            value={item}
-            onChange={(e) => {
-              const next = [...items];
-              next[idx] = e.target.value;
-              onChange(next);
-            }}
-          />
-          <button
-            type="button"
-            className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            onClick={() => onChange(items.filter((_, i) => i !== idx))}
+      {items.map((item, idx) => {
+        const valueStr =
+          typeof item === 'string'
+            ? item
+            : typeof item === 'number'
+              ? String(item)
+              : (item?.title as string) || '';
+        const keySig = typeof item === 'string' ? item.slice(0, 3) : 'obj';
+        return (
+          <div
+            key={`${idx}-${keySig}-${items.length}`}
+            className="flex items-center gap-2"
           >
-            Remove
-          </button>
-        </div>
-      ))}
+            <div className="text-sm text-muted-foreground w-4">{idx + 1}.</div>
+            <input
+              className="flex-1 border rounded-md px-3 py-2 text-sm dark:bg-zinc-900"
+              value={valueStr}
+              onChange={(e) => {
+                const next = items.map((it) =>
+                  typeof it === 'string' ? it : (it?.title as string) || '',
+                );
+                next[idx] = e.target.value;
+                onChange(next);
+              }}
+            />
+            <button
+              type="button"
+              className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onClick={() =>
+                onChange(
+                  items
+                    .filter((_, i) => i !== idx)
+                    .map((it) =>
+                      typeof it === 'string' ? it : (it?.title as string) || '',
+                    ),
+                )
+              }
+            >
+              Remove
+            </button>
+          </div>
+        );
+      })}
       <div>
         <button
           type="button"
           className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          onClick={() => onChange([...items, ''])}
+          onClick={() =>
+            onChange(
+              items
+                .map((it) =>
+                  typeof it === 'string' ? it : (it?.title as string) || '',
+                )
+                .concat(''),
+            )
+          }
         >
           {addLabel ?? 'Add row'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SmartBadge({ valid }: { valid: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${
+        valid
+          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300'
+          : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-300'
+      }`}
+    >
+      {valid ? 'SMART ✓' : 'Needs SMART'}
+    </span>
+  );
+}
+
+function quarterEndForLabel(label: string | undefined): string | null {
+  if (!label) return null;
+  const m = /Q(1|2|3|4)\s*(20\d\d)/i.exec(label.trim());
+  if (!m) return null;
+  const q = Number(m[1]);
+  const year = Number(m[2]);
+  const month = q * 3; // 3,6,9,12
+  const lastDay = new Date(year, month, 0).getDate();
+  const date = new Date(year, month - 1, lastDay);
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+type SmartCheck = {
+  hasTitle: boolean;
+  hasMetric: boolean;
+  hasOwner: boolean;
+  hasDue: boolean;
+};
+
+function smartCheck(rock: string | VtoRock, futureDate?: string): SmartCheck {
+  if (typeof rock === 'string') {
+    const text = rock.trim();
+    const hasTitle = text.length > 0;
+    const hasMetric =
+      /(\d+%?|increase|reduce|launch|ship|hire|close|MQL|SQL|ARR|MRR|leads|users|NPS|tickets|onboard|deploy|publish)/i.test(
+        text,
+      );
+    const hasOwner =
+      /\b(by|owner:|@|\b[A-Z][a-z]+\s[A-Z][a-z]+\b|\bCTO\b|\bCEO\b|\bCOO\b|\bHead of\b)/.test(
+        text,
+      );
+    const hasDue =
+      /(by\s+\w+\s+\d{1,2},\s*\d{4}|Q[1-4]\s*20\d\d|\b\d{4}-\d{2}-\d{2}\b|\bDec(?:ember)?\b|\bNov(?:ember)?\b|\bOct(?:ober)?\b|\bSep(?:tember)?\b|\bAug(?:ust)?\b|\bJul(?:y)?\b|\bJun(?:e)?\b|\bMay\b|\bApr(?:il)?\b|\bMar(?:ch)?\b|\bFeb(?:ruary)?\b|\bJan(?:uary)?\b)/i.test(
+        text,
+      );
+    return { hasTitle, hasMetric, hasOwner, hasDue };
+  }
+  const hasTitle = !!rock.title?.trim();
+  const hasMetric = !!rock.metric?.trim();
+  const hasOwner = !!rock.owner?.trim();
+  const hasDue = !!rock.dueDate?.trim() || !!quarterEndForLabel(futureDate);
+  return { hasTitle, hasMetric, hasOwner, hasDue };
+}
+
+function toSmartRock(rock: string | VtoRock, futureDate?: string): VtoRock {
+  if (typeof rock !== 'string') {
+    const due = rock.dueDate?.trim() || quarterEndForLabel(futureDate) || '';
+    return {
+      title: rock.title || '',
+      metric: rock.metric || '',
+      owner: rock.owner || '',
+      dueDate: due,
+    };
+  }
+  const title = rock.trim();
+  const due = quarterEndForLabel(futureDate) || '';
+  // Heuristic metric suggestion
+  let metric = '';
+  if (/hire/i.test(title)) metric = 'Hires completed';
+  else if (/launch|ship|release/i.test(title))
+    metric = 'Launched to production';
+  else if (/campaign/i.test(title)) metric = 'Campaign live across 3 channels';
+  else if (/revenue|ARR|MRR/i.test(title)) metric = 'Target reached';
+  else if (/process|SOP/i.test(title)) metric = 'Documented and approved';
+  const owner = '';
+  return { title, metric, owner, dueDate: due };
+}
+
+function SmartRockRow({
+  value,
+  onChange,
+  futureDate,
+  onRemove,
+}: {
+  value: string | VtoRock;
+  onChange: (next: string | VtoRock) => void;
+  futureDate?: string;
+  onRemove: () => void;
+}) {
+  const check = smartCheck(value, futureDate);
+  const makeSmart = () => onChange(toSmartRock(value, futureDate));
+  if (typeof value === 'string') {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <SmartBadge
+          valid={
+            check.hasTitle && check.hasMetric && check.hasOwner && check.hasDue
+          }
+        />
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={makeSmart}
+        >
+          Make SMART
+        </button>
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={onRemove}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1 border rounded-md p-2">
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-[12px]">Rock</div>
+        <SmartBadge
+          valid={
+            check.hasTitle && check.hasMetric && check.hasOwner && check.hasDue
+          }
+        />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <input
+          placeholder="Title"
+          className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
+          value={value.title}
+          onChange={(e) => onChange({ ...value, title: e.target.value })}
+        />
+        <input
+          placeholder="Metric (measurable target)"
+          className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
+          value={value.metric}
+          onChange={(e) => onChange({ ...value, metric: e.target.value })}
+        />
+        <input
+          placeholder="Owner"
+          className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
+          value={value.owner}
+          onChange={(e) => onChange({ ...value, owner: e.target.value })}
+        />
+        <input
+          placeholder="Due date (e.g., March 31, 2025)"
+          className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
+          value={value.dueDate}
+          onChange={(e) => onChange({ ...value, dueDate: e.target.value })}
+        />
+      </div>
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={onRemove}
+        >
+          Remove
         </button>
       </div>
     </div>
@@ -454,15 +682,101 @@ function VtoPreviewLayout({
               }
             />
             <div>
-              <div className="font-semibold text-[13px] mb-2">
-                Rocks for the Quarter
+              <div className="font-semibold text-[13px] mb-1 flex items-center gap-2">
+                <span>Rocks for the Quarter</span>
+                {/* Overall SMART coverage badge */}
+                {(() => {
+                  const list = vto.rocks.rocks || [];
+                  const total = list.filter((r) =>
+                    typeof r === 'string' ? r.trim() : r.title?.trim(),
+                  ).length;
+                  const smartCount = list.filter((r) => {
+                    const c = smartCheck(r, vto.rocks.futureDate);
+                    return c.hasMetric && c.hasOwner && c.hasDue;
+                  }).length;
+                  const coverageOk =
+                    total > 0 ? smartCount / total >= 0.9 : false;
+                  return <SmartBadge valid={coverageOk} />;
+                })()}
               </div>
-              <BulletedList
-                items={vto.rocks.rocks}
-                onChange={(items) =>
-                  setVto({ ...vto, rocks: { ...vto.rocks, rocks: items } })
-                }
-              />
+              <div className="flex flex-col gap-2">
+                {(vto.rocks.rocks || []).map((item, idx) => {
+                  const sig =
+                    typeof item === 'string'
+                      ? `s-${idx}-${item}`
+                      : `o-${item.title}-${item.owner}-${item.metric}-${item.dueDate}`;
+                  return (
+                    <SmartRockRow
+                      key={sig}
+                      value={item}
+                      futureDate={vto.rocks.futureDate}
+                      onChange={(next) => {
+                        const updated = [...(vto.rocks.rocks || [])];
+                        const index = updated.findIndex((r, i) => {
+                          const a =
+                            typeof r === 'string'
+                              ? `s-${i}-${r}`
+                              : `o-${r.title}-${r.owner}-${r.metric}-${r.dueDate}`;
+                          return a === sig;
+                        });
+                        const targetIndex =
+                          index >= 0 ? index : updated.length - 1;
+                        updated[targetIndex] = next;
+                        setVto({
+                          ...vto,
+                          rocks: { ...vto.rocks, rocks: updated },
+                        });
+                      }}
+                      onRemove={() => {
+                        const updated = (vto.rocks.rocks || []).filter(
+                          (r, i) => {
+                            const a =
+                              typeof r === 'string'
+                                ? `s-${i}-${r}`
+                                : `o-${r.title}-${r.owner}-${r.metric}-${r.dueDate}`;
+                            return a !== sig;
+                          },
+                        );
+                        setVto({
+                          ...vto,
+                          rocks: { ...vto.rocks, rocks: updated },
+                        });
+                      }}
+                    />
+                  );
+                })}
+                <div>
+                  <button
+                    type="button"
+                    className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    onClick={() =>
+                      setVto({
+                        ...vto,
+                        rocks: {
+                          ...vto.rocks,
+                          rocks: [...(vto.rocks.rocks || []), ''],
+                        },
+                      })
+                    }
+                  >
+                    Add rock
+                  </button>
+                </div>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-1 cursor-help">
+                      <InfoIcon size={12} />
+                      <span>What is SMART?</span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Specific, Measurable, Achievable, Relevant, Time-bound. EOS
+                    Rocks are always SMART.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </div>
         </div>

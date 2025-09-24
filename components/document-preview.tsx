@@ -492,11 +492,16 @@ const DocumentContent = ({ document }: { document: Document }) => {
               </div>
               <div className="font-semibold mb-1">Rocks for the Quarter</div>
               <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-                {(vto?.rocks?.rocks || []).slice(0, 5).map((r: string) => (
-                  <li key={`${r}-${Math.random().toString(36).slice(2, 7)}`}>
-                    {r || ' '}
-                  </li>
-                ))}
+                {(vto?.rocks?.rocks || [])
+                  .slice(0, 5)
+                  .map((r: any, idx: number) => {
+                    const text = typeof r === 'string' ? r : r?.title;
+                    return (
+                      <li key={`rock-${idx}-${String(text).slice(0, 12)}`}>
+                        {text || ' '}
+                      </li>
+                    );
+                  })}
               </ol>
             </div>
           </div>

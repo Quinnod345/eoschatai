@@ -8,9 +8,50 @@ import type { MutableRefObject } from 'react';
 
 import { buildContentFromDocument } from './functions';
 
+// Create a schema with table support
+const baseSpec = schema.spec;
+const nodesWithList = addListNodes(baseSpec.nodes, 'paragraph block*', 'block');
+
+// Add table-related nodes
+const tableNodes = nodesWithList
+  .addToEnd('table', {
+    content: 'table_row+',
+    tableRole: 'table',
+    isolating: true,
+    group: 'block',
+    parseDOM: [{ tag: 'table' }],
+    toDOM() {
+      return ['table', 0];
+    },
+  })
+  .addToEnd('table_row', {
+    content: '(table_cell | table_header)*',
+    tableRole: 'row',
+    parseDOM: [{ tag: 'tr' }],
+    toDOM() {
+      return ['tr', 0];
+    },
+  })
+  .addToEnd('table_cell', {
+    content: 'block+',
+    tableRole: 'cell',
+    parseDOM: [{ tag: 'td' }],
+    toDOM() {
+      return ['td', 0];
+    },
+  })
+  .addToEnd('table_header', {
+    content: 'block+',
+    tableRole: 'header_cell',
+    parseDOM: [{ tag: 'th' }],
+    toDOM() {
+      return ['th', 0];
+    },
+  });
+
 export const documentSchema = new Schema({
-  nodes: addListNodes(schema.spec.nodes, 'paragraph block*', 'block'),
-  marks: schema.spec.marks,
+  nodes: tableNodes,
+  marks: baseSpec.marks,
 });
 
 export function headingRule(level: number) {

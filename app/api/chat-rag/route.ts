@@ -121,7 +121,11 @@ export async function POST(req: Request) {
               session.user.id,
             );
             console.log('RAG: Resource added', result);
-            return result;
+            return {
+              ...result,
+              isKnowledgeSave: true,
+              hideJSON: true,
+            };
           },
         }),
 

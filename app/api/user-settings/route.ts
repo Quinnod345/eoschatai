@@ -31,17 +31,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    console.log(
+      '[POST /api/user-settings] Received body:',
+      JSON.stringify(body, null, 2),
+    );
+    console.log('[POST /api/user-settings] User ID:', session.user.id);
 
     const settings = await updateUserSettings({
       userId: session.user.id,
       settings: body,
     });
 
+    console.log('[POST /api/user-settings] Updated settings:', settings);
+
     return NextResponse.json(settings);
   } catch (error) {
-    console.error('Error updating user settings:', error);
+    console.error(
+      '[POST /api/user-settings] Error updating user settings:',
+      error,
+    );
     return NextResponse.json(
-      { error: 'Failed to update user settings' },
+      {
+        error: 'Failed to update user settings',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 },
     );
   }

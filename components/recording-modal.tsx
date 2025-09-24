@@ -85,6 +85,7 @@ export default function RecordingModal({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isNewRecording, setIsNewRecording] = useState(false);
   const [summary, setSummary] = useState<string>('');
+  const [playbackRef, setPlaybackRef] = useState<HTMLAudioElement | null>(null);
 
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
@@ -369,6 +370,58 @@ export default function RecordingModal({
       toast.error(err.message || 'Failed to create chat');
     } finally {
       setIsSendingToChat(false);
+    }
+  };
+
+  const scheduleFollowUp = async () => {
+    try {
+      const base = new Date();
+      // Choose next business day at 10:00 local
+      const day = base.getDay();
+      const addDays = day === 5 ? 3 : day === 6 ? 2 : 1; // Fri->Mon, Sat->Mon, else +1
+      const start = new Date(
+        base.getFullYear(),
+        base.getMonth(),
+        base.getDate() + addDays,
+        10,
+        0,
+        0,
+      );
+      const end = new Date(start.getTime() + 30 * 60000); // 30 minutes
+
+      const summaryText = summary
+        ? `Follow-up: ${summary.substring(0, 60)}`
+        : 'Follow-up Meeting';
+      const descriptionText = analysisResult?.transcript
+        ? 'Scheduled from voice meeting analysis.'
+        : undefined;
+
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: summaryText,
+          description: descriptionText,
+          startDateTime: start.toISOString(),
+          endDateTime: end.toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create event');
+      }
+      const data = await res.json();
+      toast.success('Follow-up scheduled');
+      if (data?.htmlLink) {
+        try {
+          window.open(data.htmlLink, '_blank');
+        } catch (_) {
+          /* noop */
+        }
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to schedule follow-up');
     }
   };
 
@@ -682,6 +735,7 @@ export default function RecordingModal({
                             controls
                             src={audioUrl || undefined}
                             className="w-full"
+                            ref={(el) => setPlaybackRef(el)}
                           />
                         </div>
 
@@ -778,6 +832,16 @@ export default function RecordingModal({
                             <Download className="h-5 w-5" />
                             Export
                           </Button>
+
+                          <Button
+                            variant="secondary"
+                            size="lg"
+                            onClick={scheduleFollowUp}
+                            className="gap-2"
+                          >
+                            <Calendar className="h-5 w-5" />
+                            Schedule follow-up
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -834,7 +898,32 @@ export default function RecordingModal({
                                   </div>
                                   <div className="flex-1 space-y-1">
                                     <p className="text-sm font-medium text-muted-foreground">
-                                      Speaker {seg.speaker}
+                                      <button
+                                        type="button"
+                                        className="underline hover:no-underline"
+                                        onClick={() => {
+                                          try {
+                                            if (
+                                              playbackRef &&
+                                              typeof seg.start === 'number'
+                                            ) {
+                                              playbackRef.currentTime =
+                                                Math.max(0, seg.start);
+                                              playbackRef
+                                                .play()
+                                                .catch(() => {});
+                                            }
+                                          } catch (_) {}
+                                        }}
+                                        title="Jump to segment"
+                                      >
+                                        Speaker {seg.speaker} •{' '}
+                                        {Math.max(
+                                          0,
+                                          Math.floor(seg.start || 0),
+                                        )}
+                                        s
+                                      </button>
                                     </p>
                                     <p className="text-base leading-relaxed">
                                       {seg.text}

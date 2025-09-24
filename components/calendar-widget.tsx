@@ -76,6 +76,22 @@ export function CalendarWidget() {
     }
   };
 
+  const findThirtyMinuteSlot = async () => {
+    try {
+      const res = await fetch('/api/calendar/events?maxResults=1');
+      // This widget is simple; slot discovery is primarily chat/tool-driven.
+      // Here, we just nudge the chat to ask for a 30-minute slot.
+      // If you want direct API-driven freebusy here, we can add a dedicated endpoint.
+      window.dispatchEvent(
+        new CustomEvent('eos-chat-insert', {
+          detail: 'Find a 30-minute slot this week',
+        } as any),
+      );
+    } catch (_) {
+      // Ignore; this is a UX nudge button
+    }
+  };
+
   if (loading) {
     return (
       <Card className="w-full">
@@ -227,6 +243,15 @@ export function CalendarWidget() {
                 &ldquo;Do I have any conflicts next Tuesday at 3pm?&rdquo;
               </li>
             </ul>
+            <div className="pt-2">
+              <button
+                type="button"
+                className="text-xs px-3 py-1.5 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                onClick={findThirtyMinuteSlot}
+              >
+                Find a 30-minute slot
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>

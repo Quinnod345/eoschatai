@@ -17,7 +17,7 @@ import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
 
 import type { UseChatHelpers } from '@ai-sdk/react';
-import { InlineUploadPreview } from './inline-upload-preview';
+import { TranslationUI } from './translation-ui';
 import {
   Calendar,
   FileText,
@@ -29,6 +29,14 @@ import {
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import type { EmbeddedContent } from '@/types/upload-content';
+import {
+  extractEmbeddedContent,
+  normalizeToolResultToEmbeddedContents,
+  convertLegacyPDFFormat,
+  convertLegacyDocumentFormat,
+  convertLegacyImageFormat,
+} from '@/types/upload-content';
 
 interface CitationReference {
   number: number;
@@ -71,7 +79,11 @@ const DOC_CONTENT_REGEX =
 const IMAGE_ANALYSIS_REGEX =
   /===\s+Image\s+Analysis\s+for\s+([^\n]+)\s+===\s*\n(?:\[INLINE UPLOAD[^\]]*\]\n)?Description:\s+([^\n]+)(?:\s*\n+Extracted\s+Text:\s+([^\n=]*))?([\s\S]*?)(?=\n\n===\s+End\s+of\s+Image\s+Analysis\s+===|\n*$)/gi;
 
-// Add regex for mention detection
+// Regular expression to extract audio transcripts (legacy format)
+const AUDIO_TRANSCRIPT_REGEX =
+  /===\s+Audio\s+Transcript\s+from\s+([^\n]+)\s+===\n([\s\S]*?)(?:===\s+End\s+of\s+Audio\s+Transcript\s+===)/gi;
+
+// Add regex for mention detection (supports types like document/recording)
 const MENTION_REGEX = /@(\w+):([^\s]+)/g;
 
 // Function to extract PDF content markers from text and return both PDFs and cleaned text
@@ -227,8 +239,10 @@ function formatMentionsInText(text: string): React.ReactNode[] {
     let icon = <FileText className="size-3.5" />;
     if (type === 'calendar') {
       icon = <Calendar className="size-3.5" />;
-    } else if (type === 'people') {
+    } else if (type === 'people' || type === 'team' || type === 'user') {
       icon = <Users className="size-3.5" />;
+    } else if (type === 'recording') {
+      icon = <Mic className="size-3.5" />;
     }
 
     // Add the formatted mention badge
@@ -296,6 +310,7 @@ const PurePreviewMessage = ({
     pdfContents: PDFContent[];
     documentContents: DocumentContent[];
     imageAnalyses: ImageAnalysis[];
+    embeddedContents: EmbeddedContent[];
     hasMentions: boolean;
     replyContext: { content: string; role: 'user' | 'assistant' } | null;
   } => {
@@ -305,6 +320,7 @@ const PurePreviewMessage = ({
         pdfContents: [],
         documentContents: [],
         imageAnalyses: [],
+        embeddedContents: [],
         hasMentions: false,
         replyContext: null,
       };
@@ -312,6 +328,7 @@ const PurePreviewMessage = ({
     const pdfContents: PDFContent[] = [];
     const documentContents: DocumentContent[] = [];
     const imageAnalyses: ImageAnalysis[] = [];
+    const embeddedContents: EmbeddedContent[] = [];
     let hasMentions = false;
     let replyContext: { content: string; role: 'user' | 'assistant' } | null =
       null;
@@ -339,17 +356,50 @@ const PurePreviewMessage = ({
         // Extract all document types in one pass
         let cleanedText = currentText;
 
+        // First, extract new embedded content format
+        const { contents: extractedEmbedded, cleanedText: textAfterEmbedded } =
+          extractEmbeddedContent(cleanedText);
+        embeddedContents.push(...extractedEmbedded);
+        cleanedText = textAfterEmbedded;
+
         // First, extract PDFs
-        const { pdfs } = extractPDFContent(cleanedText);
+        const { pdfs, cleanedText: afterPDF } = extractPDFContent(cleanedText);
         pdfContents.push(...pdfs);
+        cleanedText = afterPDF;
+        // Convert PDFs to standardized embedded content
+        if (pdfs.length > 0) {
+          pdfs.forEach((p) =>
+            embeddedContents.push(
+              convertLegacyPDFFormat(p.name, p.pageCount, ''),
+            ),
+          );
+        }
 
         // Then documents
-        const { documents } = extractDocumentContent(cleanedText);
+        const { documents, cleanedText: afterDocs } =
+          extractDocumentContent(cleanedText);
         documentContents.push(...documents);
+        cleanedText = afterDocs;
+        if (documents.length > 0) {
+          documents.forEach((d) =>
+            embeddedContents.push(
+              convertLegacyDocumentFormat(d.name, d.type, d.pageCount),
+            ),
+          );
+        }
 
         // Then images
-        const { images } = extractImageAnalysis(cleanedText);
+        const { images, cleanedText: afterImages } =
+          extractImageAnalysis(cleanedText);
         imageAnalyses.push(...images);
+        cleanedText = afterImages;
+        if (images.length > 0) {
+          images.forEach((img) =>
+            embeddedContents.push(
+              convertLegacyImageFormat(img.name, img.description, img.hasText),
+            ),
+          );
+        }
 
         // Now remove ALL inline upload content in one comprehensive pass
         if (pdfs.length > 0 || documents.length > 0 || images.length > 0) {
@@ -393,6 +443,7 @@ const PurePreviewMessage = ({
       pdfContents,
       documentContents,
       imageAnalyses,
+      embeddedContents,
       hasMentions,
       replyContext,
     };
@@ -403,6 +454,7 @@ const PurePreviewMessage = ({
     pdfContents,
     documentContents,
     imageAnalyses,
+    embeddedContents,
     hasMentions,
     replyContext,
   } = processedParts;
@@ -459,16 +511,7 @@ const PurePreviewMessage = ({
               'min-h-96': message.role === 'assistant' && requiresScrollPadding,
             })}
           >
-            {/* Show inline upload preview for user messages */}
-            {message.role === 'user' &&
-              (pdfContents.length > 0 || documentContents.length > 0) && (
-                <InlineUploadPreview
-                  pdfContents={pdfContents}
-                  documentContents={documentContents}
-                  imageAnalyses={[]}
-                  isUserMessage={true}
-                />
-              )}
+            {/* Removed duplicate per-role inline preview; embedded content renders once below */}
 
             {/* Show regular attachments */}
             {message.experimental_attachments &&
@@ -486,16 +529,16 @@ const PurePreviewMessage = ({
                 </div>
               )}
 
-            {/* Show inline upload preview for assistant messages */}
-            {message.role === 'assistant' &&
-              (pdfContents.length > 0 || documentContents.length > 0) && (
-                <InlineUploadPreview
-                  pdfContents={pdfContents}
-                  documentContents={documentContents}
-                  imageAnalyses={[]}
-                  isUserMessage={false}
-                />
-              )}
+            {/* Show inline upload preview for user messages */}
+            {/* (removed) role-specific inline preview: use unified renderer below */}
+
+            {/* Render embedded content (new format) */}
+            {embeddedContents.length > 0 && (
+              <TranslationUI
+                contents={embeddedContents}
+                align={message.role === 'user' ? 'end' : 'start'}
+              />
+            )}
 
             {parts?.map((part, index) => {
               const { type } = part;
@@ -676,47 +719,20 @@ const PurePreviewMessage = ({
                       ) : toolName === 'requestSuggestions' ? (
                         <DocumentToolResult result={result} />
                       ) : (
-                        // Fallback for other tools - respect hideJSON and isCalendarEvents
                         (() => {
-                          let parsedResultForFallback: any = result;
-                          if (typeof result === 'string') {
-                            try {
-                              parsedResultForFallback = JSON.parse(result);
-                            } catch (e) {
-                              /* ignore */
-                            }
-                          }
-
-                          if (
-                            typeof parsedResultForFallback === 'object' &&
-                            parsedResultForFallback !== null &&
-                            parsedResultForFallback.isCalendarEvents === true &&
-                            parsedResultForFallback.hideJSON === true &&
-                            typeof parsedResultForFallback.message === 'string'
-                          ) {
-                            return (
-                              <div
-                                className="text-sm text-zinc-700 dark:text-zinc-300"
-                                data-testid="calendar-tool-fallback-message-only"
-                              >
-                                {parsedResultForFallback.message}
-                              </div>
+                          const normalized =
+                            normalizeToolResultToEmbeddedContents(
+                              toolName,
+                              result,
                             );
-                          } else if (
-                            typeof parsedResultForFallback === 'object' &&
-                            parsedResultForFallback !== null &&
-                            parsedResultForFallback.hideJSON === true
-                          ) {
-                            // Generic hideJSON: render message if available, otherwise nothing
-                            return typeof parsedResultForFallback.message ===
-                              'string' ? (
-                              <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                                {parsedResultForFallback.message}
-                              </div>
-                            ) : null;
-                          } else {
-                            return <pre>{JSON.stringify(result, null, 2)}</pre>;
-                          }
+                          if (!normalized || normalized.length === 0)
+                            return null;
+                          return (
+                            <TranslationUI
+                              contents={normalized}
+                              align={message.role === 'user' ? 'end' : 'start'}
+                            />
+                          );
                         })()
                       )}
                     </div>
@@ -785,6 +801,8 @@ export const PreviewMessage = memo(
       return false;
     if (!equal(prevProps.message.parts, nextProps.message.parts)) return false;
     if (!equal(prevProps.vote, nextProps.vote)) return false;
+    // Re-render when pin status changes so tooltip and icon update immediately
+    if (prevProps.isPinned !== nextProps.isPinned) return false;
 
     return true;
   },

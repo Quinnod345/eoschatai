@@ -35,11 +35,13 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
+  Mic,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { SuggestedActions } from './suggested-actions';
+import { LoaderIcon, XIcon } from './icons';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -55,6 +57,9 @@ import {
   NexusResearchSelector,
   type ResearchMode,
 } from './nexus-research-selector';
+import { createEmbeddedContentString } from '@/types/upload-content';
+import { useDebounce } from '@/hooks/use-debounce';
+import { useUserSettings } from '@/components/user-settings-provider';
 
 // Interface for @ mention resources - Enhanced version
 interface MentionResource {
@@ -63,6 +68,7 @@ interface MentionResource {
   type:
     | 'calendar'
     | 'document'
+    | 'recording'
     | 'scorecard'
     | 'vto'
     | 'accountability'
@@ -128,6 +134,18 @@ const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
     color: 'purple',
     aliases: ['docs', 'files'],
     shortcut: '@doc',
+    isDynamic: true,
+  },
+  {
+    id: 'recordings',
+    name: 'Vocal Recordings',
+    type: 'recording',
+    category: 'resource',
+    description: 'Use voice recordings and transcripts as context',
+    icon: <Mic className="size-4" />,
+    color: 'pink',
+    aliases: ['audio', 'voice', 'transcript'],
+    shortcut: '@rec',
     isDynamic: true,
   },
   {
@@ -380,6 +398,29 @@ function PureMultimodalInput({
     [],
   );
 
+  // Predictive suggestions
+  const [predictions, setPredictions] = useState<string[]>([]);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const { settings: userSettings } = useUserSettings();
+  const autocompleteEnabled = userSettings.autocompleteEnabled ?? true;
+  const debouncedInput = useDebounce(input, 120);
+  const isNewChat = messages.length === 0;
+
+  // Dynamic specific-item suggestions (composer documents, recordings, etc.)
+  const [dynamicMentionResources, setDynamicMentionResources] = useState<
+    MentionResource[]
+  >([]);
+
+  // No longer need to fetch settings - using context
+
+  // Hide predictions when messages change (chat is no longer new)
+  useEffect(() => {
+    if (messages.length > 0) {
+      setShowPredictions(false);
+      setPredictions([]);
+    }
+  }, [messages.length]);
+
   // Add regex to detect mentions in the input
   const mentionRegex = /@(\w+):([^\s]+)/g;
 
@@ -448,7 +489,10 @@ function PureMultimodalInput({
   }, [showMentions, calculateCursorPosition]);
 
   // Enhanced filtering with alias support and scoring
-  const filteredMentionResources = mentionResources
+  const filteredMentionResources = [
+    ...mentionResources,
+    ...dynamicMentionResources,
+  ]
     .map((resource) => {
       const query = mentionFilter.toLowerCase();
       let score = 0;
@@ -491,11 +535,96 @@ function PureMultimodalInput({
     .sort((a, b) => b.score - a.score)
     .map((item) => item.resource);
 
+  // Fetch dynamic suggestions for specific items when typing after @
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchDynamic() {
+      if (!showMentions) {
+        setDynamicMentionResources([]);
+        return;
+      }
+      const q = mentionFilter.trim();
+      if (q.length === 0) {
+        setDynamicMentionResources([]);
+        return;
+      }
+      try {
+        // Fetch composer documents (by title)
+        const [docsRes, recsRes] = await Promise.all([
+          fetch(
+            `/api/documents?${new URLSearchParams({ search: q, limit: '5' })}`,
+          ),
+          fetch(`/api/voice/recordings`),
+        ]);
+
+        const dyn: MentionResource[] = [];
+
+        if (docsRes.ok) {
+          const data = await docsRes.json();
+          const docs = Array.isArray(data?.documents) ? data.documents : [];
+          for (const d of docs) {
+            dyn.push({
+              id: d.id,
+              name: d.title || 'Untitled Document',
+              type: 'document',
+              category: 'resource',
+              description: d.kind
+                ? `Composer • ${d.kind}`
+                : 'Composer document',
+              icon: <FileText className="size-4" />,
+              color: 'purple',
+              isDynamic: true,
+              preview: d.preview,
+            } as MentionResource);
+          }
+        }
+
+        if (recsRes.ok) {
+          const data = await recsRes.json();
+          const recs = Array.isArray(data?.recordings) ? data.recordings : [];
+          for (const r of recs) {
+            const title: string = r?.recording?.title || 'Untitled Recording';
+            const transcript: string = r?.transcript?.text || '';
+            const matches =
+              title.toLowerCase().includes(q.toLowerCase()) ||
+              transcript.toLowerCase().includes(q.toLowerCase());
+            if (!matches) continue;
+            dyn.push({
+              id: r?.recording?.id,
+              name: title,
+              type: 'recording',
+              category: 'resource',
+              description: transcript
+                ? `Transcript • ${transcript.slice(0, 60)}…`
+                : 'Transcript unavailable',
+              icon: <Mic className="size-4" />,
+              color: 'pink',
+              isDynamic: true,
+            } as MentionResource);
+          }
+        }
+
+        if (!cancelled) setDynamicMentionResources(dyn);
+      } catch (e) {
+        if (!cancelled) setDynamicMentionResources([]);
+      }
+    }
+
+    fetchDynamic();
+    return () => {
+      cancelled = true;
+    };
+  }, [showMentions, mentionFilter]);
+
   // Handle @ mention detection
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = event.target.value;
       setInput(value);
+
+      // Toggle predictive suggestions (after 2 chars, unless in @mention mode, and only if enabled)
+      const plain = value.trim();
+      setShowPredictions(plain.length >= 2 && autocompleteEnabled && isNewChat);
 
       // Get cursor position
       const cursorPosition = event.target.selectionStart;
@@ -529,10 +658,27 @@ function PureMultimodalInput({
 
       const cursorPosition = textareaRef.current.selectionStart;
 
-      // Check if this mention type is already selected
-      const isDuplicate = selectedMentions.some(
-        (mention) => mention.type === resource.type,
-      );
+      // Prevent duplicate selection (for dynamic items use id+type, for static use type)
+      const isDuplicate = selectedMentions.some((mention) => {
+        const isStatic =
+          resource.id === 'calendar' ||
+          resource.id === 'availability' ||
+          resource.id === 'documents' ||
+          resource.id === 'recordings' ||
+          resource.id === 'scorecard' ||
+          resource.id === 'vto' ||
+          resource.id === 'accountability' ||
+          resource.id === 'rocks' ||
+          resource.id === 'people' ||
+          resource.id === 'team' ||
+          resource.id === 'search' ||
+          resource.id === 'analyze' ||
+          resource.id === 'help' ||
+          resource.id === 'agenda';
+        return isStatic
+          ? mention.type === resource.type
+          : mention.type === resource.type && mention.id === resource.id;
+      });
 
       if (isDuplicate) {
         // Show brief feedback for duplicate
@@ -553,7 +699,7 @@ function PureMultimodalInput({
 
       // Add to selected mentions with the icon and category
       const newMention = {
-        id: Math.random().toString(36).substring(2, 15),
+        id: resource.id || Math.random().toString(36).substring(2, 15),
         type: resource.type,
         name: resource.name,
         icon: resource.icon,
@@ -673,6 +819,47 @@ function PureMultimodalInput({
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
 
+  // Fetch predictive suggestions when input changes (debounced)
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const prefix = (debouncedInput || '').trim();
+        // Hide suggestions when input looks like a full sentence/question
+        const looksComplete =
+          /[\?\!\.]$/.test(prefix) || prefix.length > 120 || /\n/.test(prefix);
+        if (
+          !showPredictions ||
+          showMentions ||
+          prefix.length < 2 ||
+          looksComplete ||
+          !isNewChat ||
+          !autocompleteEnabled
+        ) {
+          setPredictions([]);
+          if (looksComplete || !isNewChat) setShowPredictions(false);
+          return;
+        }
+        const res = await fetch('/api/predictions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefix }),
+        });
+        if (!res.ok) {
+          setPredictions([]);
+          return;
+        }
+        const data = await res.json();
+        const items: string[] = Array.isArray(data?.predictions)
+          ? data.predictions
+          : [];
+        setPredictions(items.slice(0, 3));
+      } catch {
+        setPredictions([]);
+      }
+    };
+    run();
+  }, [debouncedInput, showPredictions, showMentions]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
@@ -683,6 +870,17 @@ function PureMultimodalInput({
     [],
   );
   const [imageContents, setImageContents] = useState<ImageContent[]>([]);
+  // Add state for audio recordings
+  const [audioContents, setAudioContents] = useState<
+    Array<{
+      id: string;
+      name: string;
+      transcript: string;
+      duration: number;
+      status: 'uploading' | 'transcribing' | 'ready' | 'error';
+      url?: string;
+    }>
+  >([]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -986,6 +1184,127 @@ function PureMultimodalInput({
         }
       }
 
+      // Audio files: send to recordings endpoint (MP3/M4A/MP4/WAV)
+      else if (
+        file.type.startsWith('audio/') ||
+        ['mp3', 'm4a', 'mp4', 'wav'].includes((fileExt || '').toLowerCase())
+      ) {
+        const tempId = `audio-${Date.now()}-${Math.random()}`;
+
+        // Warn about potential MP4 compatibility issues
+        if (file.type.includes('mp4') || fileExt === 'mp4') {
+          toast.warning(
+            'MP4 files may have compatibility issues. If transcription fails, try converting to MP3 or M4A format.',
+            { duration: 5000 },
+          );
+        }
+
+        // Add to audio contents with uploading status
+        setAudioContents((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            name: file.name,
+            transcript: '',
+            duration: 0,
+            status: 'uploading',
+          },
+        ]);
+
+        try {
+          const fd = new FormData();
+          fd.append('audio', file);
+          fd.append('title', file.name.replace(/\.[^.]+$/, ''));
+
+          const res = await fetch('/api/voice/recordings', {
+            method: 'POST',
+            body: fd,
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            // Update status to error
+            setAudioContents((prev) =>
+              prev.map((a) =>
+                a.id === tempId ? { ...a, status: 'error' } : a,
+              ),
+            );
+            toast.error(err?.error || 'Failed to upload audio');
+            return undefined;
+          }
+
+          const data = await res.json();
+          const recordingId = data.id;
+
+          // Update to transcribing status
+          setAudioContents((prev) =>
+            prev.map((a) =>
+              a.id === tempId
+                ? {
+                    ...a,
+                    id: recordingId,
+                    status: 'transcribing',
+                    url: data.audioUrl,
+                  }
+                : a,
+            ),
+          );
+
+          // Start polling for transcription status
+          const pollInterval = setInterval(async () => {
+            try {
+              const statusRes = await fetch(
+                `/api/voice/recordings/status?recordingId=${recordingId}`,
+              );
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+
+                if (statusData.status === 'ready' && statusData.transcript) {
+                  clearInterval(pollInterval);
+
+                  // Update with final transcript
+                  setAudioContents((prev) =>
+                    prev.map((a) =>
+                      a.id === recordingId
+                        ? {
+                            ...a,
+                            status: 'ready',
+                            transcript: statusData.transcript,
+                            duration: data.duration || 0,
+                          }
+                        : a,
+                    ),
+                  );
+
+                  toast.success(`Transcription complete: ${file.name}`);
+                } else if (statusData.status === 'error') {
+                  clearInterval(pollInterval);
+                  setAudioContents((prev) =>
+                    prev.map((a) =>
+                      a.id === recordingId ? { ...a, status: 'error' } : a,
+                    ),
+                  );
+                  toast.error('Transcription failed');
+                }
+              }
+            } catch (error) {
+              console.error('Error polling transcription status:', error);
+            }
+          }, 2000); // Poll every 2 seconds
+
+          // Clear interval after 5 minutes timeout
+          setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+
+          return null; // Don't add as regular attachment
+        } catch (e) {
+          setAudioContents((prev) =>
+            prev.map((a) => (a.id === tempId ? { ...a, status: 'error' } : a)),
+          );
+          toast.error('Failed to upload audio');
+          return undefined;
+        }
+      }
+
       // Regular attachment handling for other file types
       const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -1045,8 +1364,7 @@ function PureMultimodalInput({
 
     let finalInputContent = input; // Start with current text input
 
-    // Enhanced mention processing - create structured mention data
-    let mentionContext = '';
+    // Mentions: Structured metadata only (no visible tags/context)
     let mentionMetadata: any[] = [];
 
     if (selectedMentions.length > 0) {
@@ -1060,66 +1378,14 @@ function PureMultimodalInput({
         timestamp: new Date().toISOString(),
       }));
 
-      // Create intelligent mention context based on types
-      const mentionsByCategory = selectedMentions.reduce(
-        (acc, mention) => {
-          const category = mention.category || 'other';
-          if (!acc[category]) acc[category] = [];
-          acc[category].push(mention);
-          return acc;
-        },
-        {} as Record<string, typeof selectedMentions>,
-      );
-
-      // Build contextual mention string
-      const contextParts: string[] = [];
-
-      // Calendar mentions
-      if (mentionsByCategory.calendar) {
-        const calendarMentions = mentionsByCategory.calendar;
-        if (calendarMentions.some((m) => m.type === 'availability')) {
-          contextParts.push('[User wants to find available time slots]');
+      // Append hidden metadata block only
+      if (mentionMetadata.length > 0) {
+        try {
+          const meta = JSON.stringify({ mentions: mentionMetadata });
+          finalInputContent = `${finalInputContent}\n\n[MENTIONS_META_BEGIN]${meta}[MENTIONS_META_END]`;
+        } catch (_) {
+          // ignore JSON errors
         }
-        if (calendarMentions.some((m) => m.type === 'calendar')) {
-          contextParts.push('[User is referencing their calendar]');
-        }
-      }
-
-      // Resource mentions
-      if (mentionsByCategory.resource) {
-        const resourceTypes = mentionsByCategory.resource
-          .map((m) => m.type)
-          .join(', ');
-        contextParts.push(`[User is asking about: ${resourceTypes}]`);
-      }
-
-      // Tool mentions
-      if (mentionsByCategory.tool) {
-        const tools = mentionsByCategory.tool;
-        if (tools.some((m) => m.type === 'analyze')) {
-          contextParts.push('[User wants data analysis and insights]');
-        }
-        if (tools.some((m) => m.type === 'search')) {
-          contextParts.push('[User wants to search for information]');
-        }
-      }
-
-      // Add contextual hints
-      if (contextParts.length > 0) {
-        mentionContext = `\n\n${contextParts.join('\n')}`;
-      }
-
-      // Add mention markers for backward compatibility
-      const mentionTags = selectedMentions
-        .map((mention) => `@${mention.type}:${mention.name}`)
-        .join(' ');
-
-      // Only add mention tags if there's no other content
-      if (!finalInputContent.trim() && mentionTags) {
-        finalInputContent = `Please help me with: ${mentionTags}`;
-      } else if (mentionTags) {
-        // Add context and tags
-        finalInputContent = `${finalInputContent}${mentionContext}\n\n[Mentions: ${mentionTags}]`;
       }
     }
 
@@ -1128,39 +1394,53 @@ function PureMultimodalInput({
     // Handle PDF content
     if (pdfContents.length > 0) {
       hasProcessedContent = true;
-      const pdfTextContent = pdfContents
+      // Embed metadata + truncated text inside standardized markers
+      const pdfMarkers = pdfContents
         .map((pdf) => {
           let pdfText = pdf.text || '';
           if (pdfText.length > 15000) {
-            // Character limit per PDF
             pdfText = `${pdfText.substring(0, 15000)}... [PDF content truncated due to size]`;
           }
-          // Format the PDF content with a consistent delimiter that our message component can extract
-          return `\n\n=== PDF Content from ${pdf.name} (${pdf.numPages} pages) ===\n\n${pdfText}\n\n=== End of PDF Content ===\n\n`;
+          return createEmbeddedContentString({
+            type: 'pdf',
+            name: pdf.name,
+            metadata: {
+              pageCount: pdf.numPages,
+              status: 'ready',
+            },
+            content: pdfText,
+          });
         })
-        .join('');
+        .join('\n\n');
 
-      finalInputContent += pdfTextContent; // Combine original input with PDF text
+      finalInputContent += `\n\n${pdfMarkers}`; // Combine original input with structured markers incl. content
     }
 
     // Handle document content
     if (documentContents.length > 0) {
       hasProcessedContent = true;
-      const docTextContent = documentContents
+      // Embed metadata + truncated text inside standardized markers
+      const docMarkers = documentContents
         .map((doc) => {
           let docText = doc.text || '';
           if (docText.length > 15000) {
-            // Character limit per document
             docText = `${docText.substring(0, 15000)}... [Document content truncated due to size]`;
           }
-          // Format the document content
           const docType = doc.type === 'docx' ? 'Word Document' : 'Spreadsheet';
-          const pageInfo = doc.pageCount ? ` (${doc.pageCount} pages)` : '';
-          return `\n\n=== ${docType} Content from ${doc.name}${pageInfo} ===\n\n${docText}\n\n=== End of ${docType} Content ===\n\n`;
+          return createEmbeddedContentString({
+            type: 'document',
+            name: doc.name,
+            metadata: {
+              pageCount: doc.pageCount,
+              status: 'ready',
+              docType,
+            },
+            content: docText,
+          });
         })
-        .join('');
+        .join('\n\n');
 
-      finalInputContent += docTextContent; // Combine with document text
+      finalInputContent += `\n\n${docMarkers}`; // Combine with structured markers incl. content
     }
 
     // Handle image content
@@ -1169,6 +1449,49 @@ function PureMultimodalInput({
     // This preserves a clean chat UI while keeping the image itself attached.
     if (imageContents.length > 0) {
       // Intentionally not modifying finalInputContent
+    }
+
+    // Handle audio content - include all audio (ready, error, or processing)
+    const allAudioContents = audioContents.filter(
+      (a) => a.status === 'ready' || a.status === 'error',
+    );
+    if (allAudioContents.length > 0) {
+      hasProcessedContent = true;
+
+      // Use the new embedded content format
+      const audioEmbeddedContent = allAudioContents
+        .map((audio) => {
+          const embeddedContent = {
+            type: 'audio' as const,
+            name: audio.name,
+            metadata: {
+              status: audio.status,
+              duration: audio.duration,
+              transcript:
+                audio.status === 'ready' ? audio.transcript : undefined,
+              error:
+                audio.status === 'error'
+                  ? audio.transcript ||
+                    'Transcription failed. Audio format may not be supported.'
+                  : undefined,
+            },
+            content: audio.status === 'ready' ? audio.transcript : undefined,
+          };
+
+          return `[EMBEDDED_CONTENT_START]${JSON.stringify(embeddedContent)}[EMBEDDED_CONTENT_END]`;
+        })
+        .join('\n');
+
+      finalInputContent += `\n\n${audioEmbeddedContent}`;
+    }
+
+    // Check if any audio is still processing
+    const processingAudio = audioContents.filter(
+      (a) => a.status === 'uploading' || a.status === 'transcribing',
+    );
+    if (processingAudio.length > 0) {
+      toast.error('Please wait for audio transcription to complete!');
+      return;
     }
 
     // Ensure the submit doesn't hang by checking first
@@ -1198,18 +1521,19 @@ function PureMultimodalInput({
           attachments.length > 0 ||
           selectedMentions.length > 0
         ) {
-          // If we have selected mentions but no text content, create a message with just the mentions
+          // If we have selected mentions but no text content, send zero-width content + hidden meta
           if (input.trim().length === 0 && selectedMentions.length > 0) {
-            // Create a message with just the mentions for the AI
-            const mentionContent = selectedMentions
-              .map((mention) => `@${mention.type}:${mention.name}`)
-              .join(' ');
-
+            let content = '\u200B';
+            if (mentionMetadata.length > 0) {
+              try {
+                const meta = JSON.stringify({ mentions: mentionMetadata });
+                content = `${content}\n\n[MENTIONS_META_BEGIN]${meta}[MENTIONS_META_END]`;
+              } catch (_) {
+                // ignore
+              }
+            }
             append(
-              {
-                role: 'user',
-                content: mentionContent,
-              },
+              { role: 'user', content },
               {
                 experimental_attachments:
                   attachments.length > 0 ? attachments : undefined,
@@ -1240,7 +1564,10 @@ function PureMultimodalInput({
       setPdfContents([]); // Clear PDF contents
       setDocumentContents([]); // Clear document contents
       setImageContents([]); // Clear image contents
+      setAudioContents([]); // Clear audio contents
       setSelectedMentions([]); // Clear mentions
+      setShowPredictions(false); // Hide predictions after submit
+      setPredictions([]); // Clear predictions
       resetHeight();
 
       if (width && width > 768) {
@@ -1255,12 +1582,14 @@ function PureMultimodalInput({
     pdfContents,
     documentContents,
     imageContents,
+    audioContents,
     selectedMentions,
     chatId,
     append,
     setInput,
     setAttachments,
     setPdfContents,
+    setAudioContents,
     width,
     status,
   ]);
@@ -1278,6 +1607,24 @@ function PureMultimodalInput({
   const pdfCount = pdfContents.length;
   const docCount = documentContents.length;
   const imgCount = imageContents.length;
+  const audioCount = audioContents.length;
+  const audioProcessing = audioContents.some(
+    (a) => a.status === 'uploading' || a.status === 'transcribing',
+  );
+
+  // Intelligent layout helpers
+  const hasPreviews =
+    attachmentsCount +
+      pdfCount +
+      docCount +
+      imgCount +
+      audioCount +
+      uploadQueue.length >
+    0;
+  const isWide = (width ?? 0) >= 1024;
+  const isEmbedded = className?.includes('composer-embedded');
+  const textareaMaxVh = hasPreviews ? (isWide ? 55 : 50) : 75;
+  const effectiveTextareaMaxVh = isEmbedded ? 40 : textareaMaxVh;
 
   // Add drag and drop related event handlers
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -1906,7 +2253,8 @@ function PureMultimodalInput({
         uploadQueue.length === 0 &&
         pdfContents.length === 0 &&
         documentContents.length === 0 &&
-        imageContents.length === 0 && (
+        imageContents.length === 0 &&
+        audioContents.length === 0 && (
           <SuggestedActions
             append={append}
             chatId={chatId}
@@ -1927,22 +2275,31 @@ function PureMultimodalInput({
         pdfContents.length > 0 ||
         documentContents.length > 0 ||
         imageContents.length > 0 ||
+        audioContents.length > 0 ||
         uploadQueue.length > 0) && (
         <div
           data-testid="attachments-preview"
-          className="flex flex-row gap-2 overflow-x-scroll items-end p-2"
+          className={cx(
+            isWide
+              ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-2 overflow-y-auto'
+              : 'flex flex-row gap-2 p-2 overflow-x-auto',
+            'relative items-end rounded-lg border border-zinc-200 dark:border-zinc-700 bg-background/50',
+            isEmbedded ? 'max-h-28' : 'max-h-40',
+          )}
         >
           {/* Total files counter when there are many */}
           {attachments.length +
             pdfContents.length +
             documentContents.length +
-            imageContents.length >
+            imageContents.length +
+            audioContents.length >
             5 && (
             <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full shadow-sm">
               {attachments.length +
                 pdfContents.length +
                 documentContents.length +
-                imageContents.length}{' '}
+                imageContents.length +
+                audioContents.length}{' '}
               files
             </div>
           )}
@@ -2062,6 +2419,90 @@ function PureMultimodalInput({
             </div>
           ))}
 
+          {audioContents.map((audio) => (
+            <div
+              key={`audio-${audio.id}`}
+              className="flex flex-col gap-2 relative"
+            >
+              <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+                {audio.status === 'uploading' ? (
+                  <>
+                    <div className="animate-spin text-zinc-500">
+                      <LoaderIcon size={24} />
+                    </div>
+                    <span className="text-[10px] text-zinc-500 mt-1">
+                      Uploading
+                    </span>
+                  </>
+                ) : audio.status === 'transcribing' ? (
+                  <>
+                    <svg
+                      className="size-8 text-purple-500 animate-pulse"
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" x2="12" y1="19" y2="22" />
+                    </svg>
+                    <span className="text-[10px] text-zinc-500 mt-1">
+                      Transcribing
+                    </span>
+                  </>
+                ) : audio.status === 'ready' ? (
+                  <svg
+                    className="size-8 text-purple-500"
+                    fill="none"
+                    height="24"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" x2="12" y1="19" y2="22" />
+                  </svg>
+                ) : (
+                  <>
+                    <div className="text-red-500">
+                      <XIcon size={24} />
+                    </div>
+                    <span className="text-[10px] text-red-500 mt-1">Error</span>
+                  </>
+                )}
+
+                {audio.status !== 'uploading' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => {
+                      setAudioContents((current) =>
+                        current.filter((a) => a.id !== audio.id),
+                      );
+                    }}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                )}
+              </div>
+              <div className="text-xs text-zinc-500 max-w-16 truncate">
+                {audio.name}
+              </div>
+            </div>
+          ))}
+
           {uploadQueue.map((filename) => (
             <PreviewAttachment
               key={filename}
@@ -2077,6 +2518,47 @@ function PureMultimodalInput({
       )}
 
       <div className="relative" ref={inputWrapperRef}>
+        {/* Predictive suggestions list */}
+        {showPredictions && predictions.length > 0 && !showMentions && (
+          <div className="absolute -top-2 left-0 right-0 mb-2 translate-y-[-100%] z-40">
+            <div className="flex flex-col gap-1">
+              {predictions.slice(0, 3).map((p, idx) => (
+                <motion.button
+                  key={p}
+                  type="button"
+                  onClick={async () => {
+                    // Insert remainder completion (API returns remainder strings)
+                    const current = input || '';
+                    const remainder = p;
+                    const joiner =
+                      current.endsWith(' ') || remainder.startsWith(' ')
+                        ? ''
+                        : ' ';
+                    setInput(current + joiner + remainder);
+                    setShowPredictions(false);
+                    try {
+                      await fetch('/api/predictions/rank', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phrase: p }),
+                      });
+                    } catch {}
+                  }}
+                  className="text-left rounded-xl px-3 py-2 bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-700/60 backdrop-blur-md shadow-sm hover:shadow-md"
+                  initial={{ opacity: 0, y: 6, filter: 'blur(8px)' }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  transition={{
+                    duration: 0.22,
+                    ease: 'easeOut',
+                    delay: idx * 0.05,
+                  }}
+                >
+                  <span>{p}</span>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Show selected mentions above the input with helpful context */}
         {selectedMentions.length > 0 && (
           <div className="mb-3 pt-1">
@@ -2151,10 +2633,9 @@ function PureMultimodalInput({
             }
           }}
           className={cx(
-            'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base',
+            'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
             'backdrop-filter backdrop-blur-[16px]',
             'border border-white/30 dark:border-zinc-700/30',
-            'pb-10',
             'input-tint shadow-enhanced',
             isDragging && 'pointer-events-none',
             className,
@@ -2163,65 +2644,72 @@ function PureMultimodalInput({
             WebkitBackdropFilter: 'blur(16px)',
             boxShadow:
               'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+            maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
           }}
           rows={2}
           autoFocus
         />
 
-        <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start gap-1 items-center z-10">
-          <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+        {/* Bottom toolbar (flow layout, responsive) */}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AttachmentsButton fileInputRef={fileInputRef} status={status} />
 
-          {!isReadonly && (
-            <VisibilitySelector
-              chatId={chatId}
-              selectedVisibilityType={selectedVisibilityType}
-              className="h-[30px] text-xs"
-            />
-          )}
-
-          {!isReadonly &&
-            selectedResearchMode !== undefined &&
-            onResearchModeChange && (
-              <NexusResearchSelector
+            {!isReadonly && !isEmbedded && (
+              <VisibilitySelector
                 chatId={chatId}
-                selectedResearchMode={selectedResearchMode}
-                onResearchModeChange={onResearchModeChange}
+                selectedVisibilityType={selectedVisibilityType}
                 className="h-[30px] text-xs"
               />
             )}
-        </div>
 
-        <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end gap-1">
-          {status === 'submitted' ? (
-            <StopButton stop={stop} setMessages={setMessages} />
-          ) : (
-            <>
-              {session?.user && (
-                <VoiceFAB
-                  variant="inline"
-                  size="sm"
-                  selectedModelId={selectedModelId}
-                  selectedProviderId={selectedProviderId}
-                  selectedPersonaId={selectedPersonaId || undefined}
-                  selectedProfileId={selectedProfileId || undefined}
+            {!isReadonly &&
+              !isEmbedded &&
+              selectedResearchMode !== undefined &&
+              onResearchModeChange && (
+                <NexusResearchSelector
                   chatId={chatId}
-                  onAppendMessage={append}
-                  onUpdateMessages={setMessages}
+                  selectedResearchMode={selectedResearchMode}
+                  onResearchModeChange={onResearchModeChange}
+                  className="h-[30px] text-xs"
                 />
               )}
-              <SendButton
-                input={input}
-                submitForm={submitForm}
-                uploadQueue={uploadQueue}
-                attachmentsCount={attachmentsCount}
-                pdfCount={pdfCount}
-                docCount={docCount}
-                imgCount={imgCount}
-                handleSubmit={handleSubmit}
-                attachments={attachments}
-              />
-            </>
-          )}
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            {status === 'submitted' ? (
+              <StopButton stop={stop} setMessages={setMessages} />
+            ) : (
+              <>
+                {session?.user && (
+                  <VoiceFAB
+                    variant="inline"
+                    size="sm"
+                    selectedModelId={selectedModelId}
+                    selectedProviderId={selectedProviderId}
+                    selectedPersonaId={selectedPersonaId || undefined}
+                    selectedProfileId={selectedProfileId || undefined}
+                    chatId={chatId}
+                    onAppendMessage={append}
+                    onUpdateMessages={setMessages}
+                  />
+                )}
+                <SendButton
+                  input={input}
+                  submitForm={submitForm}
+                  uploadQueue={uploadQueue}
+                  attachmentsCount={attachmentsCount}
+                  pdfCount={pdfCount}
+                  docCount={docCount}
+                  imgCount={imgCount}
+                  audioCount={audioCount}
+                  audioProcessing={audioProcessing}
+                  handleSubmit={handleSubmit}
+                  attachments={attachments}
+                />
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -2307,6 +2795,8 @@ function PureSendButton({
   pdfCount,
   docCount,
   imgCount,
+  audioCount,
+  audioProcessing,
   handleSubmit,
   attachments,
 }: {
@@ -2317,6 +2807,8 @@ function PureSendButton({
   pdfCount: number;
   docCount: number;
   imgCount: number;
+  audioCount: number;
+  audioProcessing: boolean;
   handleSubmit: any;
   attachments: Array<Attachment>;
 }) {
@@ -2325,8 +2817,9 @@ function PureSendButton({
     attachmentsCount === 0 &&
     pdfCount === 0 &&
     docCount === 0 &&
-    imgCount === 0;
-  const isDisabled = nothingToSend || uploadQueue.length > 0;
+    imgCount === 0 &&
+    audioCount === 0;
+  const isDisabled = nothingToSend || uploadQueue.length > 0 || audioProcessing;
 
   return (
     <Button
@@ -2339,6 +2832,15 @@ function PureSendButton({
         }
       }}
       disabled={isDisabled}
+      title={
+        audioProcessing
+          ? 'Waiting for audio transcription to complete...'
+          : uploadQueue.length > 0
+            ? 'Waiting for uploads to complete...'
+            : nothingToSend
+              ? 'Type a message or add files'
+              : 'Send message'
+      }
     >
       <ArrowUp className="size-4" />
     </Button>
@@ -2356,3 +2858,21 @@ const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   // We intentionally don't compare handleSubmit or attachments since they don't affect rendering
   return true;
 });
+
+function escapeHtml(str: string) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function highlightPrefix(suggestion: string, prefix: string) {
+  if (!prefix) return escapeHtml(suggestion);
+  const i = suggestion.toLowerCase().indexOf(prefix.toLowerCase());
+  if (i !== 0) return escapeHtml(suggestion);
+  const head = escapeHtml(suggestion.slice(0, prefix.length));
+  const tail = escapeHtml(suggestion.slice(prefix.length));
+  return `<span class="predictive-highlight">${head}</span>${tail}`;
+}

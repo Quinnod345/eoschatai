@@ -1440,6 +1440,111 @@ body.has-chat-mesh .eos-chat-mesh {
 .ProseMirror {
     outline: none;
     @apply spring-transition;
+    min-height: 200px;
+    padding: 1rem;
+}
+
+.ProseMirror p {
+    margin: 0 0 0.75rem 0;
+}
+
+.ProseMirror p:last-child {
+    margin-bottom: 0;
+}
+
+.ProseMirror:focus {
+    outline: none;
+}
+
+/* List styles */
+.ProseMirror ul,
+.ProseMirror ol {
+    margin: 0 0 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.ProseMirror ul {
+    list-style-type: disc;
+}
+
+.ProseMirror ol {
+    list-style-type: decimal;
+}
+
+.ProseMirror li {
+    margin: 0.25rem 0;
+}
+
+/* Heading styles */
+.ProseMirror h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 1.5rem 0 1rem 0;
+}
+
+.ProseMirror h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1.25rem 0 0.75rem 0;
+}
+
+.ProseMirror h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+}
+
+/* Strong and emphasis */
+.ProseMirror strong {
+    font-weight: 600;
+}
+
+.ProseMirror em {
+    font-style: italic;
+}
+
+/* Ensure empty paragraphs are visible */
+.ProseMirror p.is-empty::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: #adb5bd;
+    pointer-events: none;
+    height: 0;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+    content: "Start typing...";
+    float: left;
+    color: #adb5bd;
+    pointer-events: none;
+    height: 0;
+}
+
+/* ProseMirror Table Styles */
+.ProseMirror table {
+    @apply w-full border-collapse my-6;
+}
+
+.ProseMirror table,
+.ProseMirror td,
+.ProseMirror th {
+    @apply border border-zinc-200 dark:border-zinc-700;
+}
+
+.ProseMirror th {
+    @apply px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-800;
+}
+
+.ProseMirror td {
+    @apply px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300;
+}
+
+.ProseMirror tr:nth-child(even) {
+    @apply bg-zinc-50/50 dark:bg-zinc-800/50;
+}
+
+.ProseMirror tr:hover {
+    @apply bg-zinc-100 dark:bg-zinc-800 transition-colors duration-200;
 }
 
 .cm-editor,
@@ -2020,6 +2125,56 @@ main[data-sidebar="sidebar-content"] {
   position: relative;
   overflow: visible;
   z-index: 50;
+}
+
+/* Predictive suggestions animation */
+.predictive-list-enter {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(6px);
+}
+.predictive-list-enter-active {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+  transition: opacity 180ms ease, filter 220ms ease, transform 220ms ease;
+}
+.predictive-highlight {
+  background: linear-gradient(transparent 65%, rgba(255, 153, 0, 0.35) 35%);
+}
+
+/* Fix z-index layering for Radix UI components */
+/* Base level - page content */
+body {
+  position: relative;
+  z-index: 1;
+}
+
+/* Level 2 - Modal overlays */
+[data-radix-dialog-overlay],
+[data-radix-alert-dialog-overlay] {
+  z-index: 50 !important;
+}
+
+/* Level 3 - Modal content */
+[data-radix-dialog-content],
+[data-radix-alert-dialog-content] {
+  z-index: 50 !important;
+}
+
+/* Level 4 - Dropdowns and select portals (highest) */
+[data-radix-select-portal],
+[data-radix-select-content],
+[data-radix-dropdown-menu-portal],
+[data-radix-dropdown-menu-content],
+[data-radix-popover-portal],
+[data-radix-popover-content] {
+  z-index: 51 !important;
+}
+
+/* Ensure dropdown viewport is visible */
+[data-radix-select-viewport] {
+  background-color: hsl(var(--popover)) !important;
 }
 
 /* Ensure all elements are visible by default - Simplified */

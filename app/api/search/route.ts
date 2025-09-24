@@ -618,9 +618,13 @@ export async function GET(request: NextRequest) {
         })
         .from(document)
         .where(
-          composerConditions.length > 1
-            ? and(...composerConditions)
-            : composerConditions[0],
+          and(
+            ...(composerConditions.length > 1
+              ? composerConditions
+              : [composerConditions[0]]),
+            // Filter out RAG user notes
+            sql`NOT "title" LIKE 'User Note:%'`,
+          ),
         )
         .orderBy(desc(document.createdAt))
         .limit(100);

@@ -176,14 +176,21 @@ export const addResourceTool: Tool<{ title: string; content: string }> = {
         }
       }
 
-      // First, insert the document into the database
+      // Normalize title to enforce 'User Note:' prefix for saved memories
+      let normalizedTitle = title || '';
+      const lower = normalizedTitle.toLowerCase();
+      if (!lower.startsWith('user note:')) {
+        normalizedTitle = `User Note: ${normalizedTitle.replace(/^\s+|\s+$/g, '')}`;
+      }
+
+      // First, insert the document into the database (legacy knowledge entry)
       const newDocumentId = generateUUID();
       const db = await getDb();
 
       await db.insert(document).values({
         id: newDocumentId,
         createdAt: new Date(),
-        title,
+        title: normalizedTitle,
         content: contentText,
         kind: 'text',
         userId,
@@ -204,10 +211,37 @@ export const addResourceTool: Tool<{ title: string; content: string }> = {
         // Still return success since the document is saved in the database
       }
 
+      // Also write a structured UserMemory row for future memory management
+      try {
+        const { db } = await import('@/lib/db');
+        const { userMemory } = await import('@/lib/db/schema');
+        const now = new Date();
+        await db.insert(userMemory).values({
+          userId,
+          summary: normalizedTitle.replace(/^User Note:\s*/i, ''),
+          content: contentText,
+          topic: null,
+          memoryType: 'knowledge' as any,
+          confidence: 70,
+          status: 'active' as any,
+          tags: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch (memErr) {
+        console.error(
+          'Memory: Failed to mirror addResource into UserMemory:',
+          memErr,
+        );
+      }
+
       return {
         status: 'success',
-        message: `I've saved "${title}" to our knowledge base and will remember this information for future conversations.`,
+        message: `I've saved "${normalizedTitle}" to our knowledge base and will remember this information for future conversations.`,
         documentId: newDocumentId,
+        title: normalizedTitle,
+        isKnowledgeSave: true,
+        hideJSON: true,
       };
     } catch (error) {
       console.error('RAG ERROR: Failed to add resource:', error);

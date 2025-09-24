@@ -34,7 +34,15 @@ export function useMessageActions({
 
       if (pinnedRes.ok) {
         const pinned = await pinnedRes.json();
-        setPinnedMessages(pinned);
+        // Ensure we only set valid pinned messages
+        if (Array.isArray(pinned)) {
+          const validPinned = pinned.filter(
+            (p) => p && typeof p === 'object' && p.messageId,
+          );
+          setPinnedMessages(validPinned);
+        } else {
+          setPinnedMessages([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching pinned messages:', error);
@@ -50,34 +58,87 @@ export function useMessageActions({
 
   // Listen for real-time updates
   useEffect(() => {
-    const handleMessageActionUpdate = (event: CustomEvent) => {
-      const { type, data } = event.detail;
+    const handleMessageActionUpdate = (event: Event) => {
+      const custom = event as CustomEvent;
+      const detail: any = (custom as any)?.detail;
+      const type = detail?.type;
+      const data = detail?.data;
 
       if (type === 'pin') {
-        if (data.pinned) {
-          setPinnedMessages((prev) => [...prev, data.pinnedMessage]);
-        } else {
-          setPinnedMessages((prev) =>
-            prev.filter((p) => p.messageId !== data.messageId),
-          );
-        }
+        setPinnedMessages((prev) => {
+          const safePrev = Array.isArray(prev)
+            ? prev.filter((p) => (p as any)?.messageId)
+            : [];
+          const messageId: string | undefined = data?.messageId;
+          const pinned: boolean | undefined = data?.pinned;
+
+          if (!messageId) return safePrev;
+
+          if (pinned) {
+            const newPin: PinnedMessage =
+              data?.pinnedMessage ||
+              ({
+                id: data?.id || `temp-${Date.now()}`,
+                userId: data?.userId || '',
+                messageId,
+                chatId: data?.chatId || chatId,
+                pinnedAt: data?.pinnedAt ? new Date(data.pinnedAt) : new Date(),
+              } as PinnedMessage);
+
+            const without = safePrev.filter((p) => p?.messageId !== messageId);
+            return [...without, newPin];
+          }
+
+          // Unpin path
+          return safePrev.filter((p) => p?.messageId !== messageId);
+        });
       }
     };
 
-    window.addEventListener(
-      'messageActionUpdate',
-      handleMessageActionUpdate as EventListener,
-    );
+    window.addEventListener('messageActionUpdate', handleMessageActionUpdate);
 
     return () => {
       window.removeEventListener(
         'messageActionUpdate',
-        handleMessageActionUpdate as EventListener,
+        handleMessageActionUpdate,
       );
     };
-  }, []);
+  }, [chatId]);
 
   const handlePin = async (messageId: string) => {
+    // Optimistic toggle
+    const wasPinned = isPinned(messageId);
+    const previousPin =
+      pinnedMessages.find((p) => p.messageId === messageId) || null;
+
+    if (wasPinned) {
+      // Optimistically remove
+      setPinnedMessages((prev) =>
+        prev.filter((p) => p.messageId !== messageId),
+      );
+      emitMessageActionUpdate('pin', {
+        pinned: false,
+        messageId,
+        chatId,
+      });
+    } else {
+      // Optimistically add
+      const optimisticPin: PinnedMessage = {
+        id: `temp-${Date.now()}`,
+        userId: '',
+        messageId,
+        chatId,
+        pinnedAt: new Date(),
+      };
+      setPinnedMessages((prev) => [...prev, optimisticPin]);
+      emitMessageActionUpdate('pin', {
+        pinned: true,
+        messageId,
+        pinnedMessage: optimisticPin,
+        chatId,
+      });
+    }
+
     try {
       const response = await fetch('/api/pin', {
         method: 'POST',
@@ -87,40 +148,52 @@ export function useMessageActions({
 
       const data = await response.json();
 
+      // Reconcile with server state
       if (data.pinned) {
-        toast.success('Message pinned');
-        const newPinnedMessage: PinnedMessage = {
-          id: data.id || '', // Server should return the ID
-          userId: '', // Will be set by server
+        const serverPin: PinnedMessage = {
+          id: data.id || previousPin?.id || `temp-${Date.now()}`,
+          userId: data.userId || previousPin?.userId || '',
           messageId,
           chatId,
-          pinnedAt: new Date(),
+          pinnedAt: data.pinnedAt
+            ? new Date(data.pinnedAt)
+            : previousPin?.pinnedAt || new Date(),
         };
 
-        // Update local state immediately
-        setPinnedMessages((prev) => [...prev, newPinnedMessage]);
-
-        // Emit event for other components
-        emitMessageActionUpdate('pin', {
-          pinned: true,
-          messageId,
-          pinnedMessage: newPinnedMessage,
+        setPinnedMessages((prev) => {
+          const without = prev.filter((p) => p.messageId !== messageId);
+          return [...without, serverPin];
         });
-      } else {
-        toast.success('Message unpinned');
 
-        // Update local state immediately
+        toast.success('Message pinned');
+      } else {
         setPinnedMessages((prev) =>
           prev.filter((p) => p.messageId !== messageId),
         );
-
-        // Emit event for other components
-        emitMessageActionUpdate('pin', {
-          pinned: false,
-          messageId,
-        });
+        toast.success('Message unpinned');
       }
+
+      emitMessageActionUpdate('pin', {
+        pinned: data.pinned,
+        messageId,
+        chatId,
+      });
     } catch (error) {
+      // Rollback
+      setPinnedMessages((prev) => {
+        const without = prev.filter((p) => p.messageId !== messageId);
+        if (wasPinned && previousPin) {
+          return [...without, previousPin];
+        }
+        return without;
+      });
+
+      emitMessageActionUpdate('pin', {
+        pinned: wasPinned,
+        messageId,
+        chatId,
+      });
+
       toast.error('Failed to pin/unpin message');
     }
   };
@@ -183,7 +256,16 @@ export function useMessageActions({
   };
 
   const isPinned = (messageId: string) => {
-    return pinnedMessages.some((p) => p.messageId === messageId);
+    if (!messageId) return false;
+    if (!Array.isArray(pinnedMessages)) return false;
+
+    return pinnedMessages.some((p) => {
+      // Extra safety check
+      if (!p || typeof p !== 'object') {
+        return false;
+      }
+      return p.messageId === messageId;
+    });
   };
 
   return {

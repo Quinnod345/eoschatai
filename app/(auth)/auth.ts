@@ -15,6 +15,7 @@ declare module 'next-auth' {
     user: {
       id: string;
       type: UserType;
+      profilePicture?: string | null;
     } & DefaultSession['user'];
   }
 
@@ -22,6 +23,7 @@ declare module 'next-auth' {
     id?: string;
     email?: string | null;
     type: UserType;
+    profilePicture?: string | null;
   }
 }
 
@@ -29,6 +31,7 @@ declare module 'next-auth/jwt' {
   interface JWT extends DefaultJWT {
     id: string;
     type: UserType;
+    profilePicture?: string | null;
   }
 }
 

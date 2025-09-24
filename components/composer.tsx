@@ -9,6 +9,7 @@ import {
   useEffect,
   useState,
   startTransition,
+  useRef,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -17,7 +18,7 @@ import { fetcher } from '@/lib/utils';
 import { MultimodalInput } from './multimodal-input';
 import { Toolbar } from './toolbar';
 import { VersionFooter } from './version-footer';
-import { ComposerActions } from './composer-actions';
+import { ComposerHeaderActions } from './composer-header-actions';
 import { ComposerCloseButton } from './composer-close-button';
 import { ComposerMessages } from './composer-messages';
 import { useSidebar } from './ui/sidebar';
@@ -108,6 +109,12 @@ function PureComposer({
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
+  // Track the latest content we intentionally saved to avoid stale overwrites
+  const lastLocallySavedContentRef = useRef<string | null>(null);
+  // Track when a streaming session is active to avoid remote clobbering
+  const isStreamingRef = useRef<boolean>(false);
+  // Track last remote version timestamp that we applied to composer.content
+  const lastRemoteAppliedAtRef = useRef<number>(0);
   const [mirroredChatId, setMirroredChatId] = useState<string | null>(null);
   const [mirroredMessages, setMirroredMessages] = useState<Array<UIMessage>>(
     [],
@@ -145,26 +152,51 @@ function PureComposer({
   );
 
   useEffect(() => {
+    // Keep a fast flag in sync for streaming state checks in closures
+    isStreamingRef.current = composer.status === 'streaming';
+  }, [composer.status]);
+
+  useEffect(() => {
     if (documents && documents.length > 0) {
       const mostRecentDocument = documents.at(-1);
 
       if (mostRecentDocument) {
+        const remoteCreatedAt = new Date(
+          mostRecentDocument.createdAt,
+        ).getTime();
         setDocument(mostRecentDocument);
         setCurrentVersionIndex(documents.length - 1);
         setComposer((currentComposer) => {
           // Avoid clobbering in-flight or freshly streamed content with an empty/older fetch
+          const remoteContent = mostRecentDocument.content ?? '';
+          const localContent = currentComposer.content ?? '';
+          const isStreaming =
+            currentComposer.status === 'streaming' || isStreamingRef.current;
+
+          // Heuristic: only adopt remote content if it's newer/different and we are not streaming
+          // and we didn't just save this exact content locally.
+          const isSameAsLastSaved =
+            lastLocallySavedContentRef.current !== null &&
+            lastLocallySavedContentRef.current === remoteContent;
+
           const shouldOverrideContent =
-            currentComposer.status !== 'streaming' &&
-            !!mostRecentDocument.content &&
-            mostRecentDocument.content.length > 0 &&
-            mostRecentDocument.content !== currentComposer.content &&
+            !isStreaming &&
+            remoteContent !== undefined &&
+            remoteContent !== localContent &&
+            !isSameAsLastSaved &&
+            remoteCreatedAt > (lastRemoteAppliedAtRef.current || 0) &&
             // For VTO, only override if the fetched content is valid VTO
             (currentComposer.kind !== 'vto' ||
-              isValidVtoContent(mostRecentDocument.content));
+              !remoteContent ||
+              isValidVtoContent(remoteContent));
 
-          return shouldOverrideContent
-            ? { ...currentComposer, content: mostRecentDocument.content ?? '' }
-            : currentComposer;
+          if (shouldOverrideContent) {
+            // Record last applied remote version timestamp to prevent older clobbers
+            lastRemoteAppliedAtRef.current = remoteCreatedAt;
+            return { ...currentComposer, content: remoteContent };
+          }
+
+          return currentComposer;
         });
       }
     }
@@ -234,6 +266,9 @@ function PureComposer({
       ) {
         return;
       }
+
+      // Mark as last locally saved to avoid immediate remote clobber
+      lastLocallySavedContentRef.current = updatedContent;
 
       // Always POST the latest content to persist
       try {
@@ -590,7 +625,7 @@ function PureComposer({
                 </div>
               </div>
 
-              <ComposerActions
+              <ComposerHeaderActions
                 composer={composer}
                 currentVersionIndex={currentVersionIndex}
                 handleVersionChange={handleVersionChange}

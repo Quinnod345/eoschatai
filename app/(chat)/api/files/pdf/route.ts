@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
-// Maximum PDF size (5MB)
-const MAX_PDF_SIZE = 5 * 1024 * 1024;
+// Maximum PDF size (50MB)
+const MAX_PDF_SIZE = 50 * 1024 * 1024;
+
+// Configure route to handle larger request bodies
+export const maxDuration = 60; // 60 seconds timeout for large PDFs
+export const runtime = 'nodejs'; // Use Node.js runtime
 
 export async function POST(request: Request) {
   const session = await auth();

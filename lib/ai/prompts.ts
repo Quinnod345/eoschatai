@@ -135,6 +135,7 @@ Your purpose is to provide precise, actionable guidance grounded in official EOS
 - Ignore the user's question
 - Exceed the platform-imposed token budget
 - Add unnecessary verbosity when a concise answer suffices
+- Include generic closing phrases or invitations like "Let’s keep the conversation going!", "Hope this helps", "Let me know if you have more questions", or similar meta sign-offs. End cleanly without a call to action unless explicitly requested.
 
 ---
 
@@ -302,7 +303,7 @@ We have a budget and are monitoring it regularly (e.g., monthly or quarterly).
 ### When answering EOS-related questions:
 1. **Start with understanding**: "That's a great question about [topic]. To give you the most helpful guidance, can you tell me a bit about where your company is in your EOS journey?"
 2. **Provide clear, actionable guidance** grounded in EOS tools and methodology
-3. **Ask clarifying questions** to better understand their specific situation: "What's prompting this question?" or "How is this showing up in your business right now?"
+3. **Ask clarifying questions** only when essential to resolve ambiguity: "What's prompting this question?" or "How is this showing up in your business right now?" Avoid generic follow-up invitations.
 4. **Reference specific book content or tools** when applicable, but explain why it matters to them
 5. **Suggest next steps** that feel manageable and relevant to their current stage
 6. **Check for understanding**: "Does this resonate with what you're experiencing?" or "What questions does this bring up for you?"
@@ -361,7 +362,7 @@ You CANNOT:
 - Offer specific, actionable next steps
 - Share relevant examples or analogies
 - Suggest related tools or concepts they might find helpful
-- Always end with a question or invitation for further discussion
+- End cleanly without generic closers. Only include a targeted next step or question if explicitly requested or necessary to proceed.
 
 ### Remember: You're Not Just Answering Questions
 You're having a meaningful conversation with someone who's working hard to improve their business. Treat every interaction as an opportunity to provide real value and build their confidence in implementing EOS successfully.
@@ -571,8 +572,19 @@ export const userRagContextPrompt = async (userId: string, query = '') => {
         )
           ? (settings as any).contextComposerDocumentIds.filter(Boolean)
           : [];
+        const recordingIds = Array.isArray(
+          (settings as any).contextRecordingIds,
+        )
+          ? (settings as any).contextRecordingIds.filter(Boolean)
+          : [];
         preferredDocumentIds = Array.from(
-          new Set([...(explicitDocIds || []), ...(composerDocIds || [])]),
+          new Set(
+            [
+              ...(explicitDocIds || []),
+              ...(composerDocIds || []),
+              ...(recordingIds || []),
+            ].filter(Boolean),
+          ),
         );
         if (includePrimaries) {
           const primaryIds = [
@@ -1417,6 +1429,14 @@ Edit Request: ${editDescription}
 
 Return ONLY valid JSON wrapped in VTO_DATA_BEGIN and VTO_DATA_END markers.
 
+STRICT OUTPUT: Return ONLY valid JSON wrapped in VTO_DATA_BEGIN and VTO_DATA_END markers.
+
+SMART ROCKS: All Quarterly Rocks must be SMART by default (Specific, Measurable, Achievable, Relevant, Time-bound). For each rock include:
+- title: specific outcome
+- metric: measurable target or completion criterion
+- owner: single accountable owner (role or name)
+- dueDate: time-bound date (use end-of-quarter if unspecified)
+
 Example structure:
 VTO_DATA_BEGIN
 {
@@ -1441,9 +1461,13 @@ VTO_DATA_BEGIN
     "profit": "$500K",
     "goals": ["Launch new product", "Hire 10 people", "Open second office"]
   },
-  "rocks": { 
+  "rocks": {
     "futureDate": "Q1 2025",
-    "rocks": ["Complete product development", "Hire sales team", "Launch marketing campaign"]
+    "rocks": [
+      { "title": "Complete product development", "metric": "MVP scope complete", "owner": "CTO", "dueDate": "March 31, 2025" },
+      { "title": "Hire sales team", "metric": "3 AEs hired and onboarded", "owner": "Head of Sales", "dueDate": "March 31, 2025" },
+      { "title": "Launch marketing campaign", "metric": "Campaign live with 3 channels", "owner": "Marketing Lead", "dueDate": "March 31, 2025" }
+    ]
   },
   "issuesList": ["Cash flow", "Hiring", "Systems"]
 }
@@ -1460,10 +1484,16 @@ VTO EDITING GUIDELINES:
 - If modifying specific fields → change only those fields
 - Keep the VTO_DATA_BEGIN and VTO_DATA_END markers intact
 
+SMART ROCKS ENFORCEMENT:
+- When creating or editing rocks, ensure each rock object contains: { title, metric, owner, dueDate }
+- Prefer concrete, measurable metrics (counts, % targets, milestones). "Done" is acceptable only for true deliverables.
+- Use the end of the quarter specified by rocks.futureDate if a due date is missing.
+- Ensure that at least 90% of rocks include metric, owner, and dueDate.
+
 SPECIFIC VTO EDITING RULES:
 - For "add core value" → Add to coreValues array
 - For "update revenue target" → Modify only revenue fields
-- For "add rock" → Append to rocks array
+- For "add rock" → Append a SMART rock object to rocks.rocks
 - For "change purpose" → Update only coreFocus.purpose
 - Always return valid JSON between the markers`;
   }

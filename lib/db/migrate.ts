@@ -214,6 +214,136 @@ const columnExists = async (
   }
 };
 
+// Document History migration
+const runDocumentHistoryMigration = async (connection: postgres.Sql<{}>) => {
+  console.log('Running Document History migration...');
+
+  try {
+    // Check if DocumentHistory table exists
+    const historyTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'DocumentHistory'
+      ) as "exists"
+    `;
+
+    if (!historyTableExists[0].exists) {
+      // Create DocumentHistory table
+      await connection`
+        CREATE TABLE "DocumentHistory" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+          "userId" UUID NOT NULL REFERENCES "User"("id"),
+          "operation" VARCHAR NOT NULL CHECK ("operation" IN ('create', 'update', 'delete', 'restore')),
+          "timestamp" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "metadata" JSONB
+        )
+      `;
+
+      // Create indexes
+      await connection`CREATE INDEX "doc_history_document_idx" ON "DocumentHistory" ("documentId")`;
+      await connection`CREATE INDEX "doc_history_user_idx" ON "DocumentHistory" ("userId")`;
+      await connection`CREATE INDEX "doc_history_timestamp_idx" ON "DocumentHistory" ("timestamp")`;
+
+      console.log('Created DocumentHistory table');
+    }
+
+    // Check if DocumentVersion table exists
+    const versionTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'DocumentVersion'
+      ) as "exists"
+    `;
+
+    if (!versionTableExists[0].exists) {
+      // Create DocumentVersion table
+      await connection`
+        CREATE TABLE "DocumentVersion" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+          "historyId" UUID NOT NULL REFERENCES "DocumentHistory"("id") ON DELETE CASCADE,
+          "versionNumber" INTEGER NOT NULL,
+          "title" TEXT NOT NULL,
+          "content" TEXT,
+          "kind" VARCHAR NOT NULL CHECK ("kind" IN ('text', 'code', 'image', 'sheet', 'chart', 'vto', 'accountability')),
+          "createdAt" TIMESTAMP NOT NULL,
+          "metadata" JSONB
+        )
+      `;
+
+      // Create indexes
+      await connection`CREATE UNIQUE INDEX "doc_version_idx" ON "DocumentVersion" ("documentId", "versionNumber")`;
+      await connection`CREATE INDEX "doc_version_history_idx" ON "DocumentVersion" ("historyId")`;
+
+      console.log('Created DocumentVersion table');
+    }
+
+    // Check if DocumentEditSession table exists
+    const sessionTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'DocumentEditSession'
+      ) as "exists"
+    `;
+
+    if (!sessionTableExists[0].exists) {
+      // Create DocumentEditSession table
+      await connection`
+        CREATE TABLE "DocumentEditSession" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+          "userId" UUID NOT NULL REFERENCES "User"("id"),
+          "startedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+          "endedAt" TIMESTAMP,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "editCount" INTEGER NOT NULL DEFAULT 0
+        )
+      `;
+
+      // Create indexes
+      await connection`CREATE INDEX "edit_session_doc_user_idx" ON "DocumentEditSession" ("documentId", "userId")`;
+      await connection`CREATE INDEX "edit_session_active_idx" ON "DocumentEditSession" ("isActive")`;
+
+      console.log('Created DocumentEditSession table');
+    }
+
+    // Check if DocumentUndoStack table exists
+    const undoStackTableExists = await connection`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'DocumentUndoStack'
+      ) as "exists"
+    `;
+
+    if (!undoStackTableExists[0].exists) {
+      // Create DocumentUndoStack table
+      await connection`
+        CREATE TABLE "DocumentUndoStack" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "documentId" UUID NOT NULL REFERENCES "Document"("id") ON DELETE CASCADE,
+          "userId" UUID NOT NULL REFERENCES "User"("id"),
+          "currentVersionId" UUID NOT NULL REFERENCES "DocumentVersion"("id"),
+          "undoStack" JSONB NOT NULL DEFAULT '[]'::jsonb,
+          "redoStack" JSONB NOT NULL DEFAULT '[]'::jsonb,
+          "maxStackSize" INTEGER NOT NULL DEFAULT 50,
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      // Create unique index
+      await connection`CREATE UNIQUE INDEX "undo_stack_doc_user_idx" ON "DocumentUndoStack" ("documentId", "userId")`;
+
+      console.log('Created DocumentUndoStack table');
+    }
+
+    console.log('Document History migration completed');
+  } catch (error) {
+    console.error('Error in Document History migration:', error);
+    throw error;
+  }
+};
+
 // Fix the truncated constraint name issue
 const fixTruncatedConstraint = async (connection: postgres.Sql<{}>) => {
   try {
@@ -303,7 +433,7 @@ const runMigrate = async () => {
         // Run Drizzle migrations with error handling
         try {
           const db = drizzle(connection);
-          await migrate(db, { migrationsFolder: './lib/db/migrations' });
+          await migrate(db, { migrationsFolder: './drizzle' });
         } catch (error) {
           console.error('Error running Drizzle migrations:', error);
           // Continue with other migrations even if this one fails
@@ -393,11 +523,15 @@ const runMigrate = async () => {
             'contextComposerDocumentIds',
             'JSONB',
           );
+          await ensureColumn('UserSettings', 'contextRecordingIds', 'JSONB');
           await ensureColumn(
             'UserSettings',
             'usePrimaryDocsForContext',
             'BOOLEAN DEFAULT true',
           );
+
+          // VoiceTranscript content column
+          await ensureColumn('VoiceTranscript', 'content', 'TEXT');
           await ensureColumn(
             'UserSettings',
             'usePrimaryDocsForPersona',
@@ -449,6 +583,72 @@ const runMigrate = async () => {
           await migrateUserDocuments();
         } catch (error) {
           console.error('Error running UserDocuments migration:', error);
+        }
+
+        try {
+          // Run Document History migration
+          await runDocumentHistoryMigration(connection);
+        } catch (error) {
+          console.error('Error running Document History migration:', error);
+        }
+
+        // Ensure UserMemory tables exist (idempotent)
+        try {
+          const memExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = 'UserMemory'
+            ) as "exists"
+          `;
+
+          if (!memExists[0].exists) {
+            await connection`
+              CREATE TABLE "UserMemory" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "userId" UUID NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+                "sourceMessageId" UUID REFERENCES "Message_v2"("id") ON DELETE SET NULL,
+                "summary" TEXT NOT NULL,
+                "content" TEXT,
+                "topic" VARCHAR(128),
+                "memoryType" VARCHAR NOT NULL CHECK ("memoryType" IN ('preference','profile','company','task','knowledge','personal','other')) DEFAULT 'other',
+                "confidence" INTEGER NOT NULL DEFAULT 60,
+                "status" VARCHAR NOT NULL CHECK ("status" IN ('active','pending','archived','dismissed')) DEFAULT 'active',
+                "tags" JSONB,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "expiresAt" TIMESTAMP
+              )
+            `;
+            console.log('Created UserMemory table');
+          } else {
+            console.log('UserMemory table already exists');
+          }
+
+          const embExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' AND table_name = 'UserMemoryEmbedding'
+            ) as "exists"
+          `;
+
+          if (!embExists[0].exists) {
+            await connection`
+              CREATE TABLE "UserMemoryEmbedding" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "memoryId" UUID NOT NULL REFERENCES "UserMemory"("id") ON DELETE CASCADE,
+                "chunk" TEXT NOT NULL,
+                "embedding" VECTOR(1536) NOT NULL,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+              )
+            `;
+            await connection`CREATE INDEX "user_memory_id_idx" ON "UserMemoryEmbedding" ("memoryId")`;
+            await connection`CREATE INDEX "user_memory_embedding_idx" ON "UserMemoryEmbedding" USING hnsw ("embedding" vector_cosine_ops)`;
+            console.log('Created UserMemoryEmbedding table and indexes');
+          } else {
+            console.log('UserMemoryEmbedding table already exists');
+          }
+        } catch (error) {
+          console.error('Error ensuring UserMemory tables:', error);
         }
 
         const end = Date.now();

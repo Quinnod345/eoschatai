@@ -13,6 +13,7 @@ import { DocumentContextModal } from './document-context-modal';
 import { KeyboardShortcutsModal } from './keyboard-shortcuts-modal';
 import { useFeatures } from '@/hooks/use-features';
 import { WhatsNewModal } from './whats-new-modal';
+import { useUserSettings } from '@/components/user-settings-provider';
 import {
   Tooltip,
   TooltipContent,
@@ -67,8 +68,8 @@ export function SidebarUserNav({
     autoShow: false, // Don't auto-show in sidebar, only manual
   });
 
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const { settings: userSettings } = useUserSettings();
+  const profilePicture = userSettings.profilePicture || null;
   const [chatHistoryChecked, setChatHistoryChecked] = useState<string | null>(
     null,
   );
@@ -101,28 +102,7 @@ export function SidebarUserNav({
     };
   }, []);
 
-  // Fetch user settings to get profile picture
-  useEffect(() => {
-    async function fetchUserSettings() {
-      if (status === 'loading') return;
-
-      try {
-        setIsLoadingProfile(true);
-        const response = await fetch('/api/user-settings');
-
-        if (response.ok) {
-          const data = await response.json();
-          setProfilePicture(data.profilePicture || null);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user settings', error);
-      } finally {
-        setIsLoadingProfile(false);
-      }
-    }
-
-    fetchUserSettings();
-  }, [status]);
+  // No longer need to fetch user settings - using context
 
   // Check for URL parameters related to calendar integration
   useEffect(() => {

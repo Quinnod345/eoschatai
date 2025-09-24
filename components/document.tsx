@@ -193,6 +193,44 @@ export function DocumentToolResult({
   ) {
     const showPreBlock = !(parsedResult.hideJSON === true);
 
+    // Special UI card for knowledge saves
+    if (
+      parsedResult.status === 'success' &&
+      parsedResult.isKnowledgeSave === true &&
+      typeof parsedResult.documentId === 'string'
+    ) {
+      return (
+        <div
+          className="mt-1 inline-flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-sm"
+          data-testid="knowledge-save-card"
+        >
+          <div className="flex items-center justify-center h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-3.5 w-3.5"
+            >
+              <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm5 8.586-5.707 5.707a1 1 0 0 1-1.414 0L7 13.414l1.414-1.414L11 14.586l4.586-4.586Z" />
+            </svg>
+          </div>
+          <div className="flex flex-col">
+            <div className="font-medium text-zinc-900 dark:text-zinc-100">
+              Saved to Knowledge Base
+            </div>
+            <div className="text-zinc-700 dark:text-zinc-300">
+              {typeof parsedResult.title === 'string'
+                ? parsedResult.title
+                : 'New Note'}
+            </div>
+          </div>
+          <div className="ml-auto text-xs text-muted-foreground">
+            ID: {parsedResult.documentId.slice(0, 8)}
+          </div>
+        </div>
+      );
+    }
+
     if (parsedResult.status === 'success') {
       return (
         <div className="text-sm text-zinc-700 dark:text-zinc-300">

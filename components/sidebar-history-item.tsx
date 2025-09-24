@@ -25,7 +25,7 @@ import { motion } from 'framer-motion';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle } from '@/lib/utils/chat-utils';
-import { Pin, Bookmark } from 'lucide-react';
+import { Bookmark } from 'lucide-react';
 import { toast } from '@/lib/toast-system';
 import { useChatPreloader } from '@/hooks/use-chat-preloader';
 import { useLoading } from '@/hooks/use-loading';
@@ -169,21 +169,40 @@ const PureChatItem = ({
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             className={cn(
-              'relative flex items-center w-full rounded-md',
+              'relative flex items-center w-full rounded-md overflow-hidden',
+              // Bookmarked only
               isBookmarked &&
+                !((pinnedCount ?? 0) > 0) &&
                 'ring-1 ring-sky-400/70 shadow-[0_0_0_2px_rgba(56,189,248,0.25),0_0_22px_rgba(56,189,248,0.35)] hover:shadow-[0_0_0_2px_rgba(56,189,248,0.3),0_0_30px_rgba(56,189,248,0.5)]',
+              // Pinned only
+              !isBookmarked &&
+                (pinnedCount ?? 0) > 0 &&
+                'ring-1 ring-eos-orange/70 shadow-[0_0_0_2px_rgba(255,121,0,0.25),0_0_22px_rgba(255,121,0,0.35)] hover:shadow-[0_0_0_2px_rgba(255,121,0,0.3),0_0_30px_rgba(255,121,0,0.5)]',
             )}
           >
+            {/* Half-and-half border for both bookmarked and pinned */}
+            {isBookmarked && (pinnedCount ?? 0) > 0 && (
+              <>
+                <div
+                  className="absolute inset-0 rounded-md ring-1 ring-inset ring-sky-400/70 pointer-events-none"
+                  style={{ clipPath: 'polygon(0 0, 50% 0, 50% 100%, 0 100%)' }}
+                />
+                <div
+                  className="absolute inset-0 rounded-md ring-1 ring-inset ring-eos-orange/70 pointer-events-none"
+                  style={{
+                    clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)',
+                  }}
+                />
+                <div className="absolute inset-0 rounded-md shadow-[0_0_0_2px_rgba(56,189,248,0.25),0_0_22px_rgba(255,121,0,0.35)] hover:shadow-[0_0_0_2px_rgba(56,189,248,0.3),0_0_30px_rgba(255,121,0,0.5)] pointer-events-none" />
+              </>
+            )}
             {/* Title area - expands fully by default; on hover/active, add padding to avoid the right overlay */}
             <div
               className={cn(
                 'min-w-0 flex-1 pr-0 transition-[padding] duration-150',
-                // Adjust only for visible right-side indicators (exclude bookmark icon)
-                isActive && (pinnedCount ?? 0) > 0 && 'pr-7',
-                isActive && !((pinnedCount ?? 0) > 0) && 'pr-6',
-                (pinnedCount ?? 0) > 0
-                  ? 'group-hover/item:pr-7'
-                  : 'group-hover/item:pr-6',
+                // Always same padding since we removed pin indicator
+                isActive && 'pr-6',
+                'group-hover/item:pr-6',
               )}
             >
               <span className="truncate block min-w-0 text-[14px] font-normal">
@@ -193,17 +212,6 @@ const PureChatItem = ({
 
             {/* Right overlay: indicators (always visible) + three dots (hover/active) */}
             <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {pinnedCount && pinnedCount > 0 && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground/80">
-                  <Pin className="h-4 w-4 text-eos-orange" />
-                  {pinnedCount > 1 && (
-                    <span className="text-eos-orange font-medium">
-                      {pinnedCount}
-                    </span>
-                  )}
-                </div>
-              )}
-
               <DropdownMenu modal={true}>
                 <DropdownMenuTrigger asChild>
                   <button

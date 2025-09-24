@@ -139,6 +139,10 @@ async function decideModelWithNano(args: {
   provider: ReturnType<typeof createCustomProvider>;
   queryText: string;
   hasCodeOrMath: boolean;
+  hasDeepAnalysis?: boolean;
+  hasFileUploads?: boolean;
+  fileUploadCount?: number;
+  inputCharacterCount?: number;
   mode?: 'nexus' | 'standard';
   hasComposerOpen?: boolean;
 }): Promise<{ model: 'gpt-4.1' | 'gpt-5'; maxTokens: number }> {
@@ -146,6 +150,10 @@ async function decideModelWithNano(args: {
     provider,
     queryText,
     hasCodeOrMath,
+    hasDeepAnalysis = false,
+    hasFileUploads = false,
+    fileUploadCount = 0,
+    inputCharacterCount = 0,
     mode = 'standard',
     hasComposerOpen = false,
   } = args;
@@ -153,37 +161,70 @@ async function decideModelWithNano(args: {
     mode,
     hasComposerOpen,
     hasCodeOrMath,
+    hasDeepAnalysis,
+    hasFileUploads,
+    fileUploadCount,
+    inputCharacterCount,
     queryLength: (queryText || '').length,
   });
   const { text } = await generateText({
     model: provider.languageModel('gpt-4.1-nano'),
     system: `You are a token allocation grader. Decide the optimal OpenAI model and output token budget ONLY from the task text and context below.
 
-MODEL SELECTION (be conservative with GPT-5):
-- Use GPT-4.1 for most tasks: explanations, tutorials, code generation, troubleshooting, planning, documentation.
-- Use GPT-5 ONLY when there is clearly: extremely complex multi-step reasoning, advanced mathematical derivations/proofs, exhaustive enterprise-scale planning, or the task explicitly demands maximum depth.
+MODEL SELECTION (be generous with GPT-5):
+- Use GPT-4.1 for: simple explanations, basic tutorials, straightforward code, simple troubleshooting, brief summaries.
+- Use GPT-5 for: deep analysis, comprehensive summaries, multi-faceted analysis, literary/rhetorical analysis, "find what's hidden", critical analysis, weakness identification, audience analysis, detailed documentation, research tasks, or any request asking for both summary AND analysis.
+
+DEEP ANALYSIS TRIGGERS (use GPT-5):
+- "deep analysis", "comprehensive", "thorough", "detailed analysis"
+- "find hidden", "beneath the surface", "relate everything", "central point"
+- "rhetorical situation", "audience analysis", "critical analysis"
+- "pick apart", "weak points", "critique", "evaluate"
+- Multiple analysis dimensions requested (e.g., summary + analysis + rhetorical + audience)
+- Academic or scholarly analysis requests
+- Requests with specific formatting requirements for analysis
+
+FILE UPLOAD TRIGGERS (strongly favor GPT-5):
+- Any file uploads present (PDFs, documents, images, etc.)
+- Multiple file uploads (2+ files) = automatic GPT-5
+- Large documents (10+ pages) = automatic GPT-5
+- Analysis of uploaded content = automatic GPT-5
+
+INPUT LENGTH CONSIDERATIONS:
+- Character count > 5000: Lean towards GPT-5
+- Character count > 10000: Strong preference for GPT-5
+- Character count > 20000: Automatic GPT-5
+- Very long inputs often contain complex context requiring deeper reasoning
 
 TOKEN BUDGET TIERS (choose one range, then pick a value inside it):
-- Minimal: 200–400
-- Light: 400–900
-- Standard: 900–1800
-- Comprehensive: 1800–3200
-- Extensive: 3200–6000
-- Massive: 6000–12000
+- Minimal: 400–800
+- Light: 800–1500
+- Standard: 1500–3000
+- Comprehensive: 3000–6000
+- Extensive: 6000–10000
+- Massive: 10000–20000
+
+TOKEN BUDGET ADJUSTMENTS:
+- File uploads: +50% minimum, +100% for multiple files
+- Long input (>10k chars): +40% minimum
+- Very long input (>20k chars): +80% minimum
+- Code/programming: +40–50% tokens baseline
+- Math/derivations: +40–50% tokens baseline
+- Literary/rhetorical analysis: +50–60% tokens baseline
+- Multiple adjustments stack (e.g., file upload + long input + analysis)
 
 INTELLIGENCE SIGNALS:
-- Increase tokens for: "comprehensive", "in depth", "step-by-step", "guide", "documentation", multi-part requests, requests for examples, comparisons, strategies.
-- Decrease tokens for: "quick", "brief", "short", "summary", simple yes/no, single-sentence asks.
-- Code/programming: +30–40% tokens baseline.
-- Math/derivations: +30–40% tokens baseline.
+- Major token increase for: "deep", "comprehensive", "thorough", "in-depth", "analysis", multi-part requests, academic analysis, literary criticism.
+- Moderate increase for: examples, comparisons, strategies, step-by-step.
+- File processing requires both intelligence and tokens for thorough analysis.
 
 MODE CONTEXT:
 - mode: ${mode}
 - composer_open: ${hasComposerOpen}
-If mode is nexus, allow higher budgets within limits. If an composer is open, still return a single budget for the chat model.
+If mode is nexus, allow even higher budgets. If an composer is open, still return a single budget for the chat model.
 
-Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 200..100000>}. No commentary.`,
-    prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}`,
+Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000>}. No commentary.`,
+    prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}`,
     maxTokens: 128,
     temperature: 0,
   });
@@ -383,8 +424,38 @@ export async function POST(request: Request) {
       queryText.includes('=== Spreadsheet Content from') ||
       queryText.includes('=== Image Analysis for');
 
+    // Check for new embedded content format
+    const hasEmbeddedContent = queryText.includes('[EMBEDDED_CONTENT_START]');
+
+    // Count file uploads
+    let fileUploadCount = 0;
     if (hasInlineDocuments) {
-      console.log('RAG: Detected inline document upload in user message');
+      // Count legacy format uploads
+      fileUploadCount += (queryText.match(/=== PDF Content from/g) || [])
+        .length;
+      fileUploadCount += (
+        queryText.match(/=== Word Document Content from/g) || []
+      ).length;
+      fileUploadCount += (
+        queryText.match(/=== Spreadsheet Content from/g) || []
+      ).length;
+      fileUploadCount += (queryText.match(/=== Image Analysis for/g) || [])
+        .length;
+    }
+    if (hasEmbeddedContent) {
+      // Count new format uploads
+      const embeddedMatches = queryText.match(/\[EMBEDDED_CONTENT_START\]/g);
+      fileUploadCount += embeddedMatches ? embeddedMatches.length : 0;
+    }
+
+    const hasFileUploads = hasInlineDocuments || hasEmbeddedContent;
+
+    if (hasFileUploads) {
+      console.log('RAG: Detected file uploads in user message', {
+        hasInlineDocuments,
+        hasEmbeddedContent,
+        fileUploadCount,
+      });
     }
 
     console.log('RAG: Extracted queryText:', {
@@ -1375,6 +1446,14 @@ Always prioritize the user's document content over generic information. If speci
             queryText || '',
           );
 
+        // Enhanced detection for deep analysis requests
+        const hasDeepAnalysis =
+          /\b(deep analysis|comprehensive|thorough|detailed analysis|find.*hidden|beneath.*surface|relate everything|central point|rhetorical situation|audience analysis|critical analysis|pick apart|weak points|critique|evaluate)\b/i.test(
+            queryText || '',
+          ) ||
+          (queryText?.toLowerCase().includes('summary') &&
+            queryText?.toLowerCase().includes('analysis')); // Both summary AND analysis requested
+
         const providerForDecision = createCustomProvider(selectedProvider);
         let preflightModel: 'gpt-4.1' | 'gpt-5' = 'gpt-4.1';
         let preflightMaxTokens = 2000;
@@ -1385,6 +1464,10 @@ Always prioritize the user's document content over generic information. If speci
               provider: providerForDecision,
               queryText: queryText || '',
               hasCodeOrMath,
+              hasDeepAnalysis,
+              hasFileUploads,
+              fileUploadCount,
+              inputCharacterCount: queryText.length,
               mode: 'standard',
               hasComposerOpen: Boolean(composerDocumentId),
             });
@@ -1405,23 +1488,24 @@ Always prioritize the user's document content over generic information. If speci
         const finalChatModel = preflightModel;
 
         // Establish safe hard limit based on final model
-        // Increase safe hard limits; allow ~50k tokens in Nexus with GPT-5
+        // More generous limits for both models
         const safeHardLimit = finalChatModel.includes('gpt-4.1')
-          ? 16000
-          : 50000;
+          ? 32000 // Doubled from 16000
+          : 100000; // Doubled from 50000
         // Set temperature based on model
-        const temperature = 0.8;
+        // GPT-5 and newer models only support default temperature of 1
+        const temperature = finalChatModel === 'gpt-5' ? 1 : 0.8;
 
         // For Nexus mode, allow reasonable cap; otherwise, clamp by both preflight and model limit
         const nexusTokenLimit = isNexusMode
-          ? 8000
-          : Math.min(safeHardLimit, Math.max(512, preflightMaxTokens));
+          ? 16000 // Doubled from 8000
+          : Math.min(safeHardLimit, Math.max(1000, preflightMaxTokens)); // Increased min from 512 to 1000
 
         // Compute artifact token multiplier without disrupting preflight
-        // Slight boost: 1.4x up to a reasonable cap
+        // More generous boost: 2.0x up to a higher cap
         const artifactMaxTokens = isNexusMode
-          ? 12000
-          : Math.min(12000, Math.floor((preflightMaxTokens || 2000) * 1.4));
+          ? 24000 // Doubled from 12000
+          : Math.min(20000, Math.floor((preflightMaxTokens || 3000) * 2.0)); // Increased multiplier and cap
 
         console.log('[DEBUG] Nexus mode check:', {
           selectedResearchMode,
@@ -2605,33 +2689,54 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
       },
     });
 
-    // Special case - if the message includes "remember", automatically save it in case the model fails to use tools
+    // Special case - cautious handling for "remember"
     if (queryText.toLowerCase().includes('remember') && queryText.length > 15) {
       try {
-        console.log('RAG: Auto-saving information from "remember" message');
-        // Extract what to remember (everything after "remember that" or "remember")
-        let contentToRemember = queryText;
-        if (queryText.toLowerCase().includes('remember that')) {
-          contentToRemember = queryText
-            .substring(queryText.toLowerCase().indexOf('remember that') + 13)
-            .trim();
-        } else if (queryText.toLowerCase().includes('remember')) {
-          contentToRemember = queryText
-            .substring(queryText.toLowerCase().indexOf('remember') + 8)
-            .trim();
-        }
-
-        // Only proceed if there's meaningful content
-        if (contentToRemember.length > 3) {
-          const title = `User Note: ${contentToRemember.substring(0, 30)}${contentToRemember.length > 30 ? '...' : ''}`;
+        const { generateObject } = await import('ai');
+        const { z } = await import('zod');
+        const schema = z.object({
+          shouldSave: z.boolean(),
+          summary: z.string().optional(),
+          memoryType: z
+            .enum([
+              'preference',
+              'profile',
+              'company',
+              'task',
+              'knowledge',
+              'personal',
+              'other',
+            ])
+            .optional(),
+          confidence: z.number().min(0).max(100).optional(),
+        });
+        const result = await generateObject({
+          model: (await import('@ai-sdk/openai')).openai('gpt-4o-mini'),
+          schema,
+          temperature: 0.2,
+          system:
+            'Decide if the user is asking to store a useful long-term memory. Prefer not saving unless it is a clear, stable preference, profile fact, company detail, or reusable knowledge. Return conservative confidence.',
+          prompt: `User message: ${queryText}\nRespond with fields.`,
+        });
+        const {
+          shouldSave,
+          summary,
+          memoryType,
+          confidence = 60,
+        } = result.object as any;
+        if (shouldSave && confidence >= 60) {
+          const contentToRemember = queryText.trim();
+          const title = `User Note: ${summary || contentToRemember.substring(0, 30)}${contentToRemember.length > 30 ? '...' : ''}`;
           await addResourceTool.execute(
             { title, content: contentToRemember },
             session.user.id,
           );
-          console.log('RAG: Auto-saved content from remember command');
+          console.log('RAG: Saved classified memory');
+        } else {
+          console.log('RAG: Skipping auto-save based on classifier');
         }
       } catch (saveError) {
-        console.error('RAG: Error auto-saving content:', saveError);
+        console.error('RAG: Error in cautious remember flow:', saveError);
       }
     }
 

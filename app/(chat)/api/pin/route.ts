@@ -151,7 +151,13 @@ export async function GET(request: Request) {
       });
     } else if (chatId) {
       const pinned = await db
-        .select()
+        .select({
+          id: pinnedMessage.id,
+          userId: pinnedMessage.userId,
+          messageId: pinnedMessage.messageId,
+          chatId: pinnedMessage.chatId,
+          pinnedAt: pinnedMessage.pinnedAt,
+        })
         .from(pinnedMessage)
         .where(
           and(
