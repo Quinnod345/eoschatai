@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { generateResearchPlan } from '@/lib/ai/nexus-query-generator';
+import { getAccessContext } from '@/lib/entitlements';
 
 export const maxDuration = 30;
 
@@ -54,6 +55,14 @@ export async function POST(request: NextRequest) {
       userIntent: undefined,
     });
 
+    const accessContext = await getAccessContext(session.user.id);
+    const deepFeature = accessContext.entitlements.features.deep_research;
+    const maxLookupsAllowed = deepFeature.enabled
+      ? deepFeature.lookups_per_run > 0
+        ? deepFeature.lookups_per_run
+        : Number.POSITIVE_INFINITY
+      : 4;
+
     // Calculate total search count
     const totalSearchCount = researchPlan.phases.reduce(
       (total, phase) => total + phase.queries.length,
@@ -72,9 +81,15 @@ export async function POST(request: NextRequest) {
         totalSearches: totalSearchCount,
         estimatedDuration: researchPlan.estimatedDuration,
         estimatedCredits: researchPlan.estimatedCredits,
+        maxLookupsAllowed: Number.isFinite(maxLookupsAllowed)
+          ? maxLookupsAllowed
+          : totalSearchCount,
       },
       totalSearches: totalSearchCount,
       phases: researchPlan.phases,
+      maxLookupsAllowed: Number.isFinite(maxLookupsAllowed)
+        ? maxLookupsAllowed
+        : totalSearchCount,
     });
   } catch (error) {
     console.error('[Nexus Plan] Error generating plan:', error);

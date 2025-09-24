@@ -8,6 +8,8 @@ import { sql } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import OpenAI from 'openai';
 import { processUserDocument } from '@/lib/ai/user-rag';
+import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
+import { trackBlockedAction } from '@/lib/analytics';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -251,6 +253,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const accessContext = await getAccessContext(session.user.id);
+  const uploadLimit = accessContext.entitlements.features.context_uploads_total;
+
+  if (uploadLimit <= 0) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'not_enabled',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'not_enabled',
+      },
+      { status: 403 },
+    );
+  }
+
+  if (uploadLimit > 0 && accessContext.user.usageCounters.uploads_total >= uploadLimit) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'limit_exceeded',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'limit_exceeded',
+      },
+      { status: 403 },
+    );
+  }
+
   const db = await import('@/lib/db').then((module) => module.db);
 
   if (request.body === null) {
@@ -385,6 +426,8 @@ export async function POST(request: Request) {
         // Don't fail the upload if RAG processing fails
       }
 
+      await incrementUsageCounter(session.user.id, 'uploads_total', 1);
+
       return NextResponse.json({
         message: 'Document uploaded successfully',
         document: {
@@ -408,6 +451,8 @@ export async function POST(request: Request) {
         const returnedData = result as unknown as {
           rows: Array<{ id: string; fileName: string; category: string }>;
         };
+
+        await incrementUsageCounter(session.user.id, 'uploads_total', 1);
 
         return NextResponse.json({
           message: 'Document uploaded successfully (fallback method)',

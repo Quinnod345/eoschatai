@@ -15,13 +15,15 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { ResearchPlan } from '@/lib/ai/nexus-research-storage';
+import { Slider } from '@/components/ui/slider';
 
 interface NexusResearchPlanProps {
   plan: ResearchPlan;
   onApprove?: () => void;
   onModify?: (plan: ResearchPlan) => void;
   onRegenerate?: (feedback: string) => void;
-  onStartResearch?: () => void;
+  onStartResearch?: (options: { maxLookups: number }) => void;
+  maxLookupsAllowed?: number;
   isGenerating?: boolean;
 }
 
@@ -31,6 +33,7 @@ export function NexusResearchPlan({
   onModify,
   onRegenerate,
   onStartResearch,
+  maxLookupsAllowed,
   isGenerating = false,
 }: NexusResearchPlanProps) {
   const [expandedPhase, setExpandedPhase] = useState<number | null>(0);
@@ -65,6 +68,23 @@ export function NexusResearchPlan({
       setShowFullPlan(true);
     }
   }, [isGenerating, safePlan.phases.length]);
+
+  const configuredCap =
+    typeof maxLookupsAllowed === 'number'
+      ? maxLookupsAllowed
+      : typeof (plan as any)?.maxLookupsAllowed === 'number'
+        ? (plan as any).maxLookupsAllowed
+        : safePlan.totalSearches ?? 1;
+
+  const maxLookups = Math.max(
+    1,
+    Math.min(configuredCap ?? safePlan.totalSearches ?? 1, safePlan.totalSearches ?? 1),
+  );
+  const [lookupsBudget, setLookupsBudget] = useState<number>(maxLookups);
+
+  useEffect(() => {
+    setLookupsBudget(maxLookups);
+  }, [maxLookups]);
 
   const getApproachIcon = (approach: string) => {
     switch (approach) {
@@ -195,6 +215,34 @@ export function NexusResearchPlan({
               </div>
             </div>
 
+            {maxLookups > 1 && (
+              <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between text-sm font-medium">
+                  <span>Search depth</span>
+                  <span>
+                    {lookupsBudget} / {maxLookups}
+                  </span>
+                </div>
+                <Slider
+                  value={[lookupsBudget]}
+                  min={1}
+                  max={maxLookups}
+                  step={1}
+                  onValueChange={(value) => {
+                    const next = value?.[0];
+                    if (typeof next === 'number') {
+                      setLookupsBudget(Math.min(maxLookups, Math.max(1, next)));
+                    }
+                  }}
+                />
+                {maxLookupsAllowed && maxLookupsAllowed < (safePlan.totalSearches ?? 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    Plan capped to {maxLookupsAllowed} lookups. Upgrade to unlock deeper research sessions.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Sub-questions */}
             {safePlan.subQuestions.length > 0 && (
               <div className="space-y-2">
@@ -321,7 +369,14 @@ export function NexusResearchPlan({
                 {onStartResearch && (
                   <button
                     type="button"
-                    onClick={onStartResearch}
+                    onClick={() =>
+                      onStartResearch({
+                        maxLookups:
+                          maxLookups > 0
+                            ? lookupsBudget
+                            : safePlan.totalSearches ?? 1,
+                      })
+                    }
                     className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-colors flex items-center gap-2"
                   >
                     <Search className="w-4 h-4" />

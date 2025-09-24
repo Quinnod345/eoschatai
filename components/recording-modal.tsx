@@ -38,6 +38,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Gate } from '@/components/gate';
+import { UpgradePrompt } from '@/components/upgrade-prompt';
+import { useAccountStore } from '@/lib/stores/account-store';
 import { Markdown } from './markdown';
 
 interface RecordingModalProps {
@@ -94,6 +97,7 @@ export default function RecordingModal({
   const streamRef = useRef<MediaStream | null>(null);
 
   const router = useRouter();
+  const entitlements = useAccountStore((state) => state.entitlements);
 
   const selectRecording = useCallback((rec: SavedRecording) => {
     setSelectedRecording(rec);
@@ -458,14 +462,33 @@ export default function RecordingModal({
                   </div>
                 </div>
               </div>
-              <Button
-                onClick={startNewRecording}
-                className="w-full gap-2"
-                size="sm"
+              <Gate
+                feature="recordings"
+                mode="soft"
+                usageKey="asr_minutes_month"
+                limit={entitlements?.features.recordings.minutes_month ?? null}
+                placement="recording-modal:recordings"
+                fallback={
+                  <UpgradePrompt
+                    feature="recordings"
+                    placement="recording-modal:recordings"
+                    onAutoRetry={() => {
+                      startNewRecording();
+                    }}
+                    cta="Upgrade for Recordings"
+                    className="w-full"
+                  />
+                }
               >
-                <Plus className="h-4 w-4" />
-                New Recording
-              </Button>
+                <Button
+                  onClick={startNewRecording}
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Recording
+                </Button>
+              </Gate>
             </div>
 
             <ScrollArea className="flex-1">

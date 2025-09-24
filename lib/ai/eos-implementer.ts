@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { IMPLEMENTER_ACCESS } from '@/lib/server-constants';
+
 // Fixed UUID for EOS Implementer persona to enable database persistence
 // This UUID is used consistently across the application
 export const EOS_IMPLEMENTER_UUID = '00000000-0000-0000-0000-000000000001';
@@ -1177,15 +1179,25 @@ Remember: You are facilitating their discovery and mastery. The Implementer lead
 ];
 
 // Function to check if user has access to EOS Implementer persona
+const normalizeDomain = (domain: string): string => {
+  const trimmed = domain.trim().toLowerCase();
+  if (!trimmed) {
+    return trimmed;
+  }
+  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`;
+};
+
 export const hasEOSImplementerAccess = (userEmail: string): boolean => {
   if (!userEmail) return false;
 
-  const allowedEmails = ['quinn@upaway.dev'];
-  const allowedDomain = '@eosworldwide.com';
+  const normalizedEmail = userEmail.toLowerCase();
 
-  return (
-    allowedEmails.includes(userEmail.toLowerCase()) ||
-    userEmail.toLowerCase().endsWith(allowedDomain)
+  if (IMPLEMENTER_ACCESS.allowedEmails.includes(normalizedEmail)) {
+    return true;
+  }
+
+  return IMPLEMENTER_ACCESS.allowedDomains.some((domain) =>
+    normalizedEmail.endsWith(normalizeDomain(domain)),
   );
 };
 

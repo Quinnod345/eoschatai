@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import {
+  pgEnum,
   pgTable,
   varchar,
   timestamp,
@@ -16,14 +18,53 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const user = pgTable('User', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  email: varchar('email', { length: 64 }).notNull(),
-  password: varchar('password', { length: 64 }),
-  providerId: varchar('providerId', { length: 64 }),
-  googleCalendarConnected: boolean('googleCalendarConnected').default(false),
-  lastFeaturesVersion: timestamp('lastFeaturesVersion'),
-});
+export const planTypeEnum = pgEnum('plan_type', ['free', 'pro', 'business']);
+export type PlanType = (typeof planTypeEnum.enumValues)[number];
+
+export const org = pgTable(
+  'Org',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    name: text('name'),
+    plan: planTypeEnum('plan').notNull().default('free'),
+    stripeSubscriptionId: text('stripeSubscriptionId'),
+    seatCount: integer('seatCount').notNull().default(1),
+    limits: jsonb('limits').notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    stripeSubscriptionIdx: index('org_stripe_subscription_idx').on(
+      table.stripeSubscriptionId,
+    ),
+  }),
+);
+
+export type Org = InferSelectModel<typeof org>;
+
+export const user = pgTable(
+  'User',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    email: varchar('email', { length: 64 }).notNull(),
+    password: varchar('password', { length: 64 }),
+    providerId: varchar('providerId', { length: 64 }),
+    googleCalendarConnected: boolean('googleCalendarConnected').default(false),
+    lastFeaturesVersion: timestamp('lastFeaturesVersion'),
+    plan: planTypeEnum('plan').notNull().default('free'),
+    stripeCustomerId: text('stripeCustomerId'),
+    entitlements: jsonb('entitlements')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    usageCounters: jsonb('usageCounters')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    orgId: uuid('orgId').references(() => org.id),
+  },
+  (table) => ({
+    orgIdx: index('user_org_idx').on(table.orgId),
+  }),
+);
 
 export type User = InferSelectModel<typeof user>;
 
@@ -227,6 +268,40 @@ export const bookmarkedChat = pgTable(
 
 export type PinnedMessage = InferSelectModel<typeof pinnedMessage>;
 export type BookmarkedChat = InferSelectModel<typeof bookmarkedChat>;
+
+export const webhookEvent = pgTable(
+  'WebhookEvents',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    eventId: text('eventId').notNull(),
+    processedAt: timestamp('processedAt'),
+  },
+  (table) => ({
+    eventIdx: uniqueIndex('webhook_events_event_id_idx').on(table.eventId),
+  }),
+);
+
+export type WebhookEvent = InferSelectModel<typeof webhookEvent>;
+
+export const analyticsEvent = pgTable(
+  'AnalyticsEvent',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    eventName: varchar('eventName', { length: 128 }).notNull(),
+    source: varchar('source', { length: 16 }).notNull(),
+    userId: uuid('userId').references(() => user.id),
+    orgId: uuid('orgId').references(() => org.id),
+    properties: jsonb('properties').notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('analytics_event_user_idx').on(table.userId),
+    orgIdx: index('analytics_event_org_idx').on(table.orgId),
+    nameIdx: index('analytics_event_name_idx').on(table.eventName),
+  }),
+);
+
+export type AnalyticsEvent = InferSelectModel<typeof analyticsEvent>;
 
 export const document = pgTable('Document', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
