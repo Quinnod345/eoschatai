@@ -60,6 +60,7 @@ import {
 import { createEmbeddedContentString } from '@/types/upload-content';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useUserSettings } from '@/components/user-settings-provider';
+import { useAccountStore } from '@/lib/stores/account-store';
 
 // Interface for @ mention resources - Enhanced version
 interface MentionResource {
@@ -412,6 +413,14 @@ function PureMultimodalInput({
   >([]);
 
   // No longer need to fetch settings - using context
+
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const usageCounters = useAccountStore((state) => state.usageCounters);
+
+  const uploadLimit = entitlements?.features.context_uploads_total ?? null;
+  const uploadsUsed = usageCounters?.uploads_total ?? 0;
+  const chatLimit = entitlements?.features.chats_per_day ?? null;
+  const chatsUsed = usageCounters?.chats_today ?? 0;
 
   // Hide predictions when messages change (chat is no longer new)
   useEffect(() => {
@@ -2682,6 +2691,12 @@ function PureMultimodalInput({
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+            <UsageChip
+              label="Uploads"
+              used={uploadsUsed}
+              limit={uploadLimit}
+              title="Context uploads used"
+            />
 
             {!isReadonly && !isEmbedded && (
               <VisibilitySelector
@@ -2705,6 +2720,12 @@ function PureMultimodalInput({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <UsageChip
+              label="Chats"
+              used={chatsUsed}
+              limit={chatLimit}
+              title="Chats sent today"
+            />
             {status === 'submitted' ? (
               <StopButton stop={stop} setMessages={setMessages} />
             ) : (
@@ -2790,6 +2811,43 @@ function PureAttachmentsButton({
 }
 
 const AttachmentsButton = memo(PureAttachmentsButton);
+
+function UsageChip({
+  label,
+  used,
+  limit,
+  title,
+}: {
+  label: string;
+  used: number;
+  limit: number | null;
+  title?: string;
+}) {
+  if (!limit || limit <= 0) return null;
+
+  const isExceeded = used >= limit;
+  const ratio = limit > 0 ? used / limit : 0;
+  const isApproaching = !isExceeded && ratio >= 0.8;
+
+  return (
+    <Badge
+      variant="outline"
+      title={title ?? `${label} usage ${used}/${limit}`}
+      className={cx(
+        'flex h-6 items-center gap-1 rounded-full border border-muted-foreground/30 bg-muted/70 px-2 text-xs font-medium tabular-nums',
+        isApproaching && 'border-amber-200 bg-amber-100 text-amber-900',
+        isExceeded && 'border-destructive/40 bg-destructive/10 text-destructive',
+      )}
+    >
+      <span className="text-[11px] font-semibold tracking-tight text-muted-foreground/80">
+        {label}
+      </span>
+      <span className="tabular-nums">
+        {used}/{limit}
+      </span>
+    </Badge>
+  );
+}
 
 function PureStopButton({
   stop,

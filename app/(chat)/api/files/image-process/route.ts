@@ -2,10 +2,17 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import OpenAI from 'openai';
 
-// Initialize the OpenAI client with the API key
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[image-process] OPENAI_API_KEY missing; skipping AI analysis.');
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -27,6 +34,17 @@ export async function POST(request: Request) {
     }
 
     console.log(`Processing image: ${filename} from URL: ${imageUrl}`);
+
+    if (!openai) {
+      return NextResponse.json(
+        {
+          filename: filename,
+          description: 'Image analysis unavailable: OpenAI API key missing.',
+          text: '',
+        },
+        { status: 200 },
+      );
+    }
 
     // Process the image using OpenAI's vision model to get OCR text and description
     try {

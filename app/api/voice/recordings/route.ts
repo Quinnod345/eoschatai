@@ -6,9 +6,20 @@ import { voiceRecording, voiceTranscript } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { put } from '@vercel/blob';
 import OpenAI from 'openai';
+import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
+import { trackBlockedAction } from '@/lib/analytics';
 
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[voice.recordings] OPENAI_API_KEY missing; transcription disabled.');
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 // Background transcription function
 async function transcribeInBackground(
@@ -18,6 +29,11 @@ async function transcribeInBackground(
   title: string | null,
   userId: string,
 ) {
+  if (!openai) {
+    console.warn('[voice.recordings] Skipping transcription due to missing OpenAI client.');
+    return;
+  }
+
   try {
     // Check if transcript already exists
     const existing = await db
@@ -213,6 +229,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const accessContext = await getAccessContext(session.user.id);
+
   try {
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;
@@ -225,6 +243,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'No audio file provided' },
         { status: 400 },
+      );
+    }
+
+    if (!accessContext.entitlements.features.recordings.enabled) {
+      await trackBlockedAction({
+        feature: 'recordings',
+        reason: 'not_enabled',
+        user_id: session.user.id,
+        org_id: accessContext.user.orgId,
+        status: 403,
+      });
+      return NextResponse.json(
+        {
+          code: 'ENTITLEMENT_BLOCK',
+          feature: 'recordings',
+          reason: 'not_enabled',
+        },
+        { status: 403 },
+      );
+    }
+
+    const minutesLimit =
+      accessContext.entitlements.features.recordings.minutes_month;
+    const minutesToConsume = Math.max(1, Math.ceil(Math.max(0, duration) / 60));
+    const minutesUsed = accessContext.user.usageCounters.asr_minutes_month;
+
+    if (minutesLimit > 0 && minutesUsed + minutesToConsume > minutesLimit) {
+      await trackBlockedAction({
+        feature: 'recordings',
+        reason: 'limit_exceeded',
+        user_id: session.user.id,
+        org_id: accessContext.user.orgId,
+        status: 403,
+      });
+      return NextResponse.json(
+        {
+          code: 'ENTITLEMENT_BLOCK',
+          feature: 'recordings',
+          reason: 'limit_exceeded',
+        },
+        { status: 403 },
       );
     }
 
@@ -250,6 +309,12 @@ export async function POST(req: NextRequest) {
         mimeType: audioFile.type,
       })
       .returning();
+
+    await incrementUsageCounter(
+      session.user.id,
+      'asr_minutes_month',
+      minutesToConsume,
+    );
 
     // Kick off background transcription without waiting
     transcribeInBackground(

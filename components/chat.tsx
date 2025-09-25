@@ -1714,7 +1714,8 @@ export function Chat({
           <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
             <NexusResearchPlan
               plan={nexusResearchPlan.plan}
-              onStartResearch={async () => {
+              maxLookupsAllowed={nexusResearchPlan.maxLookupsAllowed}
+              onStartResearch={async ({ maxLookups }) => {
                 // Start the actual research
                 console.log('[Chat] Starting approved research');
                 setNexusResearchPlan(null);
@@ -1730,6 +1731,7 @@ export function Chat({
                     body: JSON.stringify({
                       plan: nexusResearchPlan.plan,
                       chatId: id,
+                      maxLookups,
                     }),
                   });
 
@@ -1805,6 +1807,7 @@ export function Chat({
                       totalSearches: planData.totalSearches,
                       phases: planData.phases,
                       requiresApproval: true,
+                      maxLookupsAllowed: planData.maxLookupsAllowed,
                     });
                     setNexusSearchData(null);
                   } else {

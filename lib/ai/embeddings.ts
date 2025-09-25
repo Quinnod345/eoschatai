@@ -20,10 +20,13 @@ if (!upstashUrl || !upstashToken) {
 }
 
 // Configure Upstash Vector client
-const upstashVectorClient = new Index({
-  url: upstashUrl || '',
-  token: upstashToken || '',
-});
+const upstashVectorClient =
+  upstashUrl && upstashToken
+    ? new Index({
+        url: upstashUrl,
+        token: upstashToken,
+      })
+    : null;
 
 const embeddingModel = openai.embedding('text-embedding-ada-002');
 
@@ -174,6 +177,11 @@ export const processDocument = async (
   documentId: string,
   content: string,
 ): Promise<void> => {
+  if (!upstashVectorClient) {
+    console.warn('RAG: Skipping document processing because Upstash Vector is not configured.');
+    return;
+  }
+
   try {
     // Generate chunks from content
     const chunks = generateChunks(content);
@@ -254,6 +262,11 @@ export const findRelevantContent = async (
   limit = 5,
   minRelevance = 0.8, // Increase to 80% for better quality matches
 ): Promise<{ content: string; relevance: number }[]> => {
+  if (!upstashVectorClient) {
+    console.warn('RAG: Upstash Vector is not configured; returning no relevant content.');
+    return [];
+  }
+
   try {
     // Ensure the query is a string (in case it's passed as an object)
     let queryText = typeof query === 'string' ? query : '';
@@ -372,6 +385,11 @@ const upstashToInternal = (
 export const deleteContentByKeyword = async (
   keyword: string,
 ): Promise<{ deleted: number }> => {
+  if (!upstashVectorClient) {
+    console.warn('RAG: Upstash Vector is not configured; nothing to delete.');
+    return { deleted: 0 };
+  }
+
   try {
     // First, find entries containing the keyword
     const cached = getCachedEmbeddingIfFresh(keyword);

@@ -11,6 +11,8 @@ import {
 import { cn } from '@/lib/utils';
 import { CheckCircleFillIcon, ChevronDownIcon, SearchIcon } from './icons';
 import { Telescope } from 'lucide-react';
+import { useAccountStore } from '@/lib/stores/account-store';
+import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 
 export type ResearchMode = 'off' | 'nexus';
 
@@ -52,6 +54,8 @@ export function NexusResearchSelector({
 }: NexusResearchSelectorProps) {
   const [open, setOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<ResearchMode | null>(null);
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const openUpgrade = useUpgradeStore((state) => state.openModal);
 
   const selectedMode = useMemo(
     () => researchModes.find((mode) => mode.id === selectedResearchMode),
@@ -96,22 +100,18 @@ export function NexusResearchSelector({
               data-testid={`research-mode-selector-item-${mode.id}`}
               key={mode.id}
               onSelect={() => {
-                console.log('[NexusResearchSelector] Mode selected:', mode.id);
-                console.log(
-                  '[NexusResearchSelector] Previous mode:',
-                  selectedResearchMode,
-                );
-                console.log(
-                  '[NexusResearchSelector] Calling onResearchModeChange with:',
-                  mode.id,
-                );
+                if (
+                  mode.id === 'nexus' &&
+                  !entitlements?.features.deep_research.enabled
+                ) {
+                  openUpgrade('deep_research', () => {
+                    onResearchModeChange('nexus');
+                  });
+                  setOpen(false);
+                  return;
+                }
 
-                // Call the change handler immediately
                 onResearchModeChange(mode.id);
-
-                console.log(
-                  '[NexusResearchSelector] onResearchModeChange called, closing dropdown',
-                );
                 setOpen(false);
               }}
               className="gap-4 group/item flex flex-row justify-between items-center"

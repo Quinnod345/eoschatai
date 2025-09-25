@@ -9,7 +9,7 @@ import postgres from 'postgres';
 config({ path: '.env.local' });
 
 // Get the database URL from either POSTGRES_URL or DATABASE_URL
-const getDatabaseUrl = () => {
+const getDatabaseUrl = (): string | null => {
   const postgresUrl = process.env.POSTGRES_URL;
   const databaseUrl = process.env.DATABASE_URL;
   const postgresUrlNonPooling = process.env.POSTGRES_URL_NON_POOLING;
@@ -19,13 +19,7 @@ const getDatabaseUrl = () => {
   const url =
     postgresUrl || databaseUrl || postgresUrlNonPooling || databaseUrlUnpooled;
 
-  if (!url) {
-    throw new Error(
-      'No database URL environment variable is defined. Set POSTGRES_URL, DATABASE_URL, POSTGRES_URL_NON_POOLING, or DATABASE_URL_UNPOOLED',
-    );
-  }
-
-  return url;
+  return url || null;
 };
 
 // Add providerId column migration
@@ -388,6 +382,13 @@ const fixTruncatedConstraint = async (connection: postgres.Sql<{}>) => {
 const runMigrate = async () => {
   try {
     const databaseUrl = getDatabaseUrl();
+    if (!databaseUrl) {
+      console.warn(
+        '⚠️  Skipping database migrations: no Postgres connection string configured.',
+      );
+      return;
+    }
+
     console.log(
       'Database URL format check:',
       databaseUrl.startsWith('postgres://') ? 'Valid' : 'Invalid format',

@@ -7,13 +7,12 @@ import {
   tool,
   generateText,
 } from 'ai';
-import { auth, type UserType } from '@/app/(auth)/auth';
+import { auth } from '@/app/(auth)/auth';
 import { type RequestHints, systemPrompt } from '@/lib/ai/prompts';
 import {
   createStreamId,
   deleteChatById,
   getChatById,
-  getMessageCountByUserId,
   getMessagesByChatId,
   getStreamIdsByChatId,
   saveChat,
@@ -27,7 +26,7 @@ import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { isProductionEnvironment } from '@/lib/constants';
 import { createCustomProvider } from '@/lib/ai/providers';
-import { entitlementsByUserType } from '@/lib/ai/entitlements';
+import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import {
   postRequestBodySchema,
   type PostRequestBody,
@@ -288,19 +287,19 @@ export async function POST(request: Request) {
       return new Response('Unauthorized', { status: 401 });
     }
 
-    // Set the user type
-    const userType: UserType = session.user.type || 'regular';
+    const accessContext = await getAccessContext(session.user.id);
+    const chatLimit = accessContext.entitlements.features.chats_per_day;
 
-    const messageCount = await getMessageCountByUserId({
-      id: session.user.id,
-      differenceInHours: 24,
-    });
-
-    if (messageCount > entitlementsByUserType[userType].maxMessagesPerDay) {
+    if (
+      chatLimit > 0 &&
+      accessContext.user.usageCounters.chats_today >= chatLimit
+    ) {
       return new Response('You have reached your daily message limit.', {
         status: 429,
       });
     }
+
+    await incrementUsageCounter(session.user.id, 'chats_today', 1);
 
     const chat = await getChatById({ id });
 

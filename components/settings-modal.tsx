@@ -18,6 +18,8 @@ import { useSession } from 'next-auth/react';
 import { Separator } from '@/components/ui/separator';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { Gate } from '@/components/gate';
+import { UpgradePrompt } from '@/components/upgrade-prompt';
 import {
   UserCircle,
   Calendar,
@@ -1267,21 +1269,37 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                       Disconnect
                                     </Button>
                                   ) : (
-                                    <Button
-                                      size="sm"
-                                      onClick={handleGoogleCalendarAuth}
-                                      disabled={
-                                        loading ||
-                                        calendarConnecting ||
-                                        session?.user?.type === 'guest'
+                                    <Gate
+                                      feature="calendar_connect"
+                                      placement="settings:calendar"
+                                      fallback={
+                                        <UpgradePrompt
+                                          feature="calendar_connect"
+                                          placement="settings:calendar"
+                                          onAutoRetry={() => {
+                                            handleGoogleCalendarAuth();
+                                          }}
+                                          cta="Upgrade to Connect"
+                                          className="flex-shrink-0"
+                                        />
                                       }
-                                      className="flex-shrink-0"
                                     >
-                                      <Calendar className="h-4 w-4 mr-1" />
-                                      {calendarConnecting
-                                        ? 'Connecting...'
-                                        : 'Connect Google Calendar'}
-                                    </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={handleGoogleCalendarAuth}
+                                        disabled={
+                                          loading ||
+                                          calendarConnecting ||
+                                          session?.user?.type === 'guest'
+                                        }
+                                        className="flex-shrink-0"
+                                      >
+                                        <Calendar className="h-4 w-4 mr-1" />
+                                        {calendarConnecting
+                                          ? 'Connecting...'
+                                          : 'Connect Google Calendar'}
+                                      </Button>
+                                    </Gate>
                                   )}
 
                                   {session?.user?.type === 'guest' && (
@@ -1436,16 +1454,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   including chats, messages, documents, and
                                   account information in JSON format.
                                 </p>
-                                <Button
-                                  onClick={handleExportData}
-                                  disabled={exportingData}
-                                  className="w-full sm:w-auto"
+                                <Gate
+                                  feature="export"
+                                  placement="settings:export"
+                                  fallback={
+                                    <UpgradePrompt
+                                      feature="export"
+                                      placement="settings:export"
+                                      onAutoRetry={() => {
+                                        void handleExportData();
+                                      }}
+                                      cta="Upgrade to Export"
+                                      className="w-full sm:w-auto"
+                                    />
+                                  }
                                 >
-                                  <Download className="h-4 w-4 mr-2" />
-                                  {exportingData
-                                    ? 'Preparing Export...'
-                                    : 'Download My Data'}
-                                </Button>
+                                  <Button
+                                    onClick={handleExportData}
+                                    disabled={exportingData}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    {exportingData
+                                      ? 'Preparing Export...'
+                                      : 'Download My Data'}
+                                  </Button>
+                                </Gate>
                               </div>
                             </div>
                           </div>
