@@ -1,9 +1,20 @@
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import OpenAI from 'openai';
 
-const openai = new OpenAI();
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      '[voice.recordings.summary] OPENAI_API_KEY missing; summary generation disabled.',
+    );
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +41,13 @@ export async function POST(request: NextRequest) {
       });
     } else {
       formattedTranscript = transcript;
+    }
+
+    if (!openai) {
+      return NextResponse.json(
+        { summary: 'Summary generation unavailable: OpenAI API key missing.' },
+        { status: 200 },
+      );
     }
 
     // Generate summary using GPT-4

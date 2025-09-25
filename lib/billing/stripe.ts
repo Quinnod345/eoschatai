@@ -380,7 +380,8 @@ const processCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
 
 export const constructStripeEvent = async (request: Request): Promise<Stripe.Event | null> => {
   const stripe = ensureStripe();
-  const signature = headers().get('stripe-signature');
+  const headerList = await headers();
+  const signature = headerList.get('stripe-signature');
 
   if (!signature || !STRIPE_CONFIG.webhookSecret) {
     throw new Error('Stripe webhook secret missing');

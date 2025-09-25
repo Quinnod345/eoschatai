@@ -31,3 +31,7 @@ export const getRedisClient = (): Redis | null => {
 
   return redisClient;
 };
+
+export const __setRedisClient = (client: Redis | null) => {
+  redisClient = client;
+};

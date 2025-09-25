@@ -1,7 +1,17 @@
 import type { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI();
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[voice.recordings.analyze] OPENAI_API_KEY missing; analysis disabled.');
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 // AssemblyAI for speaker diarization
 const ASSEMBLY_API_KEY = process.env.ASSEMBLYAI_API_KEY;
@@ -58,6 +68,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Always transcribe with OpenAI Whisper first
+    if (!openai) {
+      return new Response('Audio analysis unavailable: OpenAI API key missing.', {
+        status: 503,
+      });
+    }
+
     const transcriptionPromise = openai.audio.transcriptions.create({
       file,
       model: 'whisper-1',

@@ -11,10 +11,19 @@ import { processUserDocument } from '@/lib/ai/user-rag';
 import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      '[documents.upload] OPENAI_API_KEY missing; advanced document analysis disabled.',
+    );
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 // Extract text from different file types
 async function extractTextFromFile(
@@ -76,6 +85,16 @@ async function extractTextFromFile(
             data?.text || 'Limited text could be extracted from this PDF';
 
           // Use OpenAI to analyze the text content and provide a description
+          if (!openai) {
+            console.warn(
+              '[documents.upload] OpenAI unavailable; returning raw PDF extraction.',
+            );
+            return (
+              pdfText ||
+              `OpenAI analysis unavailable for PDF ${fileName}. Provide additional context manually.`
+            );
+          }
+
           const response = await openai.chat.completions.create({
             model: 'gpt-4.1-mini',
             messages: [
@@ -128,6 +147,13 @@ async function extractTextFromFile(
           console.log('Using OpenAI for PDF filename and metadata analysis');
 
           // Use OpenAI to provide a description based on the filename and metadata
+          if (!openai) {
+            console.warn(
+              '[documents.upload] OpenAI unavailable; unable to analyze PDF metadata.',
+            );
+            return `PDF ${fileName} could not be analyzed because the OpenAI API key is missing.`;
+          }
+
           const response = await openai.chat.completions.create({
             model: 'gpt-4o',
             messages: [

@@ -100,19 +100,21 @@ const clone = <T>(value: T): T => {
 const deepMerge = <T extends Record<string, any>>(base: T, overrides?: Partial<T>): T => {
   if (!overrides) return clone(base);
   const result = clone(base);
+  const target = result as Record<string, any>;
+  const source = overrides as Record<string, any>;
 
-  for (const [key, value] of Object.entries(overrides)) {
+  for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
     if (
       value &&
       typeof value === 'object' &&
       !Array.isArray(value) &&
-      typeof result[key] === 'object' &&
-      result[key] !== null
+      typeof target[key] === 'object' &&
+      target[key] !== null
     ) {
-      result[key] = deepMerge(result[key] as Record<string, any>, value);
+      target[key] = deepMerge(target[key] as Record<string, any>, value);
     } else {
-      result[key] = value as any;
+      target[key] = value as any;
     }
   }
 
@@ -165,7 +167,9 @@ const normalizeUsageCounters = (value: unknown): UsageCounters => {
   return normalized;
 };
 
-const extractOrgOverrides = (record: Org | null): Partial<FeatureEntitlements> | undefined => {
+const extractOrgOverrides = (
+  record: Pick<Org, 'plan' | 'limits'> | null,
+): Partial<FeatureEntitlements> | undefined => {
   if (!record) return undefined;
   const raw = record.limits as any;
   if (!raw || typeof raw !== 'object') return undefined;
@@ -438,7 +442,7 @@ export const reserveDeepResearchSlot = async (
     );
 
     try {
-      const result = (await redis.eval<[number, number]>(
+      const result = (await redis.eval(
         `local bucketKey = KEYS[1]
 local activeKey = KEYS[2]
 local now = tonumber(ARGV[1])
@@ -497,10 +501,12 @@ redis.call('set', activeKey, active, 'PX', ttlMs)
 
 return {1, retryIn}`,
         [bucketKey, activeKey],
-        now.toString(),
-        capacity.toString(),
-        DEEP_RESEARCH_REFILL_MS.toString(),
-        ttlMs.toString(),
+        [
+          now.toString(),
+          capacity.toString(),
+          DEEP_RESEARCH_REFILL_MS.toString(),
+          ttlMs.toString(),
+        ],
       )) as [number, number];
 
       const allowed = Array.isArray(result) && Number(result[0]) === 1;
@@ -519,7 +525,7 @@ return {1, retryIn}`,
           if (released) return;
           released = true;
           try {
-            await redis.eval<number>(
+            await redis.eval(
               `local active = tonumber(redis.call('get', KEYS[1]) or '0')
 if active <= 1 then
   redis.call('del', KEYS[1])
@@ -529,7 +535,7 @@ active = active - 1
 redis.call('set', KEYS[1], active, 'PX', ARGV[1])
 return active`,
               [activeKey],
-              ttlMs.toString(),
+              [ttlMs.toString()],
             );
           } catch (error) {
             console.warn('[entitlements] Failed to release deep research slot', error);

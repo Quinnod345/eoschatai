@@ -9,8 +9,17 @@ import OpenAI from 'openai';
 import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
 
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[voice.recordings] OPENAI_API_KEY missing; transcription disabled.');
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 // Background transcription function
 async function transcribeInBackground(
@@ -20,6 +29,11 @@ async function transcribeInBackground(
   title: string | null,
   userId: string,
 ) {
+  if (!openai) {
+    console.warn('[voice.recordings] Skipping transcription due to missing OpenAI client.');
+    return;
+  }
+
   try {
     // Check if transcript already exists
     const existing = await db

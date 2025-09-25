@@ -47,16 +47,31 @@ const getDatabaseUrl = () => {
   const url = postgresUrl || databaseUrl;
 
   if (!url) {
-    throw new Error(
-      'Neither POSTGRES_URL nor DATABASE_URL environment variable is defined',
-    );
+    console.warn('[db] Database URL not configured; using stub client.');
+    return null;
   }
 
   return url;
 };
 
-const client = postgres(getDatabaseUrl());
-export const db = drizzle(client);
+const createStubDb = () =>
+  new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('Database client is not configured.');
+      },
+    },
+  ) as ReturnType<typeof drizzle>;
+
+const url = getDatabaseUrl();
+let dbInstance: ReturnType<typeof drizzle> | null = null;
+if (url) {
+  const client = postgres(url);
+  dbInstance = drizzle(client);
+}
+
+export const db = dbInstance ?? createStubDb();
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {

@@ -10,8 +10,17 @@ import { Redis } from '@upstash/redis';
 // Node runtime (transcription may take time)
 export const runtime = 'nodejs';
 
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const createOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[voice.recordings.transcribe] OPENAI_API_KEY missing; transcription disabled.');
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+};
+
+const openai = createOpenAIClient();
 
 // Optional Redis for job status tracking
 let redis: Redis | null = null;
@@ -89,6 +98,18 @@ export async function POST(request: NextRequest) {
       .limit(1);
     if (existing.length > 0) {
       return NextResponse.json({ status: 'ready' });
+    }
+
+    if (!openai) {
+      await setStatus(
+        recordingId,
+        'error',
+        'Transcription unavailable: OpenAI API key missing.',
+      );
+      return NextResponse.json(
+        { error: 'Transcription unavailable: OpenAI API key missing.' },
+        { status: 503 },
+      );
     }
 
     // Mark status as queued

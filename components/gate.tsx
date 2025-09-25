@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { UsageCounters } from '@/lib/entitlements/types';
+import type {
+  NormalizedEntitlements,
+  UsageCounters,
+} from '@/lib/entitlements/types';
 import { useAccountStore } from '@/lib/stores/account-store';
 import type { UpgradeFeature } from '@/types/upgrade';
 import { trackClientEvent } from '@/lib/analytics/client';
@@ -25,7 +28,7 @@ type GateProps = {
 
 const isFeatureEnabled = (
   feature: UpgradeFeature,
-  entitlements: ReturnType<typeof useAccountStore>['entitlements'],
+  entitlements: NormalizedEntitlements | null,
 ) => {
   if (!entitlements) return false;
   const { features } = entitlements;
@@ -46,7 +49,7 @@ const isFeatureEnabled = (
 
 const deriveDefaultLimit = (
   feature: UpgradeFeature,
-  entitlements: ReturnType<typeof useAccountStore>['entitlements'],
+  entitlements: NormalizedEntitlements | null,
 ) => {
   if (!entitlements) return null;
   const { features } = entitlements;
