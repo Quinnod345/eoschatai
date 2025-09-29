@@ -3,12 +3,21 @@ import 'server-only';
 const DEFAULT_APP_URL = 'http://localhost:3000';
 
 export const getAppBaseUrl = (): string => {
-  return (
+  // Check various environment variables for the base URL
+  const url = 
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
     process.env.VERCEL_PROJECT_PRODUCTION_URL ||
-    DEFAULT_APP_URL
-  );
+    DEFAULT_APP_URL;
+
+  // Ensure the URL has a protocol
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    // In production, always use https
+    const protocol = process.env.NODE_ENV === 'production' ? 'https://' : 'http://';
+    return `${protocol}${url}`;
+  }
+
+  return url;
 };
 
 export const buildAppUrl = (path: string, params?: Record<string, string>): string => {

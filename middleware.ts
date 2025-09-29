@@ -3,7 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { guestRegex, isDevelopmentEnvironment } from './lib/constants';
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
   /*
    * Playwright starts the dev server and requires a 200 status to
@@ -11,6 +11,27 @@ export async function middleware(request: NextRequest) {
    */
   if (pathname.startsWith('/ping')) {
     return new Response('pong', { status: 200 });
+  }
+
+  // Check if this is a Meticulous recording session in development/preview
+  const isMeticulousSession =
+    (process.env.NODE_ENV === 'development' ||
+      process.env.VERCEL_ENV === 'preview') &&
+    (searchParams.get('meticulous') === 'true' ||
+      request.headers.get('x-meticulous-session') === 'true' ||
+      request.cookies.get('meticulous-session')?.value === 'true');
+
+  // If it's a Meticulous session, bypass auth for all routes
+  if (isMeticulousSession) {
+    // Set a cookie to maintain the session across navigation
+    const response = NextResponse.next();
+    response.cookies.set('meticulous-session', 'true', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+    return response;
   }
 
   // Public routes that are always accessible without authentication

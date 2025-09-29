@@ -62,7 +62,9 @@ Enhanced the organization settings component:
 2. **Resend Webhook**: Configure Resend webhook endpoint in Resend dashboard:
    - URL: `https://your-domain.com/api/webhooks/resend`
    - Events: Select email.sent, email.delivered, email.opened, email.clicked, email.bounced
-3. **Environment Variable**: Add `RESEND_WEBHOOK_SECRET` for webhook signature verification
+3. **Environment Variables**: 
+   - `RESEND_WEBHOOK_SECRET`: For webhook signature verification
+   - `NEXT_PUBLIC_APP_URL` or `APP_URL`: Should include full URL with protocol (e.g., `https://app.eosbot.ai`)
 
 ## Usage
 
