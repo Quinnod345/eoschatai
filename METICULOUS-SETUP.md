@@ -1,10 +1,10 @@
 # Meticulous Recording Setup
 
-This document explains how Meticulous has been integrated into the EOS Chat AI application to enable full application recording, including authenticated areas.
+This document explains how Meticulous has been integrated into the EOS Chat AI application to enable full application recording without authentication barriers.
 
 ## Overview
 
-Meticulous is a testing tool that records user sessions to automatically maintain test coverage. We've configured it to work seamlessly with the application's authentication system.
+Meticulous is a frontend testing tool that records user sessions to automatically maintain test coverage. Since Meticulous automatically stubs all network responses, we only need to prevent authentication redirects - not provide mock data.
 
 ## What Was Implemented
 
@@ -13,108 +13,85 @@ Meticulous is a testing tool that records user sessions to automatically maintai
 - Script only loads in development (`NODE_ENV=development`) or preview (`VERCEL_ENV=preview`) environments
 - Recording token: `ExoKs5MrAz4fUbTBIqlp9eONnNMv0xV7MbUqgfi3`
 
-### 2. Authentication Bypass for Meticulous
-- Modified middleware (`/middleware.ts`) to detect and allow Meticulous sessions
-- Added mock data response in `/api/me` for Meticulous sessions
-- Created auth wrapper (`/lib/auth/meticulous.ts`) for mock session injection
+### 2. Authentication Redirect Bypass
+- Modified middleware (`/middleware.ts`) to skip auth checks for Meticulous sessions
+- No mock data needed - Meticulous handles response stubbing automatically
 
-### 3. Detection Methods
-Meticulous sessions are detected using any of these methods:
-- Query parameter: `?meticulous=true`
-- HTTP header: `x-meticulous-session: true`
-- Cookie: `meticulous-session=true` (automatically set after first access)
+### 3. Detection Method
+Meticulous sessions are detected using a custom header:
+- HTTP header: `x-meticulous-recording` 
+- Value: Set to your secret value (or `'true'` if no secret configured)
 
 ## How to Use
 
-### Option 1: URL Parameter (Recommended)
-To start a Meticulous recording session, simply add `?meticulous=true` to any URL:
+### Step 1: Configure Meticulous Project Settings
 
-```
-https://your-app.vercel.app/?meticulous=true
-https://your-app.vercel.app/chat?meticulous=true
-```
+In your Meticulous project settings:
+1. Go to the **Custom Request Headers** tab
+2. Add a new header:
+   - Name: `x-meticulous-recording`
+   - Value: `true` (or a secret value if you prefer)
 
-Once you access the app with this parameter, a session cookie is set that persists for 24 hours, allowing navigation without repeatedly adding the parameter.
+### Step 2: (Optional) Set Environment Variable for Secret
 
-### Option 2: Browser Extension / Script
-If Meticulous provides a browser extension or script that sets custom headers, it will automatically be detected via the `x-meticulous-session` header.
-
-## Mock User Details
-
-When Meticulous is recording, the following mock user is injected:
-
-```json
-{
-  "user": {
-    "id": "meticulous-test-user",
-    "email": "test@meticulous.ai",
-    "name": "Meticulous Test User",
-    "plan": "premium",
-    "orgId": "meticulous-test-org"
-  },
-  "org": {
-    "id": "meticulous-test-org",
-    "name": "Meticulous Test Organization",
-    "plan": "premium"
-  }
-}
+If using a secret value for added security:
+```bash
+# In your .env file or deployment settings
+METICULOUS_AUTH_BYPASS_SECRET=your-secret-value
 ```
 
-All features are enabled for the test user to ensure comprehensive recording coverage.
+### Step 3: Start Recording
+
+Meticulous will now be able to access all authenticated areas of your app without being redirected to login pages. The middleware will detect the custom header and bypass authentication checks.
+
+## How It Works
+
+1. **Meticulous sends the custom header** with every request during recording
+2. **Middleware detects the header** and skips authentication checks
+3. **Meticulous stubs all API responses** automatically - no real backend calls are made
+4. **Full app recording** without authentication barriers
 
 ## Security Considerations
 
 1. **Environment Protection**: The bypass ONLY works in development and preview environments. It's completely disabled in production.
 
-2. **No Real Data Access**: The mock session doesn't grant access to real user data - it uses completely synthetic test data.
+2. **Header-Based Security**: Use a secret value in the header for additional security, especially on public preview URLs.
 
-3. **Explicit Activation**: The bypass requires explicit activation via query parameter, header, or cookie.
+3. **No Backend Access**: Meticulous only tests frontend - all API calls are stubbed, so no real data is accessed.
 
 ## Troubleshooting
 
-### Recording Still Only Shows Login Page
-1. Ensure you're accessing the app with `?meticulous=true` parameter
-2. Check browser developer tools for the `meticulous-session` cookie
-3. Verify you're in development or preview environment
+### Recording Still Shows Login Page
+1. Verify the custom header is configured in Meticulous project settings
+2. Check that the header name is exactly `x-meticulous-recording`
+3. Ensure you're in development or preview environment
+4. Check browser dev tools Network tab to see if the header is being sent
 
-### Session Not Persisting
-- The session cookie lasts 24 hours
-- Clear cookies and re-access with `?meticulous=true` to refresh
-
-### Features Not Working
-- All features should be enabled for the test user
-- Check browser console for any errors
-- Ensure the Meticulous script is loading (check Network tab)
+### Authentication Errors in Console
+- These are normal - Meticulous stubs the responses, so auth errors don't affect the recording
+- The important thing is that you're not redirected to login
 
 ## Testing the Integration
 
-1. Start your development server:
+1. Configure the custom header in Meticulous settings
+2. Start your development server:
    ```bash
    npm run dev
    ```
+3. Start a Meticulous recording session
+4. Navigate through the app - you should have full access without login redirects
+5. Check Network tab - you'll see the `x-meticulous-recording` header on requests
 
-2. Access the app with Meticulous enabled:
-   ```
-   http://localhost:3000/?meticulous=true
-   ```
+## How Meticulous Works
 
-3. Navigate through the app - you should have full access without needing to log in
-
-4. Check that Meticulous is recording by looking for network requests to `meticulous.ai`
-
-## Future Enhancements
-
-If needed, we can extend this setup to:
-- Support multiple test user personas
-- Add specific test data for different scenarios
-- Include test-specific UI indicators
-- Add more granular feature flag controls
+- **Frontend Only**: Meticulous records DOM changes and user interactions
+- **Network Stubbing**: All API responses are automatically mocked
+- **No Backend Needed**: Your backend doesn't need to be running
+- **Deterministic Playback**: Tests are reliable because responses are stubbed
 
 ## Reverting Changes
 
 If you need to remove Meticulous integration:
 1. Remove the script tag from `/app/layout.tsx`
-2. Remove the Meticulous detection logic from `/middleware.ts`
-3. Remove the mock data logic from `/api/me/route.ts`
-4. Delete `/lib/auth/meticulous.ts`
-5. Delete this documentation file
+2. Remove the Meticulous detection logic from `/middleware.ts` (lines 16-31)
+3. Delete this documentation file

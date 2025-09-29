@@ -91,3 +91,11 @@ sent → delivered → opened → clicked → accepted
 - Visual status badges in UI
 - Ability to cancel pending invitations
 
+## Troubleshooting
+
+### Invalid URL Error in Production
+If you see `TypeError: Invalid URL` with a URL like `app.eosbot.ai/invite/accept`:
+- The environment variable is missing the protocol (`https://`)
+- Solution: Ensure `NEXT_PUBLIC_APP_URL` or `APP_URL` includes the full URL with protocol
+- The code now automatically adds `https://` in production if missing
+

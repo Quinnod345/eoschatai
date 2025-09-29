@@ -3,7 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { guestRegex, isDevelopmentEnvironment } from './lib/constants';
 
 export async function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
   /*
    * Playwright starts the dev server and requires a 200 status to
@@ -13,25 +13,21 @@ export async function middleware(request: NextRequest) {
     return new Response('pong', { status: 200 });
   }
 
-  // Check if this is a Meticulous recording session in development/preview
+  // Check if this is a Meticulous recording session
+  // Configure this header in Meticulous project settings > Custom Request Headers
+  const meticulousHeader = request.headers.get('x-meticulous-recording');
+  const meticulousSecret = process.env.METICULOUS_AUTH_BYPASS_SECRET;
+
   const isMeticulousSession =
     (process.env.NODE_ENV === 'development' ||
       process.env.VERCEL_ENV === 'preview') &&
-    (searchParams.get('meticulous') === 'true' ||
-      request.headers.get('x-meticulous-session') === 'true' ||
-      request.cookies.get('meticulous-session')?.value === 'true');
+    meticulousHeader === (meticulousSecret || 'true');
 
-  // If it's a Meticulous session, bypass auth for all routes
+  // If it's a Meticulous session, bypass all auth checks
   if (isMeticulousSession) {
-    // Set a cookie to maintain the session across navigation
-    const response = NextResponse.next();
-    response.cookies.set('meticulous-session', 'true', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24, // 24 hours
-    });
-    return response;
+    // Skip auth checks and allow access to all routes
+    // Meticulous will automatically stub network responses
+    return NextResponse.next();
   }
 
   // Public routes that are always accessible without authentication
