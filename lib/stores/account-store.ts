@@ -16,6 +16,7 @@ export type AccountUser = {
 
 export type AccountOrg = {
   id: string;
+  name: string | null;
   plan: PlanName;
   seatCount: number;
   limits: unknown;
@@ -56,7 +57,10 @@ type AccountState = {
   reset: () => void;
 };
 
-const INITIAL_STATE: Omit<AccountState, 'setBootstrap' | 'setLoading' | 'setError' | 'reset'> = {
+const INITIAL_STATE: Omit<
+  AccountState,
+  'setBootstrap' | 'setLoading' | 'setError' | 'reset'
+> = {
   ready: false,
   loading: false,
   user: null,

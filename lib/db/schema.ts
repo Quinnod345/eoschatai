@@ -30,6 +30,7 @@ export const org = pgTable(
     stripeSubscriptionId: text('stripeSubscriptionId'),
     seatCount: integer('seatCount').notNull().default(1),
     limits: jsonb('limits').notNull().default(sql`'{}'::jsonb`),
+    ownerId: uuid('ownerId'), // Reference will be handled in relations
     createdAt: timestamp('createdAt').notNull().defaultNow(),
     updatedAt: timestamp('updatedAt').notNull().defaultNow(),
   },
@@ -37,6 +38,7 @@ export const org = pgTable(
     stripeSubscriptionIdx: index('org_stripe_subscription_idx').on(
       table.stripeSubscriptionId,
     ),
+    ownerIdx: index('org_owner_idx').on(table.ownerId),
   }),
 );
 
@@ -53,12 +55,8 @@ export const user = pgTable(
     lastFeaturesVersion: timestamp('lastFeaturesVersion'),
     plan: planTypeEnum('plan').notNull().default('free'),
     stripeCustomerId: text('stripeCustomerId'),
-    entitlements: jsonb('entitlements')
-      .notNull()
-      .default(sql`'{}'::jsonb`),
-    usageCounters: jsonb('usageCounters')
-      .notNull()
-      .default(sql`'{}'::jsonb`),
+    entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
+    usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId').references(() => org.id),
   },
   (table) => ({
@@ -320,6 +318,80 @@ export const document = pgTable('Document', {
 
 export type Document = InferSelectModel<typeof document>;
 
+// Organization member roles table
+export const orgMemberRole = pgTable(
+  'OrgMemberRole',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    orgId: uuid('orgId')
+      .notNull()
+      .references(() => org.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 20 })
+      .notNull()
+      .default('member')
+      .$type<'owner' | 'admin' | 'member'>(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    unique: uniqueIndex('unique_user_org_role').on(table.userId, table.orgId),
+  }),
+);
+
+export type OrgMemberRole = InferSelectModel<typeof orgMemberRole>;
+
+// Organization invitation tracking table
+export const orgInvitation = pgTable(
+  'OrgInvitation',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    orgId: uuid('orgId')
+      .notNull()
+      .references(() => org.id, { onDelete: 'cascade' }),
+    invitedByUserId: uuid('invitedByUserId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    email: varchar('email', { length: 255 }).notNull(),
+    inviteCode: varchar('inviteCode', { length: 255 }).notNull(),
+    resendId: varchar('resendId', { length: 255 }), // Resend email ID for tracking
+    status: varchar('status', { length: 50 })
+      .notNull()
+      .default('sent')
+      .$type<
+        | 'sent'
+        | 'delivered'
+        | 'opened'
+        | 'clicked'
+        | 'bounced'
+        | 'failed'
+        | 'accepted'
+      >(),
+    sentAt: timestamp('sentAt').notNull().defaultNow(),
+    deliveredAt: timestamp('deliveredAt'),
+    openedAt: timestamp('openedAt'),
+    clickedAt: timestamp('clickedAt'),
+    acceptedAt: timestamp('acceptedAt'),
+    expiresAt: timestamp('expiresAt').notNull(),
+    metadata: jsonb('metadata').default(sql`'{}'::jsonb`), // Store additional Resend event data
+  },
+  (table) => ({
+    orgIdx: index('org_invitation_org_idx').on(table.orgId),
+    emailIdx: index('org_invitation_email_idx').on(table.email),
+    codeIdx: index('org_invitation_code_idx').on(table.inviteCode),
+    resendIdIdx: index('org_invitation_resend_id_idx').on(table.resendId),
+    statusIdx: index('org_invitation_status_idx').on(table.status),
+    // Unique constraint to prevent duplicate active invitations
+    activeUnique: uniqueIndex('org_invitation_active_unique')
+      .on(table.orgId, table.email)
+      .where(sql`${table.status} NOT IN ('accepted', 'failed', 'bounced')`),
+  }),
+);
+
+export type OrgInvitation = InferSelectModel<typeof orgInvitation>;
+
 export const suggestion = pgTable('Suggestion', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   documentId: uuid('documentId')
@@ -568,12 +640,14 @@ export type GoogleCalendarToken = InferSelectModel<typeof googleCalendarToken>;
 export const persona = pgTable('Persona', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   userId: uuid('userId').references(() => user.id, { onDelete: 'cascade' }),
+  orgId: uuid('orgId').references(() => org.id, { onDelete: 'cascade' }), // For shared org personas
   name: varchar('name', { length: 128 }).notNull(),
   description: text('description'),
   instructions: text('instructions').notNull(),
   iconUrl: text('iconUrl'), // URL for persona icon stored in blob storage
   isDefault: boolean('isDefault').default(false),
   isSystemPersona: boolean('isSystemPersona').default(false), // System-provided personas (read-only)
+  isShared: boolean('isShared').default(false), // Whether this persona is shared with the org
   knowledgeNamespace: varchar('knowledgeNamespace', { length: 128 }), // RAG namespace for this persona
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),

@@ -71,6 +71,7 @@ export function ProfilesDropdown({
         setPersona({
           id: EOS_IMPLEMENTER_UUID,
           userId: null,
+          orgId: null,
           name: 'EOS Implementer',
           description:
             'Expert EOS Implementer with deep knowledge of the EOS methodology and implementation process',
@@ -78,6 +79,7 @@ export function ProfilesDropdown({
           iconUrl: null,
           isDefault: true,
           isSystemPersona: true,
+          isShared: null,
           knowledgeNamespace: 'eos-implementer',
           createdAt: new Date(),
           updatedAt: new Date(),

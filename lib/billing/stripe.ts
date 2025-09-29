@@ -2,7 +2,7 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
 
 import { auth } from '@/app/(auth)/auth';
@@ -24,14 +24,17 @@ import {
 } from '@/lib/entitlements';
 import { STRIPE_CONFIG } from '@/lib/server-constants';
 import { buildAppUrl } from '@/lib/utils/app-url';
-import { BillingInterval, resolvePriceId } from '@/lib/stripe/pricing';
+import { resolvePriceId } from '@/lib/stripe/pricing';
+import type { BillingInterval } from '@/lib/stripe/pricing';
 import { getStripeClient } from '@/lib/stripe/client';
 import { trackSubscriptionActivated } from '@/lib/analytics';
+import { updateOrgSeatCount } from '@/lib/organizations/seat-enforcement';
 
 export type CheckoutRequestPayload = {
   plan: 'pro' | 'business';
   billing: BillingInterval;
   seats?: number;
+  orgId?: string;
 };
 
 const ensureStripe = (): Stripe => {
@@ -75,7 +78,9 @@ const recomputeUserEntitlements = async (userId: string) => {
   await broadcastEntitlementsUpdated(userId);
 };
 
-export const createCheckoutSession = async (payload: CheckoutRequestPayload) => {
+export const createCheckoutSession = async (
+  payload: CheckoutRequestPayload,
+) => {
   const userId = await ensureAuthenticatedUser();
   const stripe = ensureStripe();
 
@@ -84,16 +89,38 @@ export const createCheckoutSession = async (payload: CheckoutRequestPayload) => 
     throw new Error('User not found');
   }
 
+  // Check if user's organization already has a paid plan
+  if (record.org && record.org.plan !== 'free') {
+    throw new Error(
+      `Your organization already has a ${record.org.plan} subscription`,
+    );
+  }
+
+  // Business plans require an organization
+  if (payload.plan === 'business') {
+    if (!payload.orgId && !record.org?.id) {
+      throw new Error('Business plan requires an organization');
+    }
+    // Verify the user belongs to the organization they're trying to subscribe
+    if (payload.orgId && record.user.orgId !== payload.orgId) {
+      throw new Error('You are not a member of this organization');
+    }
+  }
+
   const priceId = resolvePriceId(payload.plan, payload.billing);
   if (!priceId) {
-    throw new Error(`Stripe price missing for ${payload.plan} ${payload.billing}`);
+    throw new Error(
+      `Stripe price missing for ${payload.plan} ${payload.billing}`,
+    );
   }
 
   const successUrl = buildAppUrl('/chat', { billing: 'success' });
   const cancelUrl = buildAppUrl('/chat', { billing: 'cancelled' });
 
   const seats =
-    payload.plan === 'business' ? normalizeSeatCount(payload.seats, record.org?.seatCount ?? 1) : 1;
+    payload.plan === 'business'
+      ? normalizeSeatCount(payload.seats, record.org?.seatCount ?? 1)
+      : 1;
 
   const metadata: Record<string, string> = {
     user_id: record.user.id,
@@ -111,9 +138,14 @@ export const createCheckoutSession = async (payload: CheckoutRequestPayload) => 
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
-    customer: record.user.stripeCustomerId || undefined,
-    customer_email: record.user.email,
-    client_reference_id: payload.plan === 'business' ? record.org?.id ?? record.user.id : record.user.id,
+    // Use customer if exists, otherwise use customer_email
+    ...(record.user.stripeCustomerId
+      ? { customer: record.user.stripeCustomerId }
+      : { customer_email: record.user.email }),
+    client_reference_id:
+      payload.plan === 'business'
+        ? (record.org?.id ?? record.user.id)
+        : record.user.id,
     subscription_data: {
       metadata,
     },
@@ -165,9 +197,21 @@ type PriceSummary = {
 
 export const getPriceSummaries = async (): Promise<PriceSummary[]> => {
   const stripe = ensureStripe();
-  const pairs: Array<{ plan: 'pro' | 'business'; interval: BillingInterval; priceId: string | null }> = [
-    { plan: 'pro', interval: 'monthly', priceId: resolvePriceId('pro', 'monthly') },
-    { plan: 'pro', interval: 'annual', priceId: resolvePriceId('pro', 'annual') },
+  const pairs: Array<{
+    plan: 'pro' | 'business';
+    interval: BillingInterval;
+    priceId: string | null;
+  }> = [
+    {
+      plan: 'pro',
+      interval: 'monthly',
+      priceId: resolvePriceId('pro', 'monthly'),
+    },
+    {
+      plan: 'pro',
+      interval: 'annual',
+      priceId: resolvePriceId('pro', 'annual'),
+    },
     {
       plan: 'business',
       interval: 'monthly',
@@ -224,14 +268,18 @@ type SubscriptionContext = {
 const deriveSubscriptionContext = (
   subscription: Stripe.Subscription,
 ): SubscriptionContext => {
-  const metadataPlan = subscription.metadata?.plan as SubscriptionContext['plan'] | undefined;
+  const metadataPlan = subscription.metadata?.plan as
+    | SubscriptionContext['plan']
+    | undefined;
 
   if (metadataPlan) {
     return {
       plan: metadataPlan,
       userId: subscription.metadata?.user_id,
       orgId: subscription.metadata?.org_id,
-      seatCount: subscription.metadata?.seats ? Number(subscription.metadata.seats) : undefined,
+      seatCount: subscription.metadata?.seats
+        ? Number(subscription.metadata.seats)
+        : undefined,
     };
   }
 
@@ -242,7 +290,10 @@ const deriveSubscriptionContext = (
     return { plan: 'free' };
   }
 
-  if (priceId === STRIPE_CONFIG.priceIds.proMonthly || priceId === STRIPE_CONFIG.priceIds.proAnnual) {
+  if (
+    priceId === STRIPE_CONFIG.priceIds.proMonthly ||
+    priceId === STRIPE_CONFIG.priceIds.proAnnual
+  ) {
     return { plan: 'pro', userId: subscription.metadata?.user_id };
   }
 
@@ -281,7 +332,11 @@ const applyProSubscription = async (
     return;
   }
 
-  await updateUserPlan(userId, 'pro', subscription.customer as string | undefined);
+  await updateUserPlan(
+    userId,
+    'pro',
+    subscription.customer as string | undefined,
+  );
   await recomputeUserEntitlements(userId);
   await trackSubscriptionActivated({
     plan: 'pro',
@@ -295,11 +350,41 @@ const applyBusinessSubscription = async (
   context: SubscriptionContext,
 ) => {
   const orgId = context.orgId;
-  if (!orgId) return;
+  if (!orgId) {
+    // Fallback: If user purchased Business without an org, apply Business to the user
+    const customerId = subscription.customer as string | undefined;
+    const userId = context.userId;
 
-  const seatCount = normalizeSeatCount(context.seatCount ?? subscription.items.data[0]?.quantity);
+    let resolvedUserId = userId;
+    if (!resolvedUserId && customerId) {
+      const userRecord = await findUserByStripeCustomerId(customerId);
+      resolvedUserId = userRecord?.id;
+    }
+
+    if (resolvedUserId) {
+      await updateUserPlan(resolvedUserId, 'business', customerId);
+      await recomputeUserEntitlements(resolvedUserId);
+      await trackSubscriptionActivated({
+        plan: 'business',
+        user_id: resolvedUserId,
+      });
+    }
+    return;
+  }
+
+  const seatCount = normalizeSeatCount(
+    context.seatCount ?? subscription.items.data[0]?.quantity,
+  );
 
   await updateOrgSubscription(orgId, 'business', seatCount, subscription.id);
+
+  // Enforce seat count limits
+  try {
+    await updateOrgSeatCount(orgId, seatCount);
+  } catch (error) {
+    console.error('[stripe] Failed to update org seat count:', error);
+    // Continue processing even if seat enforcement fails
+  }
 
   const memberIds = await listOrgUserIds(orgId);
 
@@ -322,7 +407,10 @@ const clearBusinessSubscription = async (context: SubscriptionContext) => {
   await recomputeEntitlementsForUsers(memberIds);
 };
 
-const clearProSubscription = async (context: SubscriptionContext, subscription: Stripe.Subscription) => {
+const clearProSubscription = async (
+  context: SubscriptionContext,
+  subscription: Stripe.Subscription,
+) => {
   const customerId = subscription.customer as string | undefined;
   const userId = context.userId;
   if (userId) {
@@ -373,12 +461,16 @@ const processCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
   const userId = session.metadata?.user_id;
   if (!customerId || !userId) return;
 
-  await updateUserPlan(userId, 'pro', customerId);
+  const plan =
+    (session.metadata?.plan as 'pro' | 'business' | undefined) || 'pro';
+  await updateUserPlan(userId, plan, customerId);
   await recomputeUserEntitlements(userId);
-  await trackSubscriptionActivated({ plan: 'pro', user_id: userId });
+  await trackSubscriptionActivated({ plan, user_id: userId });
 };
 
-export const constructStripeEvent = async (request: Request): Promise<Stripe.Event | null> => {
+export const constructStripeEvent = async (
+  request: Request,
+): Promise<Stripe.Event | null> => {
   const stripe = ensureStripe();
   const headerList = await headers();
   const signature = headerList.get('stripe-signature');
@@ -389,7 +481,11 @@ export const constructStripeEvent = async (request: Request): Promise<Stripe.Eve
 
   const payload = await request.text();
 
-  return stripe.webhooks.constructEvent(payload, signature, STRIPE_CONFIG.webhookSecret);
+  return stripe.webhooks.constructEvent(
+    payload,
+    signature,
+    STRIPE_CONFIG.webhookSecret,
+  );
 };
 
 export const handleStripeWebhook = async (event: Stripe.Event) => {
@@ -399,7 +495,9 @@ export const handleStripeWebhook = async (event: Stripe.Event) => {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      await processCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      await processCheckoutCompleted(
+        event.data.object as Stripe.Checkout.Session,
+      );
       break;
     }
     case 'customer.subscription.created':

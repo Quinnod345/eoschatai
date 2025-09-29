@@ -139,15 +139,11 @@ export async function POST(req: Request) {
               .describe(
                 'The specific query to search for in the knowledge base',
               ),
-            limit: z
-              .number()
-              .optional()
-              .describe('Maximum number of results to return'),
           }),
-          execute: async ({ query, limit }) => {
+          execute: async ({ query }) => {
             console.log('RAG: Tool called to get information', {
               query,
-              limit,
+              limit: 5,
             });
             if (!getInformationTool.handler) {
               console.error('RAG: getInformationTool.handler is undefined');
@@ -158,7 +154,7 @@ export async function POST(req: Request) {
               };
             }
             const result = await getInformationTool.handler(
-              { query, limit },
+              { query, limit: 5 },
               session.user.id,
             );
             console.log(

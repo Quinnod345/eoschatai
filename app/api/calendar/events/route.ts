@@ -4,6 +4,8 @@ import { google } from 'googleapis';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { googleCalendarToken } from '@/lib/db/schema';
+import { getAccessContext } from '@/lib/entitlements';
+import { trackBlockedAction } from '@/lib/analytics';
 
 /**
  * Handler for GET requests - Retrieves calendar events
@@ -14,6 +16,27 @@ export async function GET(request: NextRequest) {
     const session = await auth();
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check entitlements
+    const accessContext = await getAccessContext(session.user.id);
+    if (!accessContext.entitlements.features.calendar_connect) {
+      await trackBlockedAction({
+        feature: 'calendar_connect',
+        reason: 'not_enabled',
+        user_id: session.user.id,
+        org_id: accessContext.user.orgId,
+        status: 403,
+      });
+
+      return NextResponse.json(
+        {
+          code: 'ENTITLEMENT_BLOCK',
+          feature: 'calendar_connect',
+          reason: 'not_enabled',
+        },
+        { status: 403 },
+      );
     }
 
     // Get query parameters
@@ -98,6 +121,27 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check entitlements
+    const accessContext = await getAccessContext(session.user.id);
+    if (!accessContext.entitlements.features.calendar_connect) {
+      await trackBlockedAction({
+        feature: 'calendar_connect',
+        reason: 'not_enabled',
+        user_id: session.user.id,
+        org_id: accessContext.user.orgId,
+        status: 403,
+      });
+
+      return NextResponse.json(
+        {
+          code: 'ENTITLEMENT_BLOCK',
+          feature: 'calendar_connect',
+          reason: 'not_enabled',
+        },
+        { status: 403 },
+      );
     }
 
     // Get event data from request body

@@ -13,15 +13,15 @@ pnpm format           # Format code with Biome
 
 ### Build & Production
 ```bash
-pnpm build            # Run migrations and build Next.js app
+pnpm build            # Run migrations and build Next.js app (uses tsx lib/db/migrate && node scripts/auto-migrate.js)
 pnpm start            # Start production server
 ```
 
 ### Database Operations
 ```bash
 pnpm db:generate      # Generate Drizzle migrations from schema changes
-pnpm db:migrate       # Apply database migrations
-pnpm db:push          # Push schema changes directly to database
+pnpm db:migrate       # Apply database migrations (npx tsx lib/db/migrate.ts)
+pnpm db:push          # Push schema changes directly to database (--accept-data-loss flag)
 pnpm db:studio        # Open Drizzle Studio for database inspection
 pnpm db:pgvector      # Setup pgvector extension for embeddings
 ```
@@ -29,25 +29,29 @@ pnpm db:pgvector      # Setup pgvector extension for embeddings
 ### Testing
 ```bash
 pnpm test             # Run Playwright E2E tests
+pnpm test:unit        # Run Vitest unit tests
 ```
 
 ### Feature Setup
 ```bash
 pnpm redis:setup      # Configure Redis for resumable streams
 pnpm upload-docs      # Upload documents to knowledge base
+pnpm seed:autocomplete # Seed autocomplete data
 ```
 
 ## High-Level Architecture
 
 ### Technology Stack
-- **Framework**: Next.js 15.3 with App Router
-- **Database**: PostgreSQL (Neon/Vercel) with Drizzle ORM
-- **AI SDK**: Vercel AI SDK supporting OpenAI provider
-- **Auth**: Auth.js with Google OAuth and credentials
-- **Vector DB**: Upstash Vector for RAG implementation
-- **File Storage**: Vercel Blob
-- **UI**: shadcn/ui components with Radix UI and Tailwind CSS
-- **Animations**: GSAP, Framer Motion, Locomotive Scroll
+- **Framework**: Next.js 15.3 (canary) with App Router and React 19 RC
+- **Database**: PostgreSQL (Neon/Vercel) with Drizzle ORM 0.34
+- **AI SDK**: Vercel AI SDK 4.3 with OpenAI provider
+- **Auth**: Auth.js 5.0 beta with Google OAuth and credentials
+- **Vector DB**: Upstash Vector for RAG + PostgreSQL pgvector fallback
+- **File Storage**: Vercel Blob + AWS S3 client
+- **UI**: shadcn/ui components with Radix UI and Tailwind CSS 3.4
+- **Animations**: GSAP 3.13, Framer Motion 11, Locomotive Scroll
+- **State Management**: Zustand 5.0 for global state
+- **Streaming**: Redis for resumable streams with Upstash Redis client
 
 ### Core Architecture Patterns
 
@@ -87,13 +91,19 @@ pnpm upload-docs      # Upload documents to knowledge base
    - Defined in `lib/db/schema.ts`
 
 ### Key Directories
-- `/app/(auth)/` - Authentication pages and logic
-- `/app/(chat)/` - Main chat interface and API routes
-- `/components/` - React components (chat UI, composer, etc.)
-- `/lib/ai/` - AI providers, tools, RAG implementation
-- `/lib/db/` - Database schema and queries
-- `/composer/` - Composer rendering components
-- `/hooks/` - Custom React hooks for chat, shortcuts, etc.
+- `/app/(auth)/` - Authentication pages and auth.ts configuration
+- `/app/(chat)/` - Main chat interface and streaming API routes
+- `/app/api/` - API endpoints for chat, documents, billing, organizations
+- `/components/` - React components (multimodal-input, sidebar, modals)
+- `/lib/ai/` - AI providers, persona-rag, embeddings, tools
+- `/lib/db/` - Schema definition, migrations, queries (Drizzle ORM)
+- `/lib/stores/` - Zustand stores for global state management
+- `/lib/organizations/` - Organization management and billing
+- `/lib/entitlements/` - Feature access and premium gating logic
+- `/composer/` - Composer rendering (code, text, charts, spreadsheet)
+- `/hooks/` - Custom hooks for chat, personas, documents, shortcuts
+- `/drizzle/` - Database migrations and schema files
+- `/scripts/` - Utility scripts for migrations, seeding, setup
 
 ### Environment Variables Required
 - `AUTH_SECRET` - Authentication secret
@@ -105,9 +115,13 @@ pnpm upload-docs      # Upload documents to knowledge base
 - `REDIS_URL` (optional) - For resumable streams
 
 ### Important Patterns
-- All chat routes use streaming responses
-- Vector embeddings use 1536 dimensions (OpenAI standard)
-- Database migrations must be run before deployment
-- Guest users have limited message counts
-- Document processing happens asynchronously
+- All chat routes use streaming responses via Vercel AI SDK
+- Vector embeddings use 1536 dimensions (OpenAI text-embedding-3-small)
+- Database migrations must be run before deployment (auto-migrate in build)
+- Guest users have limited message counts (tracked in user settings)
+- Document processing happens asynchronously with progress tracking
 - UI animations are performance-optimized with lazy loading
+- Authentication uses JWT sessions with Auth.js
+- File uploads limited to 50MB for PDFs, configurable for others
+- Premium features gated by entitlements system in `lib/entitlements/`
+- Organization support with Stripe billing integration

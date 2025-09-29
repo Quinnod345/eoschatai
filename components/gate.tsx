@@ -42,6 +42,14 @@ const isFeatureEnabled = (
       return features.recordings.enabled;
     case 'deep_research':
       return features.deep_research.enabled;
+    case 'premium':
+      // For general premium, check if user has any premium features
+      return (
+        features.export ||
+        features.calendar_connect ||
+        features.recordings.enabled ||
+        features.deep_research.enabled
+      );
     default:
       return false;
   }
@@ -59,6 +67,8 @@ const deriveDefaultLimit = (
       return features.recordings.minutes_month;
     case 'deep_research':
       return features.deep_research.lookups_per_run;
+    case 'premium':
+      return null; // No specific limit for general premium
     default:
       return null;
   }
@@ -81,21 +91,31 @@ export function Gate({
 
   const impressionTracked = useRef(false);
 
-  const enabled = useMemo(() => isFeatureEnabled(feature, entitlements), [feature, entitlements]);
+  const enabled = useMemo(
+    () => isFeatureEnabled(feature, entitlements),
+    [feature, entitlements],
+  );
 
   useEffect(() => {
     if (!enabled) {
       if (!impressionTracked.current) {
         impressionTracked.current = true;
-        trackClientEvent({
-          event: 'gate_impression',
-          properties: {
-            feature,
-            plan,
-            placement,
-            mode,
-          },
-        }).catch(() => {});
+        // Only track analytics for valid analytics features (not 'premium')
+        if (feature !== 'premium') {
+          trackClientEvent({
+            event: 'gate_impression',
+            properties: {
+              feature: feature as
+                | 'export'
+                | 'calendar_connect'
+                | 'recordings'
+                | 'deep_research',
+              plan,
+              placement,
+              mode,
+            },
+          }).catch(() => {});
+        }
       }
     } else {
       impressionTracked.current = false;
@@ -114,7 +134,11 @@ export function Gate({
     if (mode !== 'soft' || !usageKey || !usageCounters) return null;
     const used = usageCounters[usageKey] ?? 0;
     const resolvedLimit = limit ?? deriveDefaultLimit(feature, entitlements);
-    if (resolvedLimit === null || resolvedLimit === undefined || resolvedLimit <= 0) {
+    if (
+      resolvedLimit === null ||
+      resolvedLimit === undefined ||
+      resolvedLimit <= 0
+    ) {
       return null;
     }
 
@@ -126,5 +150,10 @@ export function Gate({
     return <>{children}</>;
   }
 
-  return <div className={cn('flex items-center gap-2', className)}>{children}{chip}</div>;
+  return (
+    <div className={cn('flex items-center gap-2', className)}>
+      {children}
+      {chip}
+    </div>
+  );
 }

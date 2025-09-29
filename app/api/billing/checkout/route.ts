@@ -8,6 +8,7 @@ const payloadSchema = z.object({
   plan: z.enum(['pro', 'business']),
   billing: z.enum(['monthly', 'annual']),
   seats: z.number().int().positive().optional(),
+  orgId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -25,7 +26,10 @@ export async function POST(request: Request) {
 
   const parsed = payloadSchema.safeParse(payload);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid payload', details: parsed.error.format() }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid payload', details: parsed.error.format() },
+      { status: 400 },
+    );
   }
 
   try {

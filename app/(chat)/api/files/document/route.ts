@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import {
+  getAccessContext,
+  incrementUsageCounter,
+  broadcastEntitlementsUpdated,
+} from '@/lib/entitlements';
+import { trackBlockedAction } from '@/lib/analytics';
 
 // Maximum document size (10MB)
 const MAX_DOC_SIZE = 10 * 1024 * 1024;
@@ -11,6 +17,47 @@ export async function POST(request: Request) {
 
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Entitlement check for context uploads
+  const accessContext = await getAccessContext(session.user.id);
+  const uploadLimit = accessContext.entitlements.features.context_uploads_total;
+  if (uploadLimit <= 0) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'not_enabled',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'not_enabled',
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    uploadLimit > 0 &&
+    accessContext.user.usageCounters.uploads_total >= uploadLimit
+  ) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'limit_exceeded',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'limit_exceeded',
+      },
+      { status: 403 },
+    );
   }
 
   try {
@@ -167,6 +214,9 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    await incrementUsageCounter(session.user.id, 'uploads_total', 1);
+    await broadcastEntitlementsUpdated(session.user.id);
 
     return NextResponse.json({
       filename: (file as File).name || 'document',

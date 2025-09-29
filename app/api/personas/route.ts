@@ -5,8 +5,9 @@ import {
   personaDocument,
   personaComposerDocument,
   document,
+  user,
 } from '@/lib/db/schema';
-import { eq, or, isNull, and, ne, inArray } from 'drizzle-orm';
+import { eq, or, isNull, and, ne, inArray, desc } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -46,19 +47,27 @@ export async function GET() {
       finalSystemPersonas.unshift({
         id: EOS_IMPLEMENTER_PERSONA.id,
         userId: null,
+        orgId: null,
         name: EOS_IMPLEMENTER_PERSONA.name,
         description: EOS_IMPLEMENTER_PERSONA.description,
         instructions: EOS_IMPLEMENTER_PERSONA.instructions,
         iconUrl: null,
         isDefault: true,
         isSystemPersona: true,
+        isShared: null,
         knowledgeNamespace: EOS_IMPLEMENTER_PERSONA.knowledgeNamespace,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
     }
 
-    // Get user-created personas (exclude system personas)
+    // Get user's org if they have one
+    const [userRecord] = await db
+      .select({ orgId: user.orgId })
+      .from(user)
+      .where(eq(user.id, session.user.id));
+
+    // Get user-created personas (exclude system personas and shared personas)
     const userPersonas = await db
       .select()
       .from(persona)
@@ -69,13 +78,27 @@ export async function GET() {
             eq(persona.isSystemPersona, false),
             isNull(persona.isSystemPersona),
           ),
+          or(eq(persona.isShared, false), isNull(persona.isShared)),
         ),
       )
       .orderBy(persona.createdAt);
 
+    // Get shared org personas if user is in an org
+    let sharedPersonas: typeof userPersonas = [];
+    if (userRecord?.orgId) {
+      sharedPersonas = await db
+        .select()
+        .from(persona)
+        .where(
+          and(eq(persona.orgId, userRecord.orgId), eq(persona.isShared, true)),
+        )
+        .orderBy(desc(persona.createdAt));
+    }
+
     return NextResponse.json({
       systemPersonas: finalSystemPersonas,
       userPersonas,
+      sharedPersonas,
     });
   } catch (error) {
     console.error('Error fetching personas:', error);
@@ -101,6 +124,7 @@ export async function POST(request: NextRequest) {
       instructions,
       documentIds = [],
       composerDocumentIds = [],
+      isShared = false,
     } = body;
 
     if (!name || !instructions) {
@@ -110,15 +134,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If creating a shared persona, check permissions
+    let orgId = null;
+    if (isShared) {
+      // Get user's org
+      const [userRecord] = await db
+        .select({ orgId: user.orgId })
+        .from(user)
+        .where(eq(user.id, session.user.id));
+
+      if (!userRecord?.orgId) {
+        return NextResponse.json(
+          {
+            error:
+              'You must be part of an organization to create shared personas',
+          },
+          { status: 403 },
+        );
+      }
+
+      orgId = userRecord.orgId;
+
+      // Check permissions
+      const { checkOrgPermission } = await import(
+        '@/lib/organizations/permissions'
+      );
+      const hasPermission = await checkOrgPermission(
+        session.user.id,
+        orgId,
+        'personas.create',
+      );
+
+      if (!hasPermission) {
+        return NextResponse.json(
+          { error: 'You do not have permission to create shared personas' },
+          { status: 403 },
+        );
+      }
+    }
+
     // Create the persona
     const [newPersona] = await db
       .insert(persona)
       .values({
         userId: session.user.id,
+        orgId,
         name,
         description,
         instructions,
         isDefault: false,
+        isShared,
       })
       .returning();
 

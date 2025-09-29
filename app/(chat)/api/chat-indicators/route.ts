@@ -53,6 +53,11 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('Error fetching chat indicators:', error);
-    return new Response('Internal server error', { status: 500 });
+    // Fail soft with empty indicators to avoid UI errors
+    const empty = { pinned: {}, bookmarked: {} } as const;
+    return new Response(JSON.stringify(empty), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }

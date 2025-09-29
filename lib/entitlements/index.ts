@@ -4,13 +4,7 @@ import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
-import {
-  type Org,
-  type PlanType,
-  type User,
-  org,
-  user,
-} from '@/lib/db/schema';
+import { type Org, type PlanType, type User, org, user } from '@/lib/db/schema';
 import { trackEntitlementsUpdated } from '@/lib/analytics';
 import { getRedisClient } from '@/lib/redis/client';
 import { PLAN_VERSION } from './constants';
@@ -49,7 +43,7 @@ const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
     export: true,
     calendar_connect: true,
     recordings: { enabled: true, minutes_month: 600 },
-    deep_research: { enabled: true, lookups_per_run: 20 },
+    deep_research: { enabled: false, lookups_per_run: 0 },
     chats_per_day: 200,
     context_uploads_total: 100,
   },
@@ -87,7 +81,8 @@ const getMemoryBuckets = () => {
   return current as Map<string, MemoryBucketState>;
 };
 
-const buildCacheKey = (userId: string) => `entitlements:${userId}:${PLAN_VERSION}`;
+const buildCacheKey = (userId: string) =>
+  `entitlements:${userId}:${PLAN_VERSION}`;
 
 const clone = <T>(value: T): T => {
   if (typeof structuredClone === 'function') {
@@ -97,7 +92,10 @@ const clone = <T>(value: T): T => {
   return JSON.parse(JSON.stringify(value)) as T;
 };
 
-const deepMerge = <T extends Record<string, any>>(base: T, overrides?: Partial<T>): T => {
+const deepMerge = <T extends Record<string, any>>(
+  base: T,
+  overrides?: Partial<T>,
+): T => {
   if (!overrides) return clone(base);
   const result = clone(base);
   const target = result as Record<string, any>;
@@ -155,7 +153,9 @@ const normalizeUsageCounters = (value: unknown): UsageCounters => {
   const normalized: UsageCounters = { ...DEFAULT_USAGE_COUNTERS };
 
   if (value && typeof value === 'object') {
-    for (const key of Object.keys(DEFAULT_USAGE_COUNTERS) as UsageCounterKey[]) {
+    for (const key of Object.keys(
+      DEFAULT_USAGE_COUNTERS,
+    ) as UsageCounterKey[]) {
       const raw = (value as Record<string, unknown>)[key];
       const numeric = Number(raw);
       if (Number.isFinite(numeric) && numeric >= 0) {
@@ -197,18 +197,22 @@ export interface AccessContext {
 type UserWithOrg = {
   user: Pick<
     User,
-    |
-      'id'
-      | 'plan'
-      | 'orgId'
-      | 'usageCounters'
-      | 'entitlements'
-      | 'stripeCustomerId'
-      | 'email'
+    | 'id'
+    | 'plan'
+    | 'orgId'
+    | 'usageCounters'
+    | 'entitlements'
+    | 'stripeCustomerId'
+    | 'email'
   >;
-  org: (Pick<Org, 'id' | 'plan' | 'limits' | 'seatCount' | 'stripeSubscriptionId'> & {
-    limits: Org['limits'];
-  }) | null;
+  org:
+    | (Pick<
+        Org,
+        'id' | 'plan' | 'limits' | 'seatCount' | 'stripeSubscriptionId'
+      > & {
+        limits: Org['limits'];
+      })
+    | null;
 };
 
 const fetchUserRecord = async (userId: string): Promise<UserWithOrg | null> => {
@@ -262,8 +266,18 @@ const readEntitlementsFromCache = async (
   if (!redis) return null;
 
   try {
-    const cached = await redis.get<string>(buildCacheKey(userId));
-    return cached ? (JSON.parse(cached) as NormalizedEntitlements) : null;
+    const cached = await redis.get(buildCacheKey(userId));
+    if (!cached) return null;
+
+    // Handle both string and object responses from Redis
+    if (typeof cached === 'string') {
+      return JSON.parse(cached) as NormalizedEntitlements;
+    } else if (typeof cached === 'object') {
+      // Redis might return the object directly
+      return cached as NormalizedEntitlements;
+    }
+
+    return null;
   } catch (error) {
     console.warn('[entitlements] Failed to read cache entry', error);
     return null;
@@ -274,10 +288,7 @@ const updateStoredEntitlements = async (
   userId: string,
   entitlements: NormalizedEntitlements,
 ) => {
-  await db
-    .update(user)
-    .set({ entitlements })
-    .where(eq(user.id, userId));
+  await db.update(user).set({ entitlements }).where(eq(user.id, userId));
 };
 
 const ensureUsageCountersPersisted = async (
@@ -332,7 +343,9 @@ export const getUserEntitlements = async (
   }
 
   const overrides = extractOrgOverrides(record.org);
-  const computed = computeEntitlements(record.user.plan, overrides);
+  // Use organization's plan if user belongs to an organization, otherwise use user's plan
+  const effectivePlan = record.org?.plan ?? record.user.plan;
+  const computed = computeEntitlements(effectivePlan, overrides);
   const previous = coerceEntitlements(record.user.entitlements);
 
   if (!entitlementsEqual(previous, computed)) {
@@ -359,7 +372,11 @@ export const getAccessContext = async (
   }
 
   const usageCounters = normalizeUsageCounters(record.user.usageCounters);
-  await ensureUsageCountersPersisted(userId, usageCounters, record.user.usageCounters);
+  await ensureUsageCountersPersisted(
+    userId,
+    usageCounters,
+    record.user.usageCounters,
+  );
 
   const entitlements = await getUserEntitlements(userId, record);
 
@@ -383,7 +400,10 @@ export const getAccessContext = async (
   };
 };
 
-export const setUsageCounters = async (userId: string, counters: UsageCounters) => {
+export const setUsageCounters = async (
+  userId: string,
+  counters: UsageCounters,
+) => {
   await db
     .update(user)
     .set({ usageCounters: counters })
@@ -404,7 +424,10 @@ export const updateUsageCounters = async (
     const currentCounters = normalizeUsageCounters(currentRow?.usageCounters);
     const next = mutate(currentCounters);
 
-    await tx.update(user).set({ usageCounters: next }).where(eq(user.id, userId));
+    await tx
+      .update(user)
+      .set({ usageCounters: next })
+      .where(eq(user.id, userId));
 
     return next;
   });
@@ -427,7 +450,11 @@ export const incrementUsageCounter = async (
 export const reserveDeepResearchSlot = async (
   userId: string,
   limit: number,
-): Promise<{ allowed: boolean; retryInMs: number; release: () => Promise<void> }> => {
+): Promise<{
+  allowed: boolean;
+  retryInMs: number;
+  release: () => Promise<void>;
+}> => {
   const capacity = Math.max(1, limit || 1);
   const now = Date.now();
   let released = false;
@@ -538,7 +565,10 @@ return active`,
               [ttlMs.toString()],
             );
           } catch (error) {
-            console.warn('[entitlements] Failed to release deep research slot', error);
+            console.warn(
+              '[entitlements] Failed to release deep research slot',
+              error,
+            );
           }
         },
       };
@@ -624,4 +654,6 @@ export const handlePlanChange = async (userId: string) => {
 };
 
 export const ensureUsageCounters = normalizeUsageCounters;
-export const defaultUsageCounters = (): UsageCounters => ({ ...DEFAULT_USAGE_COUNTERS });
+export const defaultUsageCounters = (): UsageCounters => ({
+  ...DEFAULT_USAGE_COUNTERS,
+});

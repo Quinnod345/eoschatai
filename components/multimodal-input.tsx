@@ -61,6 +61,8 @@ import { createEmbeddedContentString } from '@/types/upload-content';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useAccountStore } from '@/lib/stores/account-store';
+import { useUpgradeStore } from '@/lib/stores/upgrade-store';
+import type { UpgradeFeature } from '@/types/upgrade';
 
 // Interface for @ mention resources - Enhanced version
 interface MentionResource {
@@ -416,11 +418,22 @@ function PureMultimodalInput({
 
   const entitlements = useAccountStore((state) => state.entitlements);
   const usageCounters = useAccountStore((state) => state.usageCounters);
+  const user = useAccountStore((state) => state.user);
+  const openUpgradeModal = useUpgradeStore((state) => state.openModal);
 
   const uploadLimit = entitlements?.features.context_uploads_total ?? null;
   const uploadsUsed = usageCounters?.uploads_total ?? 0;
   const chatLimit = entitlements?.features.chats_per_day ?? null;
   const chatsUsed = usageCounters?.chats_today ?? 0;
+
+  console.log('[MultimodalInput] Entitlements state:', {
+    entitlements,
+    usageCounters,
+    uploadLimit,
+    uploadsUsed,
+    chatLimit,
+    chatsUsed,
+  });
 
   // Hide predictions when messages change (chat is no longer new)
   useEffect(() => {
@@ -431,6 +444,44 @@ function PureMultimodalInput({
   }, [messages.length]);
 
   // Add regex to detect mentions in the input
+  // Track if we've already shown the upgrade modal for this session
+  const [hasShownUpgradeModal, setHasShownUpgradeModal] = useState(false);
+  const modalOpen = useUpgradeStore((state) => state.open);
+
+  // If the user has hit the daily chat limit, surface the upgrade modal proactively
+  useEffect(() => {
+    try {
+      // Only show the modal if:
+      // 1. Chat limit exists and is exceeded
+      // 2. We haven't already shown it this session
+      // 3. No modal is currently open
+      // 4. User is not already on a paid plan
+      const shouldShowModal =
+        chatLimit &&
+        chatLimit > 0 &&
+        chatsUsed >= chatLimit &&
+        !hasShownUpgradeModal &&
+        !modalOpen &&
+        user?.plan === 'free';
+
+      if (shouldShowModal) {
+        // Prefer showing the plan choice modal with context
+        const feature: UpgradeFeature = 'deep_research';
+        openUpgradeModal(feature);
+        setHasShownUpgradeModal(true);
+      }
+    } catch (error) {
+      console.error('[MultimodalInput] Error checking upgrade modal:', error);
+    }
+  }, [
+    chatLimit,
+    chatsUsed,
+    openUpgradeModal,
+    hasShownUpgradeModal,
+    modalOpen,
+    user?.plan,
+  ]);
+
   const mentionRegex = /@(\w+):([^\s]+)/g;
 
   // Calculate absolute position for portal-rendered dropdown
@@ -2823,6 +2874,7 @@ function UsageChip({
   limit: number | null;
   title?: string;
 }) {
+  console.log(`[UsageChip] ${label}:`, { used, limit });
   if (!limit || limit <= 0) return null;
 
   const isExceeded = used >= limit;
@@ -2836,7 +2888,8 @@ function UsageChip({
       className={cx(
         'flex h-6 items-center gap-1 rounded-full border border-muted-foreground/30 bg-muted/70 px-2 text-xs font-medium tabular-nums',
         isApproaching && 'border-amber-200 bg-amber-100 text-amber-900',
-        isExceeded && 'border-destructive/40 bg-destructive/10 text-destructive',
+        isExceeded &&
+          'border-destructive/40 bg-destructive/10 text-destructive',
       )}
     >
       <span className="text-[11px] font-semibold tracking-tight text-muted-foreground/80">

@@ -30,15 +30,22 @@ export function UpgradePrompt({
   const plan = useAccountStore((state) => state.user?.plan ?? 'free');
 
   const handleClick = () => {
-    trackClientEvent({
-      event: 'gate_click_upgrade',
-      properties: {
-        feature,
-        plan,
-        placement,
-        billing_choice: 'unknown',
-      },
-    }).catch(() => {});
+    // Only track analytics for valid analytics features (not 'premium')
+    if (feature !== 'premium') {
+      trackClientEvent({
+        event: 'gate_click_upgrade',
+        properties: {
+          feature: feature as
+            | 'export'
+            | 'calendar_connect'
+            | 'recordings'
+            | 'deep_research',
+          plan,
+          placement,
+          billing_choice: 'unknown',
+        },
+      }).catch(() => {});
+    }
     openModal(feature, onAutoRetry);
   };
 
@@ -54,7 +61,10 @@ export function UpgradePrompt({
             handleClick();
           }
         }}
-        className={cn('inline-flex cursor-pointer items-center gap-2', className)}
+        className={cn(
+          'inline-flex cursor-pointer items-center gap-2',
+          className,
+        )}
       >
         {children}
       </div>
@@ -62,7 +72,12 @@ export function UpgradePrompt({
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleClick} className={className}>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleClick}
+      className={className}
+    >
       {cta}
     </Button>
   );

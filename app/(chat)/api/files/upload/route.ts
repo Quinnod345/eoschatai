@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
+import {
+  getAccessContext,
+  incrementUsageCounter,
+  broadcastEntitlementsUpdated,
+} from '@/lib/entitlements';
+import { trackBlockedAction } from '@/lib/analytics';
 
 // Use Blob instead of File since File is not available in Node.js environment
 const FileSchema = z.object({
@@ -65,6 +71,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Entitlement check for context uploads
+  const accessContext = await getAccessContext(session.user.id);
+  const uploadLimit = accessContext.entitlements.features.context_uploads_total;
+  if (uploadLimit <= 0) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'not_enabled',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'not_enabled',
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    uploadLimit > 0 &&
+    accessContext.user.usageCounters.uploads_total >= uploadLimit
+  ) {
+    await trackBlockedAction({
+      feature: 'context_uploads_total',
+      reason: 'limit_exceeded',
+      user_id: session.user.id,
+      org_id: accessContext.user.orgId,
+      status: 403,
+    });
+    return NextResponse.json(
+      {
+        code: 'ENTITLEMENT_BLOCK',
+        feature: 'context_uploads_total',
+        reason: 'limit_exceeded',
+      },
+      { status: 403 },
+    );
+  }
+
   if (request.body === null) {
     return new Response('Request body is empty', { status: 400 });
   }
@@ -95,6 +142,9 @@ export async function POST(request: Request) {
       const data = await put(`${filename}`, fileBuffer, {
         access: 'public',
       });
+
+      await incrementUsageCounter(session.user.id, 'uploads_total', 1);
+      await broadcastEntitlementsUpdated(session.user.id);
 
       return NextResponse.json(data);
     } catch (error) {

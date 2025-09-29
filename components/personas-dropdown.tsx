@@ -18,6 +18,9 @@ import { PlusIcon, PencilEditIcon, UserIcon } from '@/components/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import type { Persona } from '@/lib/db/schema';
+import { useAccountStore } from '@/lib/stores/account-store';
+import { PersonasModal } from '@/components/personas-modal';
+import { Sparkles, Users } from 'lucide-react';
 
 interface PersonasDropdownProps {
   selectedPersonaId?: string;
@@ -34,9 +37,19 @@ export function PersonasDropdown({
 }: PersonasDropdownProps) {
   const [systemPersonas, setSystemPersonas] = useState<Persona[]>([]);
   const [userPersonas, setUserPersonas] = useState<Persona[]>([]);
+  const [sharedPersonas, setSharedPersonas] = useState<Persona[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPersonaId, setHoveredPersonaId] = useState<string | null>(null);
+  const [showPersonasModal, setShowPersonasModal] = useState(false);
+
+  // Check if user has access to personas (any premium feature except deep_research means they have Pro)
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const hasPersonasAccess =
+    entitlements?.features?.export ||
+    entitlements?.features?.calendar_connect ||
+    entitlements?.features?.recordings?.enabled ||
+    false;
 
   const allPersonas = [...systemPersonas, ...userPersonas];
   const selectedPersona = allPersonas.find((p) => p.id === selectedPersonaId);
@@ -44,6 +57,8 @@ export function PersonasDropdown({
   // Add debug logging
   useEffect(() => {
     console.log('PERSONAS_DROPDOWN: Component state', {
+      hasPersonasAccess,
+      entitlements,
       selectedPersonaId,
       selectedPersona: selectedPersona?.name,
       systemPersonasCount: systemPersonas.length,
@@ -54,11 +69,13 @@ export function PersonasDropdown({
         selectedPersonaId === '00000000-0000-0000-0000-000000000001',
     });
   }, [
+    hasPersonasAccess,
+    entitlements,
     selectedPersonaId,
-    selectedPersona,
-    systemPersonas,
-    userPersonas,
-    allPersonas,
+    selectedPersona?.id, // Use just the id to avoid object reference changes
+    selectedPersona?.name, // Use just the name to avoid object reference changes
+    systemPersonas.length, // Use length instead of the whole array
+    userPersonas.length, // Use length instead of the whole array
     isLoading,
   ]);
 
@@ -102,6 +119,7 @@ export function PersonasDropdown({
         });
         setSystemPersonas(data.systemPersonas || []);
         setUserPersonas(data.userPersonas || []);
+        setSharedPersonas(data.sharedPersonas || []);
       } else {
         console.error('Failed to fetch personas:', response.status);
       }
@@ -129,6 +147,46 @@ export function PersonasDropdown({
     onEditPersona(persona);
     setIsOpen(false);
   };
+
+  // If user doesn't have access, show a button that opens the modal
+  if (!hasPersonasAccess) {
+    return (
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              className={`
+                relative overflow-hidden group
+                h-9 px-3 md:h-10 md:px-4
+                border-2 
+                !bg-zinc-50 dark:!bg-zinc-800
+                border-zinc-200 dark:border-zinc-700
+                hover:!bg-zinc-100 dark:hover:!bg-zinc-700
+                hover:border-eos-orange/30 dark:hover:border-eos-orange/30
+                transition-all duration-300 ease-out
+                shadow-sm hover:shadow-md
+              `}
+              onClick={() => setShowPersonasModal(true)}
+            >
+              <Sparkles className="size-4 mr-2 text-eos-orange" />
+              <span className="hidden md:inline font-medium">AI Personas</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            className="bg-background/95 backdrop-blur-sm border border-border/50"
+          >
+            <div className="text-sm">Unlock specialized AI assistants</div>
+          </TooltipContent>
+        </Tooltip>
+        <PersonasModal
+          open={showPersonasModal}
+          onClose={() => setShowPersonasModal(false)}
+        />
+      </>
+    );
+  }
 
   return (
     <Tooltip>
@@ -392,6 +450,85 @@ export function PersonasDropdown({
                   </motion.div>
                 ))}
               </AnimatePresence>
+
+              {sharedPersonas.length > 0 && (
+                <>
+                  <DropdownMenuSeparator className="my-2 bg-border/50" />
+                  <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                    Organization Personas
+                  </div>
+                  <AnimatePresence>
+                    {sharedPersonas.map((persona, index) => (
+                      <motion.div
+                        key={persona.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ delay: index * 0.05, duration: 0.2 }}
+                      >
+                        <DropdownMenuItem
+                          onClick={() => handlePersonaSelect(persona.id)}
+                          className={`
+                            cursor-pointer p-3 rounded-lg mb-2 group relative
+                            transition-all duration-200 ease-out
+                            hover:bg-gradient-to-r hover:from-eos-navy/10 hover:to-eos-navyLight/5
+                            ${selectedPersonaId === persona.id ? 'bg-eos-navy/10 border border-eos-navy/20' : 'hover:bg-accent/50'}
+                          `}
+                          onMouseEnter={() => setHoveredPersonaId(persona.id)}
+                          onMouseLeave={() => setHoveredPersonaId(null)}
+                        >
+                          <div className="flex items-start gap-3 relative">
+                            <motion.div
+                              className="relative flex-shrink-0"
+                              whileHover={{ scale: 1.05 }}
+                              transition={{ type: 'spring', stiffness: 300 }}
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow duration-200 text-primary">
+                                <UserIcon size={20} />
+                              </div>
+                              {selectedPersonaId === persona.id && (
+                                <motion.div
+                                  className="absolute -top-1 -right-1 w-4 h-4 bg-eos-navy rounded-full flex items-center justify-center"
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ delay: 0.1 }}
+                                >
+                                  <div className="w-2 h-2 bg-white rounded-full" />
+                                </motion.div>
+                              )}
+                            </motion.div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-foreground group-hover:text-foreground transition-colors truncate flex items-center gap-2">
+                                {persona.name}
+                                <Users className="w-3 h-3 text-muted-foreground" />
+                              </div>
+                              {persona.description && (
+                                <div className="text-sm text-muted-foreground group-hover:text-muted-foreground transition-colors truncate">
+                                  {persona.description}
+                                </div>
+                              )}
+                            </div>
+                            <motion.div
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-eos-navy/20 hover:text-eos-navy rounded-lg"
+                                onClick={(e) => handleEditPersona(persona, e)}
+                              >
+                                <PencilEditIcon size={16} />
+                              </Button>
+                            </motion.div>
+                          </div>
+                        </DropdownMenuItem>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </>
+              )}
 
               {userPersonas.length > 0 && (
                 <DropdownMenuSeparator className="my-2 bg-border/50" />

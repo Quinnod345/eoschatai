@@ -4,6 +4,9 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { FeaturesProvider } from '@/components/features-provider';
 import { AccountProvider } from '@/components/account-provider';
+import { AccountInitializer } from '@/components/account-initializer';
+import { AccountForceLoader } from '@/components/account-force-loader';
+import { AccountDebug } from '@/components/account-debug';
 import { auth } from '../(auth)/auth';
 import Script from 'next/script';
 
@@ -24,12 +27,15 @@ export default async function Layout({
         strategy="beforeInteractive"
       />
       <AccountProvider>
+        <AccountForceLoader />
+        <AccountInitializer />
         <FeaturesProvider user={session?.user}>
           <SidebarProvider defaultOpen={!isCollapsed}>
             <AppSidebar user={session?.user} />
             <SidebarInset>{children}</SidebarInset>
           </SidebarProvider>
         </FeaturesProvider>
+        <AccountDebug />
       </AccountProvider>
     </>
   );

@@ -33,6 +33,7 @@ import { toast } from '@/lib/toast-system';
 import Image from 'next/image';
 import type { Persona, UserDocument } from '@/lib/db/schema';
 import { ComposerPickerModal } from '@/components/composer-picker-modal';
+import { useAccountStore } from '@/lib/stores/account-store';
 
 interface PersonaWizardProps {
   isOpen: boolean;
@@ -133,6 +134,7 @@ export function PersonaWizard({
     instructions: '',
     documentIds: [] as string[],
     iconUrl: '',
+    isShared: false,
   });
   const [documents, setDocuments] = useState<UserDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -182,6 +184,42 @@ export function PersonaWizard({
   const documentFileInputRef = useRef<HTMLInputElement>(null);
 
   const isEditing = !!persona;
+
+  // Get account info to check for shared persona permissions
+  const { org, user } = useAccountStore();
+  const [canCreateSharedPersona, setCanCreateSharedPersona] = useState(false);
+
+  // Check if user can create shared personas
+  useEffect(() => {
+    async function checkPermissions() {
+      if (!org || !user) {
+        setCanCreateSharedPersona(false);
+        return;
+      }
+
+      try {
+        // Fetch organization members to get current user's role
+        const response = await fetch(`/api/organizations/${org.id}/members`);
+        if (response.ok) {
+          const data = await response.json();
+          const currentMember = data.members?.find(
+            (m: any) => m.id === user.id,
+          );
+          const userRole = currentMember?.role || 'member';
+
+          // Only owners and admins can create shared personas
+          setCanCreateSharedPersona(
+            userRole === 'owner' || userRole === 'admin',
+          );
+        }
+      } catch (error) {
+        console.error('Error checking permissions:', error);
+        setCanCreateSharedPersona(false);
+      }
+    }
+
+    checkPermissions();
+  }, [org, user]);
 
   useEffect(() => {
     if (isOpen) {
@@ -341,6 +379,7 @@ export function PersonaWizard({
       instructions: '',
       documentIds: [],
       iconUrl: '',
+      isShared: false,
     });
     setErrors({});
     setSelectedTemplate('');
@@ -411,6 +450,7 @@ export function PersonaWizard({
           instructions: data.instructions,
           documentIds: data.documentIds || [],
           iconUrl: data.iconUrl || '',
+          isShared: data.isShared || false,
         });
         // Load per-persona composer selections
         const ctxMap: { [key: string]: boolean } = {};
@@ -898,6 +938,37 @@ export function PersonaWizard({
                     </span>
                   </div>
                 </div>
+
+                {/* Shared Persona option - only show if user has org permissions */}
+                {canCreateSharedPersona && (
+                  <div className="pt-4 border-t">
+                    <div className="flex items-start space-x-3">
+                      <Checkbox
+                        id="isShared"
+                        checked={formData.isShared}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            isShared: checked as boolean,
+                          }))
+                        }
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="isShared"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          Share with organization
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Make this persona available to all members of your
+                          organization
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

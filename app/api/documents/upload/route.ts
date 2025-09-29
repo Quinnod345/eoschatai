@@ -8,7 +8,11 @@ import { sql } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import OpenAI from 'openai';
 import { processUserDocument } from '@/lib/ai/user-rag';
-import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
+import {
+  getAccessContext,
+  incrementUsageCounter,
+  broadcastEntitlementsUpdated,
+} from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
 
 const createOpenAIClient = () => {
@@ -300,7 +304,10 @@ export async function POST(request: Request) {
     );
   }
 
-  if (uploadLimit > 0 && accessContext.user.usageCounters.uploads_total >= uploadLimit) {
+  if (
+    uploadLimit > 0 &&
+    accessContext.user.usageCounters.uploads_total >= uploadLimit
+  ) {
     await trackBlockedAction({
       feature: 'context_uploads_total',
       reason: 'limit_exceeded',
@@ -453,6 +460,7 @@ export async function POST(request: Request) {
       }
 
       await incrementUsageCounter(session.user.id, 'uploads_total', 1);
+      await broadcastEntitlementsUpdated(session.user.id);
 
       return NextResponse.json({
         message: 'Document uploaded successfully',
@@ -479,6 +487,7 @@ export async function POST(request: Request) {
         };
 
         await incrementUsageCounter(session.user.id, 'uploads_total', 1);
+        await broadcastEntitlementsUpdated(session.user.id);
 
         return NextResponse.json({
           message: 'Document uploaded successfully (fallback method)',

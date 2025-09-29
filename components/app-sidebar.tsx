@@ -31,6 +31,7 @@ import {
 import { FileSpreadsheet } from 'lucide-react';
 import { Users2 } from 'lucide-react';
 import { Mic } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { SidebarHistory } from '@/components/sidebar-history';
 import { Button } from '@/components/ui/button';
 import {
@@ -399,6 +400,32 @@ export function AppSidebar({ user }: { user: User | undefined }) {
               <div className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90">
                 Chats
               </div>
+
+              {/* Dev only: Test Premium UI */}
+              {process.env.NODE_ENV !== 'production' && (
+                <div className="px-3 pb-2 space-y-2">
+                  <Link href="/test-premium">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-xs"
+                    >
+                      <Zap className="mr-2 h-3 w-3" />
+                      Test Premium UI
+                    </Button>
+                  </Link>
+                  <Link href="/test-nexus">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-xs"
+                    >
+                      <Zap className="mr-2 h-3 w-3" />
+                      Test Nexus Selector
+                    </Button>
+                  </Link>
+                </div>
+              )}
 
               <div className="flex-1 min-h-0">
                 <SidebarHistory user={user} />

@@ -16,6 +16,7 @@ import { useAccountStore } from '@/lib/stores/account-store';
 import type { NormalizedEntitlements } from '@/lib/entitlements/types';
 import type { UpgradeFeature } from '@/types/upgrade';
 import { trackClientEvent } from '@/lib/analytics/client';
+import { PremiumFeaturesModal } from './premium-features-modal';
 
 const FEATURE_COPY: Record<
   UpgradeFeature,
@@ -67,8 +68,22 @@ const FEATURE_COPY: Record<
       'Run 40-lookup research sessions with citations and context',
       'Compare competitors, KPIs, and EOS scorecards automatically',
       'Reserve up to two concurrent research seats per account',
+      'Available exclusively with Business plan',
     ],
     plan: 'business',
+    video: '/videos/chatexample.mp4',
+  },
+  premium: {
+    title: 'Unlock EOS Chat AI Premium',
+    caption: 'Get access to premium features for your EOS journey.',
+    bullets: [
+      'Pro Plan: AI Personas, Export, Calendar sync, Voice recordings',
+      'Business Plan: Everything in Pro plus Deep Research mode',
+      'Deep research with 40-lookup sessions for market analysis',
+      'Team collaboration features and priority support',
+      'Choose the plan that fits your leadership needs',
+    ],
+    plan: 'pro',
     video: '/videos/chatexample.mp4',
   },
 };
@@ -99,6 +114,14 @@ const hasFeatureAccess = (
       return features.recordings.enabled;
     case 'deep_research':
       return features.deep_research.enabled;
+    case 'premium':
+      // For general premium, check if user has any premium features
+      return (
+        features.export ||
+        features.calendar_connect ||
+        features.recordings.enabled ||
+        features.deep_research.enabled
+      );
     default:
       return false;
   }
@@ -113,17 +136,29 @@ type UpgradeModalProps = {
   onAutoRetry?: () => void;
 };
 
-export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeModalProps) {
+export function UpgradeModal({
+  feature,
+  open,
+  onClose,
+  onAutoRetry,
+}: UpgradeModalProps) {
+  // If feature is 'premium', show the premium features modal instead
+  if (feature === 'premium') {
+    return <PremiumFeaturesModal open={open} onClose={onClose} />;
+  }
+
   const [billing, setBilling] = useState<BillingInterval>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<'pro' | 'business'>(
+    FEATURE_COPY[feature].plan,
+  );
   const [seatCount, setSeatCount] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { entitlements, prices, org } = useAccountStore((state) => ({
-    entitlements: state.entitlements,
-    prices: state.prices,
-    org: state.org,
-  }));
+  // Use separate selectors to avoid returning a new object each render
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const prices = useAccountStore((state) => state.prices);
+  const org = useAccountStore((state) => state.org);
 
   const config = FEATURE_COPY[feature];
 
@@ -131,9 +166,10 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
     if (open) {
       setBilling('monthly');
       setSeatCount(org?.seatCount ?? 1);
+      setSelectedPlan(FEATURE_COPY[feature].plan);
       setError(null);
     }
-  }, [open, org?.seatCount]);
+  }, [open, org?.seatCount, feature]);
 
   const accessGranted = useMemo(
     () => hasFeatureAccess(feature, entitlements),
@@ -148,24 +184,36 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
   }, [open, accessGranted, onAutoRetry, onClose]);
 
   const price = useMemo(
-    () => prices.find((entry) => entry.plan === config.plan && entry.interval === billing) ?? null,
-    [prices, config.plan, billing],
+    () =>
+      prices.find(
+        (entry) => entry.plan === selectedPlan && entry.interval === billing,
+      ) ?? null,
+    [prices, selectedPlan, billing],
   );
 
-  const priceLabel = formatPrice(price?.unitAmount ?? null, price?.currency ?? null);
-  const priceSuffix = config.plan === 'business' ? 'per seat' : billing === 'annual' ? 'per year' : 'per month';
-  const ctaLabel = config.plan === 'business' ? 'Talk to Sales' : 'Upgrade to Pro';
+  const priceLabel = formatPrice(
+    price?.unitAmount ?? null,
+    price?.currency ?? null,
+  );
+  const priceSuffix =
+    selectedPlan === 'business'
+      ? 'per seat'
+      : billing === 'annual'
+        ? 'per year'
+        : 'per month';
+  const ctaLabel =
+    selectedPlan === 'business' ? 'Upgrade to Business' : 'Upgrade to Pro';
 
   const handleCheckout = useCallback(async () => {
     setSubmitting(true);
     setError(null);
     try {
-      const billingChoice = config.plan === 'business' ? 'seat' : billing;
+      const billingChoice = selectedPlan === 'business' ? 'seat' : billing;
       trackClientEvent({
         event: 'gate_click_upgrade',
         properties: {
           feature,
-          plan: config.plan,
+          plan: selectedPlan,
           placement: 'upgrade-modal',
           billing_choice: billingChoice,
         },
@@ -175,9 +223,9 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
         event: 'checkout_started',
         properties: {
           price_id: price?.id ?? 'unknown',
-          plan: config.plan,
+          plan: selectedPlan,
           billing,
-          seats: config.plan === 'business' ? seatCount : undefined,
+          seats: selectedPlan === 'business' ? seatCount : undefined,
         },
       }).catch(() => {});
 
@@ -185,15 +233,17 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          plan: config.plan,
+          plan: selectedPlan,
           billing,
-          seats: config.plan === 'business' ? seatCount : undefined,
+          seats: selectedPlan === 'business' ? seatCount : undefined,
         }),
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error((data as { error?: string } | null)?.error ?? 'Checkout failed');
+        throw new Error(
+          (data as { error?: string } | null)?.error ?? 'Checkout failed',
+        );
       }
 
       const data = (await response.json()) as { url?: string };
@@ -204,11 +254,15 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
       window.location.href = data.url;
     } catch (checkoutError) {
       console.error('[upgrade-modal] Checkout failed', checkoutError);
-      setError(checkoutError instanceof Error ? checkoutError.message : 'Checkout failed');
+      setError(
+        checkoutError instanceof Error
+          ? checkoutError.message
+          : 'Checkout failed',
+      );
     } finally {
       setSubmitting(false);
     }
-  }, [billing, config.plan, seatCount]);
+  }, [billing, selectedPlan, seatCount]);
 
   const handleOpenChange = useCallback(
     (value: boolean) => {
@@ -223,9 +277,12 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl space-y-5">
         <DialogHeader className="space-y-2">
-          <DialogTitle className="text-2xl font-semibold">{config.title}</DialogTitle>
+          <DialogTitle className="text-2xl font-semibold">
+            {config.title}
+          </DialogTitle>
           <DialogDescription>
-            Elevate your EOS implementation with premium AI workflows tailored for leadership teams.
+            Elevate your EOS implementation with premium AI workflows tailored
+            for leadership teams.
           </DialogDescription>
         </DialogHeader>
 
@@ -244,7 +301,10 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
         <ul className="space-y-2 text-sm">
           {config.bullets.map((bullet) => (
             <li key={bullet} className="flex items-start gap-2">
-              <span className="mt-[6px] inline-block h-2 w-2 rounded-full bg-primary" aria-hidden />
+              <span
+                className="mt-[6px] inline-block h-2 w-2 rounded-full bg-primary"
+                aria-hidden
+              />
               <span>{bullet}</span>
             </li>
           ))}
@@ -257,7 +317,35 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
                 type="button"
                 className={cn(
                   'rounded-full px-3 py-1 transition-colors',
-                  billing === 'monthly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                  selectedPlan === 'pro'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground',
+                )}
+                onClick={() => setSelectedPlan('pro')}
+              >
+                Pro
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'rounded-full px-3 py-1 transition-colors',
+                  selectedPlan === 'business'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground',
+                )}
+                onClick={() => setSelectedPlan('business')}
+              >
+                Business
+              </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-muted px-1 py-1 text-xs font-medium">
+              <button
+                type="button"
+                className={cn(
+                  'rounded-full px-3 py-1 transition-colors',
+                  billing === 'monthly'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground',
                 )}
                 onClick={() => setBilling('monthly')}
               >
@@ -267,7 +355,9 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
                 type="button"
                 className={cn(
                   'rounded-full px-3 py-1 transition-colors',
-                  billing === 'annual' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                  billing === 'annual'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground',
                 )}
                 onClick={() => setBilling('annual')}
               >
@@ -281,7 +371,7 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
             </div>
           </div>
 
-          {config.plan === 'business' && (
+          {selectedPlan === 'business' && (
             <div className="mt-4 flex items-center justify-between gap-4">
               <label htmlFor="seat-count" className="text-sm font-medium">
                 Seats Needed
@@ -293,7 +383,11 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
                 min={1}
                 max={500}
                 value={seatCount}
-                onChange={(event) => setSeatCount(Math.max(1, Number.parseInt(event.target.value, 10) || 1))}
+                onChange={(event) =>
+                  setSeatCount(
+                    Math.max(1, Number.parseInt(event.target.value, 10) || 1),
+                  )
+                }
                 className="w-24 rounded-md border border-input bg-background px-3 py-2 text-right text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -304,7 +398,8 @@ export function UpgradeModal({ feature, open, onClose, onAutoRetry }: UpgradeMod
 
         <DialogFooter className="sm:justify-between">
           <div className="text-xs text-muted-foreground">
-            Billing handled securely by Stripe. You&apos;ll be redirected to confirm your subscription.
+            Billing handled securely by Stripe. You&apos;ll be redirected to
+            confirm your subscription.
           </div>
           <Button onClick={handleCheckout} disabled={submitting} size="lg">
             {submitting ? 'Redirecting…' : ctaLabel}

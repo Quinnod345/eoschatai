@@ -36,6 +36,10 @@ import {
 import { Keyboard, LogOut, Settings, Mic } from 'lucide-react';
 import { clientLogout } from '@/lib/auth-utils';
 import RecordingModal from '@/components/recording-modal';
+import {
+  OrganizationSwitcher,
+  OrganizationSwitcherTrigger,
+} from '@/components/organization-switcher';
 
 export function SidebarUserNav({
   user,
@@ -53,6 +57,7 @@ export function SidebarUserNav({
   const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
     useState(false);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
 
   // Features hook
   const {
@@ -253,6 +258,9 @@ export function SidebarUserNav({
                   </p>
                 </div>
               </div>
+              <OrganizationSwitcherTrigger
+                onClick={() => setShowOrgSwitcher(true)}
+              />
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
                 <Settings className="mr-2 h-4 w-4" />
@@ -352,6 +360,11 @@ export function SidebarUserNav({
           isOpen={showRecordingModal}
           onClose={() => setShowRecordingModal(false)}
         />
+      )}
+
+      {/* Organization Switcher */}
+      {showOrgSwitcher && (
+        <OrganizationSwitcher onClose={() => setShowOrgSwitcher(false)} />
       )}
     </>
   );

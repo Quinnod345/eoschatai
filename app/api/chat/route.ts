@@ -1950,18 +1950,14 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                       .describe(
                         'The specific query to search for in the knowledge base',
                       ),
-                    limit: z
-                      .number()
-                      .optional()
-                      .describe('Maximum number of results to return'),
                   }),
-                  execute: async ({ query, limit }) => {
+                  execute: async ({ query }) => {
                     console.log('RAG: Tool called to get information', {
                       query,
-                      limit,
+                      limit: 5,
                     });
                     const infoResult = await getInformationTool.execute(
-                      { query, limit },
+                      { query, limit: 5 },
                       session.user.id,
                     );
                     console.log(
@@ -2029,38 +2025,13 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 getCalendarEvents: tool({
                   description:
                     "Get the user's upcoming calendar events. Use this when the user asks about their schedule, upcoming meetings, or events.",
-                  parameters: z.object({
-                    timeMin: z
-                      .string()
-                      .optional()
-                      .describe(
-                        'The RFC3339 timestamp for the earliest time to fetch events from (defaults to now)',
-                      ),
-                    timeMax: z
-                      .string()
-                      .optional()
-                      .describe(
-                        'The RFC3339 timestamp for the latest time to fetch events to (defaults to 7 days from now)',
-                      ),
-                    maxResults: z
-                      .number()
-                      .optional()
-                      .describe(
-                        'Maximum number of events to return (default: 10)',
-                      ),
-                    searchTerm: z
-                      .string()
-                      .optional()
-                      .describe(
-                        'Optional search term to filter events by keyword in title or description',
-                      ),
-                  }),
-                  execute: async ({
-                    timeMin,
-                    timeMax,
-                    maxResults,
-                    searchTerm,
-                  }) => {
+                  parameters: z.object({}),
+                  execute: async () => {
+                    // Defaults handled inside tool implementation to avoid schema 'required' issues
+                    const timeMin = undefined;
+                    const timeMax = undefined;
+                    const maxResults = undefined;
+                    const searchTerm = undefined;
                     console.log(
                       'Calendar: Enhanced tool called to get calendar events',
                       {
@@ -2176,14 +2147,6 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                     summary: z
                       .string()
                       .describe('The title/summary of the event'),
-                    description: z
-                      .string()
-                      .optional()
-                      .describe('Optional detailed description of the event'),
-                    location: z
-                      .string()
-                      .optional()
-                      .describe('Optional location of the event'),
                     startDateTime: z
                       .string()
                       .describe(
@@ -2194,21 +2157,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                       .describe(
                         'The RFC3339 timestamp for the end time of the event',
                       ),
-                    attendees: z
-                      .array(z.string())
-                      .optional()
-                      .describe(
-                        'Optional list of email addresses of attendees',
-                      ),
                   }),
-                  execute: async ({
-                    summary,
-                    description,
-                    location,
-                    startDateTime,
-                    endDateTime,
-                    attendees,
-                  }) => {
+                  execute: async ({ summary, startDateTime, endDateTime }) => {
                     console.log(
                       'Calendar: Tool called to create calendar event',
                       {
@@ -2221,14 +2171,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                     try {
                       // Use direct tool execution with proper error handling
                       const eventResult = await createCalendarEventTool.execute(
-                        {
-                          summary,
-                          description,
-                          location,
-                          startDateTime,
-                          endDateTime,
-                          attendees,
-                        },
+                        { summary, startDateTime, endDateTime },
                         session.user.id,
                       );
 
@@ -2324,8 +2267,6 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                     duration: z.number().describe('Duration in minutes'),
                     searchDays: z
                       .number()
-                      .optional()
-                      .default(7)
                       .describe('Number of days to search ahead'),
                   }),
                   execute: async ({ duration, searchDays }) => {
@@ -2356,14 +2297,9 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 getCalendarAnalytics: tool({
                   description:
                     'Get analytics and insights about calendar usage, meeting patterns, and upcoming events that need preparation.',
-                  parameters: z.object({
-                    days: z
-                      .number()
-                      .optional()
-                      .default(30)
-                      .describe('Number of days to analyze'),
-                  }),
-                  execute: async ({ days }) => {
+                  parameters: z.object({}),
+                  execute: async () => {
+                    const days = 30; // default handled internally
                     try {
                       const { getCalendarAnalyticsTool } = await import(
                         '@/lib/ai/tools/calendar-tools'
@@ -2388,14 +2324,9 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 getDailyBriefing: tool({
                   description:
                     "Get a daily briefing of today's calendar events and important reminders. Use this proactively when users start their day or ask about their schedule.",
-                  parameters: z.object({
-                    includePrep: z
-                      .boolean()
-                      .optional()
-                      .default(true)
-                      .describe('Include preparation suggestions'),
-                  }),
-                  execute: async ({ includePrep }) => {
+                  parameters: z.object({}),
+                  execute: async () => {
+                    const includePrep = true; // default handled internally
                     try {
                       const { getDailyBriefingTool } = await import(
                         '@/lib/ai/tools/calendar-tools'
@@ -2424,12 +2355,9 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                     text: z
                       .string()
                       .describe('Natural language description of the event'),
-                    currentDate: z
-                      .string()
-                      .optional()
-                      .describe('Current date for relative date parsing'),
                   }),
-                  execute: async ({ text, currentDate }) => {
+                  execute: async ({ text }) => {
+                    const currentDate = undefined; // default: use current date in tool
                     try {
                       const { parseNaturalLanguageEventTool } = await import(
                         '@/lib/ai/tools/calendar-tools'
@@ -2458,34 +2386,12 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 findSmartAvailability: tool({
                   description:
                     'Intelligently find available time slots based on user preferences and context. Use when users mention "free time", "available", or want to schedule something.',
-                  parameters: z.object({
-                    duration: z
-                      .number()
-                      .optional()
-                      .default(30)
-                      .describe('Duration in minutes'),
-                    searchDays: z
-                      .number()
-                      .optional()
-                      .default(7)
-                      .describe('Number of days to search ahead'),
-                    preferredTime: z
-                      .string()
-                      .optional()
-                      .describe(
-                        'Preferred time of day (morning, afternoon, evening)',
-                      ),
-                    context: z
-                      .string()
-                      .optional()
-                      .describe('Context about the meeting or event'),
-                  }),
-                  execute: async ({
-                    duration,
-                    searchDays,
-                    preferredTime,
-                    context,
-                  }) => {
+                  parameters: z.object({}),
+                  execute: async () => {
+                    const duration = 30;
+                    const searchDays = 7;
+                    const preferredTime = undefined;
+                    const context = undefined;
                     console.log('Calendar: Smart availability search', {
                       duration,
                       searchDays,

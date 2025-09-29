@@ -12,6 +12,8 @@ import { motion } from 'framer-motion';
 import VoiceModeBatchSave from './voice-mode-batch-save';
 import VoiceModeFixed from './voice-mode-fixed';
 import VoiceModeIntegrated from './voice-mode-integrated';
+import { Gate } from '@/components/gate';
+import { UpgradePrompt } from '@/components/upgrade-prompt';
 import { cn } from '@/lib/utils';
 
 interface VoiceFABProps {
@@ -122,39 +124,57 @@ export default function VoiceFAB({
           whileTap={{ scale: 0.95 }}
           className="fixed bottom-6 right-6 z-40"
         >
+          <Gate
+            feature="recordings"
+            placement="voice:floating"
+            fallback={
+              <UpgradePrompt feature="recordings" placement="voice:floating" />
+            }
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={handleClick}
+                  className={cn(getVariantClasses(), className)}
+                  size="icon"
+                >
+                  {buttonContent}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                Start Voice Conversation
+              </TooltipContent>
+            </Tooltip>
+          </Gate>
+        </motion.div>
+      ) : (
+        <Gate
+          feature="recordings"
+          placement="voice:inline"
+          fallback={
+            <UpgradePrompt feature="recordings" placement="voice:inline" />
+          }
+        >
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 onClick={handleClick}
+                variant={variant === 'minimal' ? 'ghost' : 'outline'}
+                size={showLabel ? 'sm' : 'icon'}
                 className={cn(getVariantClasses(), className)}
-                size="icon"
               >
                 {buttonContent}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">
-              Start Voice Conversation
+            <TooltipContent>
+              {variant === 'minimal'
+                ? 'Voice Mode'
+                : 'Start Voice Conversation'}
             </TooltipContent>
           </Tooltip>
-        </motion.div>
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleClick}
-              variant={variant === 'minimal' ? 'ghost' : 'outline'}
-              size={showLabel ? 'sm' : 'icon'}
-              className={cn(getVariantClasses(), className)}
-            >
-              {buttonContent}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {variant === 'minimal' ? 'Voice Mode' : 'Start Voice Conversation'}
-          </TooltipContent>
-        </Tooltip>
+        </Gate>
       )}
 
       {useBatchSaveVoiceMode ? (
