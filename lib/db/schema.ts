@@ -21,7 +21,7 @@ import {
 export const planTypeEnum = pgEnum('plan_type', ['free', 'pro', 'business']);
 export type PlanType = (typeof planTypeEnum.enumValues)[number];
 
-// Declare user table first without foreign keys to avoid circular reference
+// Declare user table first - orgId FK will be added after org table is declared
 export const user = pgTable(
   'User',
   {
@@ -35,7 +35,7 @@ export const user = pgTable(
     stripeCustomerId: text('stripeCustomerId'),
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
-    orgId: uuid('orgId'), // FK reference added below to avoid circular dependency
+    orgId: uuid('orgId'),
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
