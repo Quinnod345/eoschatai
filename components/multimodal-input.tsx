@@ -1272,9 +1272,31 @@ function PureMultimodalInput({
         ]);
 
         try {
+          // Get audio duration if possible
+          let audioDuration = 0;
+          try {
+            const audioEl = document.createElement('audio');
+            const objectUrl = URL.createObjectURL(file);
+            audioEl.src = objectUrl;
+            await new Promise((resolve) => {
+              audioEl.addEventListener('loadedmetadata', () => {
+                audioDuration = Math.floor(audioEl.duration);
+                URL.revokeObjectURL(objectUrl);
+                resolve(null);
+              });
+              audioEl.addEventListener('error', () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(null);
+              });
+            });
+          } catch {
+            // Ignore duration detection errors
+          }
+
           const fd = new FormData();
           fd.append('audio', file);
           fd.append('title', file.name.replace(/\.[^.]+$/, ''));
+          fd.append('duration', audioDuration.toString());
 
           const res = await fetch('/api/voice/recordings', {
             method: 'POST',
@@ -2633,8 +2655,8 @@ function PureMultimodalInput({
                     } catch {}
                   }}
                   className="text-left rounded-xl px-3 py-2 bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-700/60 backdrop-blur-md shadow-sm hover:shadow-md"
-                  initial={{ opacity: 0, y: 6, filter: 'blur(8px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{
                     duration: 0.22,
                     ease: 'easeOut',
@@ -2683,130 +2705,224 @@ function PureMultimodalInput({
           </div>
         )}
 
-        <Textarea
-          data-testid="multimodal-input"
-          ref={textareaRef}
-          placeholder={
-            selectedMentions.length > 0
-              ? 'Continue your message...'
-              : 'Ask Anything...'
-          }
-          value={input}
-          onChange={handleInputChange}
-          onPaste={handlePaste}
-          onDragOver={handleTextareaDragOver}
-          onKeyDown={(event) => {
-            // Handle @ mention dropdown navigation
-            if (showMentions) {
-              handleMentionKeyDown(event);
-              return;
+        <motion.div
+          key={`textarea-${chatId}`}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{
+            duration: 0.3,
+            delay: 0.05,
+            ease: [0.19, 1, 0.22, 1],
+          }}
+        >
+          <Textarea
+            data-testid="multimodal-input"
+            ref={textareaRef}
+            placeholder={
+              selectedMentions.length > 0
+                ? 'Continue your message...'
+                : 'Ask Anything...'
             }
-
-            // Normal enter key handling
-            if (
-              event.key === 'Enter' &&
-              !event.shiftKey &&
-              !event.nativeEvent.isComposing
-            ) {
-              event.preventDefault();
-
-              if (status !== 'ready') {
-                toast.error(
-                  'Please wait for the model to finish its response!',
-                );
-              } else {
-                // Submit the form manually
-                submitForm();
+            value={input}
+            onChange={handleInputChange}
+            onPaste={handlePaste}
+            onDragOver={handleTextareaDragOver}
+            onKeyDown={(event) => {
+              // Handle @ mention dropdown navigation
+              if (showMentions) {
+                handleMentionKeyDown(event);
+                return;
               }
-            }
-          }}
-          className={cx(
-            'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
-            'backdrop-filter backdrop-blur-[16px]',
-            'border border-white/30 dark:border-zinc-700/30',
-            'input-tint shadow-enhanced',
-            isDragging && 'pointer-events-none',
-            className,
-          )}
-          style={{
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow:
-              'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-            maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
-          }}
-          rows={2}
-          autoFocus
-        />
+
+              // Normal enter key handling
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+
+                if (status !== 'ready') {
+                  toast.error(
+                    'Please wait for the model to finish its response!',
+                  );
+                } else {
+                  // Submit the form manually
+                  submitForm();
+                }
+              }
+            }}
+            className={cx(
+              'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
+              'backdrop-filter backdrop-blur-[16px]',
+              'border border-white/30 dark:border-zinc-700/30',
+              'input-tint shadow-enhanced',
+              isDragging && 'pointer-events-none',
+              className,
+            )}
+            style={{
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow:
+                'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+              maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
+            }}
+            rows={2}
+            autoFocus
+          />
+        </motion.div>
 
         {/* Bottom toolbar (flow layout, responsive) */}
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <AttachmentsButton fileInputRef={fileInputRef} status={status} />
-            <UsageChip
-              label="Uploads"
-              used={uploadsUsed}
-              limit={uploadLimit}
-              title="Context uploads used"
-            />
+            <motion.div
+              key={`attach-${chatId}`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                duration: 0.25,
+                delay: 0.15,
+                ease: [0.19, 1, 0.22, 1],
+              }}
+            >
+              <AttachmentsButton fileInputRef={fileInputRef} status={status} />
+            </motion.div>
+            {/* Only show usage chips for free plan users */}
+            {user?.plan === 'free' && (
+              <UsageChip
+                label="Uploads"
+                used={uploadsUsed}
+                limit={uploadLimit}
+                title="Context uploads used"
+              />
+            )}
 
             {!isReadonly && !isEmbedded && (
-              <VisibilitySelector
-                chatId={chatId}
-                selectedVisibilityType={selectedVisibilityType}
-                className="h-[30px] text-xs"
-              />
+              <motion.div
+                key={`visibility-${chatId}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  duration: 0.25,
+                  delay: 0.18,
+                  ease: [0.19, 1, 0.22, 1],
+                }}
+              >
+                <VisibilitySelector
+                  chatId={chatId}
+                  selectedVisibilityType={selectedVisibilityType}
+                  className="h-[30px] text-xs"
+                />
+              </motion.div>
             )}
 
             {!isReadonly &&
               !isEmbedded &&
               selectedResearchMode !== undefined &&
               onResearchModeChange && (
-                <NexusResearchSelector
-                  chatId={chatId}
-                  selectedResearchMode={selectedResearchMode}
-                  onResearchModeChange={onResearchModeChange}
-                  className="h-[30px] text-xs"
-                />
+                <motion.div
+                  key={`nexus-${chatId}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: 0.21,
+                    ease: [0.19, 1, 0.22, 1],
+                  }}
+                >
+                  <NexusResearchSelector
+                    chatId={chatId}
+                    selectedResearchMode={selectedResearchMode}
+                    onResearchModeChange={onResearchModeChange}
+                    className="h-[30px] text-xs"
+                  />
+                </motion.div>
               )}
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <UsageChip
-              label="Chats"
-              used={chatsUsed}
-              limit={chatLimit}
-              title="Chats sent today"
-            />
+            {/* Only show usage chips for free plan users */}
+            {user?.plan === 'free' && (
+              <motion.div
+                key={`chats-chip-${chatId}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  duration: 0.25,
+                  delay: 0.24,
+                  ease: [0.19, 1, 0.22, 1],
+                }}
+              >
+                <UsageChip
+                  label="Chats"
+                  used={chatsUsed}
+                  limit={chatLimit}
+                  title="Chats sent today"
+                />
+              </motion.div>
+            )}
             {status === 'submitted' ? (
-              <StopButton stop={stop} setMessages={setMessages} />
+              <motion.div
+                key={`stop-${chatId}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  duration: 0.25,
+                  delay: 0.27,
+                  ease: [0.19, 1, 0.22, 1],
+                }}
+              >
+                <StopButton stop={stop} setMessages={setMessages} />
+              </motion.div>
             ) : (
               <>
                 {session?.user && (
-                  <VoiceFAB
-                    variant="inline"
-                    size="sm"
-                    selectedModelId={selectedModelId}
-                    selectedProviderId={selectedProviderId}
-                    selectedPersonaId={selectedPersonaId || undefined}
-                    selectedProfileId={selectedProfileId || undefined}
-                    chatId={chatId}
-                    onAppendMessage={append}
-                    onUpdateMessages={setMessages}
-                  />
+                  <motion.div
+                    key={`voice-${chatId}`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{
+                      duration: 0.25,
+                      delay: 0.27,
+                      ease: [0.19, 1, 0.22, 1],
+                    }}
+                  >
+                    <VoiceFAB
+                      variant="inline"
+                      size="sm"
+                      selectedModelId={selectedModelId}
+                      selectedProviderId={selectedProviderId}
+                      selectedPersonaId={selectedPersonaId || undefined}
+                      selectedProfileId={selectedProfileId || undefined}
+                      chatId={chatId}
+                      onAppendMessage={append}
+                      onUpdateMessages={setMessages}
+                    />
+                  </motion.div>
                 )}
-                <SendButton
-                  input={input}
-                  submitForm={submitForm}
-                  uploadQueue={uploadQueue}
-                  attachmentsCount={attachmentsCount}
-                  pdfCount={pdfCount}
-                  docCount={docCount}
-                  imgCount={imgCount}
-                  audioCount={audioCount}
-                  audioProcessing={audioProcessing}
-                  handleSubmit={handleSubmit}
-                  attachments={attachments}
-                />
+                <motion.div
+                  key={`send-${chatId}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: 0.3,
+                    ease: [0.19, 1, 0.22, 1],
+                  }}
+                >
+                  <SendButton
+                    input={input}
+                    submitForm={submitForm}
+                    uploadQueue={uploadQueue}
+                    attachmentsCount={attachmentsCount}
+                    pdfCount={pdfCount}
+                    docCount={docCount}
+                    imgCount={imgCount}
+                    audioCount={audioCount}
+                    audioProcessing={audioProcessing}
+                    handleSubmit={handleSubmit}
+                    attachments={attachments}
+                  />
+                </motion.div>
               </>
             )}
           </div>

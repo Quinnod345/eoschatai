@@ -212,10 +212,11 @@ export function ProfilesDropdown({
                 relative overflow-hidden group
                 h-9 px-3 md:h-10 md:px-4
                 border-2 
-                !bg-zinc-50 dark:!bg-zinc-800
-                border-zinc-200 dark:border-zinc-700
+                backdrop-filter backdrop-blur-[16px]
+                bg-white/70 dark:bg-zinc-900/70
+                border-white/30 dark:border-zinc-700/30
                 ${selectedTheme.hoverBg}
-                hover:!bg-zinc-100 dark:hover:!bg-zinc-700
+                hover:bg-white/80 dark:hover:bg-zinc-900/80
                 hover:${selectedTheme.borderColor}
                 transition-all duration-300 ease-out
                 shadow-sm hover:shadow-md
@@ -223,6 +224,11 @@ export function ProfilesDropdown({
                 ${selectedProfile ? `ring-2 ring-opacity-20 ${selectedTheme.borderColor.replace('border-', 'ring-')}` : ''}
               `}
               disabled={disabled || isLoading}
+              style={{
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow:
+                  'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+              }}
             >
               {/* Animated background gradient */}
               <div

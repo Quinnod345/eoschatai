@@ -52,8 +52,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the email
+    // Update the email in database
     await db.update(user).set({ email }).where(eq(user.id, session.user.id));
+
+    // Sync email to Stripe customer
+    try {
+      const [userRecord] = await db
+        .select({ stripeCustomerId: user.stripeCustomerId })
+        .from(user)
+        .where(eq(user.id, session.user.id));
+
+      if (userRecord?.stripeCustomerId) {
+        const { getStripeClient } = await import('@/lib/stripe/client');
+        const stripe = getStripeClient();
+
+        if (stripe) {
+          await stripe.customers.update(userRecord.stripeCustomerId, {
+            email: email,
+          });
+          console.log(
+            `[update-email] Updated Stripe customer ${userRecord.stripeCustomerId} email to ${email}`,
+          );
+        }
+      }
+    } catch (stripeError) {
+      console.error(
+        '[update-email] Failed to update Stripe customer email:',
+        stripeError,
+      );
+      // Continue - don't fail email update if Stripe fails
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

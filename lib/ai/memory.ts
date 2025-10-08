@@ -29,9 +29,8 @@ export async function classifyMemoryCandidate(
   text: string,
 ): Promise<MemoryDecision> {
   const result = await generateObject({
-    model: openai('gpt-4o-mini'),
+    model: openai('gpt-5-mini'),
     schema: MemoryDecisionSchema,
-    temperature: 0.2,
     system:
       'You are a conservative memory classifier. Save only clear, stable, reusable facts/preferences. Avoid one-off or sensitive details. Return conservative confidence.',
     prompt: `User text to consider saving:\n${text}\nRespond with fields only.`,

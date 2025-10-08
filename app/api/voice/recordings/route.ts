@@ -12,7 +12,9 @@ import { trackBlockedAction } from '@/lib/analytics';
 const createOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.warn('[voice.recordings] OPENAI_API_KEY missing; transcription disabled.');
+    console.warn(
+      '[voice.recordings] OPENAI_API_KEY missing; transcription disabled.',
+    );
     return null;
   }
 
@@ -30,7 +32,9 @@ async function transcribeInBackground(
   userId: string,
 ) {
   if (!openai) {
-    console.warn('[voice.recordings] Skipping transcription due to missing OpenAI client.');
+    console.warn(
+      '[voice.recordings] Skipping transcription due to missing OpenAI client.',
+    );
     return;
   }
 
@@ -238,6 +242,9 @@ export async function POST(req: NextRequest) {
     const duration = Number.parseInt(
       (formData.get('duration') as string) || '0',
     );
+    const meetingType = (formData.get('meetingType') as string) || null;
+    const tagsStr = formData.get('tags') as string;
+    const tags = tagsStr ? JSON.parse(tagsStr) : [];
 
     if (!audioFile) {
       return NextResponse.json(
@@ -307,6 +314,8 @@ export async function POST(req: NextRequest) {
         duration,
         fileSize: audioFile.size,
         mimeType: audioFile.type,
+        meetingType,
+        tags,
       })
       .returning();
 

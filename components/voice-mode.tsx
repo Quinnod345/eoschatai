@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, PhoneOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
@@ -527,241 +528,258 @@ export default function VoiceMode({
     };
   }, []);
 
-  if (!isOpen) return null;
+  // Only render if we're in the browser
+  if (typeof window === 'undefined') return null;
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md"
-        >
-          <Card className="p-6 space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Voice Mode</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge
-                    variant={
-                      connectionStatus === 'connected' ? 'default' : 'secondary'
-                    }
+  return createPortal(
+    <AnimatePresence mode="wait">
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000]"
+            onClick={onClose}
+          />
+
+          {/* Modal Container */}
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 pointer-events-none">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md pointer-events-auto"
+            >
+              <Card className="p-6 space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold">Voice Mode</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant={
+                          connectionStatus === 'connected'
+                            ? 'default'
+                            : 'secondary'
+                        }
+                        className={cn(
+                          connectionStatus === 'connected' &&
+                            'bg-green-500 hover:bg-green-600',
+                          connectionStatus === 'connecting' &&
+                            'bg-yellow-500 hover:bg-yellow-600',
+                          connectionStatus === 'error' &&
+                            'bg-red-500 hover:bg-red-600',
+                        )}
+                      >
+                        {connectionStatus === 'connected' && 'Connected'}
+                        {connectionStatus === 'connecting' && 'Connecting...'}
+                        {connectionStatus === 'disconnected' && 'Disconnected'}
+                        {connectionStatus === 'error' && 'Error'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={onClose}>
+                    <PhoneOff className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Audio Visualizer */}
+                <div className="flex items-center justify-center py-8">
+                  <motion.div
+                    className="relative"
+                    animate={{
+                      scale: 1 + audioLevel * 0.3,
+                    }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  >
+                    <div
+                      className={cn(
+                        'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
+                        isListening
+                          ? 'bg-green-500 shadow-lg shadow-green-500/50'
+                          : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
+                      )}
+                    >
+                      {isMuted ? (
+                        <MicOff className="h-8 w-8 text-white" />
+                      ) : (
+                        <Mic className="h-8 w-8 text-white" />
+                      )}
+                    </div>
+
+                    {/* Audio level rings */}
+                    {audioLevel > 0.1 && (
+                      <>
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-white/30"
+                          animate={{
+                            scale: 1 + audioLevel * 0.5,
+                            opacity: 0.7 - audioLevel * 0.3,
+                          }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 300,
+                            damping: 30,
+                          }}
+                        />
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-white/20"
+                          animate={{
+                            scale: 1 + audioLevel * 0.8,
+                            opacity: 0.5 - audioLevel * 0.2,
+                          }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 300,
+                            damping: 30,
+                          }}
+                        />
+                      </>
+                    )}
+                  </motion.div>
+                </div>
+
+                {/* Status */}
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {connectionStatus === 'connected' &&
+                      (isListening ? (
+                        <span className="text-green-600 font-medium">
+                          Listening...
+                        </span>
+                      ) : isPlaying ? (
+                        <span className="text-blue-600 font-medium">
+                          AI is speaking...
+                        </span>
+                      ) : (
+                        "Speak naturally, I'm here to help!"
+                      ))}
+                    {connectionStatus === 'connecting' &&
+                      'Connecting to voice service...'}
+                    {connectionStatus === 'disconnected' &&
+                      'Voice service disconnected'}
+                    {connectionStatus === 'error' &&
+                      'Connection error occurred'}
+                  </p>
+                </div>
+
+                {/* Development Test Button */}
+                {isDevelopment && (
+                  <div className="text-center mb-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          console.log(
+                            'Testing with direct API key (DEV ONLY)...',
+                          );
+                          const response = await fetch('/api/voice/direct', {
+                            method: 'POST',
+                          });
+                          const data = await response.json();
+
+                          if (data.apiKey) {
+                            const ws = new WebSocket(
+                              'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17',
+                              [`openai-insecure-api-key.${data.apiKey}`],
+                            );
+
+                            ws.onopen = () => {
+                              console.log(
+                                'DEV: Connected with direct API key!',
+                              );
+                              toast.success(
+                                'Connected using direct API key (DEV ONLY)',
+                              );
+                            };
+
+                            ws.onerror = (error) => {
+                              console.error(
+                                'DEV: Direct connection failed:',
+                                error,
+                              );
+                            };
+
+                            ws.onclose = (event) => {
+                              console.log(
+                                'DEV: Connection closed:',
+                                event.code,
+                                event.reason,
+                              );
+                            };
+                          }
+                        } catch (error) {
+                          console.error('DEV test error:', error);
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      Test Direct Connection (Dev Only)
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      For debugging WebSocket issues
+                    </p>
+                  </div>
+                )}
+
+                {/* Controls */}
+                <div className="flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleMute}
+                    disabled={connectionStatus !== 'connected'}
                     className={cn(
-                      connectionStatus === 'connected' &&
-                        'bg-green-500 hover:bg-green-600',
-                      connectionStatus === 'connecting' &&
-                        'bg-yellow-500 hover:bg-yellow-600',
-                      connectionStatus === 'error' &&
-                        'bg-red-500 hover:bg-red-600',
+                      isMuted &&
+                        'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
                     )}
                   >
-                    {connectionStatus === 'connected' && 'Connected'}
-                    {connectionStatus === 'connecting' && 'Connecting...'}
-                    {connectionStatus === 'disconnected' && 'Disconnected'}
-                    {connectionStatus === 'error' && 'Error'}
-                  </Badge>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={onClose}>
-                <PhoneOff className="h-4 w-4" />
-              </Button>
-            </div>
+                    {isMuted ? (
+                      <MicOff className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
 
-            {/* Audio Visualizer */}
-            <div className="flex items-center justify-center py-8">
-              <motion.div
-                className="relative"
-                animate={{
-                  scale: 1 + audioLevel * 0.3,
-                }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              >
-                <div
-                  className={cn(
-                    'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
-                    isListening
-                      ? 'bg-green-500 shadow-lg shadow-green-500/50'
-                      : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
-                  )}
-                >
-                  {isMuted ? (
-                    <MicOff className="h-8 w-8 text-white" />
-                  ) : (
-                    <Mic className="h-8 w-8 text-white" />
-                  )}
-                </div>
-
-                {/* Audio level rings */}
-                {audioLevel > 0.1 && (
-                  <>
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-white/30"
-                      animate={{
-                        scale: 1 + audioLevel * 0.5,
-                        opacity: 0.7 - audioLevel * 0.3,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 300,
-                        damping: 30,
-                      }}
-                    />
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-white/20"
-                      animate={{
-                        scale: 1 + audioLevel * 0.8,
-                        opacity: 0.5 - audioLevel * 0.2,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 300,
-                        damping: 30,
-                      }}
-                    />
-                  </>
-                )}
-              </motion.div>
-            </div>
-
-            {/* Status */}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                {connectionStatus === 'connected' &&
-                  (isListening ? (
-                    <span className="text-green-600 font-medium">
-                      Listening...
-                    </span>
-                  ) : isPlaying ? (
-                    <span className="text-blue-600 font-medium">
-                      AI is speaking...
-                    </span>
-                  ) : (
-                    "Speak naturally, I'm here to help!"
-                  ))}
-                {connectionStatus === 'connecting' &&
-                  'Connecting to voice service...'}
-                {connectionStatus === 'disconnected' &&
-                  'Voice service disconnected'}
-                {connectionStatus === 'error' && 'Connection error occurred'}
-              </p>
-            </div>
-
-            {/* Development Test Button */}
-            {isDevelopment && (
-              <div className="text-center mb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      console.log('Testing with direct API key (DEV ONLY)...');
-                      const response = await fetch('/api/voice/direct', {
-                        method: 'POST',
-                      });
-                      const data = await response.json();
-
-                      if (data.apiKey) {
-                        const ws = new WebSocket(
-                          'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17',
-                          [`openai-insecure-api-key.${data.apiKey}`],
-                        );
-
-                        ws.onopen = () => {
-                          console.log('DEV: Connected with direct API key!');
-                          toast.success(
-                            'Connected using direct API key (DEV ONLY)',
-                          );
-                        };
-
-                        ws.onerror = (error) => {
-                          console.error(
-                            'DEV: Direct connection failed:',
-                            error,
-                          );
-                        };
-
-                        ws.onclose = (event) => {
-                          console.log(
-                            'DEV: Connection closed:',
-                            event.code,
-                            event.reason,
-                          );
-                        };
-                      }
-                    } catch (error) {
-                      console.error('DEV test error:', error);
-                    }
-                  }}
-                  className="text-xs"
-                >
-                  Test Direct Connection (Dev Only)
-                </Button>
-                <p className="text-xs text-muted-foreground mt-1">
-                  For debugging WebSocket issues
-                </p>
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleMute}
-                disabled={connectionStatus !== 'connected'}
-                className={cn(
-                  isMuted &&
-                    'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
-                )}
-              >
-                {isMuted ? (
-                  <MicOff className="h-4 w-4" />
-                ) : (
-                  <Mic className="h-4 w-4" />
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={connectionStatus !== 'connected'}
-              >
-                {isPlaying ? (
-                  <VolumeX className="h-4 w-4" />
-                ) : (
-                  <Volume2 className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-
-            {/* Transcript */}
-            {transcript.length > 0 && (
-              <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Conversation:
-                </p>
-                {transcript.slice(-3).map((line, index) => (
-                  <p
-                    key={`transcript-${Date.now()}-${index}-${line.slice(0, 10)}`}
-                    className="text-xs"
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    disabled={connectionStatus !== 'connected'}
                   >
-                    {line}
-                  </p>
-                ))}
-              </div>
-            )}
-          </Card>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+                    {isPlaying ? (
+                      <VolumeX className="h-4 w-4" />
+                    ) : (
+                      <Volume2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Transcript */}
+                {transcript.length > 0 && (
+                  <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Conversation:
+                    </p>
+                    {transcript.slice(-3).map((line, index) => (
+                      <p
+                        key={`transcript-${Date.now()}-${index}-${line.slice(0, 10)}`}
+                        className="text-xs"
+                      >
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

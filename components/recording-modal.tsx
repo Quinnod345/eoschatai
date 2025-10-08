@@ -24,7 +24,20 @@ import {
   Plus,
   Pause,
   Play,
+  Edit2,
+  X,
+  Check,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from '@/lib/toast-system';
 import { useRouter } from 'next/navigation';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -36,7 +49,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Gate } from '@/components/gate';
 import { UpgradePrompt } from '@/components/upgrade-prompt';
@@ -60,6 +72,11 @@ type SavedRecording = {
   duration?: number;
   summary?: string;
   diarizationMethod?: string;
+  meetingType?: string | null;
+  tags?: string[];
+  title?: string;
+  hasError?: boolean;
+  errorMessage?: string;
 };
 
 type RecordingMode = 'idle' | 'recording' | 'paused' | 'completed';
@@ -90,6 +107,14 @@ export default function RecordingModal({
   const [summary, setSummary] = useState<string>('');
   const [playbackRef, setPlaybackRef] = useState<HTMLAudioElement | null>(null);
 
+  // New feature states
+  const [meetingType, setMeetingType] = useState<string>('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [isLoadingRecordings, setIsLoadingRecordings] = useState(false);
+
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
   const pausedDurationRef = useRef<number>(0);
@@ -98,6 +123,7 @@ export default function RecordingModal({
 
   const router = useRouter();
   const entitlements = useAccountStore((state) => state.entitlements);
+  const usageCounters = useAccountStore((state) => state.usageCounters);
 
   const selectRecording = useCallback((rec: SavedRecording) => {
     setSelectedRecording(rec);
@@ -106,60 +132,168 @@ export default function RecordingModal({
       transcript: rec.transcript,
       segments:
         rec.segments ||
-        rec.transcript.split('\n').map((t: string, i: number) => ({
-          speaker: (i % rec.speakers) + 1,
-          text: t,
-        })),
+        (rec.transcript
+          ? rec.transcript.split('\n').map((t: string, i: number) => ({
+              speaker: (i % rec.speakers) + 1,
+              text: t,
+            }))
+          : []),
       speakers: rec.speakers,
       diarizationMethod: rec.diarizationMethod,
     });
     setAudioUrl(rec.audioUrl);
     setSummary(rec.summary || '');
+    setMeetingType(rec.meetingType || '');
+    setTags(Array.isArray(rec.tags) ? rec.tags : []);
+    setEditedTitle(rec.title || '');
     setIsNewRecording(false);
     setActiveTab('details');
   }, []);
 
-  // Load saved recordings from localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('voiceRecordings');
-    if (stored) {
-      try {
-        const parsedRecordings = JSON.parse(stored);
-        setRecordings(parsedRecordings);
+  // Fetch recordings from database
+  const fetchRecordings = useCallback(async () => {
+    setIsLoadingRecordings(true);
+    try {
+      const res = await fetch('/api/voice/recordings');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
 
-        // Auto-select recording if selectedRecordingId is provided
-        if (selectedRecordingId) {
-          const recordingToSelect = parsedRecordings.find(
-            (rec: SavedRecording) => rec.id === selectedRecordingId,
-          );
-          if (recordingToSelect) {
-            selectRecording(recordingToSelect);
-          }
-        }
-      } catch (_) {
-        /* ignore */
+      const transformed: SavedRecording[] = (data.recordings || []).map(
+        (item: any) => {
+          const hasError = item.transcript?.content?.startsWith('ERROR:');
+          return {
+            id: item.recording.id,
+            createdAt: new Date(item.recording.createdAt).getTime(),
+            audioUrl: item.recording.audioUrl,
+            transcript: hasError
+              ? ''
+              : item.transcript?.fullTranscript ||
+                item.transcript?.content ||
+                '',
+            speakers: item.transcript?.speakerCount || 1,
+            segments: hasError ? [] : item.transcript?.segments || [],
+            duration: item.recording.duration || 0,
+            summary: item.transcript?.summary || '',
+            diarizationMethod:
+              item.transcript?.speakerCount > 1 ? 'assemblyai' : 'basic',
+            meetingType: item.recording.meetingType,
+            tags: Array.isArray(item.recording.tags) ? item.recording.tags : [],
+            title: item.recording.title,
+            hasError,
+            errorMessage: hasError
+              ? item.transcript.content.replace('ERROR:', '')
+              : undefined,
+          };
+        },
+      );
+
+      setRecordings(transformed);
+
+      if (selectedRecordingId) {
+        const rec = transformed.find((r) => r.id === selectedRecordingId);
+        if (rec) selectRecording(rec);
       }
+    } catch (error) {
+      console.error('Failed to fetch recordings:', error);
+      toast.error('Failed to load recordings');
+    } finally {
+      setIsLoadingRecordings(false);
     }
   }, [selectedRecordingId, selectRecording]);
+
+  useEffect(() => {
+    if (isOpen) fetchRecordings();
+  }, [isOpen, fetchRecordings]);
 
   const saveRecordingLocally = (rec: SavedRecording) => {
     const updated = [rec, ...recordings.filter((r) => r.id !== rec.id)];
     setRecordings(updated);
-    localStorage.setItem('voiceRecordings', JSON.stringify(updated));
   };
 
-  const deleteRecording = (id: string) => {
-    const updated = recordings.filter((r) => r.id !== id);
-    setRecordings(updated);
-    localStorage.setItem('voiceRecordings', JSON.stringify(updated));
-    if (selectedRecording?.id === id) {
-      setSelectedRecording(null);
-      setAnalysisResult(null);
-      setAudioUrl(null);
-      setSummary('');
-      setActiveTab('record');
+  const deleteRecording = async (id: string) => {
+    try {
+      const res = await fetch(`/api/voice/recordings/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed');
+
+      const updated = recordings.filter((r) => r.id !== id);
+      setRecordings(updated);
+
+      if (selectedRecording?.id === id) {
+        setSelectedRecording(null);
+        setAnalysisResult(null);
+        setAudioUrl(null);
+        setSummary('');
+        setActiveTab('record');
+      }
+
+      toast.success('Recording deleted');
+    } catch (error) {
+      toast.error('Failed to delete recording');
     }
+  };
+
+  // Update recording metadata
+  const updateRecording = async (updates: {
+    title?: string;
+    meetingType?: string;
+    tags?: string[];
+  }) => {
+    if (!selectedRecording) return;
+
+    try {
+      const res = await fetch(`/api/voice/recordings/${selectedRecording.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (!res.ok) throw new Error('Failed to update');
+
+      setSelectedRecording((prev) => (prev ? { ...prev, ...updates } : prev));
+      await fetchRecordings();
+      toast.success('Updated');
+    } catch (error) {
+      toast.error('Failed to update');
+    }
+  };
+
+  // Tag management
+  const addTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      const newTags = [...tags, trimmed];
+      setTags(newTags);
+      updateRecording({ tags: newTags });
+      setTagInput('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    const newTags = tags.filter((t) => t !== tag);
+    setTags(newTags);
+    updateRecording({ tags: newTags });
+  };
+
+  // Title editing
+  const saveTitle = () => {
+    if (editedTitle.trim()) {
+      updateRecording({ title: editedTitle.trim() });
+      setIsEditingTitle(false);
+    }
+  };
+
+  // Download audio
+  const downloadAudio = () => {
+    if (!selectedRecording) return;
+    const link = document.createElement('a');
+    link.href = selectedRecording.audioUrl;
+    const filename = `${meetingType || 'recording'}-${new Date(selectedRecording.createdAt).toISOString().split('T')[0]}.webm`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const startNewRecording = () => {
@@ -168,6 +302,11 @@ export default function RecordingModal({
     setAnalysisResult(null);
     setAudioUrl(null);
     setSummary('');
+    setMeetingType('');
+    setTags([]);
+    setTagInput('');
+    setEditedTitle('');
+    setIsEditingTitle(false);
     setRecordingMode('idle');
     setIsNewRecording(true);
     setActiveTab('record');
@@ -251,67 +390,37 @@ export default function RecordingModal({
 
     setIsAnalyzing(true);
     const blob = await fetch(audioUrl).then((r) => r.blob());
-    const formData = new FormData();
-    formData.append('file', blob, 'recording.webm');
 
     try {
-      const res = await fetch('/api/voice/recordings/analyze', {
+      // Upload to database with metadata
+      const uploadForm = new FormData();
+      uploadForm.append('audio', blob, 'recording.webm');
+      uploadForm.append(
+        'title',
+        meetingType ? `${meetingType} Meeting` : 'New Recording',
+      );
+      uploadForm.append('duration', recordingDuration.toString());
+      if (meetingType) uploadForm.append('meetingType', meetingType);
+      if (tags.length > 0) uploadForm.append('tags', JSON.stringify(tags));
+
+      const uploadRes = await fetch('/api/voice/recordings', {
         method: 'POST',
-        body: formData,
+        body: uploadForm,
       });
-      if (!res.ok) throw new Error('Analysis failed');
-      const data = await res.json();
 
-      // Generate summary
-      setIsGeneratingSummary(true);
-      try {
-        const summaryRes = await fetch(
-          '/api/voice/recordings/generate-summary',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              transcript: data.transcript,
-              speakers: data.speakers,
-              segments: data.segments,
-            }),
-          },
-        );
-
-        if (summaryRes.ok) {
-          const summaryData = await summaryRes.json();
-          setSummary(summaryData.summary);
-          data.summary = summaryData.summary;
-        }
-      } catch (err) {
-        console.error('Failed to generate summary:', err);
-      } finally {
-        setIsGeneratingSummary(false);
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        throw new Error(err.error || 'Upload failed');
       }
 
-      setAnalysisResult(data);
+      toast.success('Recording saved! Processing transcript...');
 
-      // Save recording with all data
-      const newRecording = {
-        id: data.id,
-        createdAt: Date.now(),
-        audioUrl: audioUrl,
-        transcript: data.transcript,
-        speakers: data.speakers,
-        segments: data.segments,
-        duration: recordingDuration,
-        summary: data.summary || '',
-        diarizationMethod: data.diarizationMethod,
-      };
-      saveRecordingLocally(newRecording);
-      setSelectedRecording(newRecording);
-      setIsNewRecording(false);
-      setActiveTab('details');
-
-      toast.success('Recording saved and analyzed');
+      // Refresh and close
+      await fetchRecordings();
+      setIsAnalyzing(false);
+      onClose();
     } catch (err: any) {
-      toast.error(err.message);
-    } finally {
+      toast.error(err.message || 'Failed to save recording');
       setIsAnalyzing(false);
     }
   };
@@ -450,8 +559,8 @@ export default function RecordingModal({
         <div className="flex flex-1 min-h-0">
           {/* Sidebar */}
           <aside className="w-80 border-r bg-muted/30 flex flex-col">
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between mb-3">
+            <div className="p-4 border-b space-y-3">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileAudio className="h-5 w-5 text-primary" />
                   <div>
@@ -461,7 +570,55 @@ export default function RecordingModal({
                     </p>
                   </div>
                 </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => fetchRecordings()}
+                  disabled={isLoadingRecordings}
+                  className="h-8 w-8"
+                  title="Refresh"
+                >
+                  <RefreshCw
+                    className={cn(
+                      'h-4 w-4',
+                      isLoadingRecordings && 'animate-spin',
+                    )}
+                  />
+                </Button>
               </div>
+
+              {/* Usage Meter */}
+              {entitlements?.features.recordings.enabled && usageCounters && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Minutes used</span>
+                    <span className="font-medium">
+                      {usageCounters.asr_minutes_month} /{' '}
+                      {entitlements.features.recordings.minutes_month}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full transition-all',
+                        usageCounters.asr_minutes_month /
+                          entitlements.features.recordings.minutes_month >
+                          0.9
+                          ? 'bg-red-500'
+                          : usageCounters.asr_minutes_month /
+                                entitlements.features.recordings.minutes_month >
+                              0.7
+                            ? 'bg-yellow-500'
+                            : 'bg-primary',
+                      )}
+                      style={{
+                        width: `${Math.min(100, (usageCounters.asr_minutes_month / entitlements.features.recordings.minutes_month) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <Gate
                 feature="recordings"
                 mode="soft"
@@ -507,12 +664,20 @@ export default function RecordingModal({
                   {recordings.map((rec) => (
                     <div
                       key={rec.id}
+                      role="button"
+                      tabIndex={0}
                       className={cn(
                         'p-3 rounded-lg border cursor-pointer transition-all hover:bg-accent',
                         selectedRecording?.id === rec.id &&
                           'bg-accent border-primary',
                       )}
                       onClick={() => selectRecording(rec)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          selectRecording(rec);
+                        }
+                      }}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
@@ -547,7 +712,7 @@ export default function RecordingModal({
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge
                           variant="secondary"
                           className="text-xs px-2 py-0"
@@ -555,12 +720,32 @@ export default function RecordingModal({
                           <Users className="h-3 w-3 mr-1" />
                           {rec.speakers}
                         </Badge>
-                        {rec.summary && (
+                        {rec.meetingType && (
                           <Badge
                             variant="outline"
                             className="text-xs px-2 py-0"
                           >
-                            Summary
+                            {rec.meetingType}
+                          </Badge>
+                        )}
+                        {rec.hasError ? (
+                          <Badge
+                            variant="destructive"
+                            className="text-xs px-2 py-0"
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Error
+                          </Badge>
+                        ) : rec.transcript ? (
+                          <Badge className="text-xs px-2 py-0 bg-green-600">
+                            Transcribed
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs px-2 py-0 animate-pulse"
+                          >
+                            Processing
                           </Badge>
                         )}
                       </div>
@@ -615,6 +800,88 @@ export default function RecordingModal({
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                      {/* Meeting Type & Tags - Show when idle or completed */}
+                      {(recordingMode === 'idle' ||
+                        recordingMode === 'completed') && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-sm font-medium mb-2">
+                              Meeting Type
+                            </div>
+                            <Select
+                              value={meetingType}
+                              onValueChange={setMeetingType}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select type..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="L10">L10 Meeting</SelectItem>
+                                <SelectItem value="Quarterly">
+                                  Quarterly Planning
+                                </SelectItem>
+                                <SelectItem value="Annual">
+                                  Annual Planning
+                                </SelectItem>
+                                <SelectItem value="StateOfCompany">
+                                  State of the Company
+                                </SelectItem>
+                                <SelectItem value="General">
+                                  General Meeting
+                                </SelectItem>
+                                <SelectItem value="OneOnOne">
+                                  One-on-One
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium mb-2">Tags</div>
+                            <div className="flex gap-2">
+                              <Input
+                                value={tagInput}
+                                onChange={(e) => setTagInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    addTag();
+                                  }
+                                }}
+                                placeholder="Add tag..."
+                              />
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={addTag}
+                                disabled={!tagInput.trim()}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {tags.map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {tag}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeTag(tag)}
+                                      className="ml-1 hover:text-destructive"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {audioUrl && recordingMode === 'completed' && (
                         <div className="bg-muted rounded-lg p-4">
                           <audio controls src={audioUrl} className="w-full" />
@@ -753,6 +1020,216 @@ export default function RecordingModal({
                     <div className="h-full flex flex-col p-6">
                       {/* Fixed Header Section */}
                       <div className="flex-shrink-0 space-y-4 pb-6">
+                        {/* Title Editing */}
+                        <div className="flex items-center gap-2">
+                          {isEditingTitle ? (
+                            <>
+                              <Input
+                                value={editedTitle}
+                                onChange={(e) => setEditedTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveTitle();
+                                  if (e.key === 'Escape')
+                                    setIsEditingTitle(false);
+                                }}
+                                className="flex-1"
+                                autoFocus
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={saveTitle}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setIsEditingTitle(false)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <h2 className="text-lg font-semibold flex-1">
+                                {selectedRecording.title ||
+                                  'Untitled Recording'}
+                              </h2>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditedTitle(selectedRecording.title || '');
+                                  setIsEditingTitle(true);
+                                }}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Meeting Type & Tags Editing */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-sm font-medium mb-2">
+                              Meeting Type
+                            </div>
+                            <Select
+                              value={meetingType}
+                              onValueChange={(value) => {
+                                setMeetingType(value);
+                                updateRecording({ meetingType: value });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select type..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="L10">L10 Meeting</SelectItem>
+                                <SelectItem value="Quarterly">
+                                  Quarterly Planning
+                                </SelectItem>
+                                <SelectItem value="Annual">
+                                  Annual Planning
+                                </SelectItem>
+                                <SelectItem value="StateOfCompany">
+                                  State of the Company
+                                </SelectItem>
+                                <SelectItem value="General">
+                                  General Meeting
+                                </SelectItem>
+                                <SelectItem value="OneOnOne">
+                                  One-on-One
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium mb-2">Tags</div>
+                            <div className="flex gap-2">
+                              <Input
+                                value={tagInput}
+                                onChange={(e) => setTagInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    addTag();
+                                  }
+                                }}
+                                placeholder="Add tag..."
+                              />
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={addTag}
+                                disabled={!tagInput.trim()}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {tags.map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {tag}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeTag(tag)}
+                                      className="ml-1 hover:text-destructive"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Error State with Retry */}
+                        {selectedRecording.hasError && (
+                          <div className="rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950/20 p-4">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-red-900 dark:text-red-200 mb-1">
+                                  Transcription Failed
+                                </h4>
+                                <p className="text-sm text-red-800 dark:text-red-300 mb-3">
+                                  {selectedRecording.errorMessage ||
+                                    'An error occurred during transcription'}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(
+                                        '/api/voice/recordings/transcribe',
+                                        {
+                                          method: 'POST',
+                                          headers: {
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: JSON.stringify({
+                                            recordingId: selectedRecording.id,
+                                          }),
+                                        },
+                                      );
+                                      if (!res.ok)
+                                        throw new Error('Retry failed');
+                                      toast.success(
+                                        'Retrying transcription...',
+                                      );
+                                      setTimeout(() => fetchRecordings(), 3000);
+                                    } catch {
+                                      toast.error('Failed to retry');
+                                    }
+                                  }}
+                                  className="gap-2"
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                  Retry Transcription
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Processing State */}
+                        {!selectedRecording.transcript &&
+                          !selectedRecording.hasError && (
+                            <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
+                              <div className="flex items-center gap-3">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                <div>
+                                  <h4 className="font-semibold mb-1">
+                                    Processing Transcription
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    This usually takes 1-2 minutes. Refresh to
+                                    check progress.
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => fetchRecordings()}
+                                  className="ml-auto gap-2"
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                  Refresh
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
                         <div className="bg-muted rounded-lg p-4">
                           <audio
                             controls
@@ -819,11 +1296,13 @@ export default function RecordingModal({
 
                       {/* Fixed Footer Section */}
                       <div className="flex-shrink-0 pt-4 border-t">
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                           <Button
                             onClick={handleSendToChat}
                             className="gap-2 flex-1"
-                            disabled={isSendingToChat}
+                            disabled={
+                              isSendingToChat || !selectedRecording.transcript
+                            }
                             size="lg"
                           >
                             {isSendingToChat ? (
@@ -831,7 +1310,17 @@ export default function RecordingModal({
                             ) : (
                               <Wand2 className="h-5 w-5" />
                             )}
-                            Analyze with EOS AI
+                            Analyze
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            onClick={downloadAudio}
+                            className="gap-2"
+                          >
+                            <Download className="h-5 w-5" />
+                            Audio
                           </Button>
 
                           <Button
@@ -851,9 +1340,10 @@ export default function RecordingModal({
                               a.click();
                             }}
                             className="gap-2"
+                            disabled={!selectedRecording.transcript}
                           >
                             <Download className="h-5 w-5" />
-                            Export
+                            Text
                           </Button>
 
                           <Button
@@ -863,7 +1353,7 @@ export default function RecordingModal({
                             className="gap-2"
                           >
                             <Calendar className="h-5 w-5" />
-                            Schedule follow-up
+                            Follow-up
                           </Button>
                         </div>
                       </div>

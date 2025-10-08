@@ -203,7 +203,12 @@ export function SavedContentDropdown({
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 flex items-center gap-2 px-3 text-sm border border-zinc-200 dark:border-zinc-700 !bg-zinc-50 dark:!bg-zinc-800 hover:!bg-zinc-100 dark:hover:!bg-zinc-700"
+          className="h-9 flex items-center gap-2 px-3 text-sm backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
+          style={{
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow:
+              'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+          }}
         >
           <Archive className="h-4 w-4" />
           <span>Saved Content</span>
@@ -221,8 +226,10 @@ export function SavedContentDropdown({
 
       <DropdownMenuContent
         align="end"
-        className="w-[90vw] max-w-[380px] p-0 animate-in fade-in-0 zoom-in-95 duration-200"
+        className="w-[90vw] max-w-[380px] p-0 animate-in fade-in-0 zoom-in-95 duration-200 max-h-[500px] overflow-y-auto"
         onCloseAutoFocus={(e) => e.preventDefault()}
+        avoidCollisions={true}
+        collisionPadding={{ top: 8, right: 8, bottom: 80, left: 8 }}
       >
         <div className="p-4 pb-2">
           <div className="flex items-center justify-between mb-3">

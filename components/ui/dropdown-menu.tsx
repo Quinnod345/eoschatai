@@ -2,10 +2,46 @@
 
 import * as React from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronRight, Circle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+
+// Animation variants for dropdown content
+const dropdownContentVariants = {
+  closed: {
+    opacity: 0,
+    scale: 0.95,
+    y: -8,
+    transition: {
+      duration: 0.15,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+  open: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      duration: 0.2,
+      ease: [0, 0, 0.2, 1],
+      staggerChildren: 0.02,
+    },
+  },
+};
+
+// Animation variants for individual items
+const itemVariants = {
+  closed: { opacity: 0, x: -4 },
+  open: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.15,
+      ease: [0, 0, 0.2, 1],
+    },
+  },
+};
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -24,20 +60,35 @@ const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean;
   }
->(({ className, inset, children, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubTrigger
-    ref={ref}
-    className={cn(
-      'flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
-      inset && 'pl-8',
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <ChevronRight className="ml-auto" />
-  </DropdownMenuPrimitive.SubTrigger>
-));
+>(({ className, inset, children, ...props }, ref) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      ref={ref}
+      className={cn(
+        'flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-all duration-200 ease-out',
+        'hover:bg-accent hover:pl-3 hover:shadow-sm',
+        'focus:bg-accent data-[state=open]:bg-accent data-[state=open]:pl-3 data-[state=open]:shadow-sm',
+        '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+        inset && 'pl-8',
+        className,
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      {...props}
+    >
+      {children}
+      <motion.div
+        animate={{ x: isHovered ? 2 : 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="ml-auto"
+      >
+        <ChevronRight />
+      </motion.div>
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+});
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName;
 
@@ -62,25 +113,34 @@ const DropdownMenuContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 4, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md menu-solid',
-        className,
-      )}
-      {...props}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98, y: -4 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: -4 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 26 }}
-        className="contents"
+    <AnimatePresence>
+      <DropdownMenuPrimitive.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        className={cn(
+          'z-[150] min-w-[8rem] max-h-[400px] overflow-y-auto rounded-lg border border-white/30 dark:border-zinc-700/30 p-1 text-popover-foreground',
+          'backdrop-filter backdrop-blur-[16px]',
+          'bg-white/30 dark:bg-zinc-900/30',
+          className,
+        )}
+        style={{
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow:
+            'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+        }}
+        {...props}
       >
-        {children}
-      </motion.div>
-    </DropdownMenuPrimitive.Content>
+        <motion.div
+          initial="closed"
+          animate="open"
+          exit="closed"
+          variants={dropdownContentVariants}
+          className="contents"
+        >
+          {children}
+        </motion.div>
+      </DropdownMenuPrimitive.Content>
+    </AnimatePresence>
   </DropdownMenuPrimitive.Portal>
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
@@ -90,63 +150,124 @@ const DropdownMenuItem = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean;
   }
->(({ className, inset, ...props }, ref) => (
-  <DropdownMenuPrimitive.Item
-    ref={ref}
-    className={cn(
-      'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
-      inset && 'pl-8',
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, inset, ...props }, ref) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  return (
+    <motion.div variants={itemVariants}>
+      <DropdownMenuPrimitive.Item
+        ref={ref}
+        className={cn(
+          'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none',
+          'transition-all duration-200 ease-out',
+          'hover:bg-accent hover:text-accent-foreground hover:pl-3 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-accent focus:text-accent-foreground focus:pl-3 focus:shadow-sm',
+          'active:scale-[0.98]',
+          'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+          '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-200',
+          isHovered && '[&_svg]:scale-110',
+          inset && 'pl-8',
+          className,
+        )}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        {...props}
+      />
+    </motion.div>
+  );
+});
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
->(({ className, children, checked, ...props }, ref) => (
-  <DropdownMenuPrimitive.CheckboxItem
-    ref={ref}
-    className={cn(
-      'relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      className,
-    )}
-    checked={checked}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
-    {children}
-  </DropdownMenuPrimitive.CheckboxItem>
-));
+>(({ className, children, checked, ...props }, ref) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  return (
+    <motion.div variants={itemVariants}>
+      <DropdownMenuPrimitive.CheckboxItem
+        ref={ref}
+        className={cn(
+          'relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none',
+          'transition-all duration-200 ease-out',
+          'hover:bg-accent hover:text-accent-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-accent focus:text-accent-foreground focus:pl-9 focus:shadow-sm',
+          'active:scale-[0.98]',
+          'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+          className,
+        )}
+        checked={checked}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        {...props}
+      >
+        <motion.span
+          className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center"
+          animate={{ scale: isHovered ? 1.1 : 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          <DropdownMenuPrimitive.ItemIndicator>
+            <motion.div
+              initial={{ scale: 0, rotate: -90 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            >
+              <Check className="h-4 w-4" />
+            </motion.div>
+          </DropdownMenuPrimitive.ItemIndicator>
+        </motion.span>
+        {children}
+      </DropdownMenuPrimitive.CheckboxItem>
+    </motion.div>
+  );
+});
 DropdownMenuCheckboxItem.displayName =
   DropdownMenuPrimitive.CheckboxItem.displayName;
 
 const DropdownMenuRadioItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
->(({ className, children, ...props }, ref) => (
-  <DropdownMenuPrimitive.RadioItem
-    ref={ref}
-    className={cn(
-      'relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      className,
-    )}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
-    {children}
-  </DropdownMenuPrimitive.RadioItem>
-));
+>(({ className, children, ...props }, ref) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  return (
+    <motion.div variants={itemVariants}>
+      <DropdownMenuPrimitive.RadioItem
+        ref={ref}
+        className={cn(
+          'relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none',
+          'transition-all duration-200 ease-out',
+          'hover:bg-accent hover:text-accent-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-accent focus:text-accent-foreground focus:pl-9 focus:shadow-sm',
+          'active:scale-[0.98]',
+          'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+          className,
+        )}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        {...props}
+      >
+        <motion.span
+          className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center"
+          animate={{ scale: isHovered ? 1.1 : 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          <DropdownMenuPrimitive.ItemIndicator>
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            >
+              <Circle className="h-2 w-2 fill-current" />
+            </motion.div>
+          </DropdownMenuPrimitive.ItemIndicator>
+        </motion.span>
+        {children}
+      </DropdownMenuPrimitive.RadioItem>
+    </motion.div>
+  );
+});
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
 
 const DropdownMenuLabel = React.forwardRef<

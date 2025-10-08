@@ -144,7 +144,11 @@ async function decideModelWithNano(args: {
   inputCharacterCount?: number;
   mode?: 'nexus' | 'standard';
   hasComposerOpen?: boolean;
-}): Promise<{ model: 'gpt-4.1' | 'gpt-5'; maxTokens: number }> {
+}): Promise<{
+  model: 'gpt-4.1' | 'gpt-5';
+  maxTokens: number;
+  reasoningEffort?: 'low' | 'medium' | 'high';
+}> {
   const {
     provider,
     queryText,
@@ -195,6 +199,11 @@ INPUT LENGTH CONSIDERATIONS:
 - Character count > 20000: Automatic GPT-5
 - Very long inputs often contain complex context requiring deeper reasoning
 
+REASONING EFFORT (when GPT-5 is selected):
+- Use "low" for: moderate complexity queries, summaries, standard analysis
+- Use "medium" for: multi-step reasoning, critique, comparative analysis, complex code review
+- Use "high" for: extreme complexity, multi-faceted analysis, research synthesis, hidden insight discovery, academic rigor, philosophical analysis, strategic planning
+
 TOKEN BUDGET TIERS (choose one range, then pick a value inside it):
 - Minimal: 400–800
 - Light: 800–1500
@@ -222,7 +231,9 @@ MODE CONTEXT:
 - composer_open: ${hasComposerOpen}
 If mode is nexus, allow even higher budgets. If an composer is open, still return a single budget for the chat model.
 
-Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000>}. No commentary.`,
+Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000>,"reasoning_effort":"low"|"medium"|"high"}. 
+If model is gpt-4.1, reasoning_effort must be "low" (ignored for GPT-4.1). 
+If model is gpt-5, choose appropriate reasoning_effort based on complexity. No commentary.`,
     prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}`,
     maxTokens: 128,
     temperature: 0,
@@ -231,11 +242,16 @@ Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000
   const parsed = JSON.parse(cleaned);
   const model = parsed.model === 'gpt-5' ? 'gpt-5' : 'gpt-4.1';
   const maxTokens = Number(parsed.max_tokens);
+  const reasoningEffort = parsed.reasoning_effort || 'low';
   if (!Number.isFinite(maxTokens)) {
     throw new Error('Nano preflight returned invalid max_tokens');
   }
-  console.log('[PREFLIGHT] Decision', { model, maxTokens });
-  return { model, maxTokens: Math.max(200, Math.floor(maxTokens)) };
+  console.log('[PREFLIGHT] Decision', { model, maxTokens, reasoningEffort });
+  return {
+    model,
+    maxTokens: Math.max(200, Math.floor(maxTokens)),
+    reasoningEffort: model === 'gpt-5' ? reasoningEffort : undefined,
+  };
 }
 
 export async function POST(request: Request) {
@@ -1456,6 +1472,8 @@ Always prioritize the user's document content over generic information. If speci
         const providerForDecision = createCustomProvider(selectedProvider);
         let preflightModel: 'gpt-4.1' | 'gpt-5' = 'gpt-4.1';
         let preflightMaxTokens = 2000;
+        let preflightReasoningEffort: 'low' | 'medium' | 'high' | undefined =
+          undefined;
         // Remove preflight entirely when in Nexus mode
         if (!isNexusMode) {
           try {
@@ -1472,6 +1490,7 @@ Always prioritize the user's document content over generic information. If speci
             });
             preflightModel = decision.model;
             preflightMaxTokens = decision.maxTokens;
+            preflightReasoningEffort = decision.reasoningEffort;
           } catch (e) {
             console.warn(
               'Preflight decision failed, falling back to defaults',
@@ -1862,7 +1881,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               temperature,
               hasNexusResearch: !!nexusResearchContext,
               systemPromptLength: finalSystemPrompt.length,
-              isUsingO4Mini: isNexusMode,
+              reasoningEffort: preflightReasoningEffort || 'none',
             },
           );
 
@@ -1888,6 +1907,16 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               // Dynamic settings based on Nexus mode
               temperature: temperature, // Use the variable we defined
               maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
+              // Add reasoning effort for GPT-5
+              ...(finalChatModel === 'gpt-5' && preflightReasoningEffort
+                ? {
+                    experimental_providerMetadata: {
+                      openai: {
+                        reasoningEffort: preflightReasoningEffort,
+                      },
+                    },
+                  }
+                : {}),
               tools: {
                 getWeather,
                 createDocument: createDocument({
@@ -2616,9 +2645,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
           confidence: z.number().min(0).max(100).optional(),
         });
         const result = await generateObject({
-          model: (await import('@ai-sdk/openai')).openai('gpt-4o-mini'),
+          model: (await import('@ai-sdk/openai')).openai('gpt-5-mini'),
           schema,
-          temperature: 0.2,
           system:
             'Decide if the user is asking to store a useful long-term memory. Prefer not saving unless it is a clear, stable preference, profile fact, company detail, or reusable knowledge. Return conservative confidence.',
           prompt: `User message: ${queryText}\nRespond with fields.`,

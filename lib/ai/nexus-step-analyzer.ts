@@ -64,9 +64,8 @@ Focus on extracting actionable insights and practical information.`;
 
   try {
     const result = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5-mini'),
       prompt,
-      temperature: 0.3,
       maxTokens: 1000,
     });
 

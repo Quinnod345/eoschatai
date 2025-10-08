@@ -1,11 +1,17 @@
+'use client';
+
 import { memo } from 'react';
 import { CrossIcon } from './icons';
 import { Button } from './ui/button';
 import { initialComposerData, useComposer } from '@/hooks/use-composer';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-function PureComposerCloseButton() {
-  const { setComposer } = useComposer();
+interface PureComposerCloseButtonProps {
+  stop?: () => void;
+}
+
+function PureComposerCloseButton({ stop }: PureComposerCloseButtonProps) {
+  const { composer, setComposer } = useComposer();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -15,10 +21,20 @@ function PureComposerCloseButton() {
       variant="outline"
       className="h-fit p-2 dark:hover:bg-zinc-700"
       onClick={() => {
+        // If composer is streaming, abort the stream first
+        if (composer.status === 'streaming' && stop) {
+          console.log('[Composer Close] Aborting active stream');
+          stop();
+        }
+
         setComposer((currentComposer) => {
           const next =
             currentComposer.status === 'streaming'
-              ? { ...currentComposer, isVisible: false }
+              ? {
+                  ...currentComposer,
+                  isVisible: false,
+                  status: 'idle' as const,
+                }
               : { ...initialComposerData, status: 'idle' as const };
           return next;
         });

@@ -485,10 +485,10 @@
 }
 
 /* Make chat header transparent on new chat */
-body.has-chat-mesh header.sticky.top-0.bg-background,
-body.has-chat-mesh header.sticky.top-0,
-body.has-chat-mesh .sticky.top-0.bg-background,
-body.has-chat-mesh .sticky.top-0 {
+body.has-chat-mesh header.sticky.top-0.bg-background:not(.no-mesh-override),
+body.has-chat-mesh header.sticky.top-0:not(.no-mesh-override),
+body.has-chat-mesh .sticky.top-0.bg-background:not(.no-mesh-override),
+body.has-chat-mesh .sticky.top-0:not(.no-mesh-override) {
     background: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -497,11 +497,11 @@ body.has-chat-mesh .sticky.top-0 {
 }
 
 /* Liquid glass UI for toolbar buttons and elements */
-body.has-chat-mesh header button,
-body.has-chat-mesh header [role="button"],
-body.has-chat-mesh header .rounded-md,
-body.has-chat-mesh header .rounded-lg,
-body.has-chat-mesh header .rounded-xl {
+body.has-chat-mesh header:not(.no-mesh-override) button,
+body.has-chat-mesh header:not(.no-mesh-override) [role="button"],
+body.has-chat-mesh header:not(.no-mesh-override) .rounded-md,
+body.has-chat-mesh header:not(.no-mesh-override) .rounded-lg,
+body.has-chat-mesh header:not(.no-mesh-override) .rounded-xl {
     background: rgba(255, 255, 255, 0.8) !important;
     backdrop-filter: blur(12px) saturate(1.5);
     -webkit-backdrop-filter: blur(12px) saturate(1.5);
@@ -515,11 +515,11 @@ body.has-chat-mesh header .rounded-xl {
 }
 
 /* Dark mode support for liquid glass UI */
-.dark body.has-chat-mesh header button,
-.dark body.has-chat-mesh header [role="button"],
-.dark body.has-chat-mesh header .rounded-md,
-.dark body.has-chat-mesh header .rounded-lg,
-.dark body.has-chat-mesh header .rounded-xl {
+.dark body.has-chat-mesh header:not(.no-mesh-override) button,
+.dark body.has-chat-mesh header:not(.no-mesh-override) [role="button"],
+.dark body.has-chat-mesh header:not(.no-mesh-override) .rounded-md,
+.dark body.has-chat-mesh header:not(.no-mesh-override) .rounded-lg,
+.dark body.has-chat-mesh header:not(.no-mesh-override) .rounded-xl {
     background: rgba(39, 39, 42, 0.8) !important; /* zinc-800 with opacity */
     border: 1px solid rgba(63, 63, 70, 0.5) !important; /* zinc-700 with opacity */
     box-shadow: 
@@ -528,10 +528,10 @@ body.has-chat-mesh header .rounded-xl {
 }
 
 /* Hover state with enhanced glow */
-body.has-chat-mesh header button:hover,
-body.has-chat-mesh header [role="button"]:hover,
-body.has-chat-mesh header .rounded-md:hover,
-body.has-chat-mesh header .rounded-lg:hover {
+body.has-chat-mesh header:not(.no-mesh-override) button:hover,
+body.has-chat-mesh header:not(.no-mesh-override) [role="button"]:hover,
+body.has-chat-mesh header:not(.no-mesh-override) .rounded-md:hover,
+body.has-chat-mesh header:not(.no-mesh-override) .rounded-lg:hover {
     background: rgba(255, 255, 255, 0.9) !important;
     box-shadow: 
         0 4px 12px rgba(0, 0, 0, 0.15),
@@ -541,10 +541,10 @@ body.has-chat-mesh header .rounded-lg:hover {
 }
 
 /* Dark mode hover state */
-.dark body.has-chat-mesh header button:hover,
-.dark body.has-chat-mesh header [role="button"]:hover,
-.dark body.has-chat-mesh header .rounded-md:hover,
-.dark body.has-chat-mesh header .rounded-lg:hover {
+.dark body.has-chat-mesh header:not(.no-mesh-override) button:hover,
+.dark body.has-chat-mesh header:not(.no-mesh-override) [role="button"]:hover,
+.dark body.has-chat-mesh header:not(.no-mesh-override) .rounded-md:hover,
+.dark body.has-chat-mesh header:not(.no-mesh-override) .rounded-lg:hover {
     background: rgba(63, 63, 70, 0.9) !important; /* zinc-700 with opacity */
     box-shadow: 
         0 4px 12px rgba(0, 0, 0, 0.4),
@@ -553,8 +553,8 @@ body.has-chat-mesh header .rounded-lg:hover {
 }
 
 /* Active/pressed state */
-body.has-chat-mesh header button:active,
-body.has-chat-mesh header [role="button"]:active {
+body.has-chat-mesh header:not(.no-mesh-override) button:active,
+body.has-chat-mesh header:not(.no-mesh-override) [role="button"]:active {
     transform: translateY(0);
     box-shadow: 
         0 1px 3px rgba(0, 0, 0, 0.1),
@@ -562,8 +562,8 @@ body.has-chat-mesh header [role="button"]:active {
 }
 
 /* Dark mode active state */
-.dark body.has-chat-mesh header button:active,
-.dark body.has-chat-mesh header [role="button"]:active {
+.dark body.has-chat-mesh header:not(.no-mesh-override) button:active,
+.dark body.has-chat-mesh header:not(.no-mesh-override) [role="button"]:active {
     box-shadow: 
         0 1px 3px rgba(0, 0, 0, 0.3),
         inset 0 1px 2px rgba(255, 255, 255, 0.05) !important;
@@ -578,7 +578,7 @@ body.has-chat-mesh .flex.flex-col.min-w-0.h-dvh {
 
 /* Remove any backgrounds from intermediate containers */
 body.has-chat-mesh main[class*="bg-background"],
-body.has-chat-mesh [class*="bg-white"] {
+body.has-chat-mesh main [class*="bg-white"] {
     background: transparent !important;
 }
 
@@ -594,7 +594,7 @@ body.has-chat-mesh header.sticky.top-0 {
 
 body.has-chat-mesh .eos-chat-mesh {
     margin-top: 0 !important;
-    padding-top: 1rem !important; /* Reduce from pt-4 */
+    padding-top: 8rem !important; /* Increased to push header farther down */
 }
 
 /* Dark mode support */
@@ -1294,6 +1294,23 @@ body.has-chat-mesh .eos-chat-mesh {
         --sidebar-accent-foreground: 0 0% 100%;
         --sidebar-border: 210 30% 85%;
         --sidebar-ring: 29 100% 50%;
+        
+        /* Centralized z-index values */
+        --z-base: 1;
+        --z-elevated: 10;
+        --z-sticky: 20;
+        --z-fixed: 30;
+        --z-sidebar: 40;
+        --z-dropdown: 50;
+        --z-popover: 50;
+        --z-select: 50;
+        --z-tooltip: 60;
+        --z-modal-overlay: 100;
+        --z-modal-content: 101;
+        --z-alert-overlay: 110;
+        --z-alert-content: 111;
+        --z-toast: 200;
+        --z-notification: 200;
     }
 
     .dark {
@@ -1358,10 +1375,32 @@ body.has-chat-mesh .eos-chat-mesh {
         content: "";
         position: absolute;
         inset: 0;
-        z-index: -1;
-        background: rgba(255, 118, 0, 0.1) !important;
+        z-index: 0;
+        background: linear-gradient(
+            135deg,
+            rgba(255, 118, 0, 0.12) 0%,
+            rgba(0, 46, 93, 0.08) 50%,
+            rgba(255, 118, 0, 0.1) 100%
+        );
+        backdrop-filter: blur(20px) saturate(150%);
+        -webkit-backdrop-filter: blur(20px) saturate(150%);
         border-radius: inherit;
         pointer-events: none;
+    }
+    
+    .dark .input-tint::before {
+        background: linear-gradient(
+            135deg,
+            rgba(255, 118, 0, 0.08) 0%,
+            rgba(0, 46, 93, 0.12) 50%,
+            rgba(255, 118, 0, 0.06) 100%
+        );
+    }
+    
+    /* Ensure textarea text is above the background */
+    .input-tint > textarea {
+        position: relative;
+        z-index: 1;
     }
 
     /* Enhanced interactive elements with animations */
@@ -2144,32 +2183,48 @@ main[data-sidebar="sidebar-content"] {
 }
 
 /* Fix z-index layering for Radix UI components */
+/* Using centralized z-index values from lib/z-index.ts */
+
 /* Base level - page content */
 body {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-base, 1);
 }
 
-/* Level 2 - Modal overlays */
+/* Modal overlays */
 [data-radix-dialog-overlay],
 [data-radix-alert-dialog-overlay] {
-  z-index: 50 !important;
+  z-index: var(--z-modal-overlay, 100);
 }
 
-/* Level 3 - Modal content */
-[data-radix-dialog-content],
+/* Modal content */
+[data-radix-dialog-content] {
+  z-index: var(--z-modal-content, 101);
+}
+
+/* Alert dialog content (higher than regular modals) */
 [data-radix-alert-dialog-content] {
-  z-index: 50 !important;
+  z-index: var(--z-alert-content, 111);
 }
 
-/* Level 4 - Dropdowns and select portals (highest) */
+/* Dropdowns, selects, and popovers */
 [data-radix-select-portal],
 [data-radix-select-content],
 [data-radix-dropdown-menu-portal],
-[data-radix-dropdown-menu-content],
+[data-radix-dropdown-menu-content] {
+  z-index: var(--z-dropdown, 50);
+}
+
+/* Popovers */
 [data-radix-popover-portal],
 [data-radix-popover-content] {
-  z-index: 51 !important;
+  z-index: var(--z-popover, 50);
+}
+
+/* Tooltips (should be above dropdowns) */
+[data-radix-tooltip-portal],
+[data-radix-tooltip-content] {
+  z-index: var(--z-tooltip, 60);
 }
 
 /* Ensure dropdown viewport is visible */
@@ -2319,13 +2374,9 @@ body {
   pointer-events: none; /* let the actual content handle events */
 }
 
-/* Light theme solid surfaces for menus/popovers implemented as role="menu" or known content classes */
+/* Light theme solid surfaces for menus/popovers - only for specific .menu-solid class */
 .menu-solid,
-[role="menu"].menu-solid,
-div[role="menu"],
-.radix-dropdown-menu,
-.radix-select-content,
-.radix-popover-content {
+[role="menu"].menu-solid {
   background: rgba(255,255,255,1) !important;
   background-color: rgba(255,255,255,1) !important;
   backdrop-filter: none !important;
@@ -2336,11 +2387,7 @@ div[role="menu"],
 
 /* Dark theme counterparts */
 .dark .menu-solid,
-.dark [role="menu"].menu-solid,
-.dark div[role="menu"],
-.dark .radix-dropdown-menu,
-.dark .radix-select-content,
-.dark .radix-popover-content {
+.dark [role="menu"].menu-solid {
   background: rgb(24 24 27 / 1) !important; /* zinc-900 */
   background-color: rgb(24 24 27 / 1) !important;
   backdrop-filter: none !important;
@@ -2349,11 +2396,8 @@ div[role="menu"],
   border: 1px solid rgba(255,255,255,.1) !important;
 }
 
-/* Ensure inner elements don't reintroduce blur */
-div[role="menu"] *,
-.radix-dropdown-menu *,
-.radix-select-content *,
-.radix-popover-content * {
+/* Ensure inner elements of solid menus don't reintroduce blur */
+.menu-solid * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

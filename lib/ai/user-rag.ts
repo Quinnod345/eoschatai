@@ -358,35 +358,54 @@ export const deleteUserDocument = async (
   try {
     console.log(`User RAG: Deleting document ${documentId} for user ${userId}`);
 
-    // Query for vectors belonging to this document
-    const documentVectors = await getUserRagClient().query({
-      vector: new Array(1536).fill(0), // Dummy vector
-      topK: 1000, // Should be enough for most documents
-      includeMetadata: true,
-      includeVectors: false,
-      filter: `documentId="${documentId}"`, // Filter by document ID if supported
-    });
+    // Use the user-specific namespace client
+    const namespaceClient = getUserRagClient().namespace(userId);
 
-    if (!documentVectors || documentVectors.length === 0) {
+    // Use range to list all vectors in the user's namespace
+    const vectorIds: string[] = [];
+    let cursor = '';
+
+    while (true) {
+      const rangeResult = await namespaceClient.range({
+        cursor,
+        limit: 1000,
+        includeMetadata: true,
+        includeVectors: false,
+      });
+
+      if (rangeResult.vectors) {
+        // Filter vectors that belong to this document
+        const documentVectorIds = rangeResult.vectors
+          .filter((v) => v.metadata?.documentId === documentId)
+          .map((v) => v.id);
+
+        vectorIds.push(...documentVectorIds);
+      }
+
+      if (!rangeResult.nextCursor) {
+        break;
+      }
+
+      cursor = rangeResult.nextCursor;
+    }
+
+    if (vectorIds.length === 0) {
       console.log(
         `User RAG: No vectors found for document ${documentId} of user ${userId}`,
       );
       return { deleted: 0 };
     }
 
-    // Filter vectors that match the document ID (in case filter isn't supported)
-    const matchingVectors = documentVectors.filter(
-      (v: any) => v.metadata?.documentId === documentId,
-    );
-
-    const vectorIds = matchingVectors.map((v: any) => v.id).filter(Boolean);
-
-    if (vectorIds.length > 0) {
-      await getUserRagClient().delete(vectorIds, { namespace: userId });
-      console.log(
-        `User RAG: Deleted ${vectorIds.length} vectors for document ${documentId} of user ${userId}`,
-      );
+    // Delete vectors in batches
+    const batchSize = 100;
+    for (let i = 0; i < vectorIds.length; i += batchSize) {
+      const batch = vectorIds.slice(i, i + batchSize);
+      await namespaceClient.delete(batch);
     }
+
+    console.log(
+      `User RAG: Deleted ${vectorIds.length} vectors for document ${documentId} of user ${userId}`,
+    );
 
     return { deleted: vectorIds.length };
   } catch (error) {

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { org as orgTable, user as userTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { validateInviteCode } from '@/lib/organizations/invite-codes';
 import { canAddUserToOrg } from '@/lib/organizations/seat-enforcement';
 
@@ -60,30 +60,95 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user can be added to the organization
-    const canAdd = await canAddUserToOrg(session.user.id, organization.id);
+    // Check if user has an individual Pro subscription (before transaction)
+    let hasRedundantSubscription = false;
+    if (existingUser?.stripeCustomerId && organization.plan !== 'free') {
+      try {
+        const { getStripeClient } = await import('@/lib/stripe/client');
+        const stripe = getStripeClient();
+        const { getUserSubscriptionDetails } = await import(
+          '@/lib/billing/subscription-utils'
+        );
 
-    if (!canAdd.allowed) {
-      return NextResponse.json(
-        { error: canAdd.reason || 'Cannot join organization' },
-        { status: 400 },
-      );
+        if (!stripe) {
+          console.warn('[join-org] Stripe client not available');
+        } else {
+          const subscriptionDetails = await getUserSubscriptionDetails(
+            existingUser.stripeCustomerId,
+            stripe,
+          );
+
+          // Warn if user has Pro subscription and is joining Business org
+          if (
+            subscriptionDetails.hasProSubscription &&
+            organization.plan === 'business'
+          ) {
+            hasRedundantSubscription = true;
+            console.log(
+              `[join-org] User ${session.user.id} has Pro subscription but joining Business org - subscription is now redundant`,
+            );
+          }
+        }
+      } catch (error) {
+        console.warn('[join-org] Failed to check user subscriptions:', error);
+      }
     }
 
-    // Update user to belong to this organization
-    await db
-      .update(userTable)
-      .set({ orgId: organization.id })
-      .where(eq(userTable.id, session.user.id));
+    // Use transaction to prevent race conditions
+    await db.transaction(async (tx) => {
+      // Re-verify user still doesn't have orgId (prevent double-join)
+      const [currentUser] = await tx
+        .select({ orgId: userTable.orgId })
+        .from(userTable)
+        .where(eq(userTable.id, session.user.id));
 
-    // Clear entitlements cache to force refresh with new org plan
+      if (currentUser?.orgId) {
+        throw new Error('You already belong to an organization');
+      }
+
+      // Re-verify organization still exists and has seats
+      const [org] = await tx
+        .select({
+          id: orgTable.id,
+          plan: orgTable.plan,
+          seatCount: orgTable.seatCount,
+          memberCount: sql<number>`(SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})`,
+        })
+        .from(orgTable)
+        .where(eq(orgTable.id, organization.id));
+
+      if (!org) {
+        throw new Error('Organization no longer exists');
+      }
+
+      if (Number(org.memberCount) >= org.seatCount) {
+        throw new Error('Organization has reached its seat limit');
+      }
+
+      // Update user to belong to this organization and sync plan (atomically)
+      await tx
+        .update(userTable)
+        .set({
+          orgId: org.id,
+          plan: org.plan, // Sync user plan to match org plan
+        })
+        .where(eq(userTable.id, session.user.id));
+    });
+
+    // Force recomputation and broadcast of entitlements with new org plan
     try {
-      const { invalidateUserEntitlementsCache } = await import(
-        '@/lib/entitlements'
-      );
+      const {
+        getUserEntitlements,
+        invalidateUserEntitlementsCache,
+        broadcastEntitlementsUpdated,
+      } = await import('@/lib/entitlements');
+
+      // CRITICAL: Invalidate cache FIRST to avoid serving stale data
       await invalidateUserEntitlementsCache(session.user.id);
+      await getUserEntitlements(session.user.id);
+      await broadcastEntitlementsUpdated(session.user.id);
     } catch (error) {
-      console.warn('[join-org] Failed to clear entitlements cache:', error);
+      console.warn('[join-org] Failed to update entitlements:', error);
     }
 
     return NextResponse.json({
@@ -92,6 +157,9 @@ export async function POST(request: NextRequest) {
         name: organization.name,
         plan: organization.plan,
       },
+      warning: hasRedundantSubscription
+        ? 'You have an active Pro subscription. Since this organization has a Business plan, your individual Pro subscription is now redundant. You may want to cancel it to avoid double billing.'
+        : undefined,
     });
   } catch (error) {
     console.error('Error joining organization:', error);

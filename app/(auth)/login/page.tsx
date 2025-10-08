@@ -76,7 +76,9 @@ function LoginForm() {
       updateSession();
 
       // Redirect to the appropriate path after successful login
-      window.location.href = redirectPath;
+      setTimeout(() => {
+        window.location.href = redirectPath;
+      }, 100); // Small delay to ensure session is updated
     }
   }, [state.status, redirectPath, router, updateSession]);
 
@@ -119,10 +121,7 @@ function LoginForm() {
           <h3 className="text-2xl font-semibold dark:text-zinc-50" style={{}}>
             Sign In
           </h3>
-          <p
-            className="text-sm text-gray-500 dark:text-zinc-400"
-            style={{}}
-          ></p>
+          <p className="text-sm text-gray-500 dark:text-zinc-400" style={{}} />
         </div>
         <div className="relative">
           <div className="pointer-events-none absolute -inset-12 opacity-40 blur-2xl eos-rotating-gradient" />
@@ -131,7 +130,15 @@ function LoginForm() {
             defaultEmail={email}
             callbackUrl={redirectPath}
           >
-            <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
+            <div className="flex flex-col gap-3">
+              <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
+              <Link
+                href="/forgot-password"
+                className="text-center text-sm text-gray-600 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-zinc-200 underline"
+              >
+                Forgot your password?
+              </Link>
+            </div>
             <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
               {"Don't have an account? "}
               <Link

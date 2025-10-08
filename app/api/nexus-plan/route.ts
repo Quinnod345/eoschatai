@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     // Generate the research plan using AI
     const researchPlan = await generateResearchPlan({
       userQuery: enrichedQuery,
-      model: model || 'gpt-4o-mini',
+      model: model || 'gpt-5-mini',
       domain: undefined,
       userIntent: undefined,
     });

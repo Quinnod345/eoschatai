@@ -16,7 +16,7 @@ import {
   resetUserPlanToFree,
 } from '@/lib/db/users';
 import { db } from '@/lib/db';
-import { webhookEvent } from '@/lib/db/schema';
+import { webhookEvent, user } from '@/lib/db/schema';
 import {
   broadcastEntitlementsUpdated,
   getUserEntitlements,
@@ -73,8 +73,9 @@ const recomputeEntitlementsForUsers = async (userIds: string[]) => {
 };
 
 const recomputeUserEntitlements = async (userId: string) => {
-  await getUserEntitlements(userId);
+  // CRITICAL: Invalidate cache FIRST, then fetch fresh entitlements
   await invalidateUserEntitlementsCache(userId);
+  await getUserEntitlements(userId); // This will recompute with new plan
   await broadcastEntitlementsUpdated(userId);
 };
 
@@ -96,11 +97,38 @@ export const createCheckoutSession = async (
     );
   }
 
+  // NEW: Check if org already has an active Stripe subscription
+  // This prevents creating duplicate subscriptions (e.g. both monthly and annual)
+  if (record.org?.stripeSubscriptionId && payload.plan === 'business') {
+    try {
+      const existingSub = await stripe.subscriptions.retrieve(
+        record.org.stripeSubscriptionId,
+      );
+
+      if (['active', 'trialing', 'past_due'].includes(existingSub.status)) {
+        throw new Error(
+          'Organization already has an active subscription. Please manage it in the billing portal.',
+        );
+      }
+    } catch (error: any) {
+      // If subscription doesn't exist in Stripe, continue (it might be stale in DB)
+      if (error?.statusCode !== 404) {
+        console.warn('[stripe] Failed to check existing subscription:', error);
+      }
+    }
+  }
+
   // Business plans require an organization
   if (payload.plan === 'business') {
     if (!payload.orgId && !record.org?.id) {
       throw new Error('Business plan requires an organization');
     }
+
+    // NEW: Verify user is org owner (only owners can manage subscriptions)
+    if (record.org && record.org.ownerId !== userId) {
+      throw new Error('Only organization owners can manage subscriptions');
+    }
+
     // Verify the user belongs to the organization they're trying to subscribe
     if (payload.orgId && record.user.orgId !== payload.orgId) {
       throw new Error('You are not a member of this organization');
@@ -427,32 +455,183 @@ const clearProSubscription = async (
   await recomputeUserEntitlements(userRecord.id);
 };
 
+const processPaymentFailed = async (event: Stripe.Event) => {
+  const invoice = event.data.object as any; // Stripe.Invoice with expanded fields
+
+  // Only downgrade after final failure (Stripe typically retries 3-4 times)
+  // Don't downgrade on first failure to avoid false positives
+  if (invoice.attempt_count && invoice.attempt_count < 4) {
+    console.log(
+      `[stripe] Payment failed for invoice ${invoice.id}, attempt ${invoice.attempt_count}/4. Will retry, not downgrading yet.`,
+    );
+    return;
+  }
+
+  console.log(
+    `[stripe] Payment failed after ${invoice.attempt_count} attempts for invoice ${invoice.id}. Downgrading subscription.`,
+  );
+
+  // Get the subscription and process as deleted
+  const invoiceSub = invoice.subscription as
+    | string
+    | Stripe.Subscription
+    | null;
+  if (invoiceSub) {
+    const subscriptionId =
+      typeof invoiceSub === 'string' ? invoiceSub : invoiceSub.id;
+
+    try {
+      const stripe = getStripeClient();
+      if (!stripe) return;
+
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const context = deriveSubscriptionContext(subscription);
+
+      if (context.plan === 'business') {
+        await clearBusinessSubscription(context);
+      } else {
+        await clearProSubscription(context, subscription);
+      }
+    } catch (error) {
+      console.error('[stripe] Failed to process payment failure:', error);
+    }
+  }
+};
+
 const processSubscriptionEvent = async (event: Stripe.Event) => {
   const subscription = event.data.object as Stripe.Subscription;
   const context = deriveSubscriptionContext(subscription);
 
-  if (event.type === 'customer.subscription.deleted') {
-    if (context.plan === 'business') {
-      await clearBusinessSubscription(context);
-    } else {
-      await clearProSubscription(context, subscription);
+  // Use Redis lock to prevent concurrent processing of same subscription
+  const { getRedisClient } = await import('@/lib/redis/client');
+  const redis = getRedisClient();
+  const lockKey = `subscription:lock:${subscription.id}`;
+  let acquiredLock = false;
+
+  if (redis) {
+    try {
+      // Try to acquire lock with 30 second expiry
+      const lock = await redis.set(lockKey, event.id, {
+        nx: true, // Only set if doesn't exist
+        ex: 30, // Expire after 30 seconds
+      });
+
+      if (!lock) {
+        // Another webhook is processing this subscription
+        console.log(
+          `[stripe] Subscription ${subscription.id} is locked by another webhook, skipping`,
+        );
+        return;
+      }
+      acquiredLock = true;
+    } catch (error) {
+      console.warn(
+        '[stripe] Failed to acquire subscription lock, processing anyway:',
+        error,
+      );
+      // Continue without lock if Redis fails
     }
-    return;
   }
 
-  if (event.type === 'invoice.payment_failed') {
-    if (context.plan === 'business') {
-      await clearBusinessSubscription(context);
-    } else {
-      await clearProSubscription(context, subscription);
+  try {
+    // Handle subscription deletions
+    if (event.type === 'customer.subscription.deleted') {
+      if (context.plan === 'business') {
+        await clearBusinessSubscription(context);
+      } else {
+        await clearProSubscription(context, subscription);
+      }
+      return;
     }
-    return;
-  }
 
-  if (context.plan === 'business') {
-    await applyBusinessSubscription(subscription, context);
-  } else if (context.plan === 'pro') {
-    await applyProSubscription(subscription, context);
+    // Handle subscription pauses (downgrade access)
+    if (event.type === 'customer.subscription.paused') {
+      console.log(
+        `[stripe] Subscription ${subscription.id} paused, downgrading access`,
+      );
+      if (context.plan === 'business') {
+        await clearBusinessSubscription(context);
+      } else {
+        await clearProSubscription(context, subscription);
+      }
+      return;
+    }
+
+    // Handle subscription resumes (restore access)
+    if (event.type === 'customer.subscription.resumed') {
+      console.log(
+        `[stripe] Subscription ${subscription.id} resumed, restoring access`,
+      );
+      if (context.plan === 'business') {
+        await applyBusinessSubscription(subscription, context);
+      } else if (context.plan === 'pro') {
+        await applyProSubscription(subscription, context);
+      }
+      return;
+    }
+
+    // Check subscription status and handle edge cases
+    const status = subscription.status;
+
+    // Handle incomplete subscriptions (first payment not confirmed)
+    if (status === 'incomplete' || status === 'incomplete_expired') {
+      console.log(
+        `[stripe] Subscription ${subscription.id} is ${status}. First payment not completed, not granting access.`,
+      );
+      // Don't grant access for incomplete subscriptions
+      return;
+    }
+
+    // Handle canceled subscriptions (shouldn't reach here, but safety check)
+    if (status === 'canceled') {
+      console.log(`[stripe] Subscription ${subscription.id} is canceled`);
+      if (context.plan === 'business') {
+        await clearBusinessSubscription(context);
+      } else {
+        await clearProSubscription(context, subscription);
+      }
+      return;
+    }
+
+    // Handle past_due and unpaid status (grace period - keep access but warn)
+    if (['past_due', 'unpaid'].includes(status)) {
+      console.warn(
+        `[stripe] Subscription ${subscription.id} is ${status}. Keeping access during grace period.`,
+      );
+      // Keep access during grace period (Stripe will auto-cancel after retries fail)
+      // Continue to apply subscription below
+    }
+
+    // Handle trialing status (grant access during trial)
+    if (status === 'trialing') {
+      console.log(
+        `[stripe] Subscription ${subscription.id} is in trial period. Granting access.`,
+      );
+      // Grant access during trial
+    }
+
+    // For created/updated/trialing/past_due events, apply the subscription
+    // Only apply if status allows access
+    if (['active', 'trialing', 'past_due', 'unpaid'].includes(status)) {
+      if (context.plan === 'business') {
+        await applyBusinessSubscription(subscription, context);
+      } else if (context.plan === 'pro') {
+        await applyProSubscription(subscription, context);
+      }
+    } else {
+      console.warn(
+        `[stripe] Subscription ${subscription.id} has unexpected status: ${status}. Not applying.`,
+      );
+    }
+  } finally {
+    // Release the lock
+    if (redis && acquiredLock) {
+      try {
+        await redis.del(lockKey);
+      } catch (error) {
+        console.warn('[stripe] Failed to release subscription lock:', error);
+      }
+    }
   }
 };
 
@@ -500,11 +679,237 @@ export const handleStripeWebhook = async (event: Stripe.Event) => {
       );
       break;
     }
+    case 'checkout.session.expired': {
+      // Log expired checkout sessions for debugging
+      const session = event.data.object as Stripe.Checkout.Session;
+      console.log(`[stripe] Checkout session expired: ${session.id}`);
+      break;
+    }
     case 'customer.subscription.created':
-    case 'customer.subscription.updated':
     case 'customer.subscription.deleted':
-    case 'invoice.payment_failed': {
+    case 'customer.subscription.paused':
+    case 'customer.subscription.resumed': {
       await processSubscriptionEvent(event);
+      break;
+    }
+    case 'customer.subscription.updated': {
+      const subscription = event.data.object as Stripe.Subscription;
+      const previous = (event.data as any).previous_attributes as any;
+
+      // Check if quantity changed (seat count for Business subscriptions)
+      if (previous?.items?.data?.[0]?.quantity) {
+        const oldQty = previous.items.data[0].quantity;
+        const newQty = subscription.items.data[0]?.quantity;
+
+        if (oldQty !== newQty && newQty) {
+          // Get org ID from metadata or fallback to database lookup
+          let orgId = subscription.metadata?.org_id;
+
+          if (!orgId) {
+            // Fallback: Find org by stripeSubscriptionId
+            console.warn(
+              `[stripe] Subscription ${subscription.id} missing org_id metadata, looking up in database`,
+            );
+            try {
+              const schema = await import('@/lib/db/schema');
+              const [orgRecord] = await db
+                .select({ id: schema.org.id })
+                .from(schema.org)
+                .where(eq(schema.org.stripeSubscriptionId, subscription.id));
+
+              if (orgRecord) {
+                orgId = orgRecord.id;
+                console.log(
+                  `[stripe] Found org ${orgId} for subscription ${subscription.id}`,
+                );
+              }
+            } catch (lookupError) {
+              console.error(
+                '[stripe] Failed to lookup org for subscription:',
+                lookupError,
+              );
+            }
+          }
+
+          if (orgId) {
+            console.log(
+              `[stripe] Seat count changed from ${oldQty} to ${newQty} for org ${orgId}`,
+            );
+
+            try {
+              await updateOrgSeatCount(orgId, newQty);
+            } catch (error) {
+              console.error(
+                '[stripe] Failed to update org seat count from webhook:',
+                error,
+              );
+              // Continue processing other updates
+            }
+          } else {
+            console.error(
+              `[stripe] Cannot find org for subscription ${subscription.id}, skipping seat count update`,
+            );
+          }
+        }
+      }
+
+      // Process subscription changes (plan updates, etc.)
+      await processSubscriptionEvent(event);
+      break;
+    }
+    case 'invoice.payment_failed': {
+      await processPaymentFailed(event);
+      break;
+    }
+    case 'payment_intent.requires_action': {
+      // User needs to complete 3D Secure authentication
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      console.log(
+        `[stripe] Payment ${paymentIntent.id} requires action (3D Secure). User must complete authentication.`,
+      );
+      // TODO: Send notification to user
+      break;
+    }
+    case 'payment_intent.succeeded': {
+      // Payment confirmed after 3D Secure (or immediate success)
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      console.log(`[stripe] Payment ${paymentIntent.id} succeeded`);
+      // Access will be granted via subscription.created/updated event
+      break;
+    }
+    case 'customer.updated': {
+      // Handle customer email changes from Stripe Customer Portal
+      const customer = event.data.object as Stripe.Customer;
+      const previous = (event.data as any).previous_attributes as any;
+
+      if (
+        previous?.email &&
+        customer.email &&
+        customer.email !== previous.email
+      ) {
+        console.log(
+          `[stripe] Customer ${customer.id} email changed from ${previous.email} to ${customer.email}`,
+        );
+
+        try {
+          // Find user by stripeCustomerId
+          const userRecord = await findUserByStripeCustomerId(customer.id);
+
+          if (userRecord) {
+            await db
+              .update(user)
+              .set({ email: customer.email })
+              .where(eq(user.id, userRecord.id));
+
+            console.log(
+              `[stripe] Synced email change to user ${userRecord.id}: ${customer.email}`,
+            );
+          }
+        } catch (error) {
+          console.error(
+            '[stripe] Failed to sync customer email change:',
+            error,
+          );
+        }
+      }
+      break;
+    }
+    case 'customer.subscription.trial_will_end': {
+      // Subscription trial ending in 3 days
+      const subscription = event.data.object as Stripe.Subscription;
+      console.log(
+        `[stripe] Trial ending soon for subscription ${subscription.id}. User should add payment method.`,
+      );
+
+      // TODO: Send notification to user
+      // Get user/org from subscription metadata
+      const userId = subscription.metadata?.user_id;
+      const orgId = subscription.metadata?.org_id;
+
+      if (userId) {
+        console.log(
+          `[stripe] Notifying user ${userId} that trial ends in 3 days`,
+        );
+        // TODO: Send email via Resend
+        // TODO: Create in-app notification
+      }
+
+      if (orgId) {
+        console.log(
+          `[stripe] Notifying org ${orgId} owner that trial ends in 3 days`,
+        );
+        // TODO: Notify org owner
+      }
+
+      break;
+    }
+    case 'charge.refunded': {
+      // Handle refunds - may need to cancel subscription
+      const charge = event.data.object as any; // Stripe.Charge with expanded fields
+      console.log(`[stripe] Charge ${charge.id} refunded`);
+
+      // Check if this is a full refund
+      const refunded = charge.amount_refunded;
+      const total = charge.amount;
+
+      if (refunded === total) {
+        console.log(
+          `[stripe] Full refund detected for charge ${charge.id}. Checking associated subscription.`,
+        );
+
+        // If there's an invoice associated, find the subscription
+        const chargeInvoice = charge.invoice as string | undefined;
+        if (chargeInvoice) {
+          try {
+            const invoiceId = chargeInvoice;
+            if (!invoiceId) {
+              console.warn('[stripe] Invoice ID is undefined, skipping');
+              break;
+            }
+            const invoice = (await ensureStripe().invoices.retrieve(
+              invoiceId,
+            )) as any;
+
+            const invSub = invoice.subscription as
+              | string
+              | Stripe.Subscription
+              | null;
+            if (invSub) {
+              const subscriptionId =
+                typeof invSub === 'string' ? invSub : invSub.id;
+
+              console.log(
+                `[stripe] Refund for subscription ${subscriptionId}. Consider canceling subscription.`,
+              );
+
+              // Get subscription and process as deleted
+              const subscription =
+                await ensureStripe().subscriptions.retrieve(subscriptionId);
+              const context = deriveSubscriptionContext(subscription);
+
+              // Cancel subscription after refund
+              if (context.plan === 'business') {
+                await clearBusinessSubscription(context);
+              } else {
+                await clearProSubscription(context, subscription);
+              }
+
+              console.log(
+                `[stripe] Cancelled subscription ${subscriptionId} due to full refund`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              '[stripe] Failed to process refund for subscription:',
+              error,
+            );
+          }
+        }
+      } else {
+        console.log(
+          `[stripe] Partial refund detected (${refunded}/${total}). Keeping subscription active.`,
+        );
+      }
       break;
     }
     default:

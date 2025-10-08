@@ -199,16 +199,22 @@ export function PersonasDropdown({
                 relative overflow-hidden group
                 h-9 px-3 md:h-10 md:px-4
                 border-2 
-                !bg-zinc-50 dark:!bg-zinc-800
-                border-zinc-200 dark:border-zinc-700
-                hover:!bg-zinc-100 dark:hover:!bg-zinc-700
+                backdrop-filter backdrop-blur-[16px]
+                bg-white/70 dark:bg-zinc-900/70
+                border-white/30 dark:border-zinc-700/30
+                hover:bg-white/80 dark:hover:bg-zinc-900/80
                 hover:border-eos-orange/30 dark:hover:border-eos-orange/30
                 transition-all duration-300 ease-out
                 shadow-sm hover:shadow-md
-                ${isOpen ? 'border-eos-orange/30 !bg-eos-orange/5 dark:!bg-eos-orange/10' : ''}
+                ${isOpen ? 'border-eos-orange/30 bg-eos-orange/10 dark:bg-eos-orange/10' : ''}
                 ${selectedPersona ? 'ring-2 ring-eos-orange/20' : ''}
               `}
               disabled={isLoading}
+              style={{
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow:
+                  'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+              }}
             >
               {/* Animated background gradient */}
               <div className="absolute inset-0 bg-gradient-to-r from-eos-orange/0 via-eos-orange/5 to-eos-orangeLight/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -288,10 +294,10 @@ export function PersonasDropdown({
 
           <DropdownMenuContent
             align="start"
-            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-md bg-background/95 z-[100] relative"
+            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-xl bg-background/90 z-[150] relative max-h-[500px] overflow-y-auto"
             sideOffset={8}
             avoidCollisions={true}
-            collisionPadding={8}
+            collisionPadding={{ top: 8, right: 8, bottom: 80, left: 8 }}
           >
             <motion.div
               initial={{ opacity: 0, y: -10 }}

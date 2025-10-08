@@ -21,9 +21,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Users } from 'lucide-react';
+import { MoreHorizontal, Users, Mic, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ChartPreview } from '@/components/chart-preview';
+import { ComposerCountPill } from '@/components/composer-count-pill';
+import { PlusIcon } from '@/components/icons';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // Extend settings shape for primary IDs
 type UserSettings = {
@@ -44,6 +51,23 @@ export function ComposerDashboard() {
   const { width: windowWidth } = useWindowSize();
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
+  const [userPlan, setUserPlan] = useState<'free' | 'pro' | 'business'>('free');
+
+  // Fetch user plan for composer count pill (client-safe)
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetch('/api/me/plan')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.plan) {
+            setUserPlan(data.plan);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to fetch user plan:', error);
+        });
+    }
+  }, [session?.user?.id]);
 
   // Recordings view support
   const isRecordings = params.get('dashboard') === 'recordings';
@@ -64,19 +88,44 @@ export function ComposerDashboard() {
 
   const rows = useMemo(
     () =>
-      (data?.documents ?? []).filter(
-        (d) => !/^User Note:/i.test(d.title || ''),
-      ),
-    [data],
+      isRecordings
+        ? [] // Recordings handled separately
+        : (data?.documents ?? []).filter(
+            (d) => !/^User Note:/i.test(d.title || ''),
+          ),
+    [data, isRecordings],
   );
+
+  // Transform recordings data for display
+  const recordingRows = useMemo(() => {
+    if (!isRecordings || !recordingsData?.recordings) return [];
+    return recordingsData.recordings.map((item: any) => ({
+      id: item.recording.id,
+      title: item.recording.title || 'Untitled Recording',
+      kind: 'recording' as ComposerKind,
+      createdAt: item.recording.createdAt,
+      audioUrl: item.recording.audioUrl,
+      duration: item.recording.duration,
+      hasTranscript: Boolean(item.transcript?.id),
+      meetingType: item.recording.meetingType,
+      tags: item.recording.tags || [],
+      hasError: item.transcript?.content?.startsWith('ERROR:'),
+    }));
+  }, [isRecordings, recordingsData]);
+
   const [cachedRows, setCachedRows] = useState<Row[]>([]);
   useEffect(() => {
     if (rows && rows.length > 0) setCachedRows(rows);
   }, [rows]);
-  const displayRows = (rows.length > 0 ? rows : cachedRows).filter(
-    (d) => !/^User Note:/i.test(d.title || ''),
-  );
-  const isInitialLoading = isLoading && displayRows.length === 0;
+
+  const displayRows = isRecordings
+    ? recordingRows
+    : (rows.length > 0 ? rows : cachedRows).filter(
+        (d) => !/^User Note:/i.test(d.title || ''),
+      );
+
+  const isInitialLoading =
+    (isLoading || recordingsLoading) && displayRows.length === 0;
   const isRefreshing = !isLoading && isValidating;
 
   // Load user settings to identify primary doc per kind
@@ -104,25 +153,30 @@ export function ComposerDashboard() {
 
   const handleCreate = useCallback(() => {
     if (isRecordings) {
-      router.replace('/chat?dashboard=recordings');
+      router.push('/chat?openRecordingModal=true');
     } else {
       const url = new URL(window.location.href);
       url.searchParams.delete('dashboard');
       url.searchParams.set('newComposerKind', kind);
       router.replace(url.toString());
     }
-  }, [router, kind]);
+  }, [router, kind, isRecordings]);
 
   const handleOpen = useCallback(
-    (doc: Row) => {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('dashboard');
-      url.searchParams.set('documentId', doc.id);
-      url.searchParams.set('documentTitle', doc.title || 'Untitled');
-      url.searchParams.set('composerKind', doc.kind);
-      router.replace(url.toString());
+    (doc: Row | any) => {
+      if (isRecordings) {
+        // Open recording modal with this recording
+        router.push(`/chat?recordingId=${doc.id}`);
+      } else {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('dashboard');
+        url.searchParams.set('documentId', doc.id);
+        url.searchParams.set('documentTitle', doc.title || 'Untitled');
+        url.searchParams.set('composerKind', doc.kind);
+        router.replace(url.toString());
+      }
     },
-    [router],
+    [router, isRecordings],
   );
 
   const handleRename = useCallback(
@@ -144,19 +198,28 @@ export function ComposerDashboard() {
   );
 
   const handleDelete = useCallback(
-    async (doc: Row) => {
+    async (doc: Row | any) => {
       try {
-        const res = await fetch(`/api/document?id=${doc.id}&all=true`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) throw new Error('Failed');
-        toast.success('Deleted');
-        mutate();
+        if (isRecordings) {
+          const res = await fetch(`/api/voice/recordings/${doc.id}`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Failed');
+          toast.success('Recording deleted');
+          mutate();
+        } else {
+          const res = await fetch(`/api/document?id=${doc.id}&all=true`, {
+            method: 'DELETE',
+          });
+          if (!res.ok) throw new Error('Failed');
+          toast.success('Deleted');
+          mutate();
+        }
       } catch {
         toast.error('Delete failed');
       }
     },
-    [mutate],
+    [mutate, isRecordings],
   );
 
   const setAsPrimary = useCallback(async (doc: Row) => {
@@ -180,6 +243,7 @@ export function ComposerDashboard() {
   }, []);
 
   const displayName: string = useMemo(() => {
+    if (isRecordings) return 'Recording';
     switch (kind) {
       case 'text':
         return 'Document';
@@ -198,9 +262,10 @@ export function ComposerDashboard() {
       default:
         return String(kind).toUpperCase();
     }
-  }, [kind]);
+  }, [kind, isRecordings]);
 
   const displayPlural: string = useMemo(() => {
+    if (isRecordings) return 'Recordings';
     switch (kind) {
       case 'text':
         return 'Documents';
@@ -219,7 +284,7 @@ export function ComposerDashboard() {
       default:
         return `${displayName}s`;
     }
-  }, [kind, displayName]);
+  }, [kind, displayName, isRecordings]);
 
   const primaryId = useMemo(() => {
     if (kind === 'vto') return settings?.primaryVtoId || null;
@@ -239,45 +304,65 @@ export function ComposerDashboard() {
     >
       {/* Top bar mirroring chat header */}
       <motion.header
-        className="flex sticky top-0 bg-background pt-1.5 pb-3 items-center px-2 md:px-2 gap-1 md:gap-2 z-40"
+        className="absolute top-1 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override"
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 26 }}
       >
-        {/* Left: sidebar toggle */}
-        <div className="flex items-center gap-1 md:gap-2">
-          <SidebarToggle />
-        </div>
-
-        {/* Center: search + new chat when sidebar is closed or on mobile */}
-        {mounted && (!open || (windowWidth ?? 0) < 768) && (
-          <div className="flex items-center gap-1 md:gap-2">
-            <AdvancedSearch />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 px-2 md:px-3"
-              onClick={() => {
-                router.push('/chat');
-                router.refresh();
-              }}
-            >
-              <MoreHorizontal className="hidden" />
-              <span className="hidden md:inline">New Chat</span>
-            </Button>
+        <div className="flex items-center gap-1 md:gap-2 w-full">
+          {/* Left: sidebar toggle */}
+          <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
+            <SidebarToggle />
           </div>
-        )}
 
-        {/* Right: user avatar */}
-        <div className="flex items-center gap-1 md:gap-2 ml-auto">
-          {session?.user && (
-            <SidebarUserNav user={session.user} className="header-user-nav" />
+          {/* Center: search + new chat when sidebar is closed or on mobile */}
+          {mounted && (!open || (windowWidth ?? 0) < 768) && (
+            <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
+              <AdvancedSearch />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-2 md:px-3 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
+                    onClick={() => {
+                      router.push('/chat');
+                      router.refresh();
+                    }}
+                    style={{
+                      WebkitBackdropFilter: 'blur(16px)',
+                      boxShadow:
+                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+                    }}
+                  >
+                    <PlusIcon size={16} />
+                    <span className="hidden md:inline ml-1">New Chat</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Chat</TooltipContent>
+              </Tooltip>
+            </div>
           )}
+
+          {/* Right: composer count pill + user avatar */}
+          <div className="flex items-center gap-1 md:gap-2 ml-auto pointer-events-auto">
+            {session?.user && userPlan === 'business' && (
+              <ComposerCountPill
+                userId={session.user.id}
+                userPlan={userPlan}
+                className="pointer-events-auto"
+              />
+            )}
+            {session?.user && (
+              <SidebarUserNav user={session.user} className="header-user-nav" />
+            )}
+          </div>
         </div>
       </motion.header>
 
       {/* Section title + create button */}
-      <div className="flex items-center justify-between mt-2 mb-6 px-2 md:px-2">
+      <div className="flex items-center justify-between mt-16 mb-6 px-2 md:px-2">
         <div className="text-base font-semibold">{displayPlural}</div>
         <Button size="sm" onClick={handleCreate}>
           {displayName === 'Document'
@@ -322,7 +407,7 @@ export function ComposerDashboard() {
           animate={{ opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 24 }}
         >
-          {displayRows.map((row, i) => {
+          {displayRows.map((row: any, i: number) => {
             const isPrimary = primaryId === row.id;
             const isContext = Array.isArray(settings?.contextDocumentIds)
               ? (settings?.contextDocumentIds || []).includes(row.id)
@@ -365,30 +450,96 @@ export function ComposerDashboard() {
                   className="relative aspect-[4/3] w-full bg-muted/40 cursor-pointer"
                   onClick={() => handleOpen(row)}
                 >
-                  <PreviewBlock kind={row.kind} id={row.id} />
-                  {isRefreshing && (
-                    <div className="absolute top-2 right-2 text-[11px] rounded-md px-2 py-0.5 bg-background/80 border border-zinc-200 dark:border-zinc-700">
-                      Refreshing…
+                  {isRecordings ? (
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+                      <div className="p-2 h-full flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                            <Mic className="w-3 h-3 text-white" />
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                            Recording
+                          </div>
+                        </div>
+
+                        {/* Central content */}
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          {/* Large mic icon */}
+                          <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-3">
+                            <Mic className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                          </div>
+
+                          {/* Duration */}
+                          {(row as any).duration > 0 && (
+                            <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 mb-2">
+                              <Clock className="w-4 h-4" />
+                              <span className="font-medium">
+                                {Math.floor((row as any).duration / 60)}:
+                                {String((row as any).duration % 60).padStart(
+                                  2,
+                                  '0',
+                                )}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Status badge */}
+                          <div className="mt-auto mb-2">
+                            {(row as any).hasError ? (
+                              <div className="px-2.5 py-1 rounded-md bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[10px] font-semibold flex items-center gap-1.5 border border-red-200 dark:border-red-800">
+                                <AlertCircle className="w-3 h-3" />
+                                Error
+                              </div>
+                            ) : (row as any).hasTranscript ? (
+                              <div className="px-2.5 py-1 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-[10px] font-semibold border border-green-200 dark:border-green-800">
+                                Transcribed
+                              </div>
+                            ) : (
+                              <div className="px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-semibold animate-pulse border border-amber-200 dark:border-amber-800">
+                                Processing...
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                  ) : (
+                    <PreviewBlock kind={row.kind} id={row.id} />
                   )}
+                  {/* Top left badges */}
                   {isPrimary && (
-                    <div className="absolute top-2 left-2 text-[11px] rounded-md px-2 py-0.5 bg-blue-600 text-white">
+                    <div className="absolute top-2 left-2 text-[11px] rounded-md px-2 py-0.5 bg-blue-600 text-white shadow-sm">
                       Primary
                     </div>
                   )}
-                  {isContext && (
-                    <div className="absolute top-2 right-2 text-[11px] rounded-md px-2 py-0.5 bg-emerald-600 text-white">
-                      Context
-                    </div>
-                  )}
+                  {/* Top right badges - stack vertically to avoid overlap */}
+                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                    {isRefreshing && (
+                      <div className="text-[11px] rounded-md px-2 py-0.5 bg-background/90 border border-zinc-200 dark:border-zinc-700 shadow-sm backdrop-blur-sm">
+                        Refreshing…
+                      </div>
+                    )}
+                    {isContext && (
+                      <div className="text-[11px] rounded-md px-2 py-0.5 bg-emerald-600 text-white shadow-sm">
+                        Context
+                      </div>
+                    )}
+                  </div>
                 </button>
                 <div className="flex items-center justify-between p-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
                       {row.title || 'Untitled'}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(row.createdAt).toLocaleDateString()}
+                      {isRecordings && (row as any).meetingType && (
+                        <span className="text-primary font-medium">
+                          {' '}
+                          • {(row as any).meetingType}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <DropdownMenu>
@@ -397,54 +548,68 @@ export function ComposerDashboard() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <InlineRenameMenuItem
-                        initialValue={row.title}
-                        onSave={(t) => handleRename(row, t)}
-                      />
-                      {(row.kind === 'vto' ||
-                        row.kind === 'sheet' ||
-                        row.kind === 'accountability') && (
-                        <DropdownMenuItem onClick={() => setAsPrimary(row)}>
-                          Set as Primary
+                    <DropdownMenuContent
+                      align="end"
+                      className="z-[150] max-h-[500px] overflow-y-auto"
+                      collisionPadding={{
+                        top: 8,
+                        right: 8,
+                        bottom: 80,
+                        left: 8,
+                      }}
+                    >
+                      {!isRecordings && (
+                        <InlineRenameMenuItem
+                          initialValue={row.title}
+                          onSave={(t) => handleRename(row, t)}
+                        />
+                      )}
+                      {!isRecordings &&
+                        (row.kind === 'vto' ||
+                          row.kind === 'sheet' ||
+                          row.kind === 'accountability') && (
+                          <DropdownMenuItem onClick={() => setAsPrimary(row)}>
+                            Set as Primary
+                          </DropdownMenuItem>
+                        )}
+                      {!isRecordings && (
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              // Fetch current settings
+                              const res = await fetch('/api/user-settings');
+                              const s = res.ok ? await res.json() : {};
+                              const current: string[] = Array.isArray(
+                                s?.contextDocumentIds,
+                              )
+                                ? s.contextDocumentIds
+                                : [];
+                              const next = current.includes(row.id)
+                                ? current.filter((id: string) => id !== row.id)
+                                : [...current, row.id];
+                              const save = await fetch('/api/user-settings', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  contextDocumentIds: next,
+                                }),
+                              });
+                              if (!save.ok) throw new Error('Failed');
+                              toast.success(
+                                current.includes(row.id)
+                                  ? 'Removed from context'
+                                  : 'Added to context',
+                              );
+                              mutateSettings();
+                            } catch (e) {
+                              console.error(e);
+                              toast.error('Failed to update context');
+                            }
+                          }}
+                        >
+                          Use as Context
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          try {
-                            // Fetch current settings
-                            const res = await fetch('/api/user-settings');
-                            const s = res.ok ? await res.json() : {};
-                            const current: string[] = Array.isArray(
-                              s?.contextDocumentIds,
-                            )
-                              ? s.contextDocumentIds
-                              : [];
-                            const next = current.includes(row.id)
-                              ? current.filter((id: string) => id !== row.id)
-                              : [...current, row.id];
-                            const save = await fetch('/api/user-settings', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                contextDocumentIds: next,
-                              }),
-                            });
-                            if (!save.ok) throw new Error('Failed');
-                            toast.success(
-                              current.includes(row.id)
-                                ? 'Removed from context'
-                                : 'Added to context',
-                            );
-                            mutateSettings();
-                          } catch (e) {
-                            console.error(e);
-                            toast.error('Failed to update context');
-                          }
-                        }}
-                      >
-                        Use as Context
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDelete(row)}>
                         Delete
                       </DropdownMenuItem>
@@ -894,16 +1059,35 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
     }
 
     return (
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800 flex items-center justify-center p-2">
         {base64Content ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt="preview"
-            src={`data:image/png;base64,${base64Content}`}
-            className="max-w-full max-h-full object-contain"
-          />
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt="preview"
+              src={`data:image/png;base64,${base64Content}`}
+              className="max-w-full max-h-full object-contain rounded shadow-sm"
+            />
+          </div>
         ) : (
-          <div className="text-xs text-muted-foreground">No Image</div>
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2">
+              <svg
+                className="w-6 h-6 text-slate-500 dark:text-zinc-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            <div className="text-xs text-muted-foreground">No Image</div>
+          </div>
         )}
       </div>
     );
@@ -915,36 +1099,90 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
       .split('\n')
       .slice(0, 5)
       .map((line) => line.split(',').slice(0, 5));
+
+    const hasContent = rows.length > 0 && rows[0].length > 0 && rows[0][0];
+
     return (
-      <div className="absolute inset-0 p-3 overflow-hidden text-[11px]">
-        <div className="w-full h-full overflow-hidden">
-          <table className="w-full border-collapse text-[11px]">
-            <tbody>
-              {rows.map((r, rowIndex) => {
-                const sig = r.join('|');
-                const rowKey = `${id}-r-${rowIndex}-${sig}`;
-                return (
-                  <tr
-                    key={rowKey}
-                    className="border-b border-zinc-200 dark:border-zinc-800"
-                  >
-                    {r.map((c, colIndex) => {
-                      const cellKey = `${id}-c-${rowIndex}-${colIndex}-${sig}-${String(c)}`;
-                      return (
-                        <td
-                          key={cellKey}
-                          className="px-2 py-1 truncate max-w-[6rem] border-r border-zinc-200 dark:border-zinc-800"
-                        >
-                          {c}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800 p-2 overflow-hidden">
+        {hasContent ? (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                <svg
+                  className="w-3 h-3 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <div className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                Spreadsheet
+              </div>
+            </div>
+            <div className="bg-white/70 dark:bg-zinc-800/70 rounded overflow-hidden">
+              <table className="w-full border-collapse text-[10px]">
+                <tbody>
+                  {rows.map((r, rowIndex) => {
+                    const sig = r.join('|');
+                    const rowKey = `${id}-r-${rowIndex}-${sig}`;
+                    return (
+                      <tr
+                        key={rowKey}
+                        className={
+                          rowIndex === 0 ? 'bg-slate-100 dark:bg-zinc-700' : ''
+                        }
+                      >
+                        {r.map((c, colIndex) => {
+                          const cellKey = `${id}-c-${rowIndex}-${colIndex}-${sig}-${String(c)}`;
+                          return (
+                            <td
+                              key={cellKey}
+                              className={`px-1.5 py-1 truncate max-w-[4rem] border-r border-b border-slate-200 dark:border-zinc-600 ${
+                                rowIndex === 0
+                                  ? 'font-semibold text-slate-700 dark:text-slate-300'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {c || '-'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2">
+              <svg
+                className="w-6 h-6 text-slate-500 dark:text-zinc-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Empty Spreadsheet
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -970,27 +1208,49 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
         if (acData?.root) {
           // Render accountability chart preview
           return (
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
               {/* Render hierarchy preview */}
-              <div className="p-3 space-y-2.5 h-full flex flex-col">
+              <div className="p-2 space-y-1.5 h-full flex flex-col">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-6 h-6 rounded-full bg-slate-700 dark:bg-slate-600 flex items-center justify-center">
+                    <svg
+                      className="w-3 h-3 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                    Accountability
+                  </div>
+                </div>
+
                 {/* Root seat */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-zinc-800">
-                  <div className="flex items-start gap-3">
+                <div className="bg-white/70 dark:bg-zinc-800/70 rounded p-2 shadow-sm">
+                  <div className="flex items-start gap-2">
                     <div
-                      className="w-3 h-3 rounded-full mt-0.5 flex-shrink-0"
+                      className="w-2.5 h-2.5 rounded-full mt-0.5 flex-shrink-0"
                       style={{
-                        backgroundColor: acData.root.accent || '#3b82f6',
+                        backgroundColor: acData.root.accent || '#64748b',
                       }}
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
                         {acData.root.name || 'Root'}
                       </div>
-                      <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                        {acData.root.holder || 'No holder assigned'}
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {acData.root.holder || 'No holder'}
                       </div>
                       {acData.root.roles?.length > 0 && (
-                        <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-1">
+                        <div className="text-[9px] text-muted-foreground mt-0.5">
                           {acData.root.roles.length} role
                           {acData.root.roles.length !== 1 ? 's' : ''}
                         </div>
@@ -1001,75 +1261,58 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
 
                 {/* Child seats preview */}
                 {acData.root.children && acData.root.children.length > 0 && (
-                  <div className="flex-1 overflow-hidden">
-                    <div className="space-y-2">
-                      {acData.root.children
-                        .slice(0, 2)
-                        .map((child: any, idx: number) => (
-                          <div key={child.id || idx} className="ml-6 relative">
-                            {/* Connection line */}
-                            <div className="absolute -left-4 top-0 bottom-0 w-4">
-                              <div className="absolute left-0 top-5 w-4 h-px bg-slate-300 dark:bg-zinc-600" />
-                              <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-300 dark:bg-zinc-600" />
-                            </div>
+                  <div className="flex-1 overflow-hidden space-y-1">
+                    {acData.root.children
+                      .slice(0, 2)
+                      .map((child: any, idx: number) => (
+                        <div key={child.id || idx} className="ml-3 relative">
+                          {/* Connection line */}
+                          <div className="absolute -left-2 top-0 bottom-0 w-2">
+                            <div className="absolute left-0 top-3 w-2 h-px bg-slate-300 dark:bg-zinc-600" />
+                            <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-300 dark:bg-zinc-600" />
+                          </div>
 
-                            <div className="bg-white/90 dark:bg-zinc-900/90 rounded-lg p-2.5 shadow-sm border border-slate-200 dark:border-zinc-800">
-                              <div className="flex items-start gap-2.5">
-                                <div
-                                  className="w-2.5 h-2.5 rounded-full mt-0.5 flex-shrink-0"
-                                  style={{
-                                    backgroundColor: child.accent || '#6366f1',
-                                  }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-[12px] font-medium text-slate-800 dark:text-slate-200">
-                                    {child.name}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                    {child.holder || 'Empty seat'}
-                                  </div>
-                                  {child.roles?.length > 0 && (
-                                    <div className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                      {child.roles.length} role
-                                      {child.roles.length !== 1 ? 's' : ''}
+                          <div className="bg-white/50 dark:bg-zinc-800/50 rounded p-1.5">
+                            <div className="flex items-start gap-1.5">
+                              <div
+                                className="w-2 h-2 rounded-full mt-0.5 flex-shrink-0"
+                                style={{
+                                  backgroundColor: child.accent || '#64748b',
+                                }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                                  {child.name}
+                                </div>
+                                <div className="text-[9px] text-muted-foreground truncate">
+                                  {child.holder || 'Empty'}
+                                </div>
+                                {child.children &&
+                                  child.children.length > 0 && (
+                                    <div className="text-[8px] text-muted-foreground mt-0.5">
+                                      +{child.children.length} sub
                                     </div>
                                   )}
-                                </div>
                               </div>
-
-                              {/* Nested children indicator */}
-                              {child.children && child.children.length > 0 && (
-                                <div className="mt-2 ml-5 text-[9px] text-slate-400 dark:text-slate-500">
-                                  +{child.children.length} sub-seat
-                                  {child.children.length !== 1 ? 's' : ''}
-                                </div>
-                              )}
                             </div>
                           </div>
-                        ))}
-
-                      {acData.root.children.length > 2 && (
-                        <div className="ml-6 relative">
-                          <div className="absolute -left-4 top-0 bottom-0 w-4">
-                            <div className="absolute left-0 top-3 w-4 h-px bg-slate-300 dark:bg-zinc-600" />
-                            <div className="absolute left-0 top-0 h-3 w-px bg-slate-300 dark:bg-zinc-600" />
-                          </div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 py-1">
-                            +{acData.root.children.length - 2} more seat
-                            {acData.root.children.length - 2 !== 1 ? 's' : ''}
-                          </div>
                         </div>
-                      )}
-                    </div>
+                      ))}
+
+                    {acData.root.children.length > 2 && (
+                      <div className="ml-3 text-[9px] text-muted-foreground">
+                        +{acData.root.children.length - 2} more
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Stats */}
-                <div className="mt-auto pt-2 flex gap-3 justify-end">
-                  <div className="bg-slate-100 dark:bg-zinc-800 rounded-md px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                <div className="mt-auto pt-1 flex gap-2 justify-end">
+                  <div className="bg-slate-100 dark:bg-zinc-800 rounded px-2 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-400">
                     {getTotalSeats(acData.root)} seats
                   </div>
-                  <div className="bg-slate-100 dark:bg-zinc-800 rounded-md px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                  <div className="bg-slate-100 dark:bg-zinc-800 rounded px-2 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-400">
                     {getTotalPeople(acData.root)} people
                   </div>
                 </div>
@@ -1084,13 +1327,14 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
 
     // Fallback
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900">
-        <div className="w-12 h-12 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-200">
-          <Users className="w-6 h-6 text-blue-600 dark:text-blue-300" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+        <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-200">
+          <Users className="w-6 h-6 text-slate-500 dark:text-zinc-400" />
         </div>
-        <div className="font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">
-          Accountability Chart
+        <div className="font-medium group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors duration-200">
+          Accountability
         </div>
+        <div className="text-[10px] opacity-60">Organizational Chart</div>
       </div>
     );
   }
@@ -1119,15 +1363,47 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
       }
     } catch {}
     return (
-      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-        Chart
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+        <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2">
+          <svg
+            className="w-6 h-6 text-slate-500 dark:text-zinc-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
+          </svg>
+        </div>
+        <div className="font-medium">Chart</div>
+        <div className="text-[10px] opacity-60">Data Visualization</div>
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-      Preview
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-muted-foreground bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800">
+      <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center mb-2">
+        <svg
+          className="w-6 h-6 text-slate-500 dark:text-zinc-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+          />
+        </svg>
+      </div>
+      <div className="font-medium">Preview</div>
+      <div className="text-[10px] opacity-60">Document preview</div>
     </div>
   );
 }

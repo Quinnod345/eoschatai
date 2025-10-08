@@ -72,20 +72,46 @@ export async function updateOrgSeatCount(
   orgId: string,
   newSeatCount: number,
 ): Promise<void> {
+  // Validate seat count to prevent invalid data
+  if (
+    newSeatCount < 1 ||
+    newSeatCount > 10000 ||
+    !Number.isFinite(newSeatCount)
+  ) {
+    console.error(
+      `[seat-enforcement] Invalid seat count ${newSeatCount}, clamping to valid range`,
+    );
+    newSeatCount = Math.max(1, Math.min(10000, Math.floor(newSeatCount)));
+  }
+
   // Get current member count
   const usage = await getOrgSeatUsage(orgId);
 
-  // Prevent reducing seats below current usage
+  // If reducing seats below current usage, mark for admin action
   if (newSeatCount < usage.used) {
-    throw new Error(
-      `Cannot reduce seats to ${newSeatCount}. Organization has ${usage.used} active members.`,
+    // Update seat count anyway (Stripe is source of truth)
+    // and set pendingRemoval to require admin selection
+    await db
+      .update(orgTable)
+      .set({
+        seatCount: newSeatCount,
+        pendingRemoval: usage.used - newSeatCount, // Number of members admin must remove
+      })
+      .where(eq(orgTable.id, orgId));
+
+    console.log(
+      `[seat-enforcement] Org ${orgId} reduced from ${usage.used} to ${newSeatCount} seats. Admin must remove ${usage.used - newSeatCount} members.`,
     );
+    return;
   }
 
-  // Update seat count
+  // Normal seat count update (increasing or staying same)
   await db
     .update(orgTable)
-    .set({ seatCount: newSeatCount })
+    .set({
+      seatCount: newSeatCount,
+      pendingRemoval: 0, // Clear any pending removals
+    })
     .where(eq(orgTable.id, orgId));
 }
 
@@ -107,7 +133,7 @@ export async function removeExcessMembers(
   // Get members to remove (excluding the owner)
   // In production, you'd have more sophisticated logic for who to remove
   const membersToRemove = await db
-    .select({ id: userTable.id })
+    .select({ id: userTable.id, stripeCustomerId: userTable.stripeCustomerId })
     .from(userTable)
     .where(eq(userTable.orgId, orgId))
     .orderBy(userTable.id) // Skip the first (owner)
@@ -116,12 +142,46 @@ export async function removeExcessMembers(
 
   const removedUserIds: string[] = [];
 
-  // Remove excess members
+  // Get shared utilities
+  const { getStripeClient } = await import('@/lib/stripe/client');
+  const stripe = getStripeClient();
+  const { getUserIndividualSubscriptionPlan } = await import(
+    '@/lib/billing/subscription-utils'
+  );
+  const {
+    getUserEntitlements,
+    invalidateUserEntitlementsCache,
+    broadcastEntitlementsUpdated,
+  } = await import('@/lib/entitlements');
+
+  // Remove excess members and reset their plans
   for (const member of membersToRemove) {
+    // Check if user has their own individual Stripe subscription
+    const individualPlan = stripe
+      ? await getUserIndividualSubscriptionPlan(member.stripeCustomerId, stripe)
+      : null;
+    const newPlan = individualPlan || 'free';
+
+    // Remove from org and reset plan
     await db
       .update(userTable)
-      .set({ orgId: null })
+      .set({
+        orgId: null,
+        plan: newPlan,
+      })
       .where(eq(userTable.id, member.id));
+
+    // Recompute entitlements for the removed user
+    try {
+      await getUserEntitlements(member.id);
+      await invalidateUserEntitlementsCache(member.id);
+      await broadcastEntitlementsUpdated(member.id);
+    } catch (error) {
+      console.warn(
+        '[removeExcessMembers] Failed to update entitlements:',
+        error,
+      );
+    }
 
     removedUserIds.push(member.id);
   }

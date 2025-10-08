@@ -44,41 +44,67 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name } = body;
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    // Validate organization name
+    if (!name || typeof name !== 'string') {
       return NextResponse.json(
         { error: 'Organization name is required' },
         { status: 400 },
       );
     }
 
-    // Check if user already belongs to an organization
-    const [existingUser] = await db
-      .select()
-      .from(userTable)
-      .where(eq(userTable.id, session.user.id));
+    const trimmedName = name.trim();
 
-    if (existingUser?.orgId) {
+    if (trimmedName.length === 0) {
       return NextResponse.json(
-        { error: 'You already belong to an organization' },
+        { error: 'Organization name cannot be empty' },
         { status: 400 },
       );
     }
 
-    // Create the organization with the user as owner
-    const [newOrg] = await db
-      .insert(orgTable)
-      .values({
-        name: name.trim(),
-        plan: 'free', // Will be upgraded when they complete checkout
-        ownerId: session.user.id,
-      })
-      .returning();
+    if (trimmedName.length > 100) {
+      return NextResponse.json(
+        { error: 'Organization name must be 100 characters or less' },
+        { status: 400 },
+      );
+    }
 
-    // Update user to belong to this organization
-    await db
-      .update(userTable)
-      .set({ orgId: newOrg.id })
-      .where(eq(userTable.id, session.user.id));
+    if (trimmedName.length < 2) {
+      return NextResponse.json(
+        { error: 'Organization name must be at least 2 characters' },
+        { status: 400 },
+      );
+    }
+
+    // Use transaction to prevent race condition where user joins org while creating one
+    const newOrg = await db.transaction(async (tx) => {
+      // Re-check user doesn't have orgId
+      const [existingUser] = await tx
+        .select({ orgId: userTable.orgId })
+        .from(userTable)
+        .where(eq(userTable.id, session.user.id));
+
+      if (existingUser?.orgId) {
+        throw new Error('You already belong to an organization');
+      }
+
+      // Create the organization with the user as owner
+      const [createdOrg] = await tx
+        .insert(orgTable)
+        .values({
+          name: trimmedName,
+          plan: 'free', // Will be upgraded when they complete checkout
+          ownerId: session.user.id,
+        })
+        .returning();
+
+      // Update user to belong to this organization (atomically)
+      await tx
+        .update(userTable)
+        .set({ orgId: createdOrg.id })
+        .where(eq(userTable.id, session.user.id));
+
+      return createdOrg;
+    });
 
     // Generate an invite code for the organization
     const inviteCode = await getOrCreateInviteCode(

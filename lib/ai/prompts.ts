@@ -564,28 +564,38 @@ export const userRagContextPrompt = async (userId: string, query = '') => {
         .limit(1);
       if (settings) {
         includePrimaries = settings.usePrimaryDocsForContext ?? true;
-        const explicitDocIds = Array.isArray(settings.contextDocumentIds)
-          ? settings.contextDocumentIds.filter(Boolean)
-          : [];
-        const composerDocIds = Array.isArray(
-          (settings as any).contextComposerDocumentIds,
-        )
-          ? (settings as any).contextComposerDocumentIds.filter(Boolean)
-          : [];
-        const recordingIds = Array.isArray(
-          (settings as any).contextRecordingIds,
-        )
-          ? (settings as any).contextRecordingIds.filter(Boolean)
-          : [];
+
+        // NEW: Query documents where isContext = true instead of using contextDocumentIds
+        const { userDocuments } = await import('@/lib/db/schema');
+        const { and } = await import('drizzle-orm');
+
+        // Get user-uploaded documents where isContext = true
+        const contextUserDocs = await db
+          .select({ id: userDocuments.id })
+          .from(userDocuments)
+          .where(
+            and(
+              eq(userDocuments.userId, userId),
+              eq(userDocuments.isContext, true),
+            ),
+          );
+
+        // Get composer documents where isContext = true
+        const contextComposerDocs = await db
+          .select({ id: document.id })
+          .from(document)
+          .where(
+            and(eq(document.userId, userId), eq(document.isContext, true)),
+          );
+
         preferredDocumentIds = Array.from(
-          new Set(
-            [
-              ...(explicitDocIds || []),
-              ...(composerDocIds || []),
-              ...(recordingIds || []),
-            ].filter(Boolean),
-          ),
+          new Set([
+            ...contextUserDocs.map((d) => d.id),
+            ...contextComposerDocs.map((d) => d.id),
+          ]),
         );
+
+        // Add primary documents if enabled (these should also have isContext=true ideally)
         if (includePrimaries) {
           const primaryIds = [
             settings.primaryAccountabilityId,
@@ -593,9 +603,13 @@ export const userRagContextPrompt = async (userId: string, query = '') => {
             settings.primaryScorecardId,
           ].filter(Boolean) as string[];
           preferredDocumentIds = Array.from(
-            new Set([...(preferredDocumentIds || []), ...primaryIds]),
+            new Set([...preferredDocumentIds, ...primaryIds]),
           );
         }
+
+        console.log(
+          `User RAG context: Found ${preferredDocumentIds.length} documents with isContext=true (${contextUserDocs.length} user docs + ${contextComposerDocs.length} composers)`,
+        );
       }
     } catch {}
 

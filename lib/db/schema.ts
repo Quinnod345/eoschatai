@@ -21,29 +21,7 @@ import {
 export const planTypeEnum = pgEnum('plan_type', ['free', 'pro', 'business']);
 export type PlanType = (typeof planTypeEnum.enumValues)[number];
 
-export const org = pgTable(
-  'Org',
-  {
-    id: uuid('id').primaryKey().notNull().defaultRandom(),
-    name: text('name'),
-    plan: planTypeEnum('plan').notNull().default('free'),
-    stripeSubscriptionId: text('stripeSubscriptionId'),
-    seatCount: integer('seatCount').notNull().default(1),
-    limits: jsonb('limits').notNull().default(sql`'{}'::jsonb`),
-    ownerId: uuid('ownerId'), // Reference will be handled in relations
-    createdAt: timestamp('createdAt').notNull().defaultNow(),
-    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-  },
-  (table) => ({
-    stripeSubscriptionIdx: index('org_stripe_subscription_idx').on(
-      table.stripeSubscriptionId,
-    ),
-    ownerIdx: index('org_owner_idx').on(table.ownerId),
-  }),
-);
-
-export type Org = InferSelectModel<typeof org>;
-
+// Declare user table first without foreign keys to avoid circular reference
 export const user = pgTable(
   'User',
   {
@@ -57,14 +35,39 @@ export const user = pgTable(
     stripeCustomerId: text('stripeCustomerId'),
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
-    orgId: uuid('orgId').references(() => org.id),
+    orgId: uuid('orgId'), // FK reference added below to avoid circular dependency
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
   }),
 );
 
+export const org = pgTable(
+  'Org',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    name: text('name'),
+    plan: planTypeEnum('plan').notNull().default('free'),
+    stripeSubscriptionId: text('stripeSubscriptionId'),
+    seatCount: integer('seatCount').notNull().default(1),
+    pendingRemoval: integer('pendingRemoval').default(0), // Number of members pending removal due to seat reduction
+    limits: jsonb('limits').notNull().default(sql`'{}'::jsonb`),
+    ownerId: uuid('ownerId').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    stripeSubscriptionIdx: index('org_stripe_subscription_idx').on(
+      table.stripeSubscriptionId,
+    ),
+    ownerIdx: index('org_owner_idx').on(table.ownerId),
+  }),
+);
+
 export type User = InferSelectModel<typeof user>;
+export type Org = InferSelectModel<typeof org>;
 
 export const chat = pgTable('Chat', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
@@ -287,8 +290,8 @@ export const analyticsEvent = pgTable(
     id: uuid('id').primaryKey().notNull().defaultRandom(),
     eventName: varchar('eventName', { length: 128 }).notNull(),
     source: varchar('source', { length: 16 }).notNull(),
-    userId: uuid('userId').references(() => user.id),
-    orgId: uuid('orgId').references(() => org.id),
+    userId: uuid('userId').references(() => user.id, { onDelete: 'set null' }),
+    orgId: uuid('orgId').references(() => org.id, { onDelete: 'set null' }),
     properties: jsonb('properties').notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp('createdAt').notNull().defaultNow(),
   },
@@ -314,6 +317,9 @@ export const document = pgTable('Document', {
   userId: uuid('userId')
     .notNull()
     .references(() => user.id),
+  isContext: boolean('isContext').default(false), // Controls whether embeddings exist for this composer document
+  isShared: boolean('isShared').default(false), // Whether this document is shared
+  shareSettings: json('shareSettings'), // Sharing settings for the document
 });
 
 export type Document = InferSelectModel<typeof document>;
@@ -492,7 +498,7 @@ export const userSettings = pgTable('UserSettings', {
   lastMessageCountReset: timestamp('lastMessageCountReset').defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-  selectedChatModel: text('selectedChatModel').default('gpt-4o-mini'),
+  selectedChatModel: text('selectedChatModel').default('gpt-4.1'),
   selectedProvider: text('selectedProvider').default('openai'),
   selectedVisibilityType: text('selectedVisibilityType').default('private'),
   selectedPersonaId: uuid('selectedPersonaId'),
@@ -549,6 +555,7 @@ export const userDocuments = pgTable('UserDocuments', {
     enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process', 'Other'],
   }).notNull(),
   content: text('content').notNull(),
+  isContext: boolean('isContext').default(true), // Controls whether embeddings exist for this document
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 });
@@ -635,6 +642,27 @@ export const googleCalendarToken = pgTable(
 );
 
 export type GoogleCalendarToken = InferSelectModel<typeof googleCalendarToken>;
+
+// Password reset tokens for email-based password recovery
+export const passwordResetToken = pgTable(
+  'PasswordResetToken',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    token: varchar('token', { length: 64 }).notNull(),
+    expiresAt: timestamp('expiresAt').notNull(),
+    usedAt: timestamp('usedAt'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenUnique: unique().on(table.token),
+    userIdx: index('password_reset_token_user_idx').on(table.userId),
+  }),
+);
+
+export type PasswordResetToken = InferSelectModel<typeof passwordResetToken>;
 
 // EOS Personas table for AI personalities with custom instructions and documents
 export const persona = pgTable('Persona', {
@@ -751,6 +779,8 @@ export const voiceRecording = pgTable('VoiceRecording', {
   duration: integer('duration'), // Duration in seconds
   fileSize: integer('fileSize'), // Size in bytes
   mimeType: varchar('mimeType', { length: 64 }).default('audio/webm'),
+  meetingType: varchar('meetingType', { length: 50 }), // L10, Quarterly, Annual, General, etc.
+  tags: json('tags').$type<string[]>().default([]), // Array of tag strings
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 });

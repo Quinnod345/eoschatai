@@ -236,7 +236,7 @@ function PureChatHeader({
 
   return (
     <>
-      <header className="absolute top-0 left-0 right-0 py-1.5 px-2 md:px-2 z-40 bg-transparent pointer-events-none">
+      <header className="absolute top-1 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override">
         <div className="flex items-center gap-1 md:gap-2 w-full">
           {/* Left Section - Navigation */}
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
@@ -271,10 +271,15 @@ function PureChatHeader({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 px-2 md:px-3 border border-zinc-200 dark:border-zinc-700 !bg-zinc-50 dark:!bg-zinc-800 hover:!bg-zinc-100 dark:hover:!bg-zinc-700"
+                    className="h-9 px-2 md:px-3 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
                     onClick={() => {
                       router.push('/chat');
                       router.refresh();
+                    }}
+                    style={{
+                      WebkitBackdropFilter: 'blur(16px)',
+                      boxShadow:
+                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
                     }}
                   >
                     <PlusIcon size={16} />
@@ -305,11 +310,16 @@ function PureChatHeader({
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      'h-9 w-9 p-0',
+                      'h-9 w-9 p-0 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80',
                       isBookmarked && 'text-blue-500',
                     )}
                     onClick={handleBookmarkToggle}
                     disabled={isBookmarkLoading}
+                    style={{
+                      WebkitBackdropFilter: 'blur(16px)',
+                      boxShadow:
+                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+                    }}
                   >
                     <Bookmark
                       className={cn(
@@ -358,6 +368,8 @@ export const ChatHeader = memo(PureChatHeader, (prevProps, nextProps) => {
   if (prevProps.chatId !== nextProps.chatId) return false;
   if (prevProps.selectedModelId !== nextProps.selectedModelId) return false;
   if (prevProps.selectedProviderId !== nextProps.selectedProviderId)
+    return false;
+  if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType)
     return false;
   if (prevProps.selectedPersonaId !== nextProps.selectedPersonaId) return false;
   if (prevProps.selectedProfileId !== nextProps.selectedProfileId) return false;

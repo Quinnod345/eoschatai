@@ -218,7 +218,7 @@ function PureMessages({
       className={`${meshClasses} flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent`}
     >
       {/* Spacer (like SwiftUI Spacer()) */}
-      <div className="shrink-0 h-12 sm:h-24 md:h-28 lg:h-32" />
+      <div className="shrink-0 h-16" />
       {isLoading ? (
         <MessageSkeleton count={3} />
       ) : (

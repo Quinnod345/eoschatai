@@ -484,6 +484,24 @@ export async function getDocumentById({ id }: { id: string }) {
   }
 }
 
+export async function getDocumentCountByUserId({
+  userId,
+}: {
+  userId: string;
+}): Promise<number> {
+  try {
+    const result = await db
+      .select({ count: count() })
+      .from(document)
+      .where(eq(document.userId, userId));
+
+    return result[0]?.count || 0;
+  } catch (error) {
+    console.error('Failed to get document count from database');
+    throw error;
+  }
+}
+
 export async function deleteDocumentsByIdAfterTimestamp({
   id,
   timestamp,

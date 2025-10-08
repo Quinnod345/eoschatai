@@ -8,6 +8,7 @@ export function GoogleSignInButton({
 }: { callbackUrl?: string }) {
   return (
     <Button
+      type="button"
       variant="outline"
       className="w-full flex items-center justify-center gap-2 py-5"
       onClick={() => signIn('google', { callbackUrl })}
@@ -136,6 +137,8 @@ export function AuthForm({
           required
         />
       </div>
+
+      <input type="hidden" name="callbackUrl" value={callbackUrl} />
 
       <div
         className="opacity-0 animate-blur-in-char"

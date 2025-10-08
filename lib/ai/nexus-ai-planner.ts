@@ -65,11 +65,10 @@ IMPORTANT: The response must have this exact structure:
 Do NOT put expectedOutcome inside any step object.`;
 
     const result = await generateObject({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5-mini'),
       schema: ResearchPlanSchema,
       system: systemPrompt,
       prompt: `Create a detailed research plan for: "${userQuery}"`,
-      temperature: 0.7,
     });
 
     console.log(

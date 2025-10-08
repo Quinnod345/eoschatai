@@ -29,7 +29,12 @@ export type SubscriptionActivatedEvent = {
 };
 
 export type BlockedActionEvent = {
-  feature: 'export' | 'calendar_connect' | 'recordings' | 'deep_research' | 'context_uploads_total';
+  feature:
+    | 'export'
+    | 'calendar_connect'
+    | 'recordings'
+    | 'deep_research'
+    | 'context_uploads_total';
   reason: 'not_enabled' | 'limit_exceeded' | 'rate_limited';
   user_id: string;
   org_id?: string | null;
@@ -43,13 +48,34 @@ export type EntitlementsUpdatedEvent = {
   to: unknown;
 };
 
+export type OwnershipTransferredEvent = {
+  previousOwnerId: string;
+  newOwnerId: string;
+  timestamp: string;
+};
+
+export type MemberRemovedFromOrgEvent = {
+  orgName: string;
+  reason: string;
+  timestamp: string;
+};
+
+export type PendingRemovalsNotificationSentEvent = {
+  orgName: string;
+  pendingRemovalCount: number;
+  timestamp: string;
+};
+
 export type AnalyticsEventName =
   | 'gate_impression'
   | 'gate_click_upgrade'
   | 'checkout_started'
   | 'subscription_activated'
   | 'blocked_action'
-  | 'entitlements_updated';
+  | 'entitlements_updated'
+  | 'ownership_transferred'
+  | 'member_removed_from_org'
+  | 'pending_removals_notification_sent';
 
 export type AnalyticsEventPropertiesMap = {
   gate_impression: GateImpressionEvent;
@@ -58,9 +84,14 @@ export type AnalyticsEventPropertiesMap = {
   subscription_activated: SubscriptionActivatedEvent;
   blocked_action: BlockedActionEvent;
   entitlements_updated: EntitlementsUpdatedEvent;
+  ownership_transferred: OwnershipTransferredEvent;
+  member_removed_from_org: MemberRemovedFromOrgEvent;
+  pending_removals_notification_sent: PendingRemovalsNotificationSentEvent;
 };
 
-export type AnalyticsEventPayload<N extends AnalyticsEventName = AnalyticsEventName> = {
+export type AnalyticsEventPayload<
+  N extends AnalyticsEventName = AnalyticsEventName,
+> = {
   event: N;
   properties: AnalyticsEventPropertiesMap[N];
 };

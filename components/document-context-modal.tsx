@@ -69,6 +69,7 @@ interface DocumentItem {
   category: DocumentCategory;
   uploadedAt: string;
   size: number;
+  isContext?: boolean; // Whether this document is used as context (has embeddings)
 }
 
 export function DocumentContextModal({
@@ -84,11 +85,17 @@ export function DocumentContextModal({
   const [documents, setDocuments] = React.useState<DocumentItem[]>([]);
   // Composer docs by kind for picker tabs
   const [composerDocs, setComposerDocs] = React.useState<
-    Record<string, { id: string; title: string; kind: string }[]>
+    Record<
+      string,
+      { id: string; title: string; kind: string; isContext?: boolean }[]
+    >
   >({});
   const [uploading, setUploading] = React.useState(false);
   const [processingRag, setProcessingRag] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [togglingDocuments, setTogglingDocuments] = React.useState<Set<string>>(
+    new Set(),
+  ); // Track which documents are being toggled
 
   // New: recordings as context
   const [recordings, setRecordings] = React.useState<
@@ -165,6 +172,80 @@ export function DocumentContextModal({
       toast.error('Failed to save context settings');
     }
   }, [composerContext, usePrimaryDocs, recordings]);
+
+  // Toggle document context and manage embeddings
+  const handleToggleDocumentContext = React.useCallback(
+    async (
+      documentId: string,
+      currentIsContext: boolean,
+      documentType: 'user-document' | 'composer-document',
+    ) => {
+      const newIsContext = !currentIsContext;
+
+      // Add to toggling set
+      setTogglingDocuments((prev) => new Set(prev).add(documentId));
+
+      try {
+        const response = await fetch('/api/documents/toggle-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documentId,
+            isContext: newIsContext,
+            documentType,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to toggle context');
+        }
+
+        // Update local state
+        if (documentType === 'user-document') {
+          setDocuments((prev) =>
+            prev.map((doc) =>
+              doc.id === documentId ? { ...doc, isContext: newIsContext } : doc,
+            ),
+          );
+        } else {
+          // Update composer docs state
+          setComposerDocs((prev) => {
+            const updated = { ...prev };
+            for (const kind in updated) {
+              updated[kind] = updated[kind].map((doc) =>
+                doc.id === documentId
+                  ? { ...doc, isContext: newIsContext }
+                  : doc,
+              );
+            }
+            return updated;
+          });
+        }
+
+        toast.success(
+          newIsContext
+            ? 'Document enabled as context with embeddings'
+            : 'Document removed from context and embeddings deleted',
+        );
+      } catch (error) {
+        console.error('Error toggling document context:', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Failed to toggle document context',
+        );
+      } finally {
+        // Remove from toggling set
+        setTogglingDocuments((prev) => {
+          const next = new Set(prev);
+          next.delete(documentId);
+          return next;
+        });
+      }
+    },
+    [],
+  );
 
   const fetchUserDocuments = React.useCallback(async () => {
     if (!session?.user) return;
@@ -807,13 +888,14 @@ export function DocumentContextModal({
     return (
       <div className="document-list">
         {documents.map((doc) => {
-          const isSelected = Boolean(composerContext[doc.id]);
+          const isContext = doc.isContext ?? true;
+          const isToggling = togglingDocuments.has(doc.id);
           return (
             <div
               key={doc.id}
               className={cn(
                 'document-item',
-                isSelected && 'border-emerald-500/70 bg-emerald-500/5',
+                isContext && 'border-emerald-500/70 bg-emerald-500/5',
               )}
             >
               <div className="flex items-center">
@@ -830,28 +912,33 @@ export function DocumentContextModal({
                 <div className="text-xs flex items-center gap-2 select-none">
                   <Checkbox
                     id={`ctx-${doc.id}`}
-                    checked={isSelected}
+                    checked={isContext}
+                    disabled={isToggling}
                     onCheckedChange={() =>
-                      setComposerContext((m) => ({
-                        ...m,
-                        [doc.id]: !isSelected,
-                      }))
+                      handleToggleDocumentContext(
+                        doc.id,
+                        isContext,
+                        'user-document',
+                      )
                     }
                   />
                   <label htmlFor={`ctx-${doc.id}`} className="cursor-pointer">
-                    Use as context
+                    {isToggling ? 'Processing...' : 'Use as context'}
                   </label>
-                  {isSelected && (
-                    <span aria-hidden="true">
+                  {isContext && !isToggling && (
+                    <span aria-hidden="true" title="Embedded in RAG database">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                     </span>
+                  )}
+                  {isToggling && (
+                    <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-primary" />
                   )}
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDeleteDocument(doc.id)}
-                  disabled={loading}
+                  disabled={loading || isToggling}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -1330,7 +1417,8 @@ export function DocumentContextModal({
                     (composerDocs[k] || []).map((d) => ({ ...d, k })),
                   )
                   .map((d) => {
-                    const picked = Boolean(composerContext[d.id]);
+                    const isContext = d.isContext ?? false;
+                    const isToggling = togglingDocuments.has(d.id);
                     const isEOS = ['sheet', 'vto', 'accountability'].includes(
                       d.k,
                     );
@@ -1383,16 +1471,23 @@ export function DocumentContextModal({
                         key={`${d.k}-${d.id}`}
                         type="button"
                         onClick={() =>
-                          setComposerContext((m) => ({ ...m, [d.id]: !picked }))
+                          handleToggleDocumentContext(
+                            d.id,
+                            isContext,
+                            'composer-document',
+                          )
                         }
+                        disabled={isToggling}
                         className={cn(
                           'rounded-lg border p-4 text-left hover:shadow-md transition-all duration-200 group relative overflow-hidden',
-                          picked
+                          isContext
                             ? 'border-emerald-500/70 bg-emerald-500/5 shadow-sm'
                             : 'hover:bg-muted/40 hover:border-foreground/20',
+                          isToggling && 'opacity-50 cursor-wait',
                         )}
-                        aria-label={`${picked ? 'Remove' : 'Select'} ${d.title || 'Untitled'} ${getTypeName()} document for AI context`}
-                        aria-pressed={picked}
+                        aria-label={`${isContext ? 'Remove' : 'Select'} ${d.title || 'Untitled'} ${getTypeName()} document for AI context`}
+                        aria-pressed={isContext}
+                        aria-busy={isToggling}
                       >
                         {/* Visual preview section */}
                         <div className="flex items-start gap-3 mb-3">
@@ -1423,20 +1518,31 @@ export function DocumentContextModal({
                         <div
                           className={cn(
                             'text-xs mt-2 flex items-center gap-1',
-                            picked
+                            isContext
                               ? 'text-emerald-600 dark:text-emerald-400'
                               : 'text-muted-foreground',
                           )}
                         >
-                          <div
-                            className={cn(
-                              'w-2 h-2 rounded-full',
-                              picked
-                                ? 'bg-emerald-500'
-                                : 'bg-muted-foreground/30',
-                            )}
-                          />
-                          {picked ? 'Selected as context' : 'Click to select'}
+                          {isToggling ? (
+                            <>
+                              <div className="animate-spin rounded-full h-2 w-2 border-t-2 border-b-2 border-primary" />
+                              <span>Processing embeddings...</span>
+                            </>
+                          ) : (
+                            <>
+                              <div
+                                className={cn(
+                                  'w-2 h-2 rounded-full',
+                                  isContext
+                                    ? 'bg-emerald-500'
+                                    : 'bg-muted-foreground/30',
+                                )}
+                              />
+                              {isContext
+                                ? 'Active in RAG database'
+                                : 'Click to enable as context'}
+                            </>
+                          )}
                         </div>
 
                         {/* Hover effect overlay */}

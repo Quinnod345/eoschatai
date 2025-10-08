@@ -314,9 +314,15 @@ const PurePreviewMessage = ({
     hasMentions: boolean;
     replyContext: { content: string; role: 'user' | 'assistant' } | null;
   } => {
-    if (!message.parts)
+    // If message.parts is not defined, but message.content is, convert it to parts
+    // This handles streaming messages that haven't been persisted to DB yet
+    let workingParts = message.parts;
+
+    if (!workingParts && message.content) {
+      workingParts = [{ type: 'text' as const, text: message.content }];
+    } else if (!workingParts) {
       return {
-        parts: message.parts,
+        parts: [],
         pdfContents: [],
         documentContents: [],
         imageAnalyses: [],
@@ -324,6 +330,7 @@ const PurePreviewMessage = ({
         hasMentions: false,
         replyContext: null,
       };
+    }
 
     const pdfContents: PDFContent[] = [];
     const documentContents: DocumentContent[] = [];
@@ -334,7 +341,7 @@ const PurePreviewMessage = ({
       null;
 
     // Process each text part to extract structured content
-    const parts = message.parts.map((part) => {
+    const parts = workingParts.map((part) => {
       if (part.type === 'text') {
         // First check for reply context (only for the first text part)
         let currentText = part.text;
@@ -447,7 +454,7 @@ const PurePreviewMessage = ({
       hasMentions,
       replyContext,
     };
-  }, [message.parts]);
+  }, [message.parts, message.content, message.id]);
 
   const {
     parts,
@@ -539,6 +546,24 @@ const PurePreviewMessage = ({
                 align={message.role === 'user' ? 'end' : 'start'}
               />
             )}
+
+            {/* Render reasoning text if present (GPT-5 thinking) */}
+            {message.role === 'assistant' &&
+              (message as any).experimental_providerMetadata?.openai
+                ?.reasoning && (
+                <div className="flex flex-col gap-2 p-4 bg-muted/50 rounded-lg border border-muted">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <AIActiveLoaderIcon size={16} />
+                    <span>Reasoning</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
+                    {
+                      (message as any).experimental_providerMetadata.openai
+                        .reasoning
+                    }
+                  </div>
+                </div>
+              )}
 
             {parts?.map((part, index) => {
               const { type } = part;

@@ -93,10 +93,16 @@ export function NexusResearchSelector({
             variant="outline"
             className={cn(
               'md:px-2 md:h-[34px]',
+              'backdrop-blur-[16px] backdrop-filter',
+              'border-white/30 dark:border-zinc-700/30',
+              'bg-white/60 dark:bg-zinc-900/60 hover:bg-white/80 dark:hover:bg-zinc-900/80',
               selectedMode?.color,
               selectedResearchMode === 'nexus' &&
-                'border-purple-500/50 bg-purple-50/10 dark:bg-purple-900/10',
+                'border-purple-500/50 bg-purple-50/30 dark:bg-purple-900/30',
             )}
+            style={{
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
           >
             <span className={cn('transition-all', selectedMode?.color)}>
               {selectedMode?.icon}
@@ -108,7 +114,20 @@ export function NexusResearchSelector({
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="start" className="min-w-[300px]">
+        <DropdownMenuContent
+          align="start"
+          className={cn(
+            'min-w-[300px]',
+            'backdrop-blur-[16px] backdrop-filter',
+            'border-white/30 dark:border-zinc-700/30',
+            'bg-white/80 dark:bg-zinc-900/80',
+          )}
+          style={{
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow:
+              'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+          }}
+        >
           {researchModes.map((mode) => {
             const isHovered = hoveredId === mode.id;
 

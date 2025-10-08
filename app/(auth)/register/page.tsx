@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useState } from 'react';
 
-import { AuthForm } from '@/components/auth-form';
+import { AuthFormEnhanced } from '@/components/auth-form-enhanced';
 import { SubmitButton } from '@/components/submit-button';
 
 import { register, type RegisterActionState } from '../actions';
@@ -39,7 +39,11 @@ export default function Page() {
 
       setIsSuccessful(true);
       updateSession();
-      router.refresh();
+
+      // Redirect to chat after successful registration
+      setTimeout(() => {
+        window.location.href = '/chat';
+      }, 100); // Small delay to ensure session is updated
     }
   }, [state.status, router, updateSession]);
 
@@ -88,8 +92,20 @@ export default function Page() {
         </div>
         <div className="relative">
           <div className="pointer-events-none absolute -inset-12 opacity-40 blur-2xl eos-rotating-gradient" />
-          <AuthForm action={handleSubmit} defaultEmail={email}>
-            <SubmitButton isSuccessful={isSuccessful}>Sign Up</SubmitButton>
+          <AuthFormEnhanced
+            action={handleSubmit}
+            defaultEmail={email}
+            mode="register"
+            onValidationError={(errors) => {
+              const firstError = Object.values(errors)[0];
+              if (firstError) {
+                toast.error(firstError);
+              }
+            }}
+          >
+            <SubmitButton isSuccessful={isSuccessful}>
+              Create account
+            </SubmitButton>
             <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
               {'Already have an account? '}
               <Link
@@ -100,7 +116,7 @@ export default function Page() {
               </Link>
               {' instead.'}
             </p>
-          </AuthForm>
+          </AuthFormEnhanced>
         </div>
       </div>
     </div>

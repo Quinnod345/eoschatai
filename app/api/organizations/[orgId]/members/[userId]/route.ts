@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { user as userTable } from '@/lib/db/schema';
+import { user as userTable, org as orgTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import {
   canManageUser,
@@ -79,11 +79,69 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Remove user from organization
+    // Check if user has their own individual Stripe subscription
+    const { getStripeClient } = await import('@/lib/stripe/client');
+    const stripe = getStripeClient();
+    const { getUserIndividualSubscriptionPlan } = await import(
+      '@/lib/billing/subscription-utils'
+    );
+
+    const individualPlan = stripe
+      ? await getUserIndividualSubscriptionPlan(
+          targetUser.stripeCustomerId,
+          stripe,
+          targetUserId,
+        )
+      : null;
+    const newPlan = individualPlan || 'free';
+
+    // Remove user from organization and reset plan
     await db
       .update(userTable)
-      .set({ orgId: null })
+      .set({
+        orgId: null,
+        plan: newPlan,
+      })
       .where(eq(userTable.id, targetUserId));
+
+    // Clear and recompute entitlements for the removed user
+    try {
+      const {
+        invalidateUserEntitlementsCache,
+        broadcastEntitlementsUpdated,
+        getUserEntitlements,
+      } = await import('@/lib/entitlements');
+
+      // Force recomputation of entitlements with the new plan
+      // CRITICAL: Invalidate cache FIRST to avoid serving stale data
+      await invalidateUserEntitlementsCache(targetUserId);
+      await getUserEntitlements(targetUserId);
+      await broadcastEntitlementsUpdated(targetUserId);
+    } catch (error) {
+      console.warn('[remove-member] Failed to update entitlements:', error);
+    }
+
+    // Send notification to removed user
+    try {
+      const { notifyMemberRemoval } = await import(
+        '@/lib/organizations/member-removal'
+      );
+      const [org] = await db
+        .select({ name: orgTable.name })
+        .from(orgTable)
+        .where(eq(orgTable.id, orgId));
+
+      if (org) {
+        await notifyMemberRemoval(
+          targetUserId,
+          org.name || 'Organization',
+          'admin',
+        );
+      }
+    } catch (error) {
+      console.warn('[remove-member] Failed to send notification:', error);
+      // Don't fail the removal if notification fails
+    }
 
     return NextResponse.json({
       success: true,

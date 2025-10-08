@@ -687,11 +687,10 @@ Generate 3-5 refined search queries that will:
 4. Explore practical applications or examples`;
 
     const result = await generateObject({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5-mini'),
       schema: QueryRefinementSchema,
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.7,
       maxTokens: 1000,
     });
 
@@ -725,9 +724,8 @@ Format each query on a new line starting with a dash:
 - [query here]`;
 
     const response = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5-mini'),
       prompt,
-      temperature: 0.9,
       maxTokens: 500,
     });
 
@@ -970,9 +968,8 @@ Format each question on a new line starting with a dash:
 - [question here]`;
 
     const questionsResponse = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: openai('gpt-5-mini'),
       prompt: questionsPrompt,
-      temperature: 0.8,
       maxTokens: 400,
     });
 

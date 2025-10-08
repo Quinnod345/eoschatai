@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
 
     // Check if user is the owner
     const [organization] = await db
-      .select({ ownerId: orgTable.ownerId })
+      .select({
+        ownerId: orgTable.ownerId,
+        stripeSubscriptionId: orgTable.stripeSubscriptionId,
+      })
       .from(orgTable)
       .where(eq(orgTable.id, user.orgId));
 
@@ -40,27 +43,129 @@ export async function POST(request: NextRequest) {
 
       if (memberCount.length > 1) {
         return NextResponse.json(
-          { 
-            error: 'As the owner, you must transfer ownership before leaving the organization' 
+          {
+            error:
+              'As the owner, you must transfer ownership before leaving the organization',
           },
           { status: 400 },
         );
       }
-      // If owner is the last member, they can leave (org will be orphaned)
+
+      // If owner is the last member, DELETE the organization instead of orphaning it
+      if (memberCount.length === 1) {
+        console.log(
+          `[leave-org] Last owner leaving, deleting organization ${user.orgId}`,
+        );
+
+        // Cancel organization subscription if it exists
+        if (organization.stripeSubscriptionId) {
+          try {
+            const { getStripeClient } = await import('@/lib/stripe/client');
+            const stripe = getStripeClient();
+            if (stripe) {
+              await stripe.subscriptions.cancel(
+                organization.stripeSubscriptionId,
+                {
+                  cancellation_details: {
+                    comment: 'Last owner left organization',
+                  },
+                },
+              );
+              console.log(
+                `[leave-org] Cancelled subscription ${organization.stripeSubscriptionId}`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              '[leave-org] Failed to cancel org subscription:',
+              error,
+            );
+            // Continue with deletion even if cancellation fails
+          }
+        }
+
+        // Delete pending invitations
+        try {
+          const { orgInvitation } = await import('@/lib/db/schema');
+          const invites = await db
+            .select({ inviteCode: orgInvitation.inviteCode })
+            .from(orgInvitation)
+            .where(eq(orgInvitation.orgId, user.orgId));
+
+          await db
+            .delete(orgInvitation)
+            .where(eq(orgInvitation.orgId, user.orgId));
+
+          // Invalidate invite codes in Redis
+          const { getRedisClient } = await import('@/lib/redis/client');
+          const redis = getRedisClient();
+          if (redis) {
+            for (const invite of invites) {
+              try {
+                await redis.del(`invite:${invite.inviteCode}`);
+              } catch (error) {
+                console.warn(
+                  '[leave-org] Failed to invalidate invite code:',
+                  error,
+                );
+              }
+            }
+          }
+
+          console.log(
+            `[leave-org] Deleted ${invites.length} pending invitations`,
+          );
+        } catch (error) {
+          console.error('[leave-org] Failed to delete invitations:', error);
+          // Continue with org deletion
+        }
+
+        // Delete the organization
+        await db.delete(orgTable).where(eq(orgTable.id, user.orgId));
+        console.log(`[leave-org] Deleted organization ${user.orgId}`);
+      }
     }
 
-    // Remove user from organization
+    // Check if user has their own individual Stripe subscription
+    const { getStripeClient } = await import('@/lib/stripe/client');
+    const stripe = getStripeClient();
+    const { getUserIndividualSubscriptionPlan } = await import(
+      '@/lib/billing/subscription-utils'
+    );
+
+    const individualPlan = stripe
+      ? await getUserIndividualSubscriptionPlan(
+          user.stripeCustomerId,
+          stripe,
+          session.user.id,
+        )
+      : null;
+    const newPlan = individualPlan || 'free';
+
+    // Remove user from organization and reset plan
     await db
       .update(userTable)
-      .set({ orgId: null })
+      .set({
+        orgId: null,
+        plan: newPlan,
+      })
       .where(eq(userTable.id, session.user.id));
 
-    // Clear entitlements cache
+    // Clear and recompute entitlements
     try {
-      const { invalidateUserEntitlementsCache } = await import('@/lib/entitlements');
+      const {
+        invalidateUserEntitlementsCache,
+        broadcastEntitlementsUpdated,
+        getUserEntitlements,
+      } = await import('@/lib/entitlements');
+
+      // Force recomputation of entitlements with the new plan
+      // CRITICAL: Invalidate cache FIRST to avoid serving stale data
       await invalidateUserEntitlementsCache(session.user.id);
+      await getUserEntitlements(session.user.id);
+      await broadcastEntitlementsUpdated(session.user.id);
     } catch (error) {
-      console.warn('[leave-org] Failed to clear entitlements cache:', error);
+      console.warn('[leave-org] Failed to update entitlements:', error);
     }
 
     return NextResponse.json({
@@ -75,4 +180,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

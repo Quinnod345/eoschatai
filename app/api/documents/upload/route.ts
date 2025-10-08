@@ -425,6 +425,10 @@ export async function POST(request: Request) {
         | 'Core Process'
         | 'Other';
 
+      // Get isContext from form data (defaults to true if not specified)
+      const isContextStr = formData.get('isContext') as string | null;
+      const isContext = isContextStr === null ? true : isContextStr === 'true';
+
       const newDocument = await db
         .insert(userDocuments)
         .values({
@@ -435,28 +439,37 @@ export async function POST(request: Request) {
           fileType: trimmedFileType,
           category: validCategory,
           content: textContent,
+          isContext: isContext,
         })
         .returning();
 
-      // Process the document for User RAG
-      try {
-        console.log(`Processing document for User RAG: ${fileName}`);
-        await processUserDocument(
-          session.user.id,
-          newDocument[0].id,
-          textContent,
-          {
-            fileName: fileName,
-            category: validCategory,
-            fileType: trimmedFileType,
-          },
-        );
+      // Process the document for User RAG only if isContext is true
+      if (isContext) {
+        try {
+          console.log(
+            `Processing document for User RAG (isContext=true): ${fileName}`,
+          );
+          await processUserDocument(
+            session.user.id,
+            newDocument[0].id,
+            textContent,
+            {
+              fileName: fileName,
+              category: validCategory,
+              fileType: trimmedFileType,
+            },
+          );
+          console.log(
+            `Successfully processed document for User RAG: ${fileName}`,
+          );
+        } catch (ragError) {
+          console.error('Error processing document for User RAG:', ragError);
+          // Don't fail the upload if RAG processing fails
+        }
+      } else {
         console.log(
-          `Successfully processed document for User RAG: ${fileName}`,
+          `Skipping RAG processing for document (isContext=false): ${fileName}`,
         );
-      } catch (ragError) {
-        console.error('Error processing document for User RAG:', ragError);
-        // Don't fail the upload if RAG processing fails
       }
 
       await incrementUsageCounter(session.user.id, 'uploads_total', 1);

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
@@ -305,20 +305,57 @@ const ensureUsageCountersPersisted = async (
     .where(eq(user.id, userId));
 };
 
-export const invalidateUserEntitlementsCache = async (userId: string) => {
+export const invalidateUserEntitlementsCache = async (
+  userId: string,
+  retries = 3,
+) => {
   const redis = getRedisClient();
   if (!redis) return;
 
-  try {
-    await redis.del(buildCacheKey(userId));
-  } catch (error) {
-    console.warn('[entitlements] Failed to delete cache entry', error);
+  // Add retry logic with exponential backoff for reliability
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      await redis.del(buildCacheKey(userId));
+      return; // Success
+    } catch (error) {
+      const isLastAttempt = attempt === retries - 1;
+
+      if (isLastAttempt) {
+        console.error(
+          `[entitlements] Failed to delete cache entry after ${retries} attempts:`,
+          error,
+        );
+        // Don't throw - we want to continue even if cache invalidation fails
+      } else {
+        // Exponential backoff: 100ms, 200ms, 400ms
+        const backoffMs = 100 * Math.pow(2, attempt);
+        console.warn(
+          `[entitlements] Cache deletion attempt ${attempt + 1} failed, retrying in ${backoffMs}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      }
+    }
   }
 };
 
 export const broadcastEntitlementsUpdated = async (userId: string) => {
   const redis = getRedisClient();
-  if (!redis) return;
+  if (!redis) {
+    console.warn('[entitlements] Redis not available, skipping broadcast');
+    return;
+  }
+
+  // Check Redis health before attempting broadcast
+  try {
+    const { checkRedisHealth } = await import('@/lib/redis/health');
+    const healthy = await checkRedisHealth();
+    if (!healthy) {
+      console.warn('[entitlements] Redis is unhealthy, skipping broadcast');
+      return;
+    }
+  } catch {
+    // If health check fails, try broadcast anyway
+  }
 
   try {
     await redis.publish(

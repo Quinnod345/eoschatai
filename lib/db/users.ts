@@ -16,12 +16,24 @@ export type UserWithOrg = {
     | 'entitlements'
     | 'usageCounters'
   >;
-  org: (Pick<Org, 'id' | 'plan' | 'seatCount' | 'limits' | 'stripeSubscriptionId'> & {
-    limits: Org['limits'];
-  }) | null;
+  org:
+    | (Pick<
+        Org,
+        | 'id'
+        | 'plan'
+        | 'seatCount'
+        | 'limits'
+        | 'stripeSubscriptionId'
+        | 'ownerId'
+      > & {
+        limits: Org['limits'];
+      })
+    | null;
 };
 
-export const getUserWithOrg = async (userId: string): Promise<UserWithOrg | null> => {
+export const getUserWithOrg = async (
+  userId: string,
+): Promise<UserWithOrg | null> => {
   const [record] = await db
     .select({
       user: {
@@ -39,6 +51,7 @@ export const getUserWithOrg = async (userId: string): Promise<UserWithOrg | null
         seatCount: org.seatCount,
         limits: org.limits,
         stripeSubscriptionId: org.stripeSubscriptionId,
+        ownerId: org.ownerId,
       },
     })
     .from(user)
@@ -62,7 +75,10 @@ export const findUserByStripeCustomerId = async (
 };
 
 export const listOrgUserIds = async (orgId: string): Promise<string[]> => {
-  const rows = await db.select({ id: user.id }).from(user).where(eq(user.orgId, orgId));
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.orgId, orgId));
   return rows.map((row) => row.id);
 };
 

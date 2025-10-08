@@ -101,6 +101,7 @@ export async function GET(request: Request) {
           category: doc.category,
           uploadedAt: doc.createdAt,
           size: doc.fileSize,
+          isContext: doc.isContext ?? true, // Include isContext field
         })),
       });
     }
@@ -144,6 +145,7 @@ export async function GET(request: Request) {
           title: d.title,
           kind: d.kind,
           createdAt: d.createdAt,
+          isContext: d.isContext ?? false, // Include isContext field for composers
         })),
       });
     }

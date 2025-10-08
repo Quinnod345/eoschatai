@@ -31,7 +31,7 @@ import {
 import { FileSpreadsheet } from 'lucide-react';
 import { Users2 } from 'lucide-react';
 import { Mic } from 'lucide-react';
-import { Zap } from 'lucide-react';
+// Removed: Zap icon was only used for dev test links
 import { SidebarHistory } from '@/components/sidebar-history';
 import { Button } from '@/components/ui/button';
 import {
@@ -194,7 +194,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           animate={state === 'expanded' ? 'expanded' : 'collapsed'}
           variants={headerVariants}
         >
-          <SidebarHeader className="py-4">
+          <SidebarHeader className="py-2.5">
             <SidebarMenu>
               <div className="flex flex-row justify-between items-center px-2">
                 <Link
@@ -206,7 +206,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                   className="flex flex-row gap-3 items-center"
                 >
                   <motion.div
-                    className="px-3 py-1.5 rounded-md cursor-pointer"
+                    className="px-3 py-1 rounded-md cursor-pointer"
                     whileHover={{
                       y: -1,
                       transition: { duration: 0.2, ease: 'easeOut' },
@@ -401,31 +401,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                 Chats
               </div>
 
-              {/* Dev only: Test Premium UI */}
-              {process.env.NODE_ENV !== 'production' && (
-                <div className="px-3 pb-2 space-y-2">
-                  <Link href="/test-premium">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start text-xs"
-                    >
-                      <Zap className="mr-2 h-3 w-3" />
-                      Test Premium UI
-                    </Button>
-                  </Link>
-                  <Link href="/test-nexus">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start text-xs"
-                    >
-                      <Zap className="mr-2 h-3 w-3" />
-                      Test Nexus Selector
-                    </Button>
-                  </Link>
-                </div>
-              )}
+              {/* Removed dev-only test links for premium and nexus selector */}
 
               <div className="flex-1 min-h-0">
                 <SidebarHistory user={user} />

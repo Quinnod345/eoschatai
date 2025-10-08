@@ -115,6 +115,10 @@ function PureComposer({
   const isStreamingRef = useRef<boolean>(false);
   // Track last remote version timestamp that we applied to composer.content
   const lastRemoteAppliedAtRef = useRef<number>(0);
+  // Track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef<boolean>(true);
+  // Abort controller for fetch requests
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [mirroredChatId, setMirroredChatId] = useState<string | null>(null);
   const [mirroredMessages, setMirroredMessages] = useState<Array<UIMessage>>(
     [],
@@ -160,13 +164,14 @@ function PureComposer({
     if (documents && documents.length > 0) {
       const mostRecentDocument = documents.at(-1);
 
-      if (mostRecentDocument) {
+      if (mostRecentDocument && isMountedRef.current) {
         const remoteCreatedAt = new Date(
           mostRecentDocument.createdAt,
         ).getTime();
         setDocument(mostRecentDocument);
         setCurrentVersionIndex(documents.length - 1);
         setComposer((currentComposer) => {
+          if (!isMountedRef.current) return currentComposer;
           // Avoid clobbering in-flight or freshly streamed content with an empty/older fetch
           const remoteContent = mostRecentDocument.content ?? '';
           const localContent = currentComposer.content ?? '';
@@ -208,25 +213,40 @@ function PureComposer({
   // Load mirrored chat for this composer if it exists
   useEffect(() => {
     let cancelled = false;
+    const abortController = new AbortController();
+
     async function loadMirrored() {
       if (!composer.documentId || composer.documentId === 'init') return;
       setIsMirroredLoading(true);
       try {
         const chatRes = await fetch(
           `/api/chats/by-document?id=${composer.documentId}`,
+          { signal: abortController.signal },
         );
+
+        if (cancelled || !isMountedRef.current) return;
+
         const { chatId } = await chatRes.json();
-        if (!chatId || cancelled) {
+        if (!chatId || cancelled || !isMountedRef.current) {
           setMirroredChatId(null);
           setMirroredMessages([]);
           setMirroredVotes([]);
           return;
         }
         setMirroredChatId(chatId);
-        const msgsRes = await fetch(`/api/chats/messages?chatId=${chatId}`);
+
+        const msgsRes = await fetch(`/api/chats/messages?chatId=${chatId}`, {
+          signal: abortController.signal,
+        });
+
+        if (cancelled || !isMountedRef.current) return;
+
         const data = await msgsRes.json();
-        if (!cancelled && Array.isArray(data?.messages)) {
-          // Convert DB messages -> UIMessage expected by existing components if needed
+        if (
+          !cancelled &&
+          isMountedRef.current &&
+          Array.isArray(data?.messages)
+        ) {
           const uiMsgs = data.messages.map((m: any) => ({
             id: m.id,
             role: m.role,
@@ -236,18 +256,23 @@ function PureComposer({
           setMirroredMessages(uiMsgs);
         }
       } catch (e) {
-        if (!cancelled) {
+        if (e instanceof Error && e.name === 'AbortError') return;
+
+        if (!cancelled && isMountedRef.current) {
           setMirroredChatId(null);
           setMirroredMessages([]);
           setMirroredVotes([]);
         }
       } finally {
-        if (!cancelled) setIsMirroredLoading(false);
+        if (!cancelled && isMountedRef.current) setIsMirroredLoading(false);
       }
     }
+
     loadMirrored();
+
     return () => {
       cancelled = true;
+      abortController.abort();
     };
   }, [composer.documentId]);
 
@@ -270,20 +295,37 @@ function PureComposer({
       // Mark as last locally saved to avoid immediate remote clobber
       lastLocallySavedContentRef.current = updatedContent;
 
+      // Cancel previous save if in flight
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      abortControllerRef.current = new AbortController();
+
       // Always POST the latest content to persist
       try {
         await fetch(`/api/document?id=${composer.documentId}`, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
             title: composer.title,
             content: updatedContent,
             kind: composer.kind,
           }),
+          signal: abortControllerRef.current.signal,
         });
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log('[Composer] Save aborted');
+          return;
+        }
         console.error('Failed to save document content', err);
       } finally {
-        setIsContentDirty(false);
+        if (isMountedRef.current) {
+          setIsContentDirty(false);
+        }
       }
 
       // If we already have documents cached, append a new version locally
@@ -318,6 +360,22 @@ function PureComposer({
     handleContentChange,
     2000,
   );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      console.log('[Composer] Unmounting, cleaning up...');
+      isMountedRef.current = false;
+      debouncedHandleContentChange.cancel();
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [debouncedHandleContentChange]);
 
   const saveContent = useCallback(
     (updatedContent: string, debounce: boolean) => {
@@ -561,47 +619,64 @@ function PureComposer({
           >
             <div className="p-2 flex flex-row justify-between items-start">
               <div className="flex flex-row gap-4 items-start">
-                <ComposerCloseButton />
+                <ComposerCloseButton stop={stop} />
 
                 <div className="flex flex-col">
                   <div className="font-medium">
                     {isEditingTitle ? (
                       <input
+                        type="text"
                         autoFocus
                         className="bg-transparent border-b border-transparent focus:border-primary outline-none px-1"
                         value={draftTitle}
                         onChange={(e) => setDraftTitle(e.target.value)}
                         onBlur={async () => {
                           setIsEditingTitle(false);
-                          const title = (draftTitle || '').trim() || 'Untitled';
-                          setComposer((a) => ({ ...a, title }));
-                          if (composer.documentId) {
+                          const newTitle =
+                            (draftTitle || '').trim() || 'Untitled';
+                          const oldTitle = composer.title;
+
+                          // Optimistic update
+                          setComposer((a) => ({ ...a, title: newTitle }));
+
+                          if (composer.documentId && isMountedRef.current) {
                             try {
-                              await fetch(
+                              const response = await fetch(
                                 `/api/document?id=${composer.documentId}`,
                                 {
                                   method: 'PATCH',
                                   headers: {
                                     'Content-Type': 'application/json',
                                   },
-                                  body: JSON.stringify({ title }),
+                                  body: JSON.stringify({ title: newTitle }),
                                 },
                               );
-                            } catch {}
+
+                              if (!response.ok && isMountedRef.current) {
+                                // Rollback on error
+                                setComposer((a) => ({ ...a, title: oldTitle }));
+                              }
+                            } catch {
+                              // Rollback on network error
+                              if (isMountedRef.current) {
+                                setComposer((a) => ({ ...a, title: oldTitle }));
+                              }
+                            }
                           }
                         }}
                       />
                     ) : (
-                      <span
-                        onDoubleClick={() => {
+                      <button
+                        type="button"
+                        onClick={() => {
                           setDraftTitle(composer.title || '');
                           setIsEditingTitle(true);
                         }}
-                        className="cursor-text"
-                        title="Double-click to rename"
+                        className="cursor-text text-left font-medium bg-transparent border-none p-0 hover:opacity-80"
+                        title="Click to rename"
                       >
                         {composer.title || 'Untitled'}
-                      </span>
+                      </button>
                     )}
                   </div>
 
@@ -692,7 +767,8 @@ export const Composer = memo(PureComposer, (prevProps, nextProps) => {
   if (prevProps.status !== nextProps.status) return false;
   if (!equal(prevProps.votes, nextProps.votes)) return false;
   if (prevProps.input !== nextProps.input) return false;
-  if (!equal(prevProps.messages, nextProps.messages.length)) return false;
+  if (prevProps.messages.length !== nextProps.messages.length) return false;
+  if (!equal(prevProps.messages, nextProps.messages)) return false;
   if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType)
     return false;
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,6 @@ import {
   MicOff,
   Volume2,
   VolumeX,
-  Phone,
   PhoneOff,
   Loader2,
   Save,
@@ -17,7 +17,6 @@ import {
   Navigation,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from '@/lib/toast-system';
 import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
@@ -674,7 +673,9 @@ export default function VoiceModeBatchSave({
 
       // Only show error toast if modal is still open
       if (isOpen && error.message !== 'Modal closed during initialization') {
-        toast.error(error.message || 'Failed to connect to voice service');
+        customToast.error(
+          error.message || 'Failed to connect to voice service',
+        );
       }
     }
   }, [
@@ -869,10 +870,7 @@ export default function VoiceModeBatchSave({
 
         case VOICE_EVENTS.RESPONSE_DONE:
           console.log('[Voice Mode] Response done');
-          if (
-            pendingAssistantMessageRef.current &&
-            pendingAssistantMessageRef.current.content.trim()
-          ) {
+          if (pendingAssistantMessageRef.current?.content?.trim()) {
             const completed = {
               ...pendingAssistantMessageRef.current,
               isComplete: true,
@@ -889,7 +887,7 @@ export default function VoiceModeBatchSave({
 
         case VOICE_EVENTS.ERROR:
           console.error('[Voice Mode] Realtime API error:', event.error);
-          toast.error(
+          customToast.error(
             `Voice error: ${event.error?.message || 'Unknown error'}`,
           );
           break;
@@ -1019,10 +1017,7 @@ export default function VoiceModeBatchSave({
     }
 
     // Before closing connections, check if we have a pending assistant message
-    if (
-      pendingAssistantMessageRef.current &&
-      pendingAssistantMessageRef.current.content.trim()
-    ) {
+    if (pendingAssistantMessageRef.current?.content?.trim()) {
       console.log(
         '[Voice Mode] Saving pending assistant message before cleanup',
       );
@@ -1101,8 +1096,7 @@ export default function VoiceModeBatchSave({
     // Check if we have any messages to save (including pending assistant message)
     const hasMessages =
       messagesRef.current.length > 0 ||
-      (pendingAssistantMessageRef.current &&
-        pendingAssistantMessageRef.current.content.trim());
+      Boolean(pendingAssistantMessageRef.current?.content?.trim());
 
     // Save messages if we have any
     if (hasMessages) {
@@ -1261,11 +1255,6 @@ export default function VoiceModeBatchSave({
     };
   }, []);
 
-  // Ensure we don't render anything if modal is closed
-  if (!isOpen) {
-    return null;
-  }
-
   // Get display transcript
   const displayTranscript = messagesRef.current
     .slice(-VOICE_CONFIG.ui.maxTranscriptMessages)
@@ -1274,400 +1263,428 @@ export default function VoiceModeBatchSave({
       content: msg.content,
     }));
 
-  return (
+  // Only render if we're in the browser
+  if (typeof window === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        onClick={(e) => {
-          // Only close if clicking directly on the backdrop and not saving/navigating
-          if (
-            e.target === e.currentTarget &&
-            !isSaving &&
-            !isNavigating &&
-            !hasHungUpRef.current
-          ) {
-            handleClose();
-          }
-        }}
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-md relative z-10"
-        >
-          <Card className="p-6 space-y-6">
-            {/* Show different UI based on state */}
-            {sessionState === VOICE_STATES.SESSION.ENDING ||
-            isSaving ||
-            isNavigating ? (
-              // Loading/Saving UI
-              <>
-                <div className="text-center space-y-6">
-                  {/* Status Icon */}
-                  <div className="flex items-center justify-center">
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{
-                        duration: 0.5,
-                        ease: 'easeOut',
-                      }}
-                      className="relative"
-                    >
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10000]"
+            onClick={(e) => {
+              // Only close if clicking directly on the backdrop and not saving/navigating
+              if (
+                e.target === e.currentTarget &&
+                !isSaving &&
+                !isNavigating &&
+                !hasHungUpRef.current
+              ) {
+                handleClose();
+              }
+            }}
+          />
+
+          {/* Modal Container */}
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 pointer-events-none">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md pointer-events-auto"
+            >
+              <Card className="p-6 space-y-6">
+                {/* Show different UI based on state */}
+                {sessionState === VOICE_STATES.SESSION.ENDING ||
+                isSaving ||
+                isNavigating ? (
+                  // Loading/Saving UI
+                  <>
+                    <div className="text-center space-y-6">
+                      {/* Status Icon */}
+                      <div className="flex items-center justify-center">
+                        <motion.div
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{
+                            duration: 0.5,
+                            ease: 'easeOut',
+                          }}
+                          className="relative"
+                        >
+                          <motion.div
+                            animate={{
+                              scale: [1, 1.05, 1],
+                              opacity: [1, 0.8, 1],
+                            }}
+                            transition={{
+                              duration: 2,
+                              repeat: Number.POSITIVE_INFINITY,
+                              ease: 'easeInOut',
+                            }}
+                            className="w-24 h-24 rounded-full bg-gradient-to-r from-eos-orange to-orange-600 flex items-center justify-center shadow-lg"
+                          >
+                            <motion.div
+                              key={
+                                isSaving
+                                  ? 'save'
+                                  : isNavigating
+                                    ? 'nav'
+                                    : 'check'
+                              }
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              {isSaving ? (
+                                <Save className="h-10 w-10 text-white" />
+                              ) : isNavigating ? (
+                                <Navigation className="h-10 w-10 text-white" />
+                              ) : (
+                                <CheckCircle className="h-10 w-10 text-white" />
+                              )}
+                            </motion.div>
+                          </motion.div>
+                        </motion.div>
+                      </div>
+
+                      {/* Status Text */}
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold">
+                          {isSaving && 'Saving your conversation'}
+                          {isNavigating && !isSaving && 'Opening your chat'}
+                          {!isSaving &&
+                            !isNavigating &&
+                            sessionState === VOICE_STATES.SESSION.ENDING &&
+                            'Ending voice session'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {isSaving &&
+                            `Saving ${messagesRef.current.length} messages...`}
+                          {isNavigating &&
+                            !isSaving &&
+                            'Preparing your chat view...'}
+                          {!isSaving &&
+                            !isNavigating &&
+                            sessionState === VOICE_STATES.SESSION.ENDING &&
+                            'Cleaning up...'}
+                        </p>
+                      </div>
+
+                      {/* Progress Steps */}
+                      <div className="space-y-3 max-w-xs mx-auto">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                              sessionState === VOICE_STATES.SESSION.ENDING
+                                ? 'bg-eos-orange text-white'
+                                : 'bg-green-500 text-white',
+                            )}
+                          >
+                            {sessionState === VOICE_STATES.SESSION.ENDING ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4" />
+                            )}
+                          </div>
+                          <span className="text-sm">Ending voice session</span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                              isSaving
+                                ? 'bg-eos-orange text-white'
+                                : isNavigating || !hasMessagesRef.current
+                                  ? 'bg-green-500 text-white'
+                                  : 'bg-gray-200 text-gray-500',
+                            )}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : isNavigating || !hasMessagesRef.current ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : (
+                              '2'
+                            )}
+                          </div>
+                          <span className="text-sm">
+                            {hasMessagesRef.current
+                              ? 'Saving conversation'
+                              : 'No messages to save'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                              isNavigating
+                                ? 'bg-eos-orange text-white'
+                                : 'bg-gray-200 text-gray-500',
+                            )}
+                          >
+                            {isNavigating ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              '3'
+                            )}
+                          </div>
+                          <span className="text-sm">Opening chat</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // Normal Voice Mode UI
+                  <>
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-semibold">Voice Mode</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge
+                            variant={
+                              connectionStatus ===
+                              VOICE_STATES.CONNECTION.CONNECTED
+                                ? 'default'
+                                : 'secondary'
+                            }
+                            className={cn(
+                              connectionStatus ===
+                                VOICE_STATES.CONNECTION.CONNECTED &&
+                                'bg-green-500 hover:bg-green-600',
+                              connectionStatus ===
+                                VOICE_STATES.CONNECTION.CONNECTING &&
+                                'bg-yellow-500 hover:bg-yellow-600',
+                              connectionStatus ===
+                                VOICE_STATES.CONNECTION.ERROR &&
+                                'bg-red-500 hover:bg-red-600',
+                            )}
+                          >
+                            {connectionStatus ===
+                              VOICE_STATES.CONNECTION.CONNECTED && 'Connected'}
+                            {connectionStatus ===
+                              VOICE_STATES.CONNECTION.CONNECTING &&
+                              'Connecting...'}
+                            {connectionStatus ===
+                              VOICE_STATES.CONNECTION.DISCONNECTED &&
+                              'Disconnected'}
+                            {connectionStatus ===
+                              VOICE_STATES.CONNECTION.ERROR && 'Error'}
+                          </Badge>
+                          {sessionInfo?.personaName && (
+                            <>
+                              <span className="text-xs text-muted-foreground">
+                                •
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {sessionInfo.personaName}
+                                {sessionInfo.profileName &&
+                                  ` - ${sessionInfo.profileName}`}
+                              </span>
+                            </>
+                          )}
+                          {(existingChatId || sessionChatId) && (
+                            <>
+                              <span className="text-xs text-muted-foreground">
+                                •
+                              </span>
+                              <span className="text-xs text-green-600 font-medium">
+                                {existingChatId
+                                  ? 'In chat'
+                                  : 'New conversation'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClose}
+                        disabled={isSaving || isNavigating}
+                      >
+                        {isSaving || isNavigating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <PhoneOff className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Audio Visualizer */}
+                    <div className="flex items-center justify-center py-8">
                       <motion.div
+                        className="relative"
                         animate={{
-                          scale: [1, 1.05, 1],
-                          opacity: [1, 0.8, 1],
+                          scale: 1 + audioLevel * 0.3,
                         }}
                         transition={{
-                          duration: 2,
-                          repeat: Number.POSITIVE_INFINITY,
-                          ease: 'easeInOut',
+                          type: 'spring',
+                          stiffness: 300,
+                          damping: 30,
                         }}
-                        className="w-24 h-24 rounded-full bg-gradient-to-r from-eos-orange to-orange-600 flex items-center justify-center shadow-lg"
                       >
-                        <motion.div
-                          key={
-                            isSaving ? 'save' : isNavigating ? 'nav' : 'check'
-                          }
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {isSaving ? (
-                            <Save className="h-10 w-10 text-white" />
-                          ) : isNavigating ? (
-                            <Navigation className="h-10 w-10 text-white" />
-                          ) : (
-                            <CheckCircle className="h-10 w-10 text-white" />
+                        <div
+                          className={cn(
+                            'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
+                            isListening
+                              ? 'bg-green-500 shadow-lg shadow-green-500/50'
+                              : isPlaying
+                                ? 'bg-blue-500 shadow-lg shadow-blue-500/50'
+                                : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
                           )}
-                        </motion.div>
+                        >
+                          {sessionState ===
+                          VOICE_STATES.SESSION.INITIALIZING ? (
+                            <Loader2 className="h-8 w-8 text-white animate-spin" />
+                          ) : isMuted ? (
+                            <MicOff className="h-8 w-8 text-white" />
+                          ) : (
+                            <Mic className="h-8 w-8 text-white" />
+                          )}
+                        </div>
+
+                        {/* Audio level rings */}
+                        {audioLevel > VOICE_CONFIG.ui.audioLevelThreshold &&
+                          sessionState === VOICE_STATES.SESSION.ACTIVE && (
+                            <>
+                              <motion.div
+                                className="absolute inset-0 rounded-full border-2 border-white/30"
+                                animate={{
+                                  scale: 1 + audioLevel * 0.5,
+                                  opacity: 0.7 - audioLevel * 0.3,
+                                }}
+                              />
+                              <motion.div
+                                className="absolute inset-0 rounded-full border-2 border-white/20"
+                                animate={{
+                                  scale: 1 + audioLevel * 0.8,
+                                  opacity: 0.5 - audioLevel * 0.2,
+                                }}
+                              />
+                            </>
+                          )}
                       </motion.div>
-                    </motion.div>
-                  </div>
-
-                  {/* Status Text */}
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-semibold">
-                      {isSaving && 'Saving your conversation'}
-                      {isNavigating && !isSaving && 'Opening your chat'}
-                      {!isSaving &&
-                        !isNavigating &&
-                        sessionState === VOICE_STATES.SESSION.ENDING &&
-                        'Ending voice session'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {isSaving &&
-                        `Saving ${messagesRef.current.length} messages...`}
-                      {isNavigating &&
-                        !isSaving &&
-                        'Preparing your chat view...'}
-                      {!isSaving &&
-                        !isNavigating &&
-                        sessionState === VOICE_STATES.SESSION.ENDING &&
-                        'Cleaning up...'}
-                    </p>
-                  </div>
-
-                  {/* Progress Steps */}
-                  <div className="space-y-3 max-w-xs mx-auto">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
-                          sessionState === VOICE_STATES.SESSION.ENDING
-                            ? 'bg-eos-orange text-white'
-                            : 'bg-green-500 text-white',
-                        )}
-                      >
-                        {sessionState === VOICE_STATES.SESSION.ENDING ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4" />
-                        )}
-                      </div>
-                      <span className="text-sm">Ending voice session</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
-                          isSaving
-                            ? 'bg-eos-orange text-white'
-                            : isNavigating || !hasMessagesRef.current
-                              ? 'bg-green-500 text-white'
-                              : 'bg-gray-200 text-gray-500',
-                        )}
-                      >
-                        {isSaving ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : isNavigating || !hasMessagesRef.current ? (
-                          <CheckCircle className="h-4 w-4" />
-                        ) : (
-                          '2'
-                        )}
-                      </div>
-                      <span className="text-sm">
-                        {hasMessagesRef.current
-                          ? 'Saving conversation'
-                          : 'No messages to save'}
-                      </span>
+                    {/* Status */}
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">
+                        {sessionState === VOICE_STATES.SESSION.INITIALIZING &&
+                          'Initializing voice session...'}
+                        {sessionState === VOICE_STATES.SESSION.READY &&
+                          'Voice mode ready'}
+                        {sessionState === VOICE_STATES.SESSION.ACTIVE &&
+                          (isListening ? (
+                            <span className="text-green-600 font-medium">
+                              Listening...
+                            </span>
+                          ) : isPlaying ? (
+                            <span className="text-blue-600 font-medium">
+                              AI is speaking...
+                            </span>
+                          ) : (
+                            "Speak naturally, I'm here to help!"
+                          ))}
+                        {(sessionState as VoiceSessionState) ===
+                          VOICE_STATES.SESSION.ENDING &&
+                          (isSaving
+                            ? 'Saving conversation...'
+                            : isNavigating
+                              ? 'Navigating to chat...'
+                              : 'Ending session...')}
+                        {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
+                          'Connection error occurred'}
+                      </p>
+                      {!existingChatId && hasMessagesRef.current && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your conversation will be saved when you hang up
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-4">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={toggleMute}
+                        disabled={
+                          connectionStatus !==
+                            VOICE_STATES.CONNECTION.CONNECTED ||
+                          isSaving ||
                           isNavigating
-                            ? 'bg-eos-orange text-white'
-                            : 'bg-gray-200 text-gray-500',
-                        )}
-                      >
-                        {isNavigating ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          '3'
-                        )}
-                      </div>
-                      <span className="text-sm">Opening chat</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              // Normal Voice Mode UI
-              <>
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold">Voice Mode</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge
-                        variant={
-                          connectionStatus === VOICE_STATES.CONNECTION.CONNECTED
-                            ? 'default'
-                            : 'secondary'
                         }
                         className={cn(
-                          connectionStatus ===
-                            VOICE_STATES.CONNECTION.CONNECTED &&
-                            'bg-green-500 hover:bg-green-600',
-                          connectionStatus ===
-                            VOICE_STATES.CONNECTION.CONNECTING &&
-                            'bg-yellow-500 hover:bg-yellow-600',
-                          connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                            'bg-red-500 hover:bg-red-600',
+                          isMuted &&
+                            'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
                         )}
                       >
-                        {connectionStatus ===
-                          VOICE_STATES.CONNECTION.CONNECTED && 'Connected'}
-                        {connectionStatus ===
-                          VOICE_STATES.CONNECTION.CONNECTING && 'Connecting...'}
-                        {connectionStatus ===
-                          VOICE_STATES.CONNECTION.DISCONNECTED &&
-                          'Disconnected'}
-                        {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                          'Error'}
-                      </Badge>
-                      {sessionInfo?.personaName && (
-                        <>
-                          <span className="text-xs text-muted-foreground">
-                            •
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {sessionInfo.personaName}
-                            {sessionInfo.profileName &&
-                              ` - ${sessionInfo.profileName}`}
-                          </span>
-                        </>
-                      )}
-                      {(existingChatId || sessionChatId) && (
-                        <>
-                          <span className="text-xs text-muted-foreground">
-                            •
-                          </span>
-                          <span className="text-xs text-green-600 font-medium">
-                            {existingChatId ? 'In chat' : 'New conversation'}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleClose}
-                    disabled={isSaving || isNavigating}
-                  >
-                    {isSaving || isNavigating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <PhoneOff className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-
-                {/* Audio Visualizer */}
-                <div className="flex items-center justify-center py-8">
-                  <motion.div
-                    className="relative"
-                    animate={{
-                      scale: 1 + audioLevel * 0.3,
-                    }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  >
-                    <div
-                      className={cn(
-                        'w-24 h-24 rounded-full flex items-center justify-center transition-colors duration-300',
-                        isListening
-                          ? 'bg-green-500 shadow-lg shadow-green-500/50'
-                          : isPlaying
-                            ? 'bg-blue-500 shadow-lg shadow-blue-500/50'
-                            : 'bg-eos-orange shadow-lg shadow-eos-orange/50',
-                      )}
-                    >
-                      {sessionState === VOICE_STATES.SESSION.INITIALIZING ? (
-                        <Loader2 className="h-8 w-8 text-white animate-spin" />
-                      ) : isMuted ? (
-                        <MicOff className="h-8 w-8 text-white" />
-                      ) : (
-                        <Mic className="h-8 w-8 text-white" />
-                      )}
-                    </div>
-
-                    {/* Audio level rings */}
-                    {audioLevel > VOICE_CONFIG.ui.audioLevelThreshold &&
-                      sessionState === VOICE_STATES.SESSION.ACTIVE && (
-                        <>
-                          <motion.div
-                            className="absolute inset-0 rounded-full border-2 border-white/30"
-                            animate={{
-                              scale: 1 + audioLevel * 0.5,
-                              opacity: 0.7 - audioLevel * 0.3,
-                            }}
-                          />
-                          <motion.div
-                            className="absolute inset-0 rounded-full border-2 border-white/20"
-                            animate={{
-                              scale: 1 + audioLevel * 0.8,
-                              opacity: 0.5 - audioLevel * 0.2,
-                            }}
-                          />
-                        </>
-                      )}
-                  </motion.div>
-                </div>
-
-                {/* Status */}
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {sessionState === VOICE_STATES.SESSION.INITIALIZING &&
-                      'Initializing voice session...'}
-                    {sessionState === VOICE_STATES.SESSION.READY &&
-                      'Voice mode ready'}
-                    {sessionState === VOICE_STATES.SESSION.ACTIVE &&
-                      (isListening ? (
-                        <span className="text-green-600 font-medium">
-                          Listening...
-                        </span>
-                      ) : isPlaying ? (
-                        <span className="text-blue-600 font-medium">
-                          AI is speaking...
-                        </span>
-                      ) : (
-                        "Speak naturally, I'm here to help!"
-                      ))}
-                    {(sessionState as VoiceSessionState) ===
-                      VOICE_STATES.SESSION.ENDING &&
-                      (isSaving
-                        ? 'Saving conversation...'
-                        : isNavigating
-                          ? 'Navigating to chat...'
-                          : 'Ending session...')}
-                    {connectionStatus === VOICE_STATES.CONNECTION.ERROR &&
-                      'Connection error occurred'}
-                  </p>
-                  {!existingChatId && hasMessagesRef.current && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Your conversation will be saved when you hang up
-                    </p>
-                  )}
-                </div>
-
-                {/* Controls */}
-                <div className="flex items-center justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={toggleMute}
-                    disabled={
-                      connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
-                      isSaving ||
-                      isNavigating
-                    }
-                    className={cn(
-                      isMuted &&
-                        'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
-                    )}
-                  >
-                    {isMuted ? (
-                      <MicOff className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-4 w-4" />
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    disabled={
-                      connectionStatus !== VOICE_STATES.CONNECTION.CONNECTED ||
-                      isSaving ||
-                      isNavigating
-                    }
-                  >
-                    {isPlaying ? (
-                      <VolumeX className="h-4 w-4" />
-                    ) : (
-                      <Volume2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-
-                {/* Transcript */}
-                {displayTranscript.length > 0 && (
-                  <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Conversation:
-                    </p>
-                    {displayTranscript.map((msg, index) => (
-                      <p
-                        key={`transcript-${index}`}
-                        className={cn(
-                          'text-xs',
-                          msg.role === 'user'
-                            ? 'text-green-600'
-                            : 'text-blue-600',
+                        {isMuted ? (
+                          <MicOff className="h-4 w-4" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
                         )}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={
+                          connectionStatus !==
+                            VOICE_STATES.CONNECTION.CONNECTED ||
+                          isSaving ||
+                          isNavigating
+                        }
                       >
-                        {msg.role === 'user' ? 'You: ' : 'AI: '}
-                        {msg.content}
-                      </p>
-                    ))}
-                  </div>
+                        {isPlaying ? (
+                          <VolumeX className="h-4 w-4" />
+                        ) : (
+                          <Volume2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Transcript */}
+                    {displayTranscript.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-1 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                          Conversation:
+                        </p>
+                        {displayTranscript.map((msg, index) => (
+                          <p
+                            key={`transcript-${msg.role}-${msg.content.slice(0, 24)}-${index}`}
+                            className={cn(
+                              'text-xs',
+                              msg.role === 'user'
+                                ? 'text-green-600'
+                                : 'text-blue-600',
+                            )}
+                          >
+                            {msg.role === 'user' ? 'You: ' : 'AI: '}
+                            {msg.content}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </Card>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+              </Card>
+            </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

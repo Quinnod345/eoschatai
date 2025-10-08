@@ -1,11 +1,11 @@
 'use client';
 
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useState } from 'react';
 
 export default function CalendarTestPage() {
   const [message, setMessage] = useState('');
-  const { messages, handleSubmit, input, setInput, isLoading } = useChat();
+  const { messages, input, handleSubmit, setInput, isLoading } = useChat();
 
   const askAboutCalendar = () => {
     setInput('What events do I have scheduled for tomorrow?');

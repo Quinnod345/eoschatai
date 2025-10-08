@@ -39,6 +39,7 @@ import {
   ExternalLink,
   AlertTriangle,
   Building2,
+  BarChart,
 } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -248,6 +249,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // Account data (org and user) from global account store
   const org = useAccountStore((state) => state.org);
   const accountUser = useAccountStore((state) => state.user);
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const usageCounters = useAccountStore((state) => state.usageCounters);
 
   // Privacy & Security state
   const [exportingData, setExportingData] = React.useState(false);
@@ -269,6 +272,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'integrations', label: 'Integrations', icon: Zap },
     { id: 'organization', label: 'Organization', icon: Building2 },
     { id: 'billing', label: 'Billing', icon: Database },
+    { id: 'usage', label: 'Usage', icon: BarChart },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'memories', label: 'Memories', icon: Database },
   ];
@@ -1902,6 +1906,181 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 )}
                               </div>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Usage Section */}
+                  {activeSection === 'usage' && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">Usage</h3>
+                      <div className="space-y-6">
+                        <p className="text-sm text-muted-foreground">
+                          Track your usage and limits for various features.
+                        </p>
+
+                        {/* Chat Usage */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                                  <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Daily Chats
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Number of chat messages sent today.
+                                </p>
+                                {accountUser && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">
+                                        Usage:
+                                      </span>
+                                      <span className="text-2xl font-bold">
+                                        {usageCounters?.chats_today ?? 0}
+                                        {entitlements?.features.chats_per_day &&
+                                        entitlements.features.chats_per_day > 0
+                                          ? ` / ${entitlements.features.chats_per_day}`
+                                          : ''}
+                                      </span>
+                                    </div>
+                                    {entitlements?.features.chats_per_day &&
+                                      entitlements.features.chats_per_day >
+                                        0 && (
+                                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                          <div
+                                            className="bg-primary h-full transition-all"
+                                            style={{
+                                              width: `${Math.min(
+                                                ((usageCounters?.chats_today ??
+                                                  0) /
+                                                  entitlements.features
+                                                    .chats_per_day) *
+                                                  100,
+                                                100,
+                                              )}%`,
+                                            }}
+                                          />
+                                        </div>
+                                      )}
+                                    {!entitlements?.features.chats_per_day ||
+                                    entitlements.features.chats_per_day <= 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Unlimited chats available on your plan
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground">
+                                        {entitlements.features.chats_per_day -
+                                          (usageCounters?.chats_today ?? 0) >
+                                        0
+                                          ? `${entitlements.features.chats_per_day - (usageCounters?.chats_today ?? 0)} chats remaining today`
+                                          : 'Daily limit reached. Resets at midnight.'}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Upload Usage */}
+                        <div className="rounded-lg border bg-card">
+                          <div className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
+                                  <Database className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold mb-2">
+                                  Context Uploads
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Total files uploaded for context (PDFs,
+                                  documents, images, etc.).
+                                </p>
+                                {accountUser && (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">
+                                        Usage:
+                                      </span>
+                                      <span className="text-2xl font-bold">
+                                        {usageCounters?.uploads_total ?? 0}
+                                        {entitlements?.features
+                                          .context_uploads_total &&
+                                        entitlements.features
+                                          .context_uploads_total > 0
+                                          ? ` / ${entitlements.features.context_uploads_total}`
+                                          : ''}
+                                      </span>
+                                    </div>
+                                    {entitlements?.features
+                                      .context_uploads_total &&
+                                      entitlements.features
+                                        .context_uploads_total > 0 && (
+                                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                                          <div
+                                            className="bg-primary h-full transition-all"
+                                            style={{
+                                              width: `${Math.min(
+                                                ((usageCounters?.uploads_total ??
+                                                  0) /
+                                                  entitlements.features
+                                                    .context_uploads_total) *
+                                                  100,
+                                                100,
+                                              )}%`,
+                                            }}
+                                          />
+                                        </div>
+                                      )}
+                                    {!entitlements?.features
+                                      .context_uploads_total ||
+                                    entitlements.features
+                                      .context_uploads_total <= 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Unlimited uploads available on your plan
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground">
+                                        {entitlements.features
+                                          .context_uploads_total -
+                                          (usageCounters?.uploads_total ?? 0) >
+                                        0
+                                          ? `${entitlements.features.context_uploads_total - (usageCounters?.uploads_total ?? 0)} uploads remaining`
+                                          : 'Upload limit reached. Upgrade for more.'}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Plan Information */}
+                        <div className="rounded-lg border bg-muted/30">
+                          <div className="p-6">
+                            <h4 className="font-semibold mb-2">Your Plan</h4>
+                            <p className="text-lg font-bold capitalize mb-2">
+                              {accountUser?.plan || 'Free'}
+                            </p>
+                            {accountUser?.plan === 'free' && (
+                              <p className="text-sm text-muted-foreground">
+                                Upgrade to Pro or Business for unlimited usage
+                                and advanced features.
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

@@ -579,16 +579,30 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
         }
 
         if (parsedChartDataFromStream) {
-          setMetadata((metadata) => {
-            console.log(
-              '[ComposerClient onStreamPart] Updating metadata with chartData from stream:',
-              parsedChartDataFromStream.type,
+          // Validate chart data structure before setting
+          const isValid =
+            parsedChartDataFromStream.type &&
+            parsedChartDataFromStream.data &&
+            Array.isArray(parsedChartDataFromStream.data) &&
+            parsedChartDataFromStream.data.length > 0;
+
+          if (isValid) {
+            setMetadata((metadata) => {
+              console.log(
+                '[ComposerClient onStreamPart] Updating metadata with chartData from stream:',
+                parsedChartDataFromStream.type,
+              );
+              return {
+                ...metadata,
+                chartData: parsedChartDataFromStream,
+              };
+            });
+          } else {
+            console.warn(
+              '[ComposerClient onStreamPart] Invalid chart data, skipping:',
+              parsedChartDataFromStream,
             );
-            return {
-              ...metadata,
-              chartData: parsedChartDataFromStream,
-            };
-          });
+          }
         }
 
         setComposer((draftComposer) => ({

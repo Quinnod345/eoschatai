@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useFeatures } from '@/hooks/use-features';
 import { WhatsNewModal } from '@/components/whats-new-modal';
 import { WhatsNewBanner } from '@/components/whats-new-banner';
@@ -14,6 +15,11 @@ interface FeaturesProviderProps {
 
 export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
+  const [selectedRecordingId, setSelectedRecordingId] = useState<
+    string | undefined
+  >();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const {
     isModalOpen,
@@ -26,8 +32,35 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
     autoShow: false, // Disabled to prevent auth conflicts and reduce hook execution
   });
 
+  // Handle URL parameters to open recording modal
+  useEffect(() => {
+    const recordingId = searchParams.get('recordingId');
+    const openRecordingModal = searchParams.get('openRecordingModal');
+
+    if (recordingId) {
+      setSelectedRecordingId(recordingId);
+      setIsRecordingModalOpen(true);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('recordingId');
+      router.replace(url.pathname + url.search);
+    } else if (openRecordingModal === 'true') {
+      setSelectedRecordingId(undefined);
+      setIsRecordingModalOpen(true);
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('openRecordingModal');
+      router.replace(url.pathname + url.search);
+    }
+  }, [searchParams, router]);
+
   const handleOpenRecording = () => {
     setIsRecordingModalOpen(true);
+  };
+
+  const handleCloseRecording = () => {
+    setIsRecordingModalOpen(false);
+    setSelectedRecordingId(undefined);
   };
 
   return (
@@ -43,7 +76,8 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
       />
       <RecordingModal
         isOpen={isRecordingModalOpen}
-        onClose={() => setIsRecordingModalOpen(false)}
+        onClose={handleCloseRecording}
+        selectedRecordingId={selectedRecordingId}
       />
     </>
   );

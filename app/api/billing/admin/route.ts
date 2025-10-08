@@ -41,8 +41,9 @@ export async function POST(request: Request) {
   try {
     await updateUserPlan(session.user.id, plan);
     // Recompute and broadcast entitlements changes
-    await getUserEntitlements(session.user.id);
+    // CRITICAL: Invalidate cache FIRST to avoid serving stale data
     await invalidateUserEntitlementsCache(session.user.id);
+    await getUserEntitlements(session.user.id);
     await broadcastEntitlementsUpdated(session.user.id);
     return NextResponse.json({ ok: true, plan });
   } catch (error) {
@@ -53,4 +54,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

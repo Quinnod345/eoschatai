@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate summary using GPT-4
+    // Generate summary using GPT-5
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-mini',
       messages: [
         {
           role: 'system',

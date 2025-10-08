@@ -8,7 +8,7 @@ import {
   user as userTable,
   orgInvitation,
 } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { canAddUserToOrg } from '@/lib/organizations/seat-enforcement';
 
 const paramsSchema = z.object({
@@ -92,22 +92,55 @@ export async function GET(request: Request) {
       );
     }
 
-    // Seat enforcement
-    const canAdd = await canAddUserToOrg(session.user.id, organization.id);
-    if (!canAdd.allowed) {
+    // Use transaction to prevent race conditions during org join
+    try {
+      await db.transaction(async (tx) => {
+        // Re-verify user still doesn't have orgId (prevent double-join)
+        const [currentUser] = await tx
+          .select({ orgId: userTable.orgId })
+          .from(userTable)
+          .where(eq(userTable.id, session.user.id));
+
+        if (currentUser?.orgId) {
+          throw new Error('You already belong to an organization');
+        }
+
+        // Re-verify organization still exists and has seats
+        const [org] = await tx
+          .select({
+            id: orgTable.id,
+            plan: orgTable.plan,
+            seatCount: orgTable.seatCount,
+            memberCount: sql<number>`(SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})`,
+          })
+          .from(orgTable)
+          .where(eq(orgTable.id, organization.id));
+
+        if (!org) {
+          throw new Error('Organization no longer exists');
+        }
+
+        if (Number(org.memberCount) >= org.seatCount) {
+          throw new Error('Organization has reached its seat limit');
+        }
+
+        // Add user to org (atomically)
+        await tx
+          .update(userTable)
+          .set({
+            orgId: org.id,
+            plan: org.plan, // Sync user plan to org plan
+          })
+          .where(eq(userTable.id, session.user.id));
+      });
+    } catch (error: any) {
       return NextResponse.redirect(
         new URL(
-          `/chat?invite=denied&reason=${encodeURIComponent(canAdd.reason || 'denied')}`,
+          `/chat?invite=denied&reason=${encodeURIComponent(error?.message || 'denied')}`,
           url.origin,
         ).toString(),
       );
     }
-
-    // Add user to org
-    await db
-      .update(userTable)
-      .set({ orgId: organization.id })
-      .where(eq(userTable.id, session.user.id));
 
     // Mark invitation as accepted
     try {
@@ -132,13 +165,21 @@ export async function GET(request: Request) {
       // Don't fail the acceptance if we can't update the invitation
     }
 
-    // Invalidate entitlements cache
+    // Force recomputation and broadcast of entitlements with new org plan
     try {
-      const { invalidateUserEntitlementsCache } = await import(
-        '@/lib/entitlements'
-      );
+      const {
+        getUserEntitlements,
+        invalidateUserEntitlementsCache,
+        broadcastEntitlementsUpdated,
+      } = await import('@/lib/entitlements');
+
+      // CRITICAL: Invalidate cache FIRST to avoid serving stale data
       await invalidateUserEntitlementsCache(session.user.id);
-    } catch {}
+      await getUserEntitlements(session.user.id);
+      await broadcastEntitlementsUpdated(session.user.id);
+    } catch (error) {
+      console.warn('[org:accept] Failed to update entitlements:', error);
+    }
 
     // Redirect to settings
     return NextResponse.redirect(
