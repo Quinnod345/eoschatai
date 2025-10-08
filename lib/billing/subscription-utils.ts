@@ -201,6 +201,20 @@ export async function cancelOrgSubscription(
     );
     return true;
   } catch (error) {
+    // Handle case where subscription doesn't exist in Stripe
+    if (
+      error instanceof Error &&
+      'type' in error &&
+      error.type === 'StripeInvalidRequestError' &&
+      'code' in error &&
+      error.code === 'resource_missing'
+    ) {
+      console.warn(
+        `[subscription-utils] Subscription ${stripeSubscriptionId} not found in Stripe (likely already deleted), continuing`,
+      );
+      return false;
+    }
+
     console.error(
       '[subscription-utils] Failed to cancel org subscription:',
       error,

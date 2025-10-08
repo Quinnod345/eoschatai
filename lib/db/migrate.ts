@@ -593,6 +593,52 @@ const runMigrate = async () => {
           console.error('Error running Document History migration:', error);
         }
 
+        // Fix Org schema - add pendingRemoval and fix FK constraint
+        try {
+          console.log('Running Org schema fixes...');
+
+          // Add missing pendingRemoval column
+          const pendingRemovalExists = await columnExists(
+            connection,
+            'Org',
+            'pendingRemoval',
+          );
+          if (!pendingRemovalExists) {
+            await connection`
+              ALTER TABLE "Org" ADD COLUMN "pendingRemoval" INTEGER DEFAULT 0
+            `;
+            console.log('Added pendingRemoval column to Org table');
+          } else {
+            console.log('pendingRemoval column already exists in Org table');
+          }
+
+          // Fix FK constraint on User.orgId to have proper CASCADE
+          try {
+            await connection`
+              ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_orgId_Org_id_fk"
+            `;
+            await connection`
+              ALTER TABLE "User" 
+              ADD CONSTRAINT "User_orgId_Org_id_fk" 
+              FOREIGN KEY ("orgId") 
+              REFERENCES "Org"("id") 
+              ON DELETE SET NULL
+            `;
+            console.log(
+              'Fixed User.orgId FK constraint with SET NULL on delete',
+            );
+          } catch (fkError) {
+            console.log(
+              'FK constraint already correctly configured or error:',
+              fkError,
+            );
+          }
+
+          console.log('Org schema fixes completed');
+        } catch (error) {
+          console.error('Error fixing Org schema:', error);
+        }
+
         // Ensure UserMemory tables exist (idempotent)
         try {
           const memExists = await connection`

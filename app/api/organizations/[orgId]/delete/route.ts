@@ -71,7 +71,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         );
 
         if (stripe) {
-          await cancelOrgSubscription(
+          const cancelled = await cancelOrgSubscription(
             organization.stripeSubscriptionId,
             stripe,
             {
@@ -79,9 +79,16 @@ export async function DELETE(request: Request, { params }: RouteParams) {
               immediately: true,
             },
           );
-          console.log(
-            `[delete-org] Cancelled subscription ${organization.stripeSubscriptionId}`,
-          );
+
+          if (cancelled) {
+            console.log(
+              `[delete-org] Cancelled subscription ${organization.stripeSubscriptionId}`,
+            );
+          } else {
+            console.log(
+              `[delete-org] Subscription ${organization.stripeSubscriptionId} not found in Stripe, continuing with deletion`,
+            );
+          }
         }
       } catch (error) {
         console.error('[delete-org] Failed to cancel subscription:', error);

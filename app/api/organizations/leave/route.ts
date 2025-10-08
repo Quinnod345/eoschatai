@@ -62,18 +62,29 @@ export async function POST(request: NextRequest) {
           try {
             const { getStripeClient } = await import('@/lib/stripe/client');
             const stripe = getStripeClient();
+            const { cancelOrgSubscription } = await import(
+              '@/lib/billing/subscription-utils'
+            );
+
             if (stripe) {
-              await stripe.subscriptions.cancel(
+              const cancelled = await cancelOrgSubscription(
                 organization.stripeSubscriptionId,
+                stripe,
                 {
-                  cancellation_details: {
-                    comment: 'Last owner left organization',
-                  },
+                  reason: 'Last owner left organization',
+                  immediately: true,
                 },
               );
-              console.log(
-                `[leave-org] Cancelled subscription ${organization.stripeSubscriptionId}`,
-              );
+
+              if (cancelled) {
+                console.log(
+                  `[leave-org] Cancelled subscription ${organization.stripeSubscriptionId}`,
+                );
+              } else {
+                console.log(
+                  `[leave-org] Subscription ${organization.stripeSubscriptionId} not found in Stripe, continuing with deletion`,
+                );
+              }
             }
           } catch (error) {
             console.error(
