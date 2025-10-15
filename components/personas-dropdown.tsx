@@ -21,6 +21,8 @@ import type { Persona } from '@/lib/db/schema';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { PersonasModal } from '@/components/personas-modal';
 import { Sparkles, Users } from 'lucide-react';
+import GlassSurface from '@/components/GlassSurface';
+import { cn } from '@/lib/utils';
 
 interface PersonasDropdownProps {
   selectedPersonaId?: string;
@@ -173,10 +175,7 @@ export function PersonasDropdown({
               <span className="hidden md:inline font-medium">AI Personas</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent
-            side="bottom"
-            className="bg-background/95 backdrop-blur-sm border border-border/50"
-          >
+          <TooltipContent side="bottom">
             <div className="text-sm">Unlock specialized AI assistants</div>
           </TooltipContent>
         </Tooltip>
@@ -193,28 +192,21 @@ export function PersonasDropdown({
       <TooltipTrigger asChild>
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={`
-                relative overflow-hidden group
-                h-9 px-3 md:h-10 md:px-4
-                border-2 
-                backdrop-filter backdrop-blur-[16px]
-                bg-white/70 dark:bg-zinc-900/70
-                border-white/30 dark:border-zinc-700/30
-                hover:bg-white/80 dark:hover:bg-zinc-900/80
-                hover:border-eos-orange/30 dark:hover:border-eos-orange/30
-                transition-all duration-300 ease-out
-                shadow-sm hover:shadow-md
-                ${isOpen ? 'border-eos-orange/30 bg-eos-orange/10 dark:bg-eos-orange/10' : ''}
-                ${selectedPersona ? 'ring-2 ring-eos-orange/20' : ''}
-              `}
+            <GlassSurface
+              width="auto"
+              height={40}
+              borderRadius={12}
+              displace={3}
+              insetShadowIntensity={0.2}
+              backgroundOpacity={0.25}
+              blur={11}
+              isButton={true}
               disabled={isLoading}
-              style={{
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow:
-                  'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-              }}
+              className={cn(
+                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium',
+                isOpen && 'ring-2 ring-eos-orange/30',
+                selectedPersona && 'ring-2 ring-eos-orange/20',
+              )}
             >
               {/* Animated background gradient */}
               <div className="absolute inset-0 bg-gradient-to-r from-eos-orange/0 via-eos-orange/5 to-eos-orangeLight/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -289,12 +281,12 @@ export function PersonasDropdown({
                   <div className="w-4 h-4 border-2 border-eos-orange/30 border-t-eos-orange rounded-full animate-spin" />
                 </motion.div>
               )}
-            </Button>
+            </GlassSurface>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
             align="start"
-            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-xl bg-background/90 z-[150] relative max-h-[500px] overflow-y-auto"
+            className="w-80 p-2 z-[150] relative max-h-[500px] overflow-y-auto"
             sideOffset={8}
             avoidCollisions={true}
             collisionPadding={{ top: 8, right: 8, bottom: 80, left: 8 }}
@@ -676,10 +668,7 @@ export function PersonasDropdown({
           </DropdownMenuContent>
         </DropdownMenu>
       </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        className="bg-background/95 backdrop-blur-sm border border-border/50"
-      >
+      <TooltipContent side="bottom">
         <div className="text-sm">
           {selectedPersona
             ? `Using ${selectedPersona.name}`

@@ -3,7 +3,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import type { EmbeddedContent } from '@/types/upload-content';
-import { Card, CardContent } from '@/components/ui/card';
+import GlassSurface from './GlassSurface';
 
 // Minimal, unified UI translation component
 // - Renders text notices (calendar, errors, successes)
@@ -111,14 +111,39 @@ export function TranslationUI({ contents, align }: TranslationUIProps) {
         if (meta.mimeType) subtitle.push(meta.mimeType);
 
         return (
-          <Card key={key} className="overflow-hidden">
-            <CardContent className="p-4">
+          <GlassSurface
+            key={key}
+            width="auto"
+            height="auto"
+            borderRadius={12}
+            borderWidth={0.04}
+            brightness={48}
+            opacity={0.93}
+            blur={10}
+            backgroundOpacity={0.12}
+            showInsetShadow={true}
+            insetShadowIntensity={0.35}
+            className="overflow-hidden"
+          >
+            <div className="p-4">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-lg bg-muted">
+                <GlassSurface
+                  width="40px"
+                  height="40px"
+                  borderRadius={8}
+                  borderWidth={0.03}
+                  brightness={40}
+                  opacity={0.9}
+                  blur={6}
+                  backgroundOpacity={0.2}
+                  showInsetShadow={true}
+                  insetShadowIntensity={0.5}
+                  className="flex items-center justify-center"
+                >
                   {React.createElement(typeIcon, {
                     className: 'h-5 w-5 text-foreground/80',
                   })}
-                </div>
+                </GlassSurface>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm truncate">
                     {content.name}
@@ -140,13 +165,10 @@ export function TranslationUI({ contents, align }: TranslationUIProps) {
                     )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassSurface>
         );
       })}
     </div>
   );
 }
-
-
-

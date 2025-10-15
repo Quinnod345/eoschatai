@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import GlassSurface from '@/components/GlassSurface';
 
 // Animation variants for select content
 const selectContentVariants = {
@@ -161,28 +162,35 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          'relative z-[150] max-h-[400px] min-w-[8rem] overflow-hidden rounded-lg border border-white/30 dark:border-zinc-700/30 text-popover-foreground',
-          'backdrop-filter backdrop-blur-[16px]',
-          'bg-white/30 dark:bg-zinc-900/30',
+          'relative z-[150] max-h-[400px] min-w-[8rem] overflow-hidden rounded-lg text-popover-foreground',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className,
         )}
         style={{
-          WebkitBackdropFilter: 'blur(16px)',
           boxShadow:
-            'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
+            '0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2)',
         }}
         position={position}
         sideOffset={5}
         {...props}
       >
+        <GlassSurface
+          width="100%"
+          height="100%"
+          borderRadius={8}
+          displace={2}
+          backgroundOpacity={0.2}
+          blur={10}
+          insetShadowIntensity={0.4}
+          isBackdrop={true}
+        />
         <motion.div
           initial="closed"
           animate="open"
           exit="closed"
           variants={selectContentVariants}
-          className="flex flex-col max-h-[400px]"
+          className="flex flex-col max-h-[400px] relative z-10"
         >
           <SelectScrollUpButton />
           <SelectPrimitive.Viewport

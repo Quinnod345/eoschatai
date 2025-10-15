@@ -1,36 +1,308 @@
 'use client';
 
 import * as React from 'react';
-import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { motion } from 'framer-motion';
-
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
+import GlassSurface from '@/components/GlassSurface';
 
-const TooltipProvider = TooltipPrimitive.Provider;
+// Simple no-op provider for backwards compatibility
+export const TooltipProvider = ({
+  children,
+  delayDuration,
+}: { children: React.ReactNode; delayDuration?: number }) => <>{children}</>;
 
-const Tooltip = TooltipPrimitive.Root;
+interface TooltipContextValue {
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+  content: React.ReactNode;
+  setContent: (content: React.ReactNode) => void;
+  triggerRef: React.RefObject<HTMLElement>;
+  delayDuration: number;
+}
 
-const TooltipTrigger = TooltipPrimitive.Trigger;
+const TooltipContext = React.createContext<TooltipContextValue | undefined>(
+  undefined,
+);
 
-const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <TooltipPrimitive.Content asChild sideOffset={sideOffset}>
-    <motion.div
-      ref={ref as any}
-      initial={{ opacity: 0, scale: 0.98, y: -2 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98, y: -2 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-      className={cn(
-        'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md',
-        className,
-      )}
-      {...(props as any)}
-    />
-  </TooltipPrimitive.Content>
-));
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+export function Tooltip({
+  children,
+  delayDuration = 400,
+  open,
+}: {
+  children: React.ReactNode;
+  delayDuration?: number;
+  open?: boolean;
+}) {
+  const [isOpenInternal, setIsOpen] = React.useState(false);
+  const isOpen = open !== undefined ? open : isOpenInternal;
+  const [content, setContent] = React.useState<React.ReactNode>(null);
+  const triggerRef = React.useRef<HTMLElement>(null);
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+  return (
+    <TooltipContext.Provider
+      value={{
+        isOpen,
+        setIsOpen,
+        content,
+        setContent,
+        triggerRef,
+        delayDuration,
+      }}
+    >
+      {children}
+    </TooltipContext.Provider>
+  );
+}
+
+export const TooltipTrigger = React.forwardRef<
+  HTMLElement,
+  React.HTMLAttributes<HTMLElement> & {
+    asChild?: boolean;
+    children: React.ReactElement;
+  }
+>(({ asChild, children, ...props }, ref) => {
+  const context = React.useContext(TooltipContext);
+  if (!context) throw new Error('TooltipTrigger must be used within Tooltip');
+
+  const timeoutRef = React.useRef<NodeJS.Timeout>();
+
+  const handleMouseEnter = React.useCallback(() => {
+    // Add delay before showing tooltip
+    timeoutRef.current = setTimeout(() => {
+      context.setIsOpen(true);
+    }, context.delayDuration);
+  }, [context]);
+
+  const handleMouseLeave = React.useCallback(() => {
+    // Clear timeout if user moves mouse away before tooltip shows
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    context.setIsOpen(false);
+  }, [context]);
+
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const child = React.Children.only(children);
+
+  return React.cloneElement(child, {
+    ref: (node: HTMLElement) => {
+      (context.triggerRef as any).current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as any).current = node;
+      // Also handle the child's own ref if it has one
+      const childRef = (child as any).ref;
+      if (childRef) {
+        if (typeof childRef === 'function') childRef(node);
+        else childRef.current = node;
+      }
+    },
+    onMouseEnter: (e: React.MouseEvent) => {
+      handleMouseEnter();
+      child.props.onMouseEnter?.(e);
+    },
+    onMouseLeave: (e: React.MouseEvent) => {
+      handleMouseLeave();
+      child.props.onMouseLeave?.(e);
+    },
+    ...props,
+  } as any);
+});
+TooltipTrigger.displayName = 'TooltipTrigger';
+
+export const TooltipContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    sideOffset?: number;
+    side?: 'top' | 'bottom' | 'left' | 'right';
+    align?: 'start' | 'center' | 'end';
+  }
+>(
+  (
+    {
+      className,
+      sideOffset = 4,
+      side = 'top',
+      align = 'center',
+      children,
+      ...props
+    },
+    ref,
+  ) => {
+    const context = React.useContext(TooltipContext);
+    if (!context) throw new Error('TooltipContent must be used within Tooltip');
+
+    const [mounted, setMounted] = React.useState(false);
+    const [position, setPosition] = React.useState({ x: -9999, y: -9999 }); // Start off-screen
+    const [isPositioned, setIsPositioned] = React.useState(false);
+    const tooltipRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+      setMounted(true);
+      context.setContent(children);
+    }, [children, context]);
+
+    React.useEffect(() => {
+      if (!context.isOpen) {
+        setIsPositioned(false);
+        setPosition({ x: -9999, y: -9999 });
+        return;
+      }
+
+      if (!tooltipRef.current || !context.triggerRef.current) return;
+
+      const updatePosition = () => {
+        if (!context.triggerRef.current || !tooltipRef.current) return;
+
+        const triggerRect = context.triggerRef.current.getBoundingClientRect();
+        const tooltipRect = tooltipRef.current.getBoundingClientRect();
+        const viewport = {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        };
+
+        const spacing = 8; // Minimum spacing from viewport edges
+
+        // Calculate available space on each side
+        const spaceAbove = triggerRect.top;
+        const spaceBelow = viewport.height - triggerRect.bottom;
+        const spaceLeft = triggerRect.left;
+        const spaceRight = viewport.width - triggerRect.right;
+
+        // Determine best side based on preferred side and available space
+        let finalSide = side;
+
+        // Check if preferred side has enough space, if not flip
+        if (
+          side === 'top' &&
+          spaceAbove < tooltipRect.height + sideOffset + spacing
+        ) {
+          if (spaceBelow >= tooltipRect.height + sideOffset + spacing) {
+            finalSide = 'bottom';
+          }
+        } else if (
+          side === 'bottom' &&
+          spaceBelow < tooltipRect.height + sideOffset + spacing
+        ) {
+          if (spaceAbove >= tooltipRect.height + sideOffset + spacing) {
+            finalSide = 'top';
+          }
+        } else if (
+          side === 'left' &&
+          spaceLeft < tooltipRect.width + sideOffset + spacing
+        ) {
+          if (spaceRight >= tooltipRect.width + sideOffset + spacing) {
+            finalSide = 'right';
+          }
+        } else if (
+          side === 'right' &&
+          spaceRight < tooltipRect.width + sideOffset + spacing
+        ) {
+          if (spaceLeft >= tooltipRect.width + sideOffset + spacing) {
+            finalSide = 'left';
+          }
+        }
+
+        let x = 0;
+        let y = 0;
+
+        // Calculate position based on final side
+        switch (finalSide) {
+          case 'top':
+            x =
+              triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+            y = triggerRect.top - tooltipRect.height - sideOffset;
+            break;
+          case 'bottom':
+            x =
+              triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+            y = triggerRect.bottom + sideOffset;
+            break;
+          case 'left':
+            x = triggerRect.left - tooltipRect.width - sideOffset;
+            y =
+              triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2;
+            break;
+          case 'right':
+            x = triggerRect.right + sideOffset;
+            y =
+              triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2;
+            break;
+        }
+
+        // Keep tooltip within viewport horizontally
+        if (x < spacing) {
+          x = spacing;
+        } else if (x + tooltipRect.width > viewport.width - spacing) {
+          x = viewport.width - tooltipRect.width - spacing;
+        }
+
+        // Keep tooltip within viewport vertically
+        if (y < spacing) {
+          y = spacing;
+        } else if (y + tooltipRect.height > viewport.height - spacing) {
+          y = viewport.height - tooltipRect.height - spacing;
+        }
+
+        setPosition({ x, y });
+        // Use RAF to ensure the position change has been applied before showing
+        requestAnimationFrame(() => {
+          setIsPositioned(true);
+        });
+      };
+
+      // Use RAF to ensure tooltip is rendered before measuring
+      requestAnimationFrame(() => {
+        updatePosition();
+      });
+    }, [context, side, sideOffset]);
+
+    if (!mounted || !context.isOpen) return null;
+
+    return createPortal(
+      <div
+        ref={(node) => {
+          (tooltipRef as any).current = node;
+          if (typeof ref === 'function') ref(node);
+          else if (ref) (ref as any).current = node;
+        }}
+        className={cn(
+          'fixed z-[9999] text-sm',
+          'rounded-md overflow-visible',
+          'text-popover-foreground whitespace-nowrap',
+          !isPositioned && 'invisible',
+          className,
+        )}
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+        }}
+        {...props}
+      >
+        <GlassSurface
+          width="auto"
+          height="auto"
+          borderRadius={15}
+          displace={3}
+          backgroundOpacity={0.2}
+          blur={10}
+          insetShadowIntensity={0.4}
+          isBackdrop={false}
+          noTransition={true}
+          useFallback={false}
+          className="px-1.5 py-0.5"
+        >
+          {children}
+        </GlassSurface>
+      </div>,
+      document.body,
+    );
+  },
+);
+TooltipContent.displayName = 'TooltipContent';

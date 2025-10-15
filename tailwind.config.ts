@@ -12,6 +12,8 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-geist)'],
         mono: ['var(--font-geist-mono)'],
+        montserrat: ['var(--font-montserrat)', 'sans-serif'],
+        'roboto-condensed': ['var(--font-roboto-condensed)', 'sans-serif'],
       },
       screens: {
         'toast-mobile': '600px',

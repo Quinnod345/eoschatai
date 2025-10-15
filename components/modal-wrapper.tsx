@@ -1,7 +1,7 @@
 'use client';
 
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
-import { UpgradeModal } from '@/components/upgrade-modal';
+import { SimpleUpgradeModal } from '@/components/simple-upgrade-modal';
 import type { UpgradeFeature } from '@/types/upgrade';
 
 export function ModalWrapper() {
@@ -10,7 +10,7 @@ export function ModalWrapper() {
   if (!feature) return null;
 
   return (
-    <UpgradeModal
+    <SimpleUpgradeModal
       feature={feature as UpgradeFeature}
       open={open}
       onClose={closeModal}

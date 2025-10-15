@@ -31,6 +31,7 @@ import { NexusResearchPlan } from './nexus-research-plan';
 import { ComposerContextIndicator } from './composer-context-indicator';
 import { NexusFollowUpQuestions } from './nexus-followup-questions';
 import { NexusResearchDisplay } from './nexus-research-display';
+import GradualBlur from './GradualBlur';
 
 export function Chat({
   id,
@@ -1646,6 +1647,19 @@ export function Chat({
           onProfileChange={handleProfileChange}
           messages={messages}
           onScrollToMessage={handleScrollToMessage}
+        />
+
+        {/* Gradient blur to blend content below header */}
+        <GradualBlur
+          position="top"
+          height="6rem"
+          strength={1}
+          divCount={3}
+          curve="bezier"
+          exponential={false}
+          opacity={1}
+          zIndex={30}
+          target="parent"
         />
 
         {/* Show composer context indicator when composer is open */}

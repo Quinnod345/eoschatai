@@ -135,19 +135,51 @@ export async function POST(request: Request) {
     }
 
     // Get filename from formData since Blob doesn't have name property
-    const filename = (formData.get('file') as File).name;
+    const originalFilename = (formData.get('file') as File).name;
+
+    // Sanitize filename: remove any trailing dots, multiple dots, and unsafe characters
+    const sanitizedFilename = originalFilename
+      .trim()
+      .replace(/\.+$/, '') // Remove trailing dots
+      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+      .replace(/[^\w\s.-]/g, '_'); // Replace unsafe characters with underscore
+
+    // Create a unique filename with timestamp to avoid collisions
+    const timestamp = Date.now();
+    const lastDot = sanitizedFilename.lastIndexOf('.');
+    let fileBaseName: string;
+    let fileExtension: string | undefined;
+    if (lastDot > 0 && lastDot < sanitizedFilename.length - 1) {
+      fileBaseName = sanitizedFilename.substring(0, lastDot);
+      fileExtension = sanitizedFilename.substring(lastDot + 1);
+    } else {
+      // No usable extension present
+      fileBaseName = sanitizedFilename;
+      fileExtension = undefined;
+    }
+    const uniqueFilename = fileExtension
+      ? `${fileBaseName}-${timestamp}.${fileExtension}`
+      : `${fileBaseName}-${timestamp}`;
+
     const fileBuffer = await file.arrayBuffer();
 
     try {
-      const data = await put(`${filename}`, fileBuffer, {
+      const data = await put(uniqueFilename, fileBuffer, {
         access: 'public',
+        addRandomSuffix: false, // We're already adding timestamp for uniqueness
+        contentType: file.type, // Explicitly set content type
       });
+
+      console.log(
+        `File uploaded successfully: ${uniqueFilename} -> ${data.url}`,
+      );
 
       await incrementUsageCounter(session.user.id, 'uploads_total', 1);
       await broadcastEntitlementsUpdated(session.user.id);
 
       return NextResponse.json(data);
     } catch (error) {
+      console.error('Blob upload error:', error);
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
   } catch (error) {

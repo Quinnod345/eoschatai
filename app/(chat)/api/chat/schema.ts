@@ -23,6 +23,9 @@ export const postRequestBodySchema = z.object({
             'image/png',
             'image/jpg',
             'image/jpeg',
+            'image/gif',
+            'image/webp',
+            'image/bmp',
             'application/pdf',
             'text/plain', // For the extracted PDF text
           ]),

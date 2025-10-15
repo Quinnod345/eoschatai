@@ -95,28 +95,40 @@ export const {
   ],
   callbacks: {
     async jwt({ token, user, account }) {
-      if (user) {
-        token.id = user.id as string;
-        token.type = user.type;
-      }
+      try {
+        if (user) {
+          token.id = user.id as string;
+          token.type = user.type;
+        }
 
-      // If the user signed in with Google, let's check if they exist in our database
-      // If not, we'll create a new user
-      if (account && account.provider === 'google' && token.email) {
-        const user = await getOrCreateGoogleUser(token.email);
-        token.id = user.id;
-        token.type = 'regular';
-      }
+        // If the user signed in with Google, let's check if they exist in our database
+        // If not, we'll create a new user
+        if (account && account.provider === 'google' && token.email) {
+          const googleUser = await getOrCreateGoogleUser(token.email);
+          token.id = googleUser.id;
+          token.type = 'regular';
+        }
 
-      return token;
+        return token;
+      } catch (error) {
+        console.error('[auth] JWT callback error:', error);
+        // Return token as-is to prevent session breakage
+        return token;
+      }
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.type = token.type;
-      }
+      try {
+        if (session.user && token.id) {
+          session.user.id = token.id;
+          session.user.type = token.type || 'guest';
+        }
 
-      return session;
+        return session;
+      } catch (error) {
+        console.error('[auth] Session callback error:', error);
+        // Return session as-is to prevent total failure
+        return session;
+      }
     },
   },
 });

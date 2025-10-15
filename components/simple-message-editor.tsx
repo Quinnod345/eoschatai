@@ -39,7 +39,15 @@ export function SimpleMessageEditor({
     if (message.parts && message.parts.length > 0) {
       const textParts = message.parts.filter((part) => part.type === 'text');
       const combinedText = textParts.map((part) => part.text).join('\n');
-      setDraftContent(combinedText);
+      // Strip embedded content markers from edit textarea for a cleaner editing experience
+      const EMBEDDED_CONTENT_START = '[EMBEDDED_CONTENT_START]';
+      const EMBEDDED_CONTENT_END = '[EMBEDDED_CONTENT_END]';
+      const regex = new RegExp(
+        `${EMBEDDED_CONTENT_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(.*?)${EMBEDDED_CONTENT_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+        'gs',
+      );
+      const cleaned = combinedText.replace(regex, '').trim();
+      setDraftContent(cleaned);
     }
   }, [message.parts]);
 

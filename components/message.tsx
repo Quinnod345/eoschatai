@@ -15,6 +15,8 @@ import { Button } from './ui/button';
 import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
+import GlassSurface from './GlassSurface';
+import { SearchResults } from './search-results';
 
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { TranslationUI } from './translation-ui';
@@ -523,16 +525,32 @@ const PurePreviewMessage = ({
             {/* Show regular attachments */}
             {message.experimental_attachments &&
               message.experimental_attachments.length > 0 && (
-                <div
-                  data-testid={`message-attachments`}
-                  className="flex flex-row justify-end gap-2"
-                >
-                  {message.experimental_attachments.map((attachment) => (
-                    <PreviewAttachment
-                      key={attachment.url}
-                      attachment={attachment}
-                    />
-                  ))}
+                <div className="flex flex-row justify-end">
+                  <GlassSurface
+                    width="auto"
+                    height="auto"
+                    borderRadius={12}
+                    borderWidth={0.04}
+                    brightness={48}
+                    opacity={0.92}
+                    blur={10}
+                    backgroundOpacity={0.1}
+                    showInsetShadow={true}
+                    insetShadowIntensity={0.35}
+                    className="inline-flex"
+                  >
+                    <div
+                      data-testid={`message-attachments`}
+                      className="flex flex-row gap-2 p-2"
+                    >
+                      {message.experimental_attachments.map((attachment) => (
+                        <PreviewAttachment
+                          key={attachment.url}
+                          attachment={attachment}
+                        />
+                      ))}
+                    </div>
+                  </GlassSurface>
                 </div>
               )}
 
@@ -732,7 +750,12 @@ const PurePreviewMessage = ({
 
                   return (
                     <div key={toolCallId}>
-                      {toolName === 'getWeather' ? (
+                      {toolName === 'searchWeb' ? (
+                        <SearchResults
+                          results={result.results || []}
+                          query={result.query}
+                        />
+                      ) : toolName === 'getWeather' ? (
                         <Weather weatherAtLocation={result} />
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview

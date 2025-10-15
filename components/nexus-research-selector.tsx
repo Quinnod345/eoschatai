@@ -1,7 +1,6 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import { CheckCircleFillIcon, ChevronDownIcon, SearchIcon } from './icons';
 import { Telescope } from 'lucide-react';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { DeepResearchModal } from '@/components/deep-research-modal';
+import GlassSurface from '@/components/GlassSurface';
 
 export type ResearchMode = 'off' | 'nexus';
 
@@ -81,28 +81,23 @@ export function NexusResearchSelector({
   return (
     <>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger
-          asChild
-          className={cn(
-            'w-fit data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
-            className,
-          )}
-        >
-          <Button
+        <DropdownMenuTrigger asChild>
+          <GlassSurface
             data-testid="research-mode-selector"
-            variant="outline"
+            width="auto"
+            height={34}
+            borderRadius={15}
+            displace={5}
+            backgroundOpacity={0.5}
+            insetShadowIntensity={0.2}
+            blur={0}
+            isButton={true}
             className={cn(
-              'md:px-2 md:h-[34px]',
-              'backdrop-blur-[16px] backdrop-filter',
-              'border-white/30 dark:border-zinc-700/30',
-              'bg-white/60 dark:bg-zinc-900/60 hover:bg-white/80 dark:hover:bg-zinc-900/80',
+              'md:px-2 md:h-[34px] cursor-pointer',
+              className,
               selectedMode?.color,
-              selectedResearchMode === 'nexus' &&
-                'border-purple-500/50 bg-purple-50/30 dark:bg-purple-900/30',
+              selectedResearchMode === 'nexus' && 'ring-2 ring-purple-500/50',
             )}
-            style={{
-              WebkitBackdropFilter: 'blur(16px)',
-            }}
           >
             <span className={cn('transition-all', selectedMode?.color)}>
               {selectedMode?.icon}
@@ -111,23 +106,10 @@ export function NexusResearchSelector({
               {selectedMode?.label}
             </span>
             <ChevronDownIcon />
-          </Button>
+          </GlassSurface>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-          align="start"
-          className={cn(
-            'min-w-[300px]',
-            'backdrop-blur-[16px] backdrop-filter',
-            'border-white/30 dark:border-zinc-700/30',
-            'bg-white/80 dark:bg-zinc-900/80',
-          )}
-          style={{
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow:
-              'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-          }}
-        >
+        <DropdownMenuContent align="start" className={cn('min-w-[300px]')}>
           {researchModes.map((mode) => {
             const isHovered = hoveredId === mode.id;
 

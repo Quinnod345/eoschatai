@@ -8,8 +8,8 @@ import {
   FileDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
+import GlassSurface from './GlassSurface';
 
 interface PDFContent {
   name: string;
@@ -78,15 +78,37 @@ export function InlineUploadPreview({
       >
         {/* PDF Files */}
         {pdfContents.map((pdf, index) => (
-          <Card
+          <GlassSurface
             key={`pdf-${pdf.name}-${index}`}
-            className="overflow-hidden hover:shadow-md transition-shadow"
+            width="auto"
+            height="auto"
+            borderRadius={12}
+            borderWidth={0.04}
+            brightness={48}
+            opacity={0.93}
+            blur={10}
+            backgroundOpacity={0.12}
+            showInsetShadow={true}
+            insetShadowIntensity={0.35}
+            className="overflow-hidden transition-shadow"
           >
-            <CardContent className="p-4">
+            <div className="p-4">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30">
+                <GlassSurface
+                  width="40px"
+                  height="40px"
+                  borderRadius={8}
+                  borderWidth={0.03}
+                  brightness={40}
+                  opacity={0.9}
+                  blur={6}
+                  backgroundOpacity={0.2}
+                  showInsetShadow={true}
+                  insetShadowIntensity={0.5}
+                  className="flex items-center justify-center bg-red-50 dark:bg-red-950/30"
+                >
                   <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />
-                </div>
+                </GlassSurface>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm truncate">{pdf.name}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -101,21 +123,41 @@ export function InlineUploadPreview({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassSurface>
         ))}
 
         {/* Document Files */}
         {documentContents.map((doc, index) => (
-          <Card
+          <GlassSurface
             key={`doc-${doc.name}-${index}`}
-            className="overflow-hidden hover:shadow-md transition-shadow"
+            width="auto"
+            height="auto"
+            borderRadius={12}
+            borderWidth={0.04}
+            brightness={48}
+            opacity={0.93}
+            blur={10}
+            backgroundOpacity={0.12}
+            showInsetShadow={true}
+            insetShadowIntensity={0.35}
+            className="overflow-hidden transition-shadow"
           >
-            <CardContent className="p-4">
+            <div className="p-4">
               <div className="flex items-start gap-3">
-                <div
+                <GlassSurface
+                  width="40px"
+                  height="40px"
+                  borderRadius={8}
+                  borderWidth={0.03}
+                  brightness={40}
+                  opacity={0.9}
+                  blur={6}
+                  backgroundOpacity={0.2}
+                  showInsetShadow={true}
+                  insetShadowIntensity={0.5}
                   className={cn(
-                    'p-2.5 rounded-lg',
+                    'flex items-center justify-center',
                     doc.type === 'Word Document'
                       ? 'bg-blue-50 dark:bg-blue-950/30'
                       : 'bg-green-50 dark:bg-green-950/30',
@@ -129,7 +171,7 @@ export function InlineUploadPreview({
                         : 'text-green-600 dark:text-green-400',
                     )}
                   />
-                </div>
+                </GlassSurface>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm truncate">{doc.name}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -145,21 +187,43 @@ export function InlineUploadPreview({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassSurface>
         ))}
 
         {/* Image Files */}
         {imageAnalyses.map((img, index) => (
-          <Card
+          <GlassSurface
             key={`img-${img.name}-${index}`}
-            className="overflow-hidden hover:shadow-md transition-shadow"
+            width="auto"
+            height="auto"
+            borderRadius={12}
+            borderWidth={0.04}
+            brightness={48}
+            opacity={0.93}
+            blur={10}
+            backgroundOpacity={0.12}
+            showInsetShadow={true}
+            insetShadowIntensity={0.35}
+            className="overflow-hidden transition-shadow"
           >
-            <CardContent className="p-4">
+            <div className="p-4">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                <GlassSurface
+                  width="40px"
+                  height="40px"
+                  borderRadius={8}
+                  borderWidth={0.03}
+                  brightness={40}
+                  opacity={0.9}
+                  blur={6}
+                  backgroundOpacity={0.2}
+                  showInsetShadow={true}
+                  insetShadowIntensity={0.5}
+                  className="flex items-center justify-center bg-purple-50 dark:bg-purple-950/30"
+                >
                   <FileImage className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
+                </GlassSurface>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm truncate">{img.name}</h4>
                   {/* Hide AI description in preview to avoid leaking content into the bubble */}
@@ -176,8 +240,8 @@ export function InlineUploadPreview({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassSurface>
         ))}
       </div>
     </div>

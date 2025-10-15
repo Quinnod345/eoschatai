@@ -112,6 +112,7 @@ export async function POST(request: Request) {
 
     let text = '';
     let pageCount = 0;
+    const analysisSheets: Array<any> = [];
 
     // Process Excel files
     if (
@@ -129,17 +130,184 @@ export async function POST(request: Request) {
           const worksheet = workbook.Sheets[sheetName];
           text += `## Sheet: ${sheetName}\n\n`;
 
-          // Convert to JSON for easier handling
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          // Convert to array-of-arrays for analysis
+          const aoa: any[] = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+            raw: true,
+          }) as any[];
 
-          // Format as plain text table
-          jsonData.forEach((row: any) => {
+          // Append TSV rendition to text output for model readability
+          const toCellString = (v: any): string => {
+            if (v === undefined || v === null) return '';
+            if (v instanceof Date) return v.toISOString();
+            if (typeof v === 'number')
+              return Number.isFinite(v) ? String(v) : '';
+            if (typeof v === 'boolean') return v ? 'true' : 'false';
+            if (typeof v === 'string') return v;
+            try {
+              return JSON.stringify(v);
+            } catch {
+              return String(v);
+            }
+          };
+
+          aoa.forEach((row: any) => {
             if (Array.isArray(row) && row.length > 0) {
-              text += `${row.join('\t')}\n`;
+              text += `${row.map((v) => toCellString(v)).join('\t')}\n`;
             }
           });
 
           text += '\n';
+
+          // Build structured analysis (schema + stats)
+          const columnCount = aoa.reduce(
+            (max, r) => Math.max(max, Array.isArray(r) ? r.length : 0),
+            0,
+          );
+          const firstRow: any[] = Array.isArray(aoa[0]) ? aoa[0] : [];
+          const firstRowStringRatio =
+            firstRow.length === 0
+              ? 0
+              : firstRow.filter(
+                  (v) => typeof v === 'string' && v.trim().length > 0,
+                ).length / firstRow.length;
+          const likelyHasHeader = firstRowStringRatio >= 0.5; // heuristic
+          const headers: string[] = Array.from({ length: columnCount }).map(
+            (_, i) => {
+              const h = likelyHasHeader ? String(firstRow[i] ?? '').trim() : '';
+              return h && h.length > 0 ? h : `Column ${i + 1}`;
+            },
+          );
+
+          const dataRows = aoa.slice(likelyHasHeader ? 1 : 0) as any[];
+
+          // Collect per-column values
+          const columns = headers.map((header, colIdx) => {
+            const values = dataRows.map((r) =>
+              Array.isArray(r) ? r[colIdx] : undefined,
+            );
+            const nonNull = values.filter(
+              (v) => v !== undefined && v !== null && v !== '',
+            );
+
+            // Infer type using simple heuristic
+            const numValues: number[] = [];
+            const strValues: string[] = [];
+            const dateValues: Date[] = [];
+            nonNull.forEach((v) => {
+              if (typeof v === 'number' && Number.isFinite(v)) {
+                numValues.push(v);
+                return;
+              }
+              // Excel dates may come as JS Date objects or numbers; raw:true preserves types when possible
+              if (v instanceof Date) {
+                dateValues.push(v);
+                return;
+              }
+              if (typeof v === 'string') {
+                // Try parse number
+                const parsed = Number(v);
+                if (v.trim() !== '' && Number.isFinite(parsed)) {
+                  numValues.push(parsed);
+                } else {
+                  // Try parse date
+                  const d = new Date(v);
+                  if (!Number.isNaN(d.getTime())) {
+                    dateValues.push(d);
+                  } else {
+                    strValues.push(v);
+                  }
+                }
+                return;
+              }
+              // Fallback to string representation
+              strValues.push(String(v));
+            });
+
+            let inferredType: 'number' | 'string' | 'date' | 'mixed' | 'empty' =
+              'empty';
+            if (
+              numValues.length > 0 &&
+              strValues.length === 0 &&
+              dateValues.length === 0
+            )
+              inferredType = 'number';
+            else if (
+              dateValues.length > 0 &&
+              numValues.length === 0 &&
+              strValues.length === 0
+            )
+              inferredType = 'date';
+            else if (
+              strValues.length > 0 &&
+              numValues.length === 0 &&
+              dateValues.length === 0
+            )
+              inferredType = 'string';
+            else if (nonNull.length === 0) inferredType = 'empty';
+            else inferredType = 'mixed';
+
+            // Compute basic stats
+            const stats: Record<string, any> = {
+              nonNullCount: nonNull.length,
+              missingCount: values.length - nonNull.length,
+              uniqueCount: new Set(nonNull.map((v) => toCellString(v))).size,
+              sampleValues: nonNull
+                .slice(0, 5)
+                .map((v) => (v instanceof Date ? v.toISOString() : v)),
+            };
+
+            if (inferredType === 'number' && numValues.length > 0) {
+              const sorted = [...numValues].sort((a, b) => a - b);
+              const sum = numValues.reduce((a, b) => a + b, 0);
+              const mean = sum / numValues.length;
+              const mid = Math.floor(sorted.length / 2);
+              const median =
+                sorted.length % 2 !== 0
+                  ? sorted[mid]
+                  : (sorted[mid - 1] + sorted[mid]) / 2;
+              Object.assign(stats, {
+                min: sorted[0],
+                max: sorted[sorted.length - 1],
+                mean,
+                median,
+              });
+            }
+
+            if (inferredType === 'date' && dateValues.length > 0) {
+              const timestamps = dateValues
+                .map((d) => d.getTime())
+                .sort((a, b) => a - b);
+              Object.assign(stats, {
+                min: new Date(timestamps[0]).toISOString(),
+                max: new Date(timestamps[timestamps.length - 1]).toISOString(),
+              });
+            }
+
+            return {
+              name: header,
+              type: inferredType,
+              ...stats,
+            };
+          });
+
+          // Create preview rows (first up to 10)
+          const preview = dataRows.slice(0, 10).map((row) => {
+            const obj: Record<string, any> = {};
+            headers.forEach((h, i) => {
+              obj[h] = Array.isArray(row) ? (row[i] ?? null) : null;
+            });
+            return obj;
+          });
+
+          analysisSheets.push({
+            name: sheetName,
+            rowCount: dataRows.length,
+            columnCount,
+            headers,
+            columns,
+            preview,
+          });
         });
 
         // Count sheets as "pages"
@@ -222,6 +390,7 @@ export async function POST(request: Request) {
       filename: (file as File).name || 'document',
       text: text,
       pageCount: pageCount,
+      analysis: { sheets: analysisSheets },
     });
   } catch (error: any) {
     console.error('Document processing request error:', error);

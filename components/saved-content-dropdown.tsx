@@ -28,9 +28,10 @@ import type { UIMessage } from 'ai';
 import { useRouter } from 'next/navigation';
 import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
 import { useLoading } from '@/hooks/use-loading';
+import GlassSurface from '@/components/GlassSurface';
 import { useRobustSavedContent } from '@/hooks/use-robust-saved-content';
 
-interface SavedContentDropdownProps {
+interface DropdownProps {
   currentChatId: string;
   messages: UIMessage[];
   onScrollToMessage: (messageId: string) => void;
@@ -47,11 +48,11 @@ interface BookmarkedChat {
   lastMessageAt: Date | null;
 }
 
-export function SavedContentDropdown({
+export function Dropdown({
   currentChatId,
   messages,
   onScrollToMessage,
-}: SavedContentDropdownProps) {
+}: DropdownProps) {
   const router = useRouter();
   const { navigateToChat } = useOptimizedNavigation();
   const [open, setOpen] = useState(false);
@@ -92,14 +93,14 @@ export function SavedContentDropdown({
   const pinnedWithContent =
     pinScope === 'chat'
       ? currentPins
-          .map((pinned) => {
+          .map((pinned: any) => {
             const message = messages.find((m) => m.id === pinned.messageId);
             if (!message) return null;
 
             const textContent =
               message.parts
-                ?.filter((part) => part.type === 'text')
-                .map((part) => part.text)
+                ?.filter((part: any) => part.type === 'text')
+                .map((part: any) => part.text)
                 .join(' ')
                 .trim() || '';
 
@@ -109,7 +110,9 @@ export function SavedContentDropdown({
               role: message.role,
             };
           })
-          .filter((item): item is NonNullable<typeof item> => item !== null)
+          .filter(
+            (item: any): item is NonNullable<typeof item> => item !== null,
+          )
       : currentPins; // Global pins already have content
 
   // Sort by most recently pinned first
@@ -200,15 +203,16 @@ export function SavedContentDropdown({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       {/* Saved content dropdown trigger styled like persona button */}
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 flex items-center gap-2 px-3 text-sm backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
-          style={{
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow:
-              'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-          }}
+        <GlassSurface
+          width="auto"
+          height={40}
+          borderRadius={12}
+          displace={3}
+          insetShadowIntensity={0.2}
+          backgroundOpacity={0.25}
+          blur={11}
+          isButton={true}
+          className="h-10 flex items-center gap-2 px-4 text-sm font-medium cursor-pointer"
         >
           <Archive className="h-4 w-4" />
           <span>Saved Content</span>
@@ -221,7 +225,7 @@ export function SavedContentDropdown({
             </Badge>
           )}
           <ChevronDown className="h-4 w-4 ml-1 text-muted-foreground" />
-        </Button>
+        </GlassSurface>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent

@@ -16,6 +16,7 @@ import {
 import { createPortal } from 'react-dom';
 import { toast } from '@/lib/toast-system';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
+import GlassSurface from '@/components/GlassSurface';
 
 import {
   ArrowUp,
@@ -295,6 +296,7 @@ interface ImageContent {
   description: string; // AI-generated description
   type: string; // image mime type
   url: string; // The URL for display
+  status: 'uploading' | 'analyzing' | 'ready' | 'error'; // Processing status
 }
 
 // Add a CSS module for the drag-and-drop animation
@@ -929,7 +931,7 @@ function PureMultimodalInput({
   const [documentContents, setDocumentContents] = useState<DocumentContent[]>(
     [],
   );
-  const [imageContents, setImageContents] = useState<ImageContent[]>([]);
+  // Removed imageContents - images now go via attachments and experimental_attachments
   // Add state for audio recordings
   const [audioContents, setAudioContents] = useState<
     Array<{
@@ -1030,6 +1032,45 @@ function PureMultimodalInput({
         const toastId = toast.loading(`Processing document: ${file.name}...`);
 
         try {
+          // Optional Code Interpreter route for spreadsheets
+          try {
+            let ciSucceeded = false;
+            const { useSettingsStore } = await import(
+              '@/lib/stores/use-settings'
+            );
+            const ciEnabled =
+              useSettingsStore.getState().useCodeInterpreterForSpreadsheets;
+            if (ciEnabled) {
+              const ciForm = new FormData();
+              ciForm.append('file', file);
+              ciForm.append('mode', 'code_interpreter');
+              const ciRes = await fetch('/api/files/spreadsheet-analyze', {
+                method: 'POST',
+                body: ciForm,
+              });
+              if (ciRes.ok) {
+                const ciData = await ciRes.json();
+                toast.dismiss(toastId);
+                toast.success(`Spreadsheet analyzed: ${ciData.filename}`);
+                // Do not inject embedded markers into the input; attach structured summary at send time instead
+                ciSucceeded = true;
+                return null;
+              }
+              // If CI fails, fall through to Node parsing with a toast info
+              try {
+                const err = await ciRes.json().catch(() => ({}));
+                console.warn(
+                  'Code Interpreter analysis failed, falling back:',
+                  err,
+                );
+                toast.info('Falling back to local spreadsheet parsing');
+              } catch {}
+            }
+            if (ciSucceeded) {
+              return null;
+            }
+          } catch {}
+
           const response = await fetch('/api/files/document', {
             method: 'POST',
             body: formData,
@@ -1122,7 +1163,7 @@ function PureMultimodalInput({
             // Show success toast
             toast.success(`Spreadsheet processed: ${data.filename}`);
 
-            // Add to document content state
+            // Add to document content state with structured analysis embedded markers
             setDocumentContents((prev) => [
               ...prev,
               {
@@ -1132,6 +1173,8 @@ function PureMultimodalInput({
                 pageCount: data.pageCount,
               },
             ]);
+
+            // Do not inject embedded markers into the input; attach structured summary at send time instead
 
             // Return null - not using attachment system for documents
             return null;
@@ -1162,16 +1205,14 @@ function PureMultimodalInput({
         }
       }
 
-      // Handle images - First upload the image normally, then process it afterward
+      // Handle images - Simple upload, AI model analyzes directly
       else if (
         file.type.startsWith('image/') ||
         ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileExt || '')
       ) {
-        console.log(`Processing Image: ${file.name} (${file.size} bytes)`);
+        console.log(`Uploading Image: ${file.name} (${file.size} bytes)`);
 
-        // First, upload the image as a normal attachment
         try {
-          // Regular upload for the image to be visible
           const response = await fetch('/api/files/upload', {
             method: 'POST',
             body: formData,
@@ -1184,59 +1225,48 @@ function PureMultimodalInput({
           }
 
           const data = await response.json();
-          const attachment = {
-            url: data.url,
-            name: data.pathname || file.name,
-            contentType: file.type,
+
+          // Validate the uploaded URL
+          if (!data.url || typeof data.url !== 'string') {
+            console.error('Invalid upload response:', data);
+            toast.error('Upload failed: Invalid URL returned');
+            return undefined;
+          }
+
+          // Clean and validate the URL
+          const cleanUrl = data.url.trim();
+
+          // Ensure URL doesn't have trailing dots or malformed parts
+          if (cleanUrl.endsWith('.') || cleanUrl.includes('..')) {
+            console.error('Malformed URL detected:', cleanUrl);
+            toast.error('Upload failed: Malformed URL');
+            return undefined;
+          }
+
+          // Determine the proper content type
+          let contentType = file.type;
+          if (!contentType || contentType === 'application/octet-stream') {
+            const ext = fileExt?.toLowerCase();
+            const typeMap: { [key: string]: string } = {
+              jpg: 'image/jpeg',
+              jpeg: 'image/jpeg',
+              png: 'image/png',
+              gif: 'image/gif',
+              webp: 'image/webp',
+              bmp: 'image/bmp',
+            };
+            contentType = typeMap[ext || ''] || 'image/jpeg';
+          }
+
+          console.log(`Image uploaded successfully: ${file.name}`);
+          toast.success(`Image uploaded: ${file.name}`);
+
+          // Return attachment - AI model will analyze directly
+          return {
+            url: cleanUrl,
+            name: file.name,
+            contentType: contentType,
           };
-
-          // Now process the image with AI in the background
-          toast.loading(`Analyzing image: ${file.name}...`, {
-            id: `image-analysis-${file.name}`,
-          });
-
-          // Process the image asynchronously
-          fetch('/api/files/image-process', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              imageUrl: data.url,
-              filename: file.name,
-            }),
-          })
-            .then(async (processResponse) => {
-              toast.dismiss(`image-analysis-${file.name}`);
-
-              if (processResponse.ok) {
-                const processData = await processResponse.json();
-
-                // Store the image analysis data
-                setImageContents((prev) => [
-                  ...prev,
-                  {
-                    name: file.name,
-                    text: processData.text || '',
-                    description: processData.description || '',
-                    type: file.type,
-                    url: data.url,
-                  },
-                ]);
-
-                toast.success(`Image analyzed: ${file.name}`);
-              } else {
-                console.error('Image analysis failed but upload succeeded');
-              }
-            })
-            .catch((error) => {
-              console.error('Error during image analysis:', error);
-              toast.dismiss(`image-analysis-${file.name}`);
-              toast.error('Image analysis failed, but image was uploaded');
-            });
-
-          // Return the attachment immediately so the image appears in the UI
-          return attachment;
         } catch (error) {
           console.error('Failed to upload image:', error);
           toast.error('Failed to upload image, please try again!');
@@ -1534,13 +1564,7 @@ function PureMultimodalInput({
       finalInputContent += `\n\n${docMarkers}`; // Combine with structured markers incl. content
     }
 
-    // Handle image content
-    // Do NOT embed image descriptions or OCR text into the message body.
-    // Images are sent as attachments only; analysis is hidden from the bubble.
-    // This preserves a clean chat UI while keeping the image itself attached.
-    if (imageContents.length > 0) {
-      // Intentionally not modifying finalInputContent
-    }
+    // Images are sent via experimental_attachments - AI analyzes them directly
 
     // Handle audio content - include all audio (ready, error, or processing)
     const allAudioContents = audioContents.filter(
@@ -1658,7 +1682,6 @@ function PureMultimodalInput({
       setAttachments([]); // Clear regular attachments
       setPdfContents([]); // Clear PDF contents
       setDocumentContents([]); // Clear document contents
-      setImageContents([]); // Clear image contents
       setAudioContents([]); // Clear audio contents
       setSelectedMentions([]); // Clear mentions
       setShowPredictions(false); // Hide predictions after submit
@@ -1676,7 +1699,6 @@ function PureMultimodalInput({
     attachments,
     pdfContents,
     documentContents,
-    imageContents,
     audioContents,
     selectedMentions,
     chatId,
@@ -1684,6 +1706,7 @@ function PureMultimodalInput({
     setInput,
     setAttachments,
     setPdfContents,
+    setDocumentContents,
     setAudioContents,
     width,
     status,
@@ -1701,7 +1724,6 @@ function PureMultimodalInput({
   const attachmentsCount = attachments.length;
   const pdfCount = pdfContents.length;
   const docCount = documentContents.length;
-  const imgCount = imageContents.length;
   const audioCount = audioContents.length;
   const audioProcessing = audioContents.some(
     (a) => a.status === 'uploading' || a.status === 'transcribing',
@@ -1709,12 +1731,7 @@ function PureMultimodalInput({
 
   // Intelligent layout helpers
   const hasPreviews =
-    attachmentsCount +
-      pdfCount +
-      docCount +
-      imgCount +
-      audioCount +
-      uploadQueue.length >
+    attachmentsCount + pdfCount + docCount + audioCount + uploadQueue.length >
     0;
   const isWide = (width ?? 0) >= 1024;
   const isEmbedded = className?.includes('composer-embedded');
@@ -2348,7 +2365,6 @@ function PureMultimodalInput({
         uploadQueue.length === 0 &&
         pdfContents.length === 0 &&
         documentContents.length === 0 &&
-        imageContents.length === 0 &&
         audioContents.length === 0 && (
           <SuggestedActions
             append={append}
@@ -2369,31 +2385,38 @@ function PureMultimodalInput({
       {(attachments.length > 0 ||
         pdfContents.length > 0 ||
         documentContents.length > 0 ||
-        imageContents.length > 0 ||
         audioContents.length > 0 ||
         uploadQueue.length > 0) && (
-        <div
-          data-testid="attachments-preview"
+        <GlassSurface
+          width="100%"
+          height="auto"
+          borderRadius={12}
+          borderWidth={0.04}
+          brightness={48}
+          opacity={0.92}
+          blur={10}
+          backgroundOpacity={0.08}
+          showInsetShadow={true}
+          insetShadowIntensity={0.3}
           className={cx(
             isWide
-              ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-2 overflow-y-auto'
-              : 'flex flex-row gap-2 p-2 overflow-x-auto',
-            'relative items-end rounded-lg border border-zinc-200 dark:border-zinc-700 bg-background/50',
+              ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-3 overflow-y-auto'
+              : 'flex flex-row gap-2 p-3 overflow-x-auto',
+            'relative items-end',
             isEmbedded ? 'max-h-28' : 'max-h-40',
           )}
+          style={{ minHeight: '80px' }}
         >
           {/* Total files counter when there are many */}
           {attachments.length +
             pdfContents.length +
             documentContents.length +
-            imageContents.length +
             audioContents.length >
             5 && (
             <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full shadow-sm">
               {attachments.length +
                 pdfContents.length +
                 documentContents.length +
-                imageContents.length +
                 audioContents.length}{' '}
               files
             </div>
@@ -2407,10 +2430,6 @@ function PureMultimodalInput({
                 setAttachments((currentAttachments) =>
                   currentAttachments.filter((a) => a.url !== attachment.url),
                 );
-                // Also remove any processed image content for this URL
-                setImageContents((current) =>
-                  current.filter((img) => img.url !== attachment.url),
-                );
               }}
             />
           ))}
@@ -2420,7 +2439,19 @@ function PureMultimodalInput({
               key={`pdf-${pdf.name}-${index}`}
               className="flex flex-col gap-2 relative"
             >
-              <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+              <GlassSurface
+                width="80px"
+                height="64px"
+                borderRadius={8}
+                borderWidth={0.05}
+                brightness={45}
+                opacity={0.95}
+                blur={8}
+                backgroundOpacity={0.15}
+                showInsetShadow={true}
+                insetShadowIntensity={0.4}
+                className="relative"
+              >
                 <svg
                   className="size-8 text-red-500"
                   fill="none"
@@ -2443,7 +2474,7 @@ function PureMultimodalInput({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
                   onClick={() => {
                     setPdfContents((current) =>
                       current.filter((_, i) => i !== index),
@@ -2452,7 +2483,7 @@ function PureMultimodalInput({
                 >
                   <X className="size-3" />
                 </Button>
-              </div>
+              </GlassSurface>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
                 {pdf.name}
               </div>
@@ -2464,7 +2495,19 @@ function PureMultimodalInput({
               key={`doc-${doc.name}-${index}`}
               className="flex flex-col gap-2 relative"
             >
-              <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+              <GlassSurface
+                width="80px"
+                height="64px"
+                borderRadius={8}
+                borderWidth={0.05}
+                brightness={45}
+                opacity={0.95}
+                blur={8}
+                backgroundOpacity={0.15}
+                showInsetShadow={true}
+                insetShadowIntensity={0.4}
+                className="relative"
+              >
                 <svg
                   className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : 'text-green-500'}`}
                   fill="none"
@@ -2498,7 +2541,7 @@ function PureMultimodalInput({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
                   onClick={() => {
                     setDocumentContents((current) =>
                       current.filter((_, i) => i !== index),
@@ -2507,7 +2550,7 @@ function PureMultimodalInput({
                 >
                   <X className="size-3" />
                 </Button>
-              </div>
+              </GlassSurface>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
                 {doc.name}
               </div>
@@ -2519,7 +2562,19 @@ function PureMultimodalInput({
               key={`audio-${audio.id}`}
               className="flex flex-col gap-2 relative"
             >
-              <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+              <GlassSurface
+                width="80px"
+                height="64px"
+                borderRadius={8}
+                borderWidth={0.05}
+                brightness={45}
+                opacity={0.95}
+                blur={8}
+                backgroundOpacity={0.15}
+                showInsetShadow={true}
+                insetShadowIntensity={0.4}
+                className="relative"
+              >
                 {audio.status === 'uploading' ? (
                   <>
                     <div className="animate-spin text-zinc-500">
@@ -2587,7 +2642,7 @@ function PureMultimodalInput({
                     variant="ghost"
                     size="icon"
                     className={cn(
-                      'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm',
+                      'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm z-20',
                       audio.status === 'error'
                         ? 'hover:bg-destructive hover:text-destructive-foreground bg-destructive/10'
                         : 'hover:bg-destructive hover:text-destructive-foreground',
@@ -2606,7 +2661,7 @@ function PureMultimodalInput({
                     <X className="size-3" />
                   </Button>
                 )}
-              </div>
+              </GlassSurface>
               <div className="text-xs text-zinc-500 max-w-16 truncate">
                 {audio.name}
               </div>
@@ -2624,7 +2679,7 @@ function PureMultimodalInput({
               isUploading={true}
             />
           ))}
-        </div>
+        </GlassSurface>
       )}
 
       <div className="relative" ref={inputWrapperRef}>
@@ -2633,28 +2688,8 @@ function PureMultimodalInput({
           <div className="absolute -top-2 left-0 right-0 mb-2 translate-y-[-100%] z-40">
             <div className="flex flex-col gap-1">
               {predictions.slice(0, 3).map((p, idx) => (
-                <motion.button
+                <motion.div
                   key={p}
-                  type="button"
-                  onClick={async () => {
-                    // Insert remainder completion (API returns remainder strings)
-                    const current = input || '';
-                    const remainder = p;
-                    const joiner =
-                      current.endsWith(' ') || remainder.startsWith(' ')
-                        ? ''
-                        : ' ';
-                    setInput(current + joiner + remainder);
-                    setShowPredictions(false);
-                    try {
-                      await fetch('/api/predictions/rank', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phrase: p }),
-                      });
-                    } catch {}
-                  }}
-                  className="text-left rounded-xl px-3 py-2 bg-white/70 dark:bg-zinc-900/70 border border-zinc-200/60 dark:border-zinc-700/60 backdrop-blur-md shadow-sm hover:shadow-md"
                   initial={{ opacity: 0, y: 6, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{
@@ -2663,8 +2698,41 @@ function PureMultimodalInput({
                     delay: idx * 0.05,
                   }}
                 >
-                  <span>{p}</span>
-                </motion.button>
+                  <GlassSurface
+                    width="100%"
+                    height="auto"
+                    borderRadius={12}
+                    displace={3}
+                    backgroundOpacity={0.25}
+                    blur={11}
+                    className="cursor-pointer hover:scale-105 transition-transform"
+                  >
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        // Insert remainder completion (API returns remainder strings)
+                        const current = input || '';
+                        const remainder = p;
+                        const joiner =
+                          current.endsWith(' ') || remainder.startsWith(' ')
+                            ? ''
+                            : ' ';
+                        setInput(current + joiner + remainder);
+                        setShowPredictions(false);
+                        try {
+                          await fetch('/api/predictions/rank', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phrase: p }),
+                          });
+                        } catch {}
+                      }}
+                      className="text-left px-3 py-2 bg-transparent border-0 shadow-none w-full"
+                    >
+                      <span>{p}</span>
+                    </button>
+                  </GlassSurface>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -2715,60 +2783,66 @@ function PureMultimodalInput({
             ease: [0.19, 1, 0.22, 1],
           }}
         >
-          <Textarea
-            data-testid="multimodal-input"
-            ref={textareaRef}
-            placeholder={
-              selectedMentions.length > 0
-                ? 'Continue your message...'
-                : 'Ask Anything...'
-            }
-            value={input}
-            onChange={handleInputChange}
-            onPaste={handlePaste}
-            onDragOver={handleTextareaDragOver}
-            onKeyDown={(event) => {
-              // Handle @ mention dropdown navigation
-              if (showMentions) {
-                handleMentionKeyDown(event);
-                return;
+          <GlassSurface
+            width="100%"
+            height="auto"
+            borderRadius={16}
+            displace={5}
+            backgroundOpacity={0.25}
+            blur={11}
+            insetShadowIntensity={0.3}
+            className="w-full"
+          >
+            <Textarea
+              data-testid="multimodal-input"
+              ref={textareaRef}
+              placeholder={
+                selectedMentions.length > 0
+                  ? 'Continue your message...'
+                  : 'Ask Anything...'
               }
-
-              // Normal enter key handling
-              if (
-                event.key === 'Enter' &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-
-                if (status !== 'ready') {
-                  toast.error(
-                    'Please wait for the model to finish its response!',
-                  );
-                } else {
-                  // Submit the form manually
-                  submitForm();
+              value={input}
+              onChange={handleInputChange}
+              onPaste={handlePaste}
+              onDragOver={handleTextareaDragOver}
+              onKeyDown={(event) => {
+                // Handle @ mention dropdown navigation
+                if (showMentions) {
+                  handleMentionKeyDown(event);
+                  return;
                 }
-              }
-            }}
-            className={cx(
-              'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
-              'backdrop-filter backdrop-blur-[16px]',
-              'border border-white/30 dark:border-zinc-700/30',
-              'input-tint shadow-enhanced',
-              isDragging && 'pointer-events-none',
-              className,
-            )}
-            style={{
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow:
-                'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-              maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
-            }}
-            rows={2}
-            autoFocus
-          />
+
+                // Normal enter key handling
+                if (
+                  event.key === 'Enter' &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+
+                  if (status !== 'ready') {
+                    toast.error(
+                      'Please wait for the model to finish its response!',
+                    );
+                  } else {
+                    // Submit the form manually
+                    submitForm();
+                  }
+                }
+              }}
+              className={cx(
+                'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
+                'bg-transparent border-0 shadow-none',
+                isDragging && 'pointer-events-none',
+                className,
+              )}
+              style={{
+                maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
+              }}
+              rows={2}
+              autoFocus
+            />
+          </GlassSurface>
         </motion.div>
 
         {/* Bottom toolbar (flow layout, responsive) */}
@@ -2916,7 +2990,6 @@ function PureMultimodalInput({
                     attachmentsCount={attachmentsCount}
                     pdfCount={pdfCount}
                     docCount={docCount}
-                    imgCount={imgCount}
                     audioCount={audioCount}
                     audioProcessing={audioProcessing}
                     handleSubmit={handleSubmit}
@@ -3049,7 +3122,6 @@ function PureSendButton({
   attachmentsCount,
   pdfCount,
   docCount,
-  imgCount,
   audioCount,
   audioProcessing,
   handleSubmit,
@@ -3061,7 +3133,6 @@ function PureSendButton({
   attachmentsCount: number;
   pdfCount: number;
   docCount: number;
-  imgCount: number;
   audioCount: number;
   audioProcessing: boolean;
   handleSubmit: any;
@@ -3072,7 +3143,6 @@ function PureSendButton({
     attachmentsCount === 0 &&
     pdfCount === 0 &&
     docCount === 0 &&
-    imgCount === 0 &&
     audioCount === 0;
   const isDisabled = nothingToSend || uploadQueue.length > 0 || audioProcessing;
 
@@ -3109,7 +3179,7 @@ const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   if (prevProps.attachmentsCount !== nextProps.attachmentsCount) return false;
   if (prevProps.pdfCount !== nextProps.pdfCount) return false;
   if (prevProps.docCount !== nextProps.docCount) return false;
-  if (prevProps.imgCount !== nextProps.imgCount) return false;
+  if (prevProps.audioProcessing !== nextProps.audioProcessing) return false;
   // We intentionally don't compare handleSubmit or attachments since they don't affect rendering
   return true;
 });

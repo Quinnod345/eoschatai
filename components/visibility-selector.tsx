@@ -1,7 +1,6 @@
 'use client';
 
 import { type ReactNode, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +15,7 @@ import {
   LockIcon,
 } from './icons';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
+import GlassSurface from '@/components/GlassSurface';
 
 export type VisibilityType = 'private' | 'public';
 
@@ -45,8 +45,9 @@ export function VisibilitySelector({
   selectedVisibilityType,
 }: {
   chatId: string;
+  className?: string;
   selectedVisibilityType: VisibilityType;
-} & React.ComponentProps<typeof Button>) {
+}) {
   const [open, setOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<VisibilityType | null>(null);
 
@@ -62,48 +63,29 @@ export function VisibilitySelector({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        asChild
-        className={cn(
-          'w-fit data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
-          className,
-        )}
-      >
-        <Button
+      <DropdownMenuTrigger asChild>
+        <GlassSurface
           data-testid="visibility-selector"
-          variant="outline"
-          className={cn(
-            'md:px-2 md:h-[34px]',
-            'backdrop-blur-[16px] backdrop-filter',
-            'border-white/30 dark:border-zinc-700/30',
-            'bg-white/60 dark:bg-zinc-900/60 hover:bg-white/80 dark:hover:bg-zinc-900/80',
-          )}
-          style={{
-            WebkitBackdropFilter: 'blur(16px)',
-          }}
+          width="auto"
+          height={34}
+          borderRadius={15}
+          displace={5}
+          insetShadowIntensity={0.2}
+          backgroundOpacity={0.5}
+          
+          blur={0}
+          isButton={true}
+          className={cn('md:px-2 md:h-[34px] cursor-pointer', className)}
         >
           {selectedVisibility?.icon}
           <span className="hidden md:inline ml-1">
             {selectedVisibility?.label}
           </span>
           <ChevronDownIcon />
-        </Button>
+        </GlassSurface>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align="start"
-        className={cn(
-          'min-w-[300px]',
-          'backdrop-blur-[16px] backdrop-filter',
-          'border-white/30 dark:border-zinc-700/30',
-          'bg-white/80 dark:bg-zinc-900/80',
-        )}
-        style={{
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow:
-            'inset 0px 0px 10px rgba(0, 0, 0, 0.1), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-        }}
-      >
+      <DropdownMenuContent align="start" className={cn('min-w-[300px]')}>
         {visibilities.map((visibility) => {
           const isHovered = hoveredId === visibility.id;
 

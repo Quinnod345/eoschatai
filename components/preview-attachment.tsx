@@ -1,6 +1,7 @@
 import type { Attachment } from 'ai';
 import { LoaderIcon, XIcon } from './icons';
 import { Button } from './ui/button';
+import GlassSurface from './GlassSurface';
 
 export const PreviewAttachment = ({
   attachment,
@@ -18,7 +19,19 @@ export const PreviewAttachment = ({
       data-testid="input-attachment-preview"
       className="flex flex-col gap-2 relative"
     >
-      <div className="w-20 h-16 aspect-video bg-muted rounded-md relative flex flex-col items-center justify-center">
+      <GlassSurface
+        width="80px"
+        height="64px"
+        borderRadius={8}
+        borderWidth={0.05}
+        brightness={45}
+        opacity={0.95}
+        blur={8}
+        backgroundOpacity={0.15}
+        showInsetShadow={true}
+        insetShadowIntensity={0.4}
+        className="relative"
+      >
         {contentType ? (
           contentType.startsWith('image') ? (
             // NOTE: it is recommended to use next/image for images
@@ -32,7 +45,7 @@ export const PreviewAttachment = ({
           ) : (
             // Default file icon for non-image attachments
             <svg
-              className="size-8 text-zinc-500"
+              className="size-8 text-zinc-500 dark:text-zinc-400"
               fill="none"
               height="24"
               stroke="currentColor"
@@ -59,7 +72,7 @@ export const PreviewAttachment = ({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+            className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
             onClick={onRemove}
           >
             <XIcon size={12} />
@@ -67,11 +80,11 @@ export const PreviewAttachment = ({
         )}
 
         {isUploading && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-md">
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-md z-10">
             <LoaderIcon size={16} />
           </div>
         )}
-      </div>
+      </GlassSurface>
       <div className="text-xs text-zinc-500 max-w-16 truncate">{name}</div>
     </div>
   );

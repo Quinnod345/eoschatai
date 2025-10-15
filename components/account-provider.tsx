@@ -8,32 +8,10 @@ import {
   type PriceSummary,
 } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
-import { UpgradeModal } from '@/components/upgrade-modal';
+import { SimpleUpgradeModal } from '@/components/simple-upgrade-modal';
 import { BusinessUpgradeFlow } from '@/components/business-upgrade-flow';
 import type { UpgradeFeature } from '@/types/upgrade';
 import { toast } from 'sonner';
-
-// Dev helper: expose a global opener early so it's callable from the console even before effects run
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  try {
-    const allowed: UpgradeFeature[] = [
-      'export',
-      'calendar_connect',
-      'recordings',
-      'deep_research',
-      'premium',
-    ];
-    (
-      window as unknown as { openUpgrade?: (f?: UpgradeFeature) => void }
-    ).openUpgrade = (f?: UpgradeFeature) => {
-      const picked = f && allowed.includes(f) ? f : 'deep_research';
-      // Call Zustand store without React
-      useUpgradeStore.getState().openModal(picked);
-    };
-  } catch {
-    // no-op
-  }
-}
 
 async function fetchBootstrap(): Promise<AccountBootstrap | null> {
   const response = await fetch('/api/me', { cache: 'no-store' });
@@ -324,23 +302,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       // no-op
     }
 
-    // 2) Keyboard shortcut: Alt+U → open deep_research upgrade modal
-    const onKeyDown = (event: KeyboardEvent) => {
-      const isKeyU = event.code === 'KeyU';
-      if (
-        isKeyU &&
-        (event.altKey ||
-          (event.ctrlKey && event.shiftKey) ||
-          (event.metaKey && event.shiftKey))
-      ) {
-        event.preventDefault();
-        openModal('deep_research');
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
+    // Cleanup: Remove global helper when unmounted
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
       try {
         (window as unknown as { openUpgrade?: unknown }).openUpgrade =
           undefined;
@@ -354,7 +317,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     <>
       {children}
       {feature ? (
-        <UpgradeModal
+        <SimpleUpgradeModal
           feature={feature as UpgradeFeature}
           open={open}
           onClose={closeModal}

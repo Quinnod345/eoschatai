@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +20,8 @@ import {
   PROFILE_THEMES,
   getProfileTheme,
 } from '@/lib/constants/profile-themes';
+import GlassSurface from '@/components/GlassSurface';
+import { cn } from '@/lib/utils';
 
 interface ProfilesDropdownProps {
   selectedPersonaId: string | null;
@@ -206,29 +207,22 @@ export function ProfilesDropdown({
       <TooltipTrigger asChild>
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className={`
-                relative overflow-hidden group
-                h-9 px-3 md:h-10 md:px-4
-                border-2 
-                backdrop-filter backdrop-blur-[16px]
-                bg-white/70 dark:bg-zinc-900/70
-                border-white/30 dark:border-zinc-700/30
-                ${selectedTheme.hoverBg}
-                hover:bg-white/80 dark:hover:bg-zinc-900/80
-                hover:${selectedTheme.borderColor}
-                transition-all duration-300 ease-out
-                shadow-sm hover:shadow-md
-                ${isOpen ? `${selectedTheme.borderColor} !bg-eos-orange/5 dark:!bg-eos-orange/10` : ''}
-                ${selectedProfile ? `ring-2 ring-opacity-20 ${selectedTheme.borderColor.replace('border-', 'ring-')}` : ''}
-              `}
+            <GlassSurface
+              width="auto"
+              height={40}
+              borderRadius={12}
+              displace={3}
+              insetShadowIntensity={0.2}
+              backgroundOpacity={0.25}
+              blur={11}
+              isButton={true}
               disabled={disabled || isLoading}
-              style={{
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow:
-                  'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-              }}
+              className={cn(
+                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium',
+                isOpen && 'ring-2 ring-eos-orange/30',
+                selectedProfile &&
+                  `ring-2 ring-opacity-20 ${selectedTheme.borderColor.replace('border-', 'ring-')}`,
+              )}
             >
               {/* Animated background gradient */}
               <div
@@ -278,12 +272,12 @@ export function ProfilesDropdown({
                   />
                 </motion.div>
               )}
-            </Button>
+            </GlassSurface>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
             align="start"
-            className="w-80 p-2 border-2 border-border/50 shadow-xl backdrop-blur-md bg-background/95 z-[100] relative"
+            className="w-80 p-2 z-[100] relative"
             sideOffset={8}
             avoidCollisions={true}
             collisionPadding={8}
@@ -443,10 +437,7 @@ export function ProfilesDropdown({
         </DropdownMenu>
       </TooltipTrigger>
 
-      <TooltipContent
-        side="bottom"
-        className="bg-background/95 backdrop-blur-sm border border-border/50"
-      >
+      <TooltipContent side="bottom">
         <div className="text-sm">
           {selectedProfile
             ? `Using ${selectedProfile.name} profile`

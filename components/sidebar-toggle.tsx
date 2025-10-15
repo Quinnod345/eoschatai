@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/tooltip';
 
 import { SidebarLeftIcon } from './icons';
-import { Button } from './ui/button';
+import GlassSurface from '@/components/GlassSurface';
 
 export function SidebarToggle({
   className,
@@ -18,14 +18,23 @@ export function SidebarToggle({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
+        <GlassSurface
           data-testid="sidebar-toggle-button"
+          width={32}
+          height={32}
+          borderRadius={10}
+          displace={3}
+          backgroundOpacity={0.25}
+          blur={11}
+          insetShadowIntensity={0.2}
+          isButton={true}
           onClick={toggleSidebar}
-          variant="ghost"
-          className="md:w-fit md:px-2 md:h-8 !bg-transparent hover:!bg-zinc-100 dark:hover:!bg-zinc-700"
+          className="md:w-8 md:h-8 cursor-pointer hover:bg-white/10 dark:hover:bg-black/10 text-zinc-900 dark:text-zinc-100"
         >
-          <SidebarLeftIcon size={16} />
-        </Button>
+          <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
+            <SidebarLeftIcon size={16} />
+          </span>
+        </GlassSurface>
       </TooltipTrigger>
       <TooltipContent align="start">
         {state === 'expanded' ? 'Collapse Sidebar' : 'Expand Sidebar'}

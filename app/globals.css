@@ -347,7 +347,6 @@
         radial-gradient(700px 700px at 20% 30%, var(--eos-bg1), transparent 60%),
         radial-gradient(760px 760px at 80% 60%, var(--eos-bg2), transparent 60%),
         radial-gradient(600px 600px at 50% 55%, var(--eos-bg3), transparent 60%);
-    animation: eosMeshMorph 30s ease-in-out infinite alternate;
 }
 
 @keyframes eosMeshMorph {

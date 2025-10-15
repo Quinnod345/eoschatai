@@ -48,6 +48,7 @@ import {
   getCalendarEventsTool,
   createCalendarEventTool,
 } from '@/lib/ai/tools';
+import { searchWeb } from '@/lib/ai/tools/search-web';
 import { z } from 'zod';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
@@ -242,7 +243,17 @@ If model is gpt-5, choose appropriate reasoning_effort based on complexity. No c
   const parsed = JSON.parse(cleaned);
   const model = parsed.model === 'gpt-5' ? 'gpt-5' : 'gpt-4.1';
   const maxTokens = Number(parsed.max_tokens);
-  const reasoningEffort = parsed.reasoning_effort || 'low';
+  // Normalize reasoning_effort to one of: 'low' | 'medium' | 'high'. Default to 'medium' if invalid.
+  const rawEffort =
+    typeof parsed.reasoning_effort === 'string'
+      ? parsed.reasoning_effort.toLowerCase().trim()
+      : '';
+  const allowedEfforts = new Set(['low', 'medium', 'high']);
+  const reasoningEffort: 'low' | 'medium' | 'high' = allowedEfforts.has(
+    rawEffort,
+  )
+    ? (rawEffort as 'low' | 'medium' | 'high')
+    : 'medium';
   if (!Number.isFinite(maxTokens)) {
     throw new Error('Nano preflight returned invalid max_tokens');
   }
@@ -1892,6 +1903,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               messages: modifiedMessages,
               maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
               experimental_activeTools: [
+                'searchWeb', // FIRST for priority - web search
                 'getWeather',
                 'createDocument',
                 'updateDocument',
@@ -1918,6 +1930,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                   }
                 : {}),
               tools: {
+                // Web search tool - FIRST for priority
+                searchWeb,
                 getWeather,
                 createDocument: createDocument({
                   session,

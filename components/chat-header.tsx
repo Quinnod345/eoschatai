@@ -4,7 +4,6 @@ import { useWindowSize } from 'usehooks-ts';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { SidebarToggle } from '@/components/sidebar-toggle';
-import { Button } from '@/components/ui/button';
 import { PlusIcon } from './icons';
 import { useSidebar } from './ui/sidebar';
 import { memo } from 'react';
@@ -17,11 +16,12 @@ import { ProfilesDropdown } from '@/components/profiles-dropdown';
 import { PersonaWizard } from '@/components/persona-wizard';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
 import { AdvancedSearch } from '@/components/advanced-search';
-import { Bookmark } from 'lucide-react';
+import { Bookmark, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
-import { SavedContentDropdown } from '@/components/saved-content-dropdown';
+import { Dropdown as SavedContentDropdown } from '@/components/saved-content-dropdown';
 import type { UIMessage } from 'ai';
+import GlassSurface from '@/components/GlassSurface';
 
 function PureChatHeader({
   chatId,
@@ -62,6 +62,8 @@ function PureChatHeader({
   >();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+  const [searchButtonElement, setSearchButtonElement] =
+    useState<HTMLButtonElement | null>(null);
 
   // Check if chat is bookmarked on mount and when chatId changes
   useEffect(() => {
@@ -236,7 +238,7 @@ function PureChatHeader({
 
   return (
     <>
-      <header className="absolute top-1 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override">
+      <header className="absolute top-0.5 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override">
         <div className="flex items-center gap-1 md:gap-2 w-full">
           {/* Left Section - Navigation */}
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
@@ -264,27 +266,65 @@ function PureChatHeader({
           {/* Center Section - Tools (only when sidebar closed or mobile) */}
           {shouldShowCenterTools && (
             <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
-              <AdvancedSearch />
+              {/* Search Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <GlassSurface
+                    width={36}
+                    height={36}
+                    borderRadius={10}
+                    displace={3}
+                    backgroundOpacity={0.25}
+                    blur={11}
+                    insetShadowIntensity={0.2}
+                    isButton={true}
+                    onClick={() => searchButtonElement?.click()}
+                    className="h-9 w-9 cursor-pointer"
+                  >
+                    <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
+                      <Search className="h-4 w-4" />
+                    </span>
+                  </GlassSurface>
+                </TooltipTrigger>
+                <TooltipContent>Search</TooltipContent>
+              </Tooltip>
+
+              {/* Hidden AdvancedSearch button to trigger */}
+              <div className="hidden">
+                <div
+                  ref={(el) => {
+                    if (el) {
+                      const button = el.querySelector(
+                        'button',
+                      ) as HTMLButtonElement;
+                      if (button) setSearchButtonElement(button);
+                    }
+                  }}
+                >
+                  <AdvancedSearch />
+                </div>
+              </div>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 px-2 md:px-3 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
+                  <GlassSurface
+                    width="auto"
+                    height={36}
+                    borderRadius={12}
+                    displace={3}
+                    backgroundOpacity={0.25}
+                    insetShadowIntensity={0.2}
+                    blur={11}
+                    isButton={true}
                     onClick={() => {
                       router.push('/chat');
                       router.refresh();
                     }}
-                    style={{
-                      WebkitBackdropFilter: 'blur(16px)',
-                      boxShadow:
-                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-                    }}
+                    className="h-9 px-2 md:px-3 cursor-pointer"
                   >
                     <PlusIcon size={16} />
                     <span className="hidden md:inline ml-1">New Chat</span>
-                  </Button>
+                  </GlassSurface>
                 </TooltipTrigger>
                 <TooltipContent>New Chat</TooltipContent>
               </Tooltip>
@@ -306,28 +346,31 @@ function PureChatHeader({
             {shouldShowBookmark && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      'h-9 w-9 p-0 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80',
-                      isBookmarked && 'text-blue-500',
-                    )}
+                  <GlassSurface
+                    width={36}
+                    height={36}
+                    borderRadius={10}
+                    displace={3}
+                    backgroundOpacity={0.25}
+                    blur={11}
+                    insetShadowIntensity={0.2}
+                    isButton={true}
                     onClick={handleBookmarkToggle}
                     disabled={isBookmarkLoading}
-                    style={{
-                      WebkitBackdropFilter: 'blur(16px)',
-                      boxShadow:
-                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-                    }}
+                    className={cn(
+                      'h-9 w-9 cursor-pointer text-zinc-900 dark:text-zinc-100',
+                      isBookmarked && 'text-blue-500',
+                    )}
                   >
-                    <Bookmark
-                      className={cn(
-                        'h-4 w-4 transition-all',
-                        isBookmarked && 'fill-current',
-                      )}
-                    />
-                  </Button>
+                    <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
+                      <Bookmark
+                        className={cn(
+                          'h-4 w-4 transition-all',
+                          isBookmarked && 'fill-current',
+                        )}
+                      />
+                    </span>
+                  </GlassSurface>
                 </TooltipTrigger>
                 <TooltipContent>
                   {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}

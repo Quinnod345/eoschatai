@@ -256,7 +256,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                         </Button>
                       </motion.div>
                     </TooltipTrigger>
-                    <TooltipContent align="end">New Chat</TooltipContent>
+                    <TooltipContent>New Chat</TooltipContent>
                   </Tooltip>
                 </div>
               </div>

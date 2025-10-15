@@ -1,7 +1,12 @@
 // Toaster styles are applied via ToastProvider
 import { ToastProvider } from '@/components/enhanced-toast-provider';
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import {
+  Geist,
+  Geist_Mono,
+  Montserrat,
+  Roboto_Condensed,
+} from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UISettingsProvider } from '@/components/ui-settings-provider';
 import { LoadingProvider } from '@/components/providers/loading-provider';
@@ -45,6 +50,20 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
 });
 
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-montserrat',
+  weight: ['300', '400', '500', '600', '700', '800'],
+});
+
+const robotoCondensed = Roboto_Condensed({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto-condensed',
+  weight: ['300', '400', '700'],
+});
+
 const LIGHT_THEME_COLOR = 'hsl(210deg 48% 97%)';
 const DARK_THEME_COLOR = 'hsl(210deg 50% 8%)';
 const THEME_COLOR_SCRIPT = `\
@@ -74,7 +93,7 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geist.variable} ${geistMono.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${montserrat.variable} ${robotoCondensed.variable}`}
     >
       <head>
         {(process.env.NODE_ENV === 'development' ||
