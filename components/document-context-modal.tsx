@@ -648,7 +648,7 @@ export function DocumentContextModal({
       setUploading(true);
 
       for (const file of files) {
-        // Check file type (expanded to include Excel and Word files)
+        // Check file type (expanded to include Excel, Word, and PowerPoint files)
         const validTypes = [
           'application/pdf',
           'text/plain',
@@ -657,6 +657,8 @@ export function DocumentContextModal({
           'application/msword',
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/vnd.ms-powerpoint',
         ];
 
         // Also check file extension for types that might not be correctly identified
@@ -669,6 +671,8 @@ export function DocumentContextModal({
           'docx',
           'xls',
           'xlsx',
+          'ppt',
+          'pptx',
         ];
 
         if (
@@ -676,7 +680,7 @@ export function DocumentContextModal({
           !validExtensions.includes(fileExt || '')
         ) {
           toast.error(
-            `Invalid file type: ${file.name}. Only PDF, TXT, MD, DOC, DOCX, XLS, and XLSX files are supported.`,
+            `Invalid file type: ${file.name}. Only PDF, TXT, MD, DOC, DOCX, XLS, XLSX, PPT, and PPTX files are supported.`,
           );
           continue;
         }

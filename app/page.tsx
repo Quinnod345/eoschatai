@@ -13,6 +13,7 @@ import MagicBento from '@/components/MagicBento';
 import CardNav from '@/components/CardNav';
 import DotGrid from '@/components/DotGrid';
 import Dither from '@/components/Dither';
+import LazyVideo from '@/components/LazyVideo';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -1188,9 +1189,16 @@ export default function Home() {
         <div
           id="horizontal-container"
           className="relative z-30 h-screen w-[300vw] flex flex-nowrap overflow-hidden"
+          style={{
+            willChange: 'transform',
+            transform: 'translateZ(0)',
+          }}
         >
           {/* Slide 1: EOS Model & Tools Mastery */}
-          <section className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto">
+          <section
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto"
+            style={{ transform: 'translateZ(0)' }}
+          >
             <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-[1400px] mx-auto">
                 {/* Left: Text Content */}
@@ -1208,15 +1216,10 @@ export default function Home() {
                 {/* Right: Video */}
                 <div className="eos-mastery-video relative">
                   <div className="rounded-2xl overflow-hidden border border-white/10 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)] bg-black/20">
-                    <video
-                      className="w-full h-auto"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                    >
-                      <source src="/videos/what-is-eos.mp4" type="video/mp4" />
-                    </video>
+                    <LazyVideo
+                      src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/what-is-eos-08HuP8fmZBiDE8KYpFhxIrxnHQT43u.mp4"
+                      preload="metadata"
+                    />
                   </div>
                 </div>
               </div>
@@ -1224,7 +1227,10 @@ export default function Home() {
           </section>
 
           {/* Slide 2: Learn Anew */}
-          <section className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto">
+          <section
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto"
+            style={{ transform: 'translateZ(0)' }}
+          >
             <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
               <div className="max-w-[1400px] mx-auto learn-anew-content">
                 {/* Header */}
@@ -1252,22 +1258,15 @@ export default function Home() {
                     brightness={100}
                     insetShadowIntensity={0.1}
                     className="p-8"
+                    useFallback={true}
                   >
                     <div className="w-full flex flex-col">
                       {/* Video */}
                       <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
-                        <video
-                          className="w-full h-auto"
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                        >
-                          <source
-                            src="/videos/company-context.mp4"
-                            type="video/mp4"
-                          />
-                        </video>
+                        <LazyVideo
+                          src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/company-context-VHbjYvSVvwvlajVrJlrExn7WdjjkKc.mp4"
+                          preload="none"
+                        />
                       </div>
 
                       {/* Card Content */}
@@ -1312,22 +1311,15 @@ export default function Home() {
                     brightness={100}
                     insetShadowIntensity={0.1}
                     className="p-8"
+                    useFallback={true}
                   >
                     <div className="w-full flex flex-col">
                       {/* Video */}
                       <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
-                        <video
-                          className="w-full h-auto"
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                        >
-                          <source
-                            src="/videos/document-context.mp4"
-                            type="video/mp4"
-                          />
-                        </video>
+                        <LazyVideo
+                          src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/document-context-HE9zgUsVQjfTahOiFnOGCc5xCubFNa.mp4"
+                          preload="none"
+                        />
                       </div>
 
                       {/* Card Content */}
@@ -1365,7 +1357,10 @@ export default function Home() {
           </section>
 
           {/* Slide 3: Your Assistant for EOS Mastery */}
-          <section className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto">
+          <section
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto"
+            style={{ transform: 'translateZ(0)' }}
+          >
             <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
               <div className="max-w-[1400px] mx-auto eos-assistant-content">
                 {/* Badge and Header */}

@@ -24,16 +24,9 @@ DO NOT answer from memory if the query implies current/recent information - SEAR
       .describe(
         'The search query to look up. Be specific and include relevant keywords.',
       ),
-    limit: z
-      .number()
-      .min(1)
-      .max(10)
-      .default(5)
-      .describe(
-        'Maximum number of search results to return (1-10). Default is 5.',
-      ),
   }),
-  execute: async ({ query, limit = 5 }) => {
+  execute: async ({ query }) => {
+    const limit = 5; // Fixed limit of 5 results
     console.log(`[AI Web Search] Searching for: "${query}" (limit: ${limit})`);
 
     try {

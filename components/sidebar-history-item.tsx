@@ -29,7 +29,6 @@ import { Bookmark } from 'lucide-react';
 import { toast } from '@/lib/toast-system';
 import { useChatPreloader } from '@/hooks/use-chat-preloader';
 import { useLoading } from '@/hooks/use-loading';
-import GlassSurface from '@/components/GlassSurface';
 
 const PureChatItem = ({
   chat,
@@ -149,20 +148,6 @@ const PureChatItem = ({
         whileHover={{ y: -1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       >
-        {isActive && (
-          <div className="absolute inset-0 z-[1] pointer-events-none rounded-lg overflow-hidden">
-            <GlassSurface
-              width="100%"
-              height="100%"
-              borderRadius={8}
-              displace={0}
-              distortionScale={-150}
-              backgroundOpacity={0}
-              blur={0}
-              className="w-full h-full"
-            />
-          </div>
-        )}
         <SidebarMenuButton
           asChild
           isActive={isActive}

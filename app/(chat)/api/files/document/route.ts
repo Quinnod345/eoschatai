@@ -79,9 +79,11 @@ export async function POST(request: Request) {
       'application/msword',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
     ];
 
-    const validExtensions = ['doc', 'docx', 'xls', 'xlsx'];
+    const validExtensions = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
     if (
       !validTypes.includes(file.type) &&
@@ -89,7 +91,10 @@ export async function POST(request: Request) {
     ) {
       console.error(`Document processing: Invalid file type ${file.type}`);
       return NextResponse.json(
-        { error: 'File must be a Word document or Excel spreadsheet' },
+        {
+          error:
+            'File must be a Word document, Excel spreadsheet, or PowerPoint presentation',
+        },
         { status: 400 },
       );
     }
@@ -373,11 +378,80 @@ export async function POST(request: Request) {
         );
       }
     }
-    // TODO: Handle DOC files if needed (non-XML format is more complex)
+    // Process PowerPoint files
+    else if (
+      file.type ===
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      fileExt === 'pptx'
+    ) {
+      try {
+        const zip = new JSZip();
+        const content = await zip.loadAsync(arrayBuffer);
+
+        // Get the presentation.xml for slide structure
+        const presXml = await content
+          .file('ppt/presentation.xml')
+          ?.async('text');
+
+        if (!presXml) {
+          throw new Error('Could not find presentation.xml in PPTX file');
+        }
+
+        // Extract slide count from presentation.xml
+        const slideMatches = presXml.match(/<p:sldId[^>]*>/g);
+        const slideCount = slideMatches ? slideMatches.length : 0;
+        pageCount = slideCount;
+
+        // Extract text from each slide
+        const slideTexts: string[] = [];
+
+        for (let i = 1; i <= slideCount; i++) {
+          const slideXml = await content
+            .file(`ppt/slides/slide${i}.xml`)
+            ?.async('text');
+
+          if (slideXml) {
+            // Extract text from <a:t> tags (text runs in PowerPoint)
+            const textMatches = slideXml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+            if (textMatches) {
+              const slideText = textMatches
+                .map((match) => {
+                  const content = match.replace(
+                    /<a:t[^>]*>([^<]*)<\/a:t>/,
+                    '$1',
+                  );
+                  return content;
+                })
+                .join(' ');
+
+              if (slideText.trim()) {
+                slideTexts.push(`## Slide ${i}\n\n${slideText}`);
+              }
+            }
+          }
+        }
+
+        text = slideTexts.join('\n\n');
+
+        console.log(
+          `PowerPoint processing: Successfully extracted ${text.length} characters from ${pageCount} slides`,
+        );
+      } catch (pptxError: any) {
+        console.error('PowerPoint parsing error:', pptxError);
+        return NextResponse.json(
+          {
+            error: `Failed to parse PowerPoint file: ${pptxError.message || 'Unknown error'}`,
+          },
+          { status: 422 },
+        );
+      }
+    }
+    // TODO: Handle DOC and PPT files if needed (non-XML format is more complex)
     else {
       return NextResponse.json(
         {
-          error: 'Unsupported document format. Please use DOCX or XLSX files.',
+          error:
+            'Unsupported document format. Please use DOCX, XLSX, or PPTX files.',
         },
         { status: 400 },
       );

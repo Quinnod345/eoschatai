@@ -300,7 +300,19 @@ export async function saveMessages({
   messages: Array<DBMessage>;
 }) {
   try {
-    return await db.insert(message).values(messages);
+    return await db
+      .insert(message)
+      .values(messages)
+      .onConflictDoUpdate({
+        target: message.id,
+        set: {
+          role: sql`excluded.role`,
+          parts: sql`excluded.parts`,
+          attachments: sql`excluded.attachments`,
+          provider: sql`excluded.provider`,
+          createdAt: sql`excluded."createdAt"`,
+        },
+      });
   } catch (error) {
     console.error('Failed to save messages in database', error);
     throw error;

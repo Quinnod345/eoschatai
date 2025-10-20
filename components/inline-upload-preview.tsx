@@ -18,7 +18,7 @@ interface PDFContent {
 
 interface DocumentContent {
   name: string;
-  type: 'Word Document' | 'Spreadsheet';
+  type: 'Word Document' | 'Spreadsheet' | 'Presentation';
   pageCount?: number;
 }
 
@@ -90,6 +90,7 @@ export function InlineUploadPreview({
             backgroundOpacity={0.12}
             showInsetShadow={true}
             insetShadowIntensity={0.35}
+            useFallback={true}
             className="overflow-hidden transition-shadow"
           >
             <div className="p-4">
@@ -105,6 +106,7 @@ export function InlineUploadPreview({
                   backgroundOpacity={0.2}
                   showInsetShadow={true}
                   insetShadowIntensity={0.5}
+                  useFallback={true}
                   className="flex items-center justify-center bg-red-50 dark:bg-red-950/30"
                 >
                   <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />
@@ -141,6 +143,7 @@ export function InlineUploadPreview({
             backgroundOpacity={0.12}
             showInsetShadow={true}
             insetShadowIntensity={0.35}
+            useFallback={true}
             className="overflow-hidden transition-shadow"
           >
             <div className="p-4">
@@ -156,11 +159,14 @@ export function InlineUploadPreview({
                   backgroundOpacity={0.2}
                   showInsetShadow={true}
                   insetShadowIntensity={0.5}
+                  useFallback={true}
                   className={cn(
                     'flex items-center justify-center',
                     doc.type === 'Word Document'
                       ? 'bg-blue-50 dark:bg-blue-950/30'
-                      : 'bg-green-50 dark:bg-green-950/30',
+                      : doc.type === 'Presentation'
+                        ? 'bg-orange-50 dark:bg-orange-950/30'
+                        : 'bg-green-50 dark:bg-green-950/30',
                   )}
                 >
                   <FileSpreadsheet
@@ -168,7 +174,9 @@ export function InlineUploadPreview({
                       'h-5 w-5',
                       doc.type === 'Word Document'
                         ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-green-600 dark:text-green-400',
+                        : doc.type === 'Presentation'
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-green-600 dark:text-green-400',
                     )}
                   />
                 </GlassSurface>
@@ -177,7 +185,7 @@ export function InlineUploadPreview({
                   <p className="text-xs text-muted-foreground mt-1">
                     {doc.type}{' '}
                     {doc.pageCount &&
-                      `• ${doc.pageCount} page${doc.pageCount !== 1 ? 's' : ''}`}
+                      `• ${doc.pageCount} ${doc.type === 'Presentation' ? 'slide' : 'page'}${doc.pageCount !== 1 ? 's' : ''}`}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="outline" className="text-xs gap-1">
@@ -205,6 +213,7 @@ export function InlineUploadPreview({
             backgroundOpacity={0.12}
             showInsetShadow={true}
             insetShadowIntensity={0.35}
+            useFallback={true}
             className="overflow-hidden transition-shadow"
           >
             <div className="p-4">
@@ -220,6 +229,7 @@ export function InlineUploadPreview({
                   backgroundOpacity={0.2}
                   showInsetShadow={true}
                   insetShadowIntensity={0.5}
+                  useFallback={true}
                   className="flex items-center justify-center bg-purple-50 dark:bg-purple-950/30"
                 >
                   <FileImage className="h-5 w-5 text-purple-600 dark:text-purple-400" />

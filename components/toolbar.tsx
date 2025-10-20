@@ -310,6 +310,7 @@ const PureToolbar = ({
   stop,
   setMessages,
   composerKind,
+  chatId,
 }: {
   isToolbarVisible: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
@@ -318,6 +319,7 @@ const PureToolbar = ({
   stop: UseChatHelpers['stop'];
   setMessages: UseChatHelpers['setMessages'];
   composerKind: ComposerKind;
+  chatId?: string;
 }) => {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -426,9 +428,38 @@ const PureToolbar = ({
             initial={{ scale: 1 }}
             animate={{ scale: 1.4 }}
             exit={{ scale: 1 }}
-            className="p-3"
-            onClick={() => {
+            className="p-3 cursor-pointer hover:opacity-70 transition-opacity"
+            onClick={async () => {
+              // Call local stop first to interrupt stream immediately
               stop();
+
+              // If we have a chatId, call the API to clean up server resources
+              if (chatId) {
+                try {
+                  const response = await fetch(`/api/chat/${chatId}/stop`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                  });
+
+                  if (!response.ok) {
+                    console.error(
+                      'Failed to stop stream on server:',
+                      response.statusText,
+                    );
+                  } else {
+                    const data = await response.json();
+                    console.log(
+                      'Stream stopped successfully via toolbar:',
+                      data,
+                    );
+                  }
+                } catch (error) {
+                  console.error('Error stopping stream via toolbar:', error);
+                }
+              }
+
               setMessages((messages) => messages);
             }}
           >

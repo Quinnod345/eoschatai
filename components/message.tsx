@@ -59,7 +59,7 @@ interface PDFContent {
 
 interface DocumentContent {
   name: string;
-  type: 'Word Document' | 'Spreadsheet';
+  type: 'Word Document' | 'Spreadsheet' | 'Presentation';
   pageCount?: number;
 }
 
@@ -537,6 +537,7 @@ const PurePreviewMessage = ({
                     backgroundOpacity={0.1}
                     showInsetShadow={true}
                     insetShadowIntensity={0.35}
+                    useFallback={true}
                     className="inline-flex"
                   >
                     <div

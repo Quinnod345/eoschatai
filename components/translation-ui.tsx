@@ -69,7 +69,7 @@ export function TranslationUI({ contents, align }: TranslationUIProps) {
           );
         }
 
-        // Unified uploads card for pdf, document, image, audio, video, file
+        // Unified uploads card for pdf, document, presentation, image, audio, video, file
         const {
           FileText,
           FileSpreadsheet,
@@ -77,25 +77,32 @@ export function TranslationUI({ contents, align }: TranslationUIProps) {
           FileAudio2,
           FileVideo,
           File,
+          Presentation,
         } = require('lucide-react');
         const typeIcon =
           content.type === 'pdf'
             ? FileText
             : content.type === 'document'
               ? FileSpreadsheet
-              : content.type === 'image'
-                ? FileImage
-                : content.type === 'audio'
-                  ? FileAudio2
-                  : content.type === 'video'
-                    ? FileVideo
-                    : File;
+              : content.type === 'presentation'
+                ? Presentation
+                : content.type === 'image'
+                  ? FileImage
+                  : content.type === 'audio'
+                    ? FileAudio2
+                    : content.type === 'video'
+                      ? FileVideo
+                      : File;
 
         const meta = content.metadata || {};
         const subtitle: string[] = [];
         if (content.type === 'pdf' && meta.pageCount)
           subtitle.push(
             `${meta.pageCount} page${meta.pageCount === 1 ? '' : 's'}`,
+          );
+        if (content.type === 'presentation' && meta.slideCount)
+          subtitle.push(
+            `${meta.slideCount} slide${meta.slideCount === 1 ? '' : 's'}`,
           );
         if (content.type === 'document')
           subtitle.push(String(meta.docType || 'Document'));

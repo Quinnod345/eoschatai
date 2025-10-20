@@ -286,7 +286,7 @@ interface PDFContent {
 interface DocumentContent {
   name: string;
   text: string;
-  type: 'docx' | 'xlsx';
+  type: 'docx' | 'xlsx' | 'pptx';
   pageCount?: number;
 }
 
@@ -848,8 +848,32 @@ function PureMultimodalInput({
 
   const adjustHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 2}px`;
+      const textarea = textareaRef.current;
+
+      // Reset height to measure content
+      textarea.style.height = 'auto';
+
+      // Get the computed max height (this resolves calc() and dvh values)
+      const computedStyle = window.getComputedStyle(textarea);
+      const maxHeightValue = computedStyle.maxHeight;
+      const maxHeight =
+        maxHeightValue && maxHeightValue !== 'none'
+          ? Number.parseFloat(maxHeightValue)
+          : Number.POSITIVE_INFINITY;
+
+      // Get the content height
+      const contentHeight = textarea.scrollHeight + 2;
+
+      // Set height to content height or max height, whichever is smaller
+      if (contentHeight > maxHeight) {
+        // Content exceeds viewport capacity - enable scrolling
+        textarea.style.height = `${maxHeight}px`;
+        textarea.style.overflowY = 'auto';
+      } else {
+        // Content fits - grow naturally without scrollbar
+        textarea.style.height = `${contentHeight}px`;
+        textarea.style.overflowY = 'hidden';
+      }
     }
   };
 
@@ -857,6 +881,7 @@ function PureMultimodalInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = '98px';
+      textareaRef.current.style.overflowY = 'hidden';
     }
   };
 
@@ -886,41 +911,80 @@ function PureMultimodalInput({
     const run = async () => {
       try {
         const prefix = (debouncedInput || '').trim();
-        // Hide suggestions when input looks like a full sentence/question
-        const looksComplete =
-          /[\?\!\.]$/.test(prefix) || prefix.length > 120 || /\n/.test(prefix);
-        if (
+
+        // Better edge case detection
+        const hasMultipleLines = /\n/.test(prefix);
+        const hasPunctuation = /[\?\!\.]$/.test(prefix);
+        const isVeryLong = prefix.length > 100;
+        const hasMultipleSentences = (prefix.match(/[.!?]/g) || []).length > 1;
+        const looksLikeCompleteQuestion =
+          /^(what|where|when|why|who|how|can|could|would|should|is|are|do|does)\s/i.test(
+            prefix,
+          ) &&
+          (prefix.length > 30 || hasPunctuation);
+
+        // Hide suggestions in these cases
+        const shouldHide =
           !showPredictions ||
           showMentions ||
-          prefix.length < 2 ||
-          looksComplete ||
+          prefix.length < 3 || // Require at least 3 characters
+          prefix.length > 120 ||
+          hasMultipleLines ||
+          hasPunctuation ||
+          hasMultipleSentences ||
+          looksLikeCompleteQuestion ||
           !isNewChat ||
-          !autocompleteEnabled
-        ) {
+          !autocompleteEnabled;
+
+        if (shouldHide) {
           setPredictions([]);
-          if (looksComplete || !isNewChat) setShowPredictions(false);
+          if (hasPunctuation || !isNewChat || hasMultipleLines) {
+            setShowPredictions(false);
+          }
           return;
         }
+
         const res = await fetch('/api/predictions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prefix }),
         });
+
         if (!res.ok) {
           setPredictions([]);
           return;
         }
+
         const data = await res.json();
         const items: string[] = Array.isArray(data?.predictions)
           ? data.predictions
           : [];
-        setPredictions(items.slice(0, 3));
+
+        // Additional client-side filtering
+        const filtered = items.filter((item) => {
+          const trimmed = item.trim();
+          // Skip empty or very short suggestions
+          if (trimmed.length < 2) return false;
+          // Skip if it looks like a full sentence/answer
+          if (/^[A-Z].*[.!?]$/.test(trimmed)) return false;
+          // Skip if it's asking a question back
+          if (trimmed.endsWith('?')) return false;
+          return true;
+        });
+
+        setPredictions(filtered.slice(0, 3));
       } catch {
         setPredictions([]);
       }
     };
     run();
-  }, [debouncedInput, showPredictions, showMentions]);
+  }, [
+    debouncedInput,
+    showPredictions,
+    showMentions,
+    isNewChat,
+    autocompleteEnabled,
+  ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
@@ -1123,6 +1187,81 @@ function PureMultimodalInput({
           // Show error toast
           toast.error(
             'Failed to process document. Please try a different file or format.',
+          );
+          return undefined;
+        }
+      }
+
+      // Handle PPTX files
+      else if (
+        file.type ===
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+        file.type === 'application/vnd.ms-powerpoint' ||
+        fileExt === 'pptx' ||
+        fileExt === 'ppt'
+      ) {
+        console.log(
+          `Processing Presentation: ${file.name} (${file.size} bytes)`,
+        );
+
+        // Create a loading toast
+        const toastId = toast.loading(
+          `Processing presentation: ${file.name}...`,
+        );
+
+        try {
+          const response = await fetch('/api/files/document', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(
+              `Presentation processed: ${data.text.length} characters extracted`,
+            );
+
+            // Dismiss loading toast
+            toast.dismiss(toastId);
+
+            // Show success toast
+            toast.success(`Presentation processed: ${data.filename}`);
+
+            // Add to document content state
+            setDocumentContents((prev) => [
+              ...prev,
+              {
+                name: data.filename,
+                text: data.text,
+                type: 'pptx',
+                pageCount: data.pageCount,
+              },
+            ]);
+
+            // Return null - not using attachment system for documents
+            return null;
+          } else {
+            const errorData = await response.json();
+            const errorMessage =
+              errorData.error || 'Unknown error processing presentation';
+            console.error(`Presentation processing error: ${errorMessage}`);
+
+            // Dismiss loading toast
+            toast.dismiss(toastId);
+
+            // Show error toast
+            toast.error(`Presentation processing error: ${errorMessage}`);
+            return undefined;
+          }
+        } catch (error) {
+          console.error('Error during presentation processing:', error);
+
+          // Dismiss loading toast
+          toast.dismiss(toastId);
+
+          // Show error toast
+          toast.error(
+            'Failed to process presentation. Please try a different file or format.',
           );
           return undefined;
         }
@@ -1547,12 +1686,19 @@ function PureMultimodalInput({
           if (docText.length > 15000) {
             docText = `${docText.substring(0, 15000)}... [Document content truncated due to size]`;
           }
-          const docType = doc.type === 'docx' ? 'Word Document' : 'Spreadsheet';
+          const docType =
+            doc.type === 'docx'
+              ? 'Word Document'
+              : doc.type === 'pptx'
+                ? 'Presentation'
+                : 'Spreadsheet';
+          const contentType = doc.type === 'pptx' ? 'presentation' : 'document';
           return createEmbeddedContentString({
-            type: 'document',
+            type: contentType,
             name: doc.name,
             metadata: {
-              pageCount: doc.pageCount,
+              pageCount: doc.type === 'pptx' ? undefined : doc.pageCount,
+              slideCount: doc.type === 'pptx' ? doc.pageCount : undefined,
               status: 'ready',
               docType,
             },
@@ -2398,6 +2544,7 @@ function PureMultimodalInput({
           backgroundOpacity={0.08}
           showInsetShadow={true}
           insetShadowIntensity={0.3}
+          useFallback={true}
           className={cx(
             isWide
               ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-3 overflow-y-auto'
@@ -2450,6 +2597,7 @@ function PureMultimodalInput({
                 backgroundOpacity={0.15}
                 showInsetShadow={true}
                 insetShadowIntensity={0.4}
+                useFallback={true}
                 className="relative"
               >
                 <svg
@@ -2506,10 +2654,11 @@ function PureMultimodalInput({
                 backgroundOpacity={0.15}
                 showInsetShadow={true}
                 insetShadowIntensity={0.4}
+                useFallback={true}
                 className="relative"
               >
                 <svg
-                  className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : 'text-green-500'}`}
+                  className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : doc.type === 'pptx' ? 'text-orange-500' : 'text-green-500'}`}
                   fill="none"
                   height="24"
                   stroke="currentColor"
@@ -2527,6 +2676,14 @@ function PureMultimodalInput({
                       <line x1="16" y1="13" x2="8" y2="13" />
                       <line x1="16" y1="17" x2="8" y2="17" />
                       <line x1="10" y1="9" x2="8" y2="9" />
+                    </>
+                  ) : doc.type === 'pptx' ? (
+                    <>
+                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                      <path d="M7 3v18" />
+                      <path d="M3 7.5h18" />
+                      <path d="M3 12h18" />
+                      <path d="M3 16.5h18" />
                     </>
                   ) : (
                     <>
@@ -2573,6 +2730,7 @@ function PureMultimodalInput({
                 backgroundOpacity={0.15}
                 showInsetShadow={true}
                 insetShadowIntensity={0.4}
+                useFallback={true}
                 className="relative"
               >
                 {audio.status === 'uploading' ? (
@@ -2683,60 +2841,6 @@ function PureMultimodalInput({
       )}
 
       <div className="relative" ref={inputWrapperRef}>
-        {/* Predictive suggestions list */}
-        {showPredictions && predictions.length > 0 && !showMentions && (
-          <div className="absolute -top-2 left-0 right-0 mb-2 translate-y-[-100%] z-40">
-            <div className="flex flex-col gap-1">
-              {predictions.slice(0, 3).map((p, idx) => (
-                <motion.div
-                  key={p}
-                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{
-                    duration: 0.22,
-                    ease: 'easeOut',
-                    delay: idx * 0.05,
-                  }}
-                >
-                  <GlassSurface
-                    width="100%"
-                    height="auto"
-                    borderRadius={12}
-                    displace={3}
-                    backgroundOpacity={0.25}
-                    blur={11}
-                    className="cursor-pointer hover:scale-105 transition-transform"
-                  >
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        // Insert remainder completion (API returns remainder strings)
-                        const current = input || '';
-                        const remainder = p;
-                        const joiner =
-                          current.endsWith(' ') || remainder.startsWith(' ')
-                            ? ''
-                            : ' ';
-                        setInput(current + joiner + remainder);
-                        setShowPredictions(false);
-                        try {
-                          await fetch('/api/predictions/rank', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phrase: p }),
-                          });
-                        } catch {}
-                      }}
-                      className="text-left px-3 py-2 bg-transparent border-0 shadow-none w-full"
-                    >
-                      <span>{p}</span>
-                    </button>
-                  </GlassSurface>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
         {/* Show selected mentions above the input with helpful context */}
         {selectedMentions.length > 0 && (
           <div className="mb-3 pt-1">
@@ -2773,6 +2877,70 @@ function PureMultimodalInput({
           </div>
         )}
 
+        {/* Predictive suggestions list - positioned ABOVE the textarea */}
+        {showPredictions && predictions.length > 0 && !showMentions && (
+          <div className="mb-2">
+            <div className="flex flex-col gap-1.5">
+              {predictions.slice(0, 3).map((p) => (
+                <motion.div
+                  key={p}
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{
+                    duration: 0.18,
+                    ease: 'easeOut',
+                  }}
+                >
+                  <GlassSurface
+                    width="100%"
+                    height="auto"
+                    borderRadius={10}
+                    displace={2}
+                    backgroundOpacity={0.2}
+                    blur={10}
+                    insetShadowIntensity={0.2}
+                    className="cursor-pointer hover:scale-[1.02] transition-transform"
+                  >
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        // Insert remainder completion (API returns remainder strings)
+                        const current = input || '';
+                        const remainder = p;
+                        const joiner =
+                          current.endsWith(' ') || remainder.startsWith(' ')
+                            ? ''
+                            : ' ';
+                        setInput(current + joiner + remainder);
+                        setShowPredictions(false);
+                        setPredictions([]);
+                        // Focus back on textarea
+                        textareaRef.current?.focus();
+                        try {
+                          await fetch('/api/predictions/rank', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phrase: p }),
+                          });
+                        } catch {}
+                      }}
+                      className="text-left px-3 py-2 bg-transparent border-0 shadow-none w-full text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-zinc-400 dark:text-zinc-500">
+                          →
+                        </span>
+                        <span>{p}</span>
+                      </span>
+                    </button>
+                  </GlassSurface>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <motion.div
           key={`textarea-${chatId}`}
           initial={{ opacity: 0, scale: 0.95 }}
@@ -2787,7 +2955,7 @@ function PureMultimodalInput({
             width="100%"
             height="auto"
             borderRadius={16}
-            displace={5}
+            displace={6}
             backgroundOpacity={0.25}
             blur={11}
             insetShadowIntensity={0.3}
@@ -2831,13 +2999,16 @@ function PureMultimodalInput({
                 }
               }}
               className={cx(
-                'min-h-[24px] overflow-hidden resize-none rounded-2xl !text-base',
+                'min-h-[24px] resize-none rounded-2xl !text-base',
                 'bg-transparent border-0 shadow-none',
+                'transition-all duration-200 ease-in-out',
+                'custom-scrollbar',
                 isDragging && 'pointer-events-none',
                 className,
               )}
               style={{
                 maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
+                overflowY: 'hidden', // Will be dynamically set by adjustHeight
               }}
               rows={2}
               autoFocus
@@ -2945,7 +3116,11 @@ function PureMultimodalInput({
                   ease: [0.19, 1, 0.22, 1],
                 }}
               >
-                <StopButton stop={stop} setMessages={setMessages} />
+                <StopButton
+                  stop={stop}
+                  setMessages={setMessages}
+                  chatId={chatId}
+                />
               </motion.div>
             ) : (
               <>
@@ -3094,26 +3269,73 @@ function UsageChip({
 function PureStopButton({
   stop,
   setMessages,
+  chatId,
 }: {
   stop: () => void;
   setMessages: UseChatHelpers['setMessages'];
+  chatId: string;
 }) {
+  const [isStopping, setIsStopping] = useState(false);
+
+  const handleStop = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+
+    if (isStopping) return; // Prevent multiple clicks
+
+    setIsStopping(true);
+
+    try {
+      // First, call the local stop function to halt the stream
+      stop();
+
+      // Then call the API to clean up server-side resources and Redis cache
+      const response = await fetch(`/api/chat/${chatId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to stop stream on server:', response.statusText);
+      } else {
+        const data = await response.json();
+        console.log('Stream stopped successfully:', data);
+      }
+
+      // Force a re-render to ensure UI updates
+      setMessages((messages) => messages);
+    } catch (error) {
+      console.error('Error stopping stream:', error);
+      // Even if the API call fails, the local stop() should have interrupted the stream
+    } finally {
+      // Reset stopping state after a short delay
+      setTimeout(() => setIsStopping(false), 500);
+    }
+  };
+
   return (
     <Button
       data-testid="stop-button"
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
-      onClick={(event) => {
-        event.preventDefault();
-        stop();
-        setMessages((messages) => messages);
-      }}
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600 transition-all"
+      onClick={handleStop}
+      disabled={isStopping}
+      title="Stop generation"
     >
-      <Square className="size-4" />
+      {isStopping ? (
+        <div className="size-4 animate-spin">
+          <LoaderIcon size={16} />
+        </div>
+      ) : (
+        <Square className="size-4" />
+      )}
     </Button>
   );
 }
 
-const StopButton = memo(PureStopButton);
+const StopButton = memo(PureStopButton, (prev, next) => {
+  return prev.chatId === next.chatId;
+});
 
 function PureSendButton({
   submitForm,

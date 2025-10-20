@@ -302,9 +302,9 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
           } else {
             return {
               ...baseStyles,
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(12px) saturate(1.8) brightness(1.2)',
-              WebkitBackdropFilter: 'blur(12px) saturate(1.8) brightness(1.2)',
+              background: `hsl(0 0% 0% / ${backgroundOpacity})`,
+              backdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
+              WebkitBackdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
               border: '1px solid rgba(255, 255, 255, 0.2)',
               boxShadow: showInsetShadow
                 ? `inset 0 1px 0 0 rgba(255, 255, 255, ${darkInsetTop}),
@@ -326,9 +326,9 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
           } else {
             return {
               ...baseStyles,
-              background: 'rgba(255, 255, 255, 0.25)',
-              backdropFilter: 'blur(12px) saturate(1.8) brightness(1.1)',
-              WebkitBackdropFilter: 'blur(12px) saturate(1.8) brightness(1.1)',
+              background: `hsl(0 0% 100% / ${backgroundOpacity})`,
+              backdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
+              WebkitBackdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
               border: '1px solid rgba(255, 255, 255, 0.3)',
               boxShadow: showInsetShadow
                 ? `0 8px 32px 0 rgba(31, 38, 135, 0.2),

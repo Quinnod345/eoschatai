@@ -49,35 +49,78 @@ export async function POST(request: Request) {
 
     if (predictions.length < 3) {
       const provider = createCustomProvider();
-      const systemPrompt = `You are an autocomplete engine for EOS Worldwide business users.
+      const systemPrompt = `You are a text completion engine that suggests the NEXT FEW WORDS to complete what the user is typing.
 
-Your job is to complete the provided prefix by returning ONLY the remainder text (do NOT repeat the prefix). Output at most 3 continuations, newline-separated, no numbering, no quotes.
+CRITICAL RULES:
+1. Output ONLY the continuation text (the next few words), NOT the full answer
+2. DO NOT answer the user's question - only suggest how to FINISH TYPING their query
+3. Keep completions SHORT: 2-8 words maximum
+4. Output plain text continuations only, one per line, no numbering, no quotes
+5. DO NOT output full sentences that answer questions
+6. DO NOT output question marks unless the user is clearly typing a question
+7. DO NOT generate explanations, answers, or responses - ONLY text continuations
 
-Constraints:
-- Keep each completion under 12 words.
-- Keep casing natural. Add leading spaces only if grammatically required.
-- Focus on EOS Worldwide–related business topics: leadership, entrepreneurial operating system (EOS), meetings, L10, Rocks, IDS, V/TO, vision, accountability, coaching, organizational health, and business best practices.
-- If prefix is too vague or off-topic, provide a short neutral completion such as “clarify timeframe” or “add more detail.”
-- Avoid personal, medical, legal, political, financial, or safety-sensitive advice.
-- Do not generate profanity, offensive, or NSFW content.
-- Do not speculate about individuals, private data, or confidential info.
-- Do not output markdown, formatting, or explanations — completions only.
+Examples:
+User typing: "How do I run"
+GOOD: "a Level 10 meeting", "an effective IDS session", "my quarterly planning"
+BAD: "You should start by scheduling it", "Here's how to run meetings", "?"
 
-Your purpose is to stay useful, professional, and business-oriented while being safe.
-`;
-      const promptStr = `prefix: "${prefix}"\nReturn remainders only (no prefix), one per line.`;
+User typing: "What are the best"
+GOOD: "practices for Rocks", "ways to set Rocks", "accountability measures"
+BAD: "The best practices are...", "You should focus on...", "?"
+
+User typing: "Help me with"
+GOOD: "my V/TO", "setting up Rocks", "accountability chart"
+BAD: "I can help you with that", "What do you need help with?", "?"
+
+Focus on EOS business topics: Rocks, L10 meetings, IDS, V/TO, accountability charts, scorecards, vision, leadership, etc.`;
+
+      const promptStr = `User is typing: "${prefix}"\n\nSuggest 3 SHORT continuations (2-8 words each) to complete their typing. Output ONLY the continuation text, one per line:`;
+
       const { text } = await generateText({
         model: provider.languageModel('gpt-4.1-nano'),
-        temperature: 0.2,
-        maxTokens: 48,
+        temperature: 0.3,
+        maxTokens: 60,
         system: systemPrompt,
         prompt: promptStr,
       });
+
       const nano = text
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean)
+        .filter((s) => {
+          // Filter out bad completions
+          const lower = s.toLowerCase();
+
+          // Skip if it looks like an answer or explanation
+          if (
+            lower.startsWith('you should') ||
+            lower.startsWith('you can') ||
+            lower.startsWith('try to') ||
+            lower.startsWith('i can') ||
+            lower.startsWith('here') ||
+            lower.startsWith('the best') ||
+            lower.includes('...') ||
+            s.endsWith('?')
+          ) {
+            return false;
+          }
+
+          // Skip if too long (likely a full answer)
+          if (s.split(' ').length > 10) {
+            return false;
+          }
+
+          // Skip if it's just repeating the prefix
+          if (s.toLowerCase() === prefix.toLowerCase()) {
+            return false;
+          }
+
+          return true;
+        })
         .slice(0, 3);
+
       predictions = [...new Set([...predictions, ...nano])].slice(0, 3);
     }
 

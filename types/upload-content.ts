@@ -7,6 +7,7 @@ export interface EmbeddedContent {
   type:
     | 'pdf'
     | 'document'
+    | 'presentation'
     | 'image'
     | 'audio'
     | 'video'
@@ -22,6 +23,7 @@ export interface EmbeddedContent {
 
     // Type-specific metadata
     pageCount?: number; // for PDFs and documents
+    slideCount?: number; // for presentations
     duration?: number; // for audio/video in seconds
     dimensions?: { width: number; height: number }; // for images
     transcript?: string; // for audio/video
@@ -118,15 +120,16 @@ export function convertLegacyAudioFormat(
 
 export function convertLegacyDocumentFormat(
   name: string,
-  docType: 'Word Document' | 'Spreadsheet',
+  docType: 'Word Document' | 'Spreadsheet' | 'Presentation',
   pageCount?: number,
   content?: string,
 ): EmbeddedContent {
   return {
-    type: 'document',
+    type: docType === 'Presentation' ? 'presentation' : 'document',
     name,
     metadata: {
-      pageCount,
+      pageCount: docType === 'Presentation' ? undefined : pageCount,
+      slideCount: docType === 'Presentation' ? pageCount : undefined,
       status: 'ready',
       docType,
     },

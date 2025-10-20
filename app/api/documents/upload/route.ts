@@ -272,8 +272,63 @@ async function extractTextFromFile(
     }
   }
 
+  // For PowerPoint files (.pptx only)
+  if (fileType.includes('presentationml') || fileName.endsWith('.pptx')) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const zip = new JSZip();
+      const content = await zip.loadAsync(buffer);
+
+      // Get the presentation.xml for slide structure
+      const presXml = await content.file('ppt/presentation.xml')?.async('text');
+
+      if (!presXml) {
+        return `Could not find presentation.xml in PPTX file ${fileName}`;
+      }
+
+      // Extract slide count from presentation.xml
+      const slideMatches = presXml.match(/<p:sldId[^>]*>/g);
+      const slideCount = slideMatches ? slideMatches.length : 0;
+
+      // Extract text from each slide
+      const slideTexts: string[] = [];
+
+      for (let i = 1; i <= slideCount; i++) {
+        const slideXml = await content
+          .file(`ppt/slides/slide${i}.xml`)
+          ?.async('text');
+
+        if (slideXml) {
+          // Extract text from <a:t> tags (text runs in PowerPoint)
+          const textMatches = slideXml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+          if (textMatches) {
+            const slideText = textMatches
+              .map((match) => {
+                const content = match.replace(/<a:t[^>]*>([^<]*)<\/a:t>/, '$1');
+                return content;
+              })
+              .join(' ');
+
+            if (slideText.trim()) {
+              slideTexts.push(`## Slide ${i}\n\n${slideText}`);
+            }
+          }
+        }
+      }
+
+      const extractedText = slideTexts.join('\n\n');
+
+      return (
+        extractedText || `Could not extract text from PPTX file ${fileName}`
+      );
+    } catch (error) {
+      console.error('Error processing PowerPoint file:', error);
+      return `Error extracting content from PowerPoint file ${fileName}`;
+    }
+  }
+
   // For file types that aren't specifically handled
-  return `File type ${fileType} (${fileName}) is not fully supported for text extraction. Please upload a PDF, TXT, DOCX, or XLSX file for better results.`;
+  return `File type ${fileType} (${fileName}) is not fully supported for text extraction. Please upload a PDF, TXT, DOCX, XLSX, or PPTX file for better results.`;
 }
 
 export async function POST(request: Request) {
@@ -381,11 +436,23 @@ export async function POST(request: Request) {
       'application/msword',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
     ];
 
     // Also check file extension for types that might not be correctly identified
     const fileExt = fileName.split('.').pop()?.toLowerCase();
-    const validExtensions = ['pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx'];
+    const validExtensions = [
+      'pdf',
+      'txt',
+      'md',
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'ppt',
+      'pptx',
+    ];
 
     if (
       !validTypes.includes(fileType) &&
@@ -393,7 +460,7 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         {
-          error: `Invalid file type: ${fileName}. Only PDF, TXT, MD, DOC, DOCX, XLS, and XLSX files are supported.`,
+          error: `Invalid file type: ${fileName}. Only PDF, TXT, MD, DOC, DOCX, XLS, XLSX, PPT, and PPTX files are supported.`,
         },
         { status: 400 },
       );

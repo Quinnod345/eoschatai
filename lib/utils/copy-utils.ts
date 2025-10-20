@@ -207,19 +207,26 @@ export function processMessageParts(parts: any[] | undefined): string {
       // Clean up PDF, document, and image markers
       let text = part.text;
 
-      // Remove PDF content sections
+      // Remove EMBEDDED_CONTENT markers (all upload types)
+      // This regex matches [EMBEDDED_CONTENT_START]{...json...}[EMBEDDED_CONTENT_END]
+      text = text.replace(
+        /\[EMBEDDED_CONTENT_START\].*?\[EMBEDDED_CONTENT_END\]/gs,
+        '',
+      );
+
+      // Remove PDF content sections (legacy format)
       text = text.replace(
         /===\s+PDF\s+Content\s+from\s+[^\(]+\s+\(\d+\s+pages\)\s+===\n\n[\s\S]*?(?=\n\n===|\n*$)/gi,
         '',
       );
 
-      // Remove document content sections
+      // Remove document content sections (legacy format)
       text = text.replace(
         /===\s+(Word Document|Spreadsheet)\s+Content\s+from\s+[^\(]+(?:\s+\(\d+\s+pages\))?\s+===\n\n[\s\S]*?(?=\n\n===|\n*$)/gi,
         '',
       );
 
-      // Remove image analysis sections
+      // Remove image analysis sections (legacy format)
       text = text.replace(
         /===\s+Image\s+Analysis\s+for\s+[^\n]+\s+===\s*\n+Description:\s+[^\n]+(?:\s*\n+Extracted\s+Text:\s+[^\n=]*)?([^\s\S]*?)(?=\n\n===|\n*$)/gi,
         '',
