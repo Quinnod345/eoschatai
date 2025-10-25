@@ -43,6 +43,7 @@ interface FeatureAccessResult {
 export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
   const entitlements = useAccountStore((state) => state.entitlements);
   const user = useAccountStore((state) => state.user);
+  const usageCounters = useAccountStore((state) => state.usageCounters);
   const [shouldShowUpgrade, setShouldShowUpgrade] = useState(false);
 
   const checkAccess = useCallback((): Omit<
@@ -94,11 +95,11 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
         return {
           hasAccess: features.recordings.enabled,
           limit: features.recordings.minutes_month,
-          used: user?.usageCounters?.asr_minutes_month ?? 0,
+          used: usageCounters?.asr_minutes_month ?? 0,
           remaining: Math.max(
             0,
             features.recordings.minutes_month -
-              (user?.usageCounters?.asr_minutes_month ?? 0),
+              (usageCounters?.asr_minutes_month ?? 0),
           ),
           requiredPlan: features.recordings.enabled ? undefined : 'pro',
         };
@@ -117,14 +118,14 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
             features.personas.max_count === -1
               ? Infinity
               : features.personas.max_count,
-          used: user?.usageCounters?.personas_created ?? 0,
+          used: usageCounters?.personas_created ?? 0,
           remaining:
             features.personas.max_count === -1
               ? Infinity
               : Math.max(
                   0,
                   features.personas.max_count -
-                    (user?.usageCounters?.personas_created ?? 0),
+                    (usageCounters?.personas_created ?? 0),
                 ),
           requiredPlan: features.personas.custom ? undefined : 'pro',
         };
@@ -136,14 +137,14 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
             features.memory.max_memories === -1
               ? Infinity
               : features.memory.max_memories,
-          used: user?.usageCounters?.memories_stored ?? 0,
+          used: usageCounters?.memories_stored ?? 0,
           remaining:
             features.memory.max_memories === -1
               ? Infinity
               : Math.max(
                   0,
                   features.memory.max_memories -
-                    (user?.usageCounters?.memories_stored ?? 0),
+                    (usageCounters?.memories_stored ?? 0),
                 ),
           requiredPlan: features.memory.enabled ? undefined : 'pro',
         };
@@ -157,7 +158,7 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
       default:
         return { hasAccess: false, requiredPlan: 'pro' };
     }
-  }, [entitlements, user, feature]);
+  }, [entitlements, usageCounters, feature]);
 
   const result = checkAccess();
 

@@ -27,6 +27,9 @@ vi.mock('@/lib/db', () => {
     asr_minutes_month: 0,
     exports_month: 0,
     deep_runs_day: 0,
+    personas_created: 0,
+    memories_stored: 0,
+    concurrent_sessions_active: 0,
   });
 
   const state = {

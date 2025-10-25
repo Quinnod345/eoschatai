@@ -39,7 +39,7 @@ export async function sendSubscriptionNotification(
 
   // Get user email
   const [user] = await db
-    .select({ email: userTable.email, name: userTable.name })
+    .select({ email: userTable.email })
     .from(userTable)
     .where(eq(userTable.id, payload.userId));
 
@@ -53,7 +53,7 @@ export async function sendSubscriptionNotification(
   // TODO: Implement email sending via Resend
   // For now, just log what would be sent
   const emailSubject = getEmailSubject(payload.event);
-  const emailBody = getEmailBody(payload.event, payload.data, user.name);
+  const emailBody = getEmailBody(payload.event, payload.data, null);
 
   console.log(`[notifications] Would send email to ${user.email}:`);
   console.log(`  Subject: ${emailSubject}`);

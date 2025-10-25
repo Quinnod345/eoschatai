@@ -34,7 +34,13 @@ describe('computeEntitlements', () => {
 
   it('applies overrides without mutating baseline definitions', () => {
     const override = computeEntitlements('free', {
-      recordings: { enabled: true, minutes_month: 45 },
+      recordings: { 
+        enabled: true, 
+        minutes_month: 45,
+        transcription: true,
+        speaker_diarization: true,
+        ai_summaries: true,
+      },
       deep_research: { enabled: true, lookups_per_run: 8 },
     });
 
