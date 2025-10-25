@@ -52,7 +52,7 @@ const DialogContent = React.forwardRef<
         exit={{ opacity: 0, scale: 0.96, y: 10 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         className={cn(
-          'relative w-full max-w-lg gap-4 bg-background/95 p-6 shadow-2xl backdrop-blur-[12px] border border-white/20 dark:border-zinc-700/50 sm:rounded-2xl pointer-events-auto overflow-hidden',
+          'relative w-full max-w-lg gap-4 bg-background/95 p-6 shadow-2xl backdrop-blur-[12px] border border-white/20 dark:border-zinc-700/50 sm:rounded-2xl pointer-events-auto',
           '[&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-words [&_code]:whitespace-pre-wrap',
           className,
         )}

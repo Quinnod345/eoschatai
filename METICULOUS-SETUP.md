@@ -1,6 +1,6 @@
 # Meticulous Recording Setup
 
-This document explains how Meticulous has been integrated into the EOS Chat AI application to enable full application recording without authentication barriers.
+This document explains how Meticulous has been integrated into the EOSAI application to enable full application recording without authentication barriers.
 
 ## Overview
 

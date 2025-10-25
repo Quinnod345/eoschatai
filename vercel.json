@@ -1,0 +1,22 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/usage/daily",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/usage/monthly",
+      "schedule": "0 0 1 * *"
+    },
+    {
+      "path": "/api/cron/grace-period-reminders",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/subscription-health-check",
+      "schedule": "0 2 * * 0"
+    }
+  ]
+}
+
+

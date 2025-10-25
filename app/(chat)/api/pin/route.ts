@@ -14,6 +14,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Check entitlements for message pinning
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.message_features.pin) {
+      return new Response(
+        JSON.stringify({
+          error: 'Message pinning is a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'message_features.pin',
+        }),
+        {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
     const body = await request.json();
     const { messageId, chatId } = body;
 

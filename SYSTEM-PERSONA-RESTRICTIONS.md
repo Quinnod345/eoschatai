@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the restrictions placed on system personas and the document management system for the EOS Chat AI application.
+This document outlines the restrictions placed on system personas and the document management system for the EOSAI application.
 
 ## System Persona Restrictions
 

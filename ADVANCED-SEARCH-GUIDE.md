@@ -2,7 +2,7 @@
 
 ## 🔍 Overview
 
-The Advanced Search feature provides a powerful, fast way to find conversations, messages, and documents across your entire EOS Chat AI workspace. With intelligent filtering, real-time suggestions, and keyboard shortcuts, you can quickly locate any piece of information.
+The Advanced Search feature provides a powerful, fast way to find conversations, messages, and documents across your entire EOSAI workspace. With intelligent filtering, real-time suggestions, and keyboard shortcuts, you can quickly locate any piece of information.
 
 ## ✨ Key Features
 
@@ -203,4 +203,4 @@ Each search result displays:
 - Track idea evolution
 - Maintain documentation
 
-The Advanced Search feature transforms how you interact with your EOS Chat AI workspace, making every piece of information instantly accessible and actionable. 
+The Advanced Search feature transforms how you interact with your EOSAI workspace, making every piece of information instantly accessible and actionable. 

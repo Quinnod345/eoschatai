@@ -1247,110 +1247,82 @@ export default function Home() {
                 {/* Two Large Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Company Context Card */}
-                  <GlassSurface
-                    width="100%"
-                    height="auto"
-                    borderRadius={24}
-                    blur={10}
-                    displace={5}
-                    opacity={0.7}
-                    backgroundOpacity={0.1}
-                    brightness={100}
-                    insetShadowIntensity={0.1}
-                    className="p-8"
-                    useFallback={true}
-                  >
-                    <div className="w-full flex flex-col">
-                      {/* Video */}
-                      <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
-                        <LazyVideo
-                          src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/company-context-VHbjYvSVvwvlajVrJlrExn7WdjjkKc.mp4"
-                          preload="none"
-                        />
-                      </div>
+                  <div className="w-full flex flex-col">
+                    {/* Video */}
+                    <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
+                      <LazyVideo
+                        src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/company-context-VHbjYvSVvwvlajVrJlrExn7WdjjkKc.mp4"
+                        preload="none"
+                      />
+                    </div>
 
-                      {/* Card Content */}
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-eos-orange/20 rounded-lg">
-                          <svg
-                            className="w-5 h-5 text-eos-orange"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                            />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="font-montserrat text-xl font-bold text-white mb-2">
-                            Company Context
-                          </h3>
-                          <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                            Setup your company and its details and get personal
-                            results each time you chat with EOS AI
-                          </p>
-                        </div>
+                    {/* Card Content */}
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-eos-orange/20 rounded-lg">
+                        <svg
+                          className="w-5 h-5 text-eos-orange"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-montserrat text-xl font-bold text-white mb-2">
+                          Company Context
+                        </h3>
+                        <p className="font-montserrat text-sm text-white/70 leading-relaxed">
+                          Setup your company and its details and get personal
+                          results each time you chat with EOS AI
+                        </p>
                       </div>
                     </div>
-                  </GlassSurface>
+                  </div>
 
                   {/* Document Context Card */}
-                  <GlassSurface
-                    width="100%"
-                    height="auto"
-                    borderRadius={24}
-                    blur={10}
-                    displace={5}
-                    opacity={0.7}
-                    backgroundOpacity={0.1}
-                    brightness={100}
-                    insetShadowIntensity={0.1}
-                    className="p-8"
-                    useFallback={true}
-                  >
-                    <div className="w-full flex flex-col">
-                      {/* Video */}
-                      <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
-                        <LazyVideo
-                          src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/document-context-HE9zgUsVQjfTahOiFnOGCc5xCubFNa.mp4"
-                          preload="none"
-                        />
-                      </div>
+                  <div className="w-full flex flex-col">
+                    {/* Video */}
+                    <div className="rounded-2xl overflow-hidden mb-6 border border-white/10 bg-black/20">
+                      <LazyVideo
+                        src="https://0a4naobicmxnlwbm.public.blob.vercel-storage.com/videos/document-context-HE9zgUsVQjfTahOiFnOGCc5xCubFNa.mp4"
+                        preload="none"
+                      />
+                    </div>
 
-                      {/* Card Content */}
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-eos-orange/20 rounded-lg">
-                          <svg
-                            className="w-5 h-5 text-eos-orange"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                            />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="font-montserrat text-xl font-bold text-white mb-2">
-                            Document Context
-                          </h3>
-                          <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                            Upload your EOS documents to use as context for all
-                            ai chats to get the most accurate answers possible.
-                          </p>
-                        </div>
+                    {/* Card Content */}
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-eos-orange/20 rounded-lg">
+                        <svg
+                          className="w-5 h-5 text-eos-orange"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-montserrat text-xl font-bold text-white mb-2">
+                          Document Context
+                        </h3>
+                        <p className="font-montserrat text-sm text-white/70 leading-relaxed">
+                          Upload your EOS documents to use as context for all ai
+                          chats to get the most accurate answers possible.
+                        </p>
                       </div>
                     </div>
-                  </GlassSurface>
+                  </div>
                 </div>
               </div>
             </div>

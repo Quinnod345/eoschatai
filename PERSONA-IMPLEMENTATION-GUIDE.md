@@ -2,7 +2,7 @@
 
 ## Overview
 
-The EOS Chat AI now supports custom personas that allow users to create specialized AI assistants with custom instructions, expertise areas, and communication styles. This guide explains how the persona functionality has been implemented and how it works.
+The EOSAI now supports custom personas that allow users to create specialized AI assistants with custom instructions, expertise areas, and communication styles. This guide explains how the persona functionality has been implemented and how it works.
 
 ## Architecture
 

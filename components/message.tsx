@@ -16,8 +16,6 @@ import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
 import GlassSurface from './GlassSurface';
-import { SearchResults } from './search-results';
-
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { TranslationUI } from './translation-ui';
 import {
@@ -749,14 +747,14 @@ const PurePreviewMessage = ({
                 if (state === 'result') {
                   const { result } = toolInvocation;
 
+                  // Filter out searchWeb tool results - citations are shown inline instead
+                  if (toolName === 'searchWeb') {
+                    return null;
+                  }
+
                   return (
                     <div key={toolCallId}>
-                      {toolName === 'searchWeb' ? (
-                        <SearchResults
-                          results={result.results || []}
-                          query={result.query}
-                        />
-                      ) : toolName === 'getWeather' ? (
+                      {toolName === 'getWeather' ? (
                         <Weather weatherAtLocation={result} />
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview
@@ -832,6 +830,7 @@ const PurePreviewMessage = ({
                 onReply={onReply}
                 onEdit={() => setMode('edit')}
                 isPinned={isPinned}
+                citations={citations}
               />
             )}
           </div>
@@ -859,191 +858,82 @@ export const PreviewMessage = memo(
 
 export const ThinkingMessage = ({
   searchProgress,
-}: { searchProgress?: SearchProgress }) => {
+  chatStatus,
+}: {
+  searchProgress?: SearchProgress;
+  chatStatus?: { status: string; message: string };
+}) => {
   const role = 'assistant';
-  const [loadingStage, setLoadingStage] = useState(0);
-  const [currentPhase, setCurrentPhase] = useState(0);
+  const [dotCount, setDotCount] = useState(0);
 
-  // Define the main process phases (expanded for better UX)
-  const processingPhases = [
-    { name: 'init' as const, duration: 900 },
-    { name: 'preflight' as const, duration: 1400 },
-    { name: 'context' as const, duration: 1400 },
-    { name: 'ragSearch' as const, duration: 2200 },
-    { name: 'ragProcess' as const, duration: 2600 },
-    { name: 'tools' as const, duration: 1600 },
-    { name: 'generate' as const, duration: 2400 },
-    { name: 'final' as const, duration: 1500 },
-  ];
+  // Simple dot animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev + 1) % 4);
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Define phase name type for type safety
-  type PhaseName = (typeof processingPhases)[number]['name'];
-
-  // Detailed messages for each phase - these match what the AI is actually doing in the code
-  const phaseMessages: Record<PhaseName, string[]> = {
-    init: [
-      'Initializing...',
-      'Processing your query...',
-      'Analyzing request...',
-      'Parsing instructions...',
-    ],
-    preflight: [
-      'Warming up model...',
-      'Performing safety checks...',
-      'Allocating context window...',
-      'Estimating token budget...',
-      'Preflight model call...',
-    ],
-    context: [
-      'Collecting chat history context...',
-      'Extracting key details...',
-      'Resolving mentions and references...',
-      'Merging prior answers...',
-    ],
-    ragSearch: [
-      'Searching knowledge base...',
-      'Running semantic search (RAG)...',
-      'Fetching relevant documents...',
-      'Scanning web as needed...',
-    ],
-    ragProcess: [
-      'Chunking and embedding documents...',
-      'Ranking results by relevance...',
-      'Extracting evidence...',
-      'Summarizing key findings...',
-    ],
-    tools: [
-      'Invoking tools...',
-      'Calling functions...',
-      'Validating intermediate results...',
-    ],
-    generate: [
-      'Generating response...',
-      'Formulating answer...',
-      'Synthesizing with sources...',
-      'Composing final draft...',
-    ],
-    final: ['Finalizing response...', 'Polishing...', 'Almost ready...'],
-  };
-
-  // Check if we're actively searching based on searchProgress
-  const isActivelySearching =
+  // Check if we're actively searching
+  const isSearching =
     searchProgress?.status === 'searching' ||
     searchProgress?.status === 'processing';
   const searchCompleted = searchProgress?.searchesCompleted || 0;
   const searchTotal = searchProgress?.totalSearches || 0;
 
-  // Update phase based on search progress (map to RAG phases)
-  useEffect(() => {
-    if (searchProgress?.status === 'searching') {
-      setCurrentPhase(3); // ragSearch
-    } else if (searchProgress?.status === 'processing') {
-      setCurrentPhase(4); // ragProcess
-    } else if (searchProgress?.status === 'completed') {
-      setCurrentPhase(6); // generate
-    }
-  }, [searchProgress?.status]);
+  // Determine message based on priority: search > chat status > default
+  let displayMessage = 'Thinking';
 
-  // Cycle through phase messages with per-phase durations
-  useEffect(() => {
-    let messageIndex = 0;
-
-    // Function to update the current message
-    const updateMessage = () => {
-      const phase = processingPhases[currentPhase].name;
-      const messages = phaseMessages[phase];
-
-      // Update the visible message
-      setLoadingStage(messageIndex);
-
-      // Move to next message in current phase
-      messageIndex = (messageIndex + 1) % messages.length;
-    };
-
-    // Create interval based on current phase duration
-    const interval = setInterval(
-      updateMessage,
-      processingPhases[currentPhase]?.duration ?? 1200,
-    );
-
-    return () => clearInterval(interval);
-  }, [currentPhase]);
-
-  // Get current phase and its messages
-  const currentPhaseName = processingPhases[currentPhase]?.name || 'init';
-  const currentMessages = phaseMessages[currentPhaseName];
-
-  // Use search-specific message if actively searching, otherwise show appropriate phase message
-  const displayMessage =
-    isActivelySearching && searchProgress?.currentSearch
-      ? `Searching the web: ${searchProgress.currentSearch}`
-      : isActivelySearching
-        ? 'Searching the web...'
-        : currentMessages[loadingStage];
+  if (searchProgress?.currentSearch) {
+    displayMessage = `Searching: ${searchProgress.currentSearch}`;
+  } else if (isSearching) {
+    displayMessage = 'Searching the web';
+  } else if (chatStatus?.message) {
+    displayMessage = chatStatus.message;
+  }
 
   return (
     <motion.div
       data-testid="message-assistant-loading"
-      className="w-full mx-auto max-w-3xl px-4 group/message min-h-96"
+      className="w-full mx-auto max-w-3xl px-4 group/message"
       initial={{ y: 5, opacity: 0 }}
-      animate={{ y: 0, opacity: 1, transition: { delay: 0.5 } }}
+      animate={{ y: 0, opacity: 1 }}
       data-role={role}
     >
-      <div
-        className={cx(
-          'flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl',
-          {
-            'group-data-[role=user]/message:bg-muted': true,
-          },
-        )}
-      >
+      <div className="flex gap-4 w-full">
+        {/* AI Icon */}
         <div className="size-8 flex items-center rounded-full justify-center shrink-0">
           <AIActiveLoaderIcon size={40} />
         </div>
 
+        {/* Content */}
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <AnimatePresence mode="wait">
               <motion.span
-                key={loadingStage}
-                initial={{ opacity: 0, y: 5 }}
+                key={displayMessage}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-zinc-600 dark:text-zinc-400"
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="text-muted-foreground"
               >
                 {displayMessage}
+                {'.'.repeat(dotCount)}
               </motion.span>
+            </AnimatePresence>
 
-              {/* Show search progress indicator when searching */}
-              {isActivelySearching && searchTotal > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  className="flex items-center gap-2"
-                >
-                  <div className="flex items-center gap-1">
-                    {/* Progress dots */}
-                    {Array.from({ length: searchTotal }, (_, i) => i).map(
-                      (dotIndex) => (
-                        <div
-                          key={`search-dot-${searchTotal}-${dotIndex}`}
-                          className={cn(
-                            'size-1.5 rounded-full transition-all duration-300',
-                            dotIndex < searchCompleted
-                              ? 'bg-purple-500'
-                              : 'bg-zinc-400 dark:bg-zinc-600',
-                          )}
-                        />
-                      ),
-                    )}
-                  </div>
-                  <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                    {searchCompleted}/{searchTotal}
-                  </span>
-                </motion.div>
-              )}
-            </div>
+            {/* Search progress */}
+            {isSearching && searchTotal > 0 && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="text-xs text-muted-foreground ml-2"
+              >
+                ({searchCompleted}/{searchTotal})
+              </motion.span>
+            )}
           </div>
         </div>
       </div>

@@ -8,7 +8,7 @@ import {
   type PriceSummary,
 } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
-import { SimpleUpgradeModal } from '@/components/simple-upgrade-modal';
+import { PremiumFeaturesModal } from '@/components/premium-features-modal';
 import { BusinessUpgradeFlow } from '@/components/business-upgrade-flow';
 import type { UpgradeFeature } from '@/types/upgrade';
 import { toast } from 'sonner';
@@ -53,17 +53,27 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     });
   }, [open, feature]);
 
-  // Listen for business flow events
+  // Listen for business flow and premium modal events
   useEffect(() => {
     const handleOpenBusinessFlow = () => {
       console.log('[AccountProvider] Opening business flow from event');
       setShowBusinessFlow(true);
     };
 
+    const handleOpenPremiumModal = () => {
+      console.log('[AccountProvider] Opening premium modal from event');
+      // Open modal with generic 'premium' feature since event doesn't specify which feature
+      openModal('premium');
+    };
+
     window.addEventListener('open-business-flow', handleOpenBusinessFlow);
-    return () =>
+    window.addEventListener('open-premium-modal', handleOpenPremiumModal);
+
+    return () => {
       window.removeEventListener('open-business-flow', handleOpenBusinessFlow);
-  }, []);
+      window.removeEventListener('open-premium-modal', handleOpenPremiumModal);
+    };
+  }, [openModal]);
 
   const refreshRef = useRef<() => Promise<void>>();
 
@@ -316,14 +326,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      {feature ? (
-        <SimpleUpgradeModal
-          feature={feature as UpgradeFeature}
-          open={open}
-          onClose={closeModal}
-          onAutoRetry={onAutoRetry ?? undefined}
-        />
-      ) : null}
+      <PremiumFeaturesModal open={open} onClose={closeModal} />
       <BusinessUpgradeFlow
         open={showBusinessFlow}
         onClose={() => setShowBusinessFlow(false)}

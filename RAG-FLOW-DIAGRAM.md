@@ -1,8 +1,8 @@
-# RAG System Flow Diagram for EOS Chat AI
+# RAG System Flow Diagram for EOSAI
 
 ## Overview
 
-This document provides a comprehensive breakdown of how the Retrieval-Augmented Generation (RAG) system works with personas and EOS Implementer profiles in the EOS Chat AI application.
+This document provides a comprehensive breakdown of how the Retrieval-Augmented Generation (RAG) system works with personas and EOS Implementer profiles in the EOSAI application.
 
 ## 🔄 Complete RAG Flow Funnel
 

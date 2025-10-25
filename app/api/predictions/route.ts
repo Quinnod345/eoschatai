@@ -101,8 +101,25 @@ Focus on EOS business topics: Rocks, L10 meetings, IDS, V/TO, accountability cha
             lower.startsWith('i can') ||
             lower.startsWith('here') ||
             lower.startsWith('the best') ||
-            lower.includes('...') ||
-            s.endsWith('?')
+            lower.includes('...')
+          ) {
+            return false;
+          }
+
+          // Skip if it ends with '?' AND looks like a full answer (starts with common question words)
+          // This preserves partial query completions like "a quarterly review?" while filtering "What do you need help with?"
+          if (
+            s.endsWith('?') &&
+            (lower.startsWith('what ') ||
+              lower.startsWith('how ') ||
+              lower.startsWith('why ') ||
+              lower.startsWith('when ') ||
+              lower.startsWith('where ') ||
+              lower.startsWith('who ') ||
+              lower.startsWith('which ') ||
+              lower.startsWith('do you ') ||
+              lower.startsWith('can you ') ||
+              lower.startsWith('would you '))
           ) {
             return false;
           }

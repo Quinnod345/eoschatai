@@ -13,7 +13,9 @@ export const runtime = 'nodejs';
 const createOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.warn('[voice.recordings.transcribe] OPENAI_API_KEY missing; transcription disabled.');
+    console.warn(
+      '[voice.recordings.transcribe] OPENAI_API_KEY missing; transcription disabled.',
+    );
     return null;
   }
 
@@ -62,6 +64,41 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Check entitlements for voice transcription
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.recordings.transcription) {
+      return NextResponse.json(
+        {
+          error: 'Voice transcription is a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'recordings.transcription',
+        },
+        { status: 403 },
+      );
+    }
+
+    // Check usage limits for recordings
+    const minutesUsed = accessContext.user.usageCounters.asr_minutes_month || 0;
+    const minutesLimit =
+      accessContext.entitlements.features.recordings.minutes_month;
+
+    if (minutesUsed >= minutesLimit) {
+      return NextResponse.json(
+        {
+          error: `You've reached your monthly transcription limit (${minutesLimit} minutes)`,
+          code: 'LIMIT_REACHED',
+          limit: minutesLimit,
+          used: minutesUsed,
+          requiredPlan: 'business',
+          feature: 'recordings.more_minutes',
+        },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const recordingId = body?.recordingId as string | undefined;
     if (!recordingId) {
@@ -203,6 +240,17 @@ export async function POST(request: NextRequest) {
     }
 
     await setStatus(recordingId, 'ready');
+
+    // Update usage counter for transcription minutes
+    if (rec.duration) {
+      const minutesUsed = Math.ceil(rec.duration / 60);
+      const { incrementUsageCounter } = await import('@/lib/entitlements');
+      await incrementUsageCounter(
+        session.user.id,
+        'asr_minutes_month',
+        minutesUsed,
+      );
+    }
 
     return NextResponse.json({ status: 'ready' });
   } catch (error: any) {

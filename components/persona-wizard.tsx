@@ -670,7 +670,30 @@ export function PersonaWizard({
       } else {
         const error = await response.json();
         console.error('Error saving persona:', error);
-        setErrors({ submit: error.message || 'Failed to save persona' });
+
+        // Handle feature locked error
+        if (error.code === 'FEATURE_LOCKED') {
+          toast.error(error.error || 'This feature requires an upgrade');
+          onClose();
+          // Dispatch event to open premium features modal
+          setTimeout(() => {
+            window.dispatchEvent(new Event('open-premium-modal'));
+          }, 100);
+          return;
+        }
+
+        // Handle limit reached error
+        if (error.code === 'LIMIT_REACHED') {
+          toast.error(error.error || 'You have reached your limit');
+          onClose();
+          // Dispatch event to open premium features modal
+          setTimeout(() => {
+            window.dispatchEvent(new Event('open-premium-modal'));
+          }, 100);
+          return;
+        }
+
+        setErrors({ submit: error.error || 'Failed to save persona' });
       }
     } catch (error) {
       console.error('Error saving persona:', error);

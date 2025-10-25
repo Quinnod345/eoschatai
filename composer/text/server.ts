@@ -43,6 +43,16 @@ STRICT OUTPUT INSTRUCTIONS:
 - Do NOT repeat the user's request.
 - Return pure Markdown suitable for saving directly to the document (no code fences unless it is a code block, no system messages).
 
+🔥 CRITICAL CONTENT USAGE INSTRUCTIONS:
+- If conversation context is provided below, you MUST extract and use the relevant information to populate the document.
+- When the user says "put all these questions into a document" or similar, extract the ACTUAL questions/content from the conversation.
+- If the conversation contains web search results (from searchWeb tool), you MUST use that content in the document.
+- Extract and synthesize the actual information - don't just reference that information exists.
+- Structure the document with clear headings, bullet points, and well-organized information.
+- Include specific details, facts, and data from the conversation and search results.
+- DO NOT write meta-messages like "I've created a document" or "Here's what I found" - write the actual content directly.
+- If the conversation shows questions being asked and answered, include those ACTUAL questions and answers in the document.
+
 CONTEXT:
 ${companyCtx}
 
@@ -55,7 +65,9 @@ ${kbRagSection}`;
 
 STRICT OUTPUT INSTRUCTIONS:
 - Generate only the document content in Markdown.
-- No meta commentary or assistant statements.`;
+- No meta commentary or assistant statements.
+- If conversation context or web search results are available, USE them to populate the document with actual content.
+- Extract real questions, answers, data, and information from the context provided.`;
     }
 
     const provider = createCustomProvider();
@@ -68,8 +80,15 @@ STRICT OUTPUT INSTRUCTIONS:
       // Use title plus context (if provided) to guide content generation
       prompt:
         context && context.trim().length > 0
-          ? `${title}\n\nContext:\n${context}`
-          : title,
+          ? `Create a document titled "${title}".
+
+CRITICAL: Use the conversation context below to populate the document with ACTUAL content. Don't just create a template or outline - extract and include the real information, questions, answers, and data from the conversation.
+
+Conversation Context:
+${context}
+
+Generate the document content now (pure Markdown, no meta-commentary):`
+          : `Create a document titled "${title}" (pure Markdown, no meta-commentary):`,
     });
 
     const scrubMeta = (text: string) =>

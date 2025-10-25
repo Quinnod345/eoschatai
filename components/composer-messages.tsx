@@ -114,16 +114,20 @@ function areEqual(
   prevProps: ComposerMessagesProps,
   nextProps: ComposerMessagesProps,
 ) {
-  if (
-    prevProps.composerStatus === 'streaming' &&
-    nextProps.composerStatus === 'streaming'
-  )
-    return true;
+  // Don't block re-renders when composer is streaming - we still need to show new chat messages!
+  // The old logic prevented chat messages from appearing when composer was updating
 
+  // Re-render if status changed
   if (prevProps.status !== nextProps.status) return false;
-  if (prevProps.status && nextProps.status) return false;
+
+  // Re-render if messages changed (NEW messages added or updated)
   if (prevProps.messages.length !== nextProps.messages.length) return false;
+
+  // Re-render if votes changed
   if (!equal(prevProps.votes, nextProps.votes)) return false;
+
+  // Re-render if chat status changed (but composer streaming shouldn't block this)
+  if (prevProps.chatId !== nextProps.chatId) return false;
 
   return true;
 }

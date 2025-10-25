@@ -48,6 +48,7 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
+import { UsageLimitIndicator } from './usage-limit-indicator';
 import type { VisibilityType } from './visibility-selector';
 import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
@@ -847,43 +848,63 @@ function PureMultimodalInput({
   }, []);
 
   const adjustHeight = () => {
-    if (textareaRef.current) {
-      const textarea = textareaRef.current;
+    // Skip height adjustment if we're in the middle of form submission
+    if (isSubmittingRef.current || !textareaRef.current) {
+      return;
+    }
 
-      // Reset height to measure content
-      textarea.style.height = 'auto';
+    const textarea = textareaRef.current;
 
-      // Get the computed max height (this resolves calc() and dvh values)
-      const computedStyle = window.getComputedStyle(textarea);
-      const maxHeightValue = computedStyle.maxHeight;
-      const maxHeight =
-        maxHeightValue && maxHeightValue !== 'none'
-          ? Number.parseFloat(maxHeightValue)
-          : Number.POSITIVE_INFINITY;
+    // Reset height to measure content
+    textarea.style.height = 'auto';
 
-      // Get the content height
-      const contentHeight = textarea.scrollHeight + 2;
+    // Get the computed max height (this resolves calc() and dvh values)
+    const computedStyle = window.getComputedStyle(textarea);
+    const maxHeightValue = computedStyle.maxHeight;
+    const maxHeight =
+      maxHeightValue && maxHeightValue !== 'none'
+        ? Number.parseFloat(maxHeightValue)
+        : Number.POSITIVE_INFINITY;
 
-      // Set height to content height or max height, whichever is smaller
-      if (contentHeight > maxHeight) {
-        // Content exceeds viewport capacity - enable scrolling
-        textarea.style.height = `${maxHeight}px`;
-        textarea.style.overflowY = 'auto';
-      } else {
-        // Content fits - grow naturally without scrollbar
-        textarea.style.height = `${contentHeight}px`;
-        textarea.style.overflowY = 'hidden';
-      }
+    // Get the content height
+    const contentHeight = textarea.scrollHeight + 2;
+
+    // Set height to content height or max height, whichever is smaller
+    if (contentHeight > maxHeight) {
+      // Content exceeds viewport capacity - enable scrolling
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = 'auto';
+    } else {
+      // Content fits - grow naturally without scrollbar
+      textarea.style.height = `${contentHeight}px`;
+      textarea.style.overflowY = 'hidden';
     }
   };
 
   const resetHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = '98px';
-      textareaRef.current.style.overflowY = 'hidden';
+      const textarea = textareaRef.current;
+      // Smoothly transition to minimum height
+      textarea.style.transition = 'height 0.2s ease';
+      textarea.style.height = 'auto';
+
+      // Calculate the height for 2 rows (the default rows value)
+      // Use scrollHeight to get natural height
+      const naturalHeight = textarea.scrollHeight;
+      textarea.style.height = `${Math.max(naturalHeight, 64)}px`;
+      textarea.style.overflowY = 'hidden';
+
+      // Remove transition after reset completes
+      setTimeout(() => {
+        if (textarea) {
+          textarea.style.transition = '';
+        }
+      }, 200);
     }
   };
+
+  // Add flag to prevent height adjustment during submission
+  const isSubmittingRef = useRef(false);
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage(
     'input',
@@ -1620,6 +1641,9 @@ function PureMultimodalInput({
   );
 
   const submitForm = useCallback(() => {
+    // Set flag to prevent height adjustments during submission
+    isSubmittingRef.current = true;
+
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
     let finalInputContent = input; // Start with current text input
@@ -1747,6 +1771,7 @@ function PureMultimodalInput({
     );
     if (processingAudio.length > 0) {
       toast.error('Please wait for audio transcription to complete!');
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -1756,12 +1781,14 @@ function PureMultimodalInput({
       toast.error(
         `Cannot send message with failed audio attachments. Please remove the failed audio files (${errorAudio.map((a) => a.name).join(', ')}) or try uploading in a supported format.`,
       );
+      isSubmittingRef.current = false;
       return;
     }
 
     // Ensure the submit doesn't hang by checking first
     if (status !== 'ready') {
       toast.error('Please wait for the model to finish its response!');
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -1820,6 +1847,7 @@ function PureMultimodalInput({
           setInput('');
         } else {
           // Nothing to send
+          isSubmittingRef.current = false;
           return;
         }
       }
@@ -1834,10 +1862,17 @@ function PureMultimodalInput({
       setPredictions([]); // Clear predictions
       resetHeight();
 
+      // Reset the submission flag after cleanup
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 50);
+
       if (width && width > 768) {
         textareaRef.current?.focus();
       }
     } catch (error) {
+      // Reset flag on error too
+      isSubmittingRef.current = false;
       toast.error('Failed to send message. Please try again.');
     }
   }, [
@@ -2184,7 +2219,7 @@ function PureMultimodalInput({
   return (
     <div
       className={cx(
-        'relative w-full flex flex-col gap-4',
+        'relative w-full flex flex-col',
         isDragging && 'drag-active',
       )}
       ref={dropZoneRef}
@@ -2528,224 +2563,91 @@ function PureMultimodalInput({
         tabIndex={-1}
       />
 
-      {(attachments.length > 0 ||
-        pdfContents.length > 0 ||
-        documentContents.length > 0 ||
-        audioContents.length > 0 ||
-        uploadQueue.length > 0) && (
-        <GlassSurface
-          width="100%"
-          height="auto"
-          borderRadius={12}
-          borderWidth={0.04}
-          brightness={48}
-          opacity={0.92}
-          blur={10}
-          backgroundOpacity={0.08}
-          showInsetShadow={true}
-          insetShadowIntensity={0.3}
-          useFallback={true}
-          className={cx(
-            isWide
-              ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-3 overflow-y-auto'
-              : 'flex flex-row gap-2 p-3 overflow-x-auto',
-            'relative items-end',
-            isEmbedded ? 'max-h-28' : 'max-h-40',
-          )}
-          style={{ minHeight: '80px' }}
-        >
-          {/* Total files counter when there are many */}
-          {attachments.length +
-            pdfContents.length +
-            documentContents.length +
-            audioContents.length >
-            5 && (
-            <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full shadow-sm">
+      <AnimatePresence>
+        {(attachments.length > 0 ||
+          pdfContents.length > 0 ||
+          documentContents.length > 0 ||
+          audioContents.length > 0 ||
+          uploadQueue.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            transition={{
+              duration: 0.25,
+              ease: [0.4, 0, 0.2, 1],
+            }}
+          >
+            <GlassSurface
+              width="100%"
+              height="auto"
+              borderRadius={12}
+              borderWidth={0.04}
+              brightness={48}
+              opacity={0.92}
+              blur={10}
+              backgroundOpacity={0.08}
+              showInsetShadow={true}
+              insetShadowIntensity={0.3}
+              useFallback={true}
+              className={cx(
+                isWide
+                  ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-3 overflow-y-auto'
+                  : 'flex flex-row gap-2 p-3 overflow-x-auto',
+                'relative items-end',
+                isEmbedded ? 'max-h-28' : 'max-h-40',
+              )}
+            >
+              {/* Total files counter when there are many */}
               {attachments.length +
                 pdfContents.length +
                 documentContents.length +
-                audioContents.length}{' '}
-              files
-            </div>
-          )}
+                audioContents.length >
+                5 && (
+                <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full shadow-sm">
+                  {attachments.length +
+                    pdfContents.length +
+                    documentContents.length +
+                    audioContents.length}{' '}
+                  files
+                </div>
+              )}
 
-          {attachments.map((attachment) => (
-            <PreviewAttachment
-              key={attachment.url}
-              attachment={attachment}
-              onRemove={() => {
-                setAttachments((currentAttachments) =>
-                  currentAttachments.filter((a) => a.url !== attachment.url),
-                );
-              }}
-            />
-          ))}
-
-          {pdfContents.map((pdf, index) => (
-            <div
-              key={`pdf-${pdf.name}-${index}`}
-              className="flex flex-col gap-2 relative"
-            >
-              <GlassSurface
-                width="80px"
-                height="64px"
-                borderRadius={8}
-                borderWidth={0.05}
-                brightness={45}
-                opacity={0.95}
-                blur={8}
-                backgroundOpacity={0.15}
-                showInsetShadow={true}
-                insetShadowIntensity={0.4}
-                useFallback={true}
-                className="relative"
-              >
-                <svg
-                  className="size-8 text-red-500"
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <path d="M9 13h6" />
-                  <path d="M9 17h6" />
-                  <path d="M9 9h1" />
-                </svg>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
-                  onClick={() => {
-                    setPdfContents((current) =>
-                      current.filter((_, i) => i !== index),
+              {attachments.map((attachment) => (
+                <PreviewAttachment
+                  key={attachment.url}
+                  attachment={attachment}
+                  onRemove={() => {
+                    setAttachments((currentAttachments) =>
+                      currentAttachments.filter(
+                        (a) => a.url !== attachment.url,
+                      ),
                     );
                   }}
-                >
-                  <X className="size-3" />
-                </Button>
-              </GlassSurface>
-              <div className="text-xs text-zinc-500 max-w-16 truncate">
-                {pdf.name}
-              </div>
-            </div>
-          ))}
+                />
+              ))}
 
-          {documentContents.map((doc, index) => (
-            <div
-              key={`doc-${doc.name}-${index}`}
-              className="flex flex-col gap-2 relative"
-            >
-              <GlassSurface
-                width="80px"
-                height="64px"
-                borderRadius={8}
-                borderWidth={0.05}
-                brightness={45}
-                opacity={0.95}
-                blur={8}
-                backgroundOpacity={0.15}
-                showInsetShadow={true}
-                insetShadowIntensity={0.4}
-                useFallback={true}
-                className="relative"
-              >
-                <svg
-                  className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : doc.type === 'pptx' ? 'text-orange-500' : 'text-green-500'}`}
-                  fill="none"
-                  height="24"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  width="24"
-                  xmlns="http://www.w3.org/2000/svg"
+              {pdfContents.map((pdf, index) => (
+                <div
+                  key={`pdf-${pdf.name}-${index}`}
+                  className="flex flex-col gap-2 relative"
                 >
-                  {doc.type === 'docx' ? (
-                    <>
-                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <line x1="10" y1="9" x2="8" y2="9" />
-                    </>
-                  ) : doc.type === 'pptx' ? (
-                    <>
-                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-                      <path d="M7 3v18" />
-                      <path d="M3 7.5h18" />
-                      <path d="M3 12h18" />
-                      <path d="M3 16.5h18" />
-                    </>
-                  ) : (
-                    <>
-                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-                      <line x1="7" y1="3" x2="7" y2="21" />
-                      <line x1="3" y1="9" x2="21" y2="9" />
-                      <line x1="3" y1="15" x2="21" y2="15" />
-                    </>
-                  )}
-                </svg>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
-                  onClick={() => {
-                    setDocumentContents((current) =>
-                      current.filter((_, i) => i !== index),
-                    );
-                  }}
-                >
-                  <X className="size-3" />
-                </Button>
-              </GlassSurface>
-              <div className="text-xs text-zinc-500 max-w-16 truncate">
-                {doc.name}
-              </div>
-            </div>
-          ))}
-
-          {audioContents.map((audio) => (
-            <div
-              key={`audio-${audio.id}`}
-              className="flex flex-col gap-2 relative"
-            >
-              <GlassSurface
-                width="80px"
-                height="64px"
-                borderRadius={8}
-                borderWidth={0.05}
-                brightness={45}
-                opacity={0.95}
-                blur={8}
-                backgroundOpacity={0.15}
-                showInsetShadow={true}
-                insetShadowIntensity={0.4}
-                useFallback={true}
-                className="relative"
-              >
-                {audio.status === 'uploading' ? (
-                  <>
-                    <div className="animate-spin text-zinc-500">
-                      <LoaderIcon size={24} />
-                    </div>
-                    <span className="text-[10px] text-zinc-500 mt-1">
-                      Uploading
-                    </span>
-                  </>
-                ) : audio.status === 'transcribing' ? (
-                  <>
+                  <GlassSurface
+                    width="80px"
+                    height="64px"
+                    borderRadius={8}
+                    borderWidth={0.05}
+                    brightness={45}
+                    opacity={0.95}
+                    blur={8}
+                    backgroundOpacity={0.15}
+                    showInsetShadow={true}
+                    insetShadowIntensity={0.4}
+                    useFallback={true}
+                    className="relative"
+                  >
                     <svg
-                      className="size-8 text-purple-500 animate-pulse"
+                      className="size-8 text-red-500"
                       fill="none"
                       height="24"
                       stroke="currentColor"
@@ -2756,126 +2658,297 @@ function PureMultimodalInput({
                       width="24"
                       xmlns="http://www.w3.org/2000/svg"
                     >
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" x2="12" y1="19" y2="22" />
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <path d="M9 13h6" />
+                      <path d="M9 17h6" />
+                      <path d="M9 9h1" />
                     </svg>
-                    <span className="text-[10px] text-zinc-500 mt-1">
-                      Transcribing
-                    </span>
-                  </>
-                ) : audio.status === 'ready' ? (
-                  <svg
-                    className="size-8 text-purple-500"
-                    fill="none"
-                    height="24"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" x2="12" y1="19" y2="22" />
-                  </svg>
-                ) : (
-                  <div
-                    className="flex flex-col items-center justify-center cursor-help"
-                    title={audio.transcript || 'Transcription failed'}
-                  >
-                    <div className="text-red-500">
-                      <XIcon size={24} />
-                    </div>
-                    <span className="text-[10px] text-red-500 mt-1">
-                      Failed
-                    </span>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
+                      onClick={() => {
+                        setPdfContents((current) =>
+                          current.filter((_, i) => i !== index),
+                        );
+                      }}
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </GlassSurface>
+                  <div className="text-xs text-zinc-500 max-w-16 truncate">
+                    {pdf.name}
                   </div>
-                )}
-
-                {audio.status !== 'uploading' && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm z-20',
-                      audio.status === 'error'
-                        ? 'hover:bg-destructive hover:text-destructive-foreground bg-destructive/10'
-                        : 'hover:bg-destructive hover:text-destructive-foreground',
-                    )}
-                    title={
-                      audio.status === 'error'
-                        ? 'Remove failed audio'
-                        : 'Remove audio'
-                    }
-                    onClick={() => {
-                      setAudioContents((current) =>
-                        current.filter((a) => a.id !== audio.id),
-                      );
-                    }}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                )}
-              </GlassSurface>
-              <div className="text-xs text-zinc-500 max-w-16 truncate">
-                {audio.name}
-              </div>
-            </div>
-          ))}
-
-          {uploadQueue.map((filename) => (
-            <PreviewAttachment
-              key={filename}
-              attachment={{
-                url: '',
-                name: filename,
-                contentType: '',
-              }}
-              isUploading={true}
-            />
-          ))}
-        </GlassSurface>
-      )}
-
-      <div className="relative" ref={inputWrapperRef}>
-        {/* Show selected mentions above the input with helpful context */}
-        {selectedMentions.length > 0 && (
-          <div className="mb-3 pt-1">
-            <div className="flex items-center gap-2 mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-              <Sparkles className="size-3" />
-              <span>
-                Selected resources - these will be included in your message:
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selectedMentions.map((mention) => (
-                <div
-                  key={mention.id}
-                  className="group inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
-                      {mention.icon}
-                    </span>
-                    <span className="font-medium">{mention.name}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveMention(mention.id)}
-                    className="ml-1 text-blue-400 dark:text-blue-500 hover:text-red-500 dark:hover:text-red-400 focus:outline-none transition-colors p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 group-hover:opacity-100 opacity-60"
-                    aria-label={`Remove ${mention.name} mention`}
-                    title="Remove this mention"
-                  >
-                    <X className="size-3.5" />
-                  </button>
                 </div>
               ))}
-            </div>
-          </div>
+
+              {documentContents.map((doc, index) => (
+                <div
+                  key={`doc-${doc.name}-${index}`}
+                  className="flex flex-col gap-2 relative"
+                >
+                  <GlassSurface
+                    width="80px"
+                    height="64px"
+                    borderRadius={8}
+                    borderWidth={0.05}
+                    brightness={45}
+                    opacity={0.95}
+                    blur={8}
+                    backgroundOpacity={0.15}
+                    showInsetShadow={true}
+                    insetShadowIntensity={0.4}
+                    useFallback={true}
+                    className="relative"
+                  >
+                    <svg
+                      className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : doc.type === 'pptx' ? 'text-orange-500' : 'text-green-500'}`}
+                      fill="none"
+                      height="24"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      {doc.type === 'docx' ? (
+                        <>
+                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <line x1="10" y1="9" x2="8" y2="9" />
+                        </>
+                      ) : doc.type === 'pptx' ? (
+                        <>
+                          <rect
+                            width="18"
+                            height="18"
+                            x="3"
+                            y="3"
+                            rx="2"
+                            ry="2"
+                          />
+                          <path d="M7 3v18" />
+                          <path d="M3 7.5h18" />
+                          <path d="M3 12h18" />
+                          <path d="M3 16.5h18" />
+                        </>
+                      ) : (
+                        <>
+                          <rect
+                            width="18"
+                            height="18"
+                            x="3"
+                            y="3"
+                            rx="2"
+                            ry="2"
+                          />
+                          <line x1="7" y1="3" x2="7" y2="21" />
+                          <line x1="3" y1="9" x2="21" y2="9" />
+                          <line x1="3" y1="15" x2="21" y2="15" />
+                        </>
+                      )}
+                    </svg>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
+                      onClick={() => {
+                        setDocumentContents((current) =>
+                          current.filter((_, i) => i !== index),
+                        );
+                      }}
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </GlassSurface>
+                  <div className="text-xs text-zinc-500 max-w-16 truncate">
+                    {doc.name}
+                  </div>
+                </div>
+              ))}
+
+              {audioContents.map((audio) => (
+                <div
+                  key={`audio-${audio.id}`}
+                  className="flex flex-col gap-2 relative"
+                >
+                  <GlassSurface
+                    width="80px"
+                    height="64px"
+                    borderRadius={8}
+                    borderWidth={0.05}
+                    brightness={45}
+                    opacity={0.95}
+                    blur={8}
+                    backgroundOpacity={0.15}
+                    showInsetShadow={true}
+                    insetShadowIntensity={0.4}
+                    useFallback={true}
+                    className="relative"
+                  >
+                    {audio.status === 'uploading' ? (
+                      <>
+                        <div className="animate-spin text-zinc-500">
+                          <LoaderIcon size={24} />
+                        </div>
+                        <span className="text-[10px] text-zinc-500 mt-1">
+                          Uploading
+                        </span>
+                      </>
+                    ) : audio.status === 'transcribing' ? (
+                      <>
+                        <svg
+                          className="size-8 text-purple-500 animate-pulse"
+                          fill="none"
+                          height="24"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          width="24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                          <line x1="12" x2="12" y1="19" y2="22" />
+                        </svg>
+                        <span className="text-[10px] text-zinc-500 mt-1">
+                          Transcribing
+                        </span>
+                      </>
+                    ) : audio.status === 'ready' ? (
+                      <svg
+                        className="size-8 text-purple-500"
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" x2="12" y1="19" y2="22" />
+                      </svg>
+                    ) : (
+                      <div
+                        className="flex flex-col items-center justify-center cursor-help"
+                        title={audio.transcript || 'Transcription failed'}
+                      >
+                        <div className="text-red-500">
+                          <XIcon size={24} />
+                        </div>
+                        <span className="text-[10px] text-red-500 mt-1">
+                          Failed
+                        </span>
+                      </div>
+                    )}
+
+                    {audio.status !== 'uploading' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm z-20',
+                          audio.status === 'error'
+                            ? 'hover:bg-destructive hover:text-destructive-foreground bg-destructive/10'
+                            : 'hover:bg-destructive hover:text-destructive-foreground',
+                        )}
+                        title={
+                          audio.status === 'error'
+                            ? 'Remove failed audio'
+                            : 'Remove audio'
+                        }
+                        onClick={() => {
+                          setAudioContents((current) =>
+                            current.filter((a) => a.id !== audio.id),
+                          );
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    )}
+                  </GlassSurface>
+                  <div className="text-xs text-zinc-500 max-w-16 truncate">
+                    {audio.name}
+                  </div>
+                </div>
+              ))}
+
+              {uploadQueue.map((filename) => (
+                <PreviewAttachment
+                  key={filename}
+                  attachment={{
+                    url: '',
+                    name: filename,
+                    contentType: '',
+                  }}
+                  isUploading={true}
+                />
+              ))}
+            </GlassSurface>
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      <div className="relative mt-4" ref={inputWrapperRef}>
+        {/* Show selected mentions above the input with helpful context */}
+        <AnimatePresence>
+          {selectedMentions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{
+                duration: 0.25,
+                ease: [0.4, 0, 0.2, 1],
+              }}
+              className="pt-1"
+            >
+              <div className="flex items-center gap-2 mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <Sparkles className="size-3" />
+                <span>
+                  Selected resources - these will be included in your message:
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedMentions.map((mention) => (
+                  <div
+                    key={mention.id}
+                    className="group inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
+                        {mention.icon}
+                      </span>
+                      <span className="font-medium">{mention.name}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMention(mention.id)}
+                      className="ml-1 text-blue-400 dark:text-blue-500 hover:text-red-500 dark:hover:text-red-400 focus:outline-none transition-colors p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 group-hover:opacity-100 opacity-60"
+                      aria-label={`Remove ${mention.name} mention`}
+                      title="Remove this mention"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Predictive suggestions list - positioned ABOVE the textarea */}
         {showPredictions && predictions.length > 0 && !showMentions && (
@@ -3086,25 +3159,7 @@ function PureMultimodalInput({
 
           <div className="flex items-center gap-2 ml-auto">
             {/* Only show usage chips for free plan users */}
-            {user?.plan === 'free' && (
-              <motion.div
-                key={`chats-chip-${chatId}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  duration: 0.25,
-                  delay: 0.24,
-                  ease: [0.19, 1, 0.22, 1],
-                }}
-              >
-                <UsageChip
-                  label="Chats"
-                  used={chatsUsed}
-                  limit={chatLimit}
-                  title="Chats sent today"
-                />
-              </motion.div>
-            )}
+            <UsageLimitIndicator />
             {status === 'submitted' ? (
               <motion.div
                 key={`stop-${chatId}`}

@@ -3,7 +3,7 @@ import React, { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChartRenderer } from './chart-renderer';
-import { CitationRenderer } from './inline-citation';
+import { CitationButton } from './citation-button';
 import type { ChartData } from '@/composer/chart/client';
 
 interface CitationReference {
@@ -11,6 +11,16 @@ interface CitationReference {
   title: string;
   url: string;
   snippet?: string;
+}
+
+// Mask URLs inside citation markup to prevent autolinking before we replace them
+function maskUrlsInCitations(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  // Matches citation patterns like CITE:number:url or number:url with optional title
+  return text.replace(/\[(?:CITE:)?\d+:[^\]]+\]/g, (match) => {
+    // Replace occurrences of http:// or https:// inside the match with http§// or https§//
+    return match.replace(/https?:\/\//g, (m) => m.replace(':', '§'));
+  });
 }
 
 // Function to detect and parse chart data from content
@@ -578,9 +588,40 @@ interface MarkdownProps {
 }
 
 const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
+  // Pre-process to avoid autolinking inside citation markup
+  const maskedChildren = maskUrlsInCitations(children);
+  // Debug logging
+  if (citations.length > 0) {
+    console.log(
+      '[Markdown] Received citations:',
+      citations.length,
+      'citations',
+    );
+  }
+
+  // Log if we detect masked URLs in the content
+  if (maskedChildren.includes('§')) {
+    console.log(
+      '[Markdown] ⚠️ Detected masked URLs in content - checking for citations',
+    );
+    const citationMatches = maskedChildren.match(/\[(?:CITE:)?\d+:[^\]]+\]/g);
+    console.log('[Markdown] Citation patterns found:', citationMatches);
+  }
+
   // Create enhanced components that support citations
   const enhancedComponents: Partial<Components> = {
     ...components,
+    // Handle text nodes that might contain citations
+    text: ({ children, value }: any) => {
+      const textValue = value || children;
+      if (typeof textValue === 'string' && textValue.includes('§')) {
+        console.log(
+          '[Markdown] Text node with masked URL:',
+          textValue.substring(0, 200),
+        );
+      }
+      return <>{textValue}</>;
+    },
     p: ({ children }) => {
       // Check if children contains a pre, div, or other block element
       const hasBlockChild = React.Children.toArray(children).some(
@@ -617,13 +658,92 @@ const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
         })
         .join('');
 
-      // Check if we have citations and the text contains citation patterns
-      if (citations.length > 0 && /\[\d+\]/.test(textContent)) {
-        return (
-          <p>
-            <CitationRenderer text={textContent} citations={citations} />
-          </p>
+      // Check for inline citation format: CITE:num:url:title or num:url:title variants
+      // Also matches masked URLs (with § instead of : in https§//)
+      const inlineCitationPattern =
+        /\[(?:CITE:)?(\d+):([^\]]+?)(?::([^\]]+))?\]/g;
+      const hasInlineCitations = inlineCitationPattern.test(textContent);
+      inlineCitationPattern.lastIndex = 0; // Reset regex
+
+      // Debug logging - check for both regular and masked citations
+      if (
+        textContent.includes('[') &&
+        (textContent.includes('§') || textContent.match(/\[\d+:/))
+      ) {
+        console.log('[Markdown] Potential citation text:', {
+          textSnippet: textContent.substring(0, 300),
+          fullText: textContent,
+          hasInlineCitations,
+          hasMaskedUrls: textContent.includes('§'),
+          matches: textContent.match(
+            /\[(?:CITE:)?(\d+):([^\]]+?)(?::([^\]]+))?\]/g,
+          ),
+        });
+      }
+
+      if (hasInlineCitations) {
+        console.log(
+          '[Markdown] ✅ Found inline citations, rendering with buttons',
         );
+
+        // Parse and render inline citations
+        const parts: (string | React.ReactElement)[] = [];
+        let lastIndex = 0;
+        let keyIndex = 0;
+
+        let match = inlineCitationPattern.exec(textContent);
+        while (match !== null) {
+          console.log('[Markdown] Processing citation:', {
+            fullMatch: match[0],
+            number: match[1],
+            url: match[2],
+            title: match[3],
+          });
+
+          // Add text before citation
+          if (match.index > lastIndex) {
+            parts.push(textContent.substring(lastIndex, match.index));
+          }
+
+          const number = Number.parseInt(match[1], 10);
+          // Unmask any masked colons in URL (§ back to :)
+          const url = match[2]?.replace(/§/g, ':');
+          let title = match[3]?.replace(/§/g, ':'); // Also unmask title if needed
+
+          // Fallback title generation with error handling
+          if (!title) {
+            try {
+              const formattedUrl = url.startsWith('http')
+                ? url
+                : `https://${url}`;
+              title = new URL(formattedUrl).hostname;
+            } catch (e) {
+              console.error('[Markdown] Error parsing URL for title:', url, e);
+              title = `Source ${number}`;
+            }
+          }
+
+          // Add citation button
+          parts.push(
+            <CitationButton
+              key={`inline-cite-${keyIndex++}`}
+              number={number}
+              title={title}
+              url={url}
+              inline={true}
+            />,
+          );
+
+          lastIndex = match.index + match[0].length;
+          match = inlineCitationPattern.exec(textContent);
+        }
+
+        // Add remaining text
+        if (lastIndex < textContent.length) {
+          parts.push(textContent.substring(lastIndex));
+        }
+
+        return <p>{parts}</p>;
       }
 
       // Otherwise render as normal paragraph
@@ -636,7 +756,7 @@ const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
       remarkPlugins={remarkPlugins}
       components={enhancedComponents}
     >
-      {children}
+      {maskedChildren}
     </ReactMarkdown>
   );
 };

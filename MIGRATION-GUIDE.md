@@ -1,6 +1,6 @@
 # Database Migration Guide
 
-This guide explains how to work with database migrations in the EOS Chat AI project.
+This guide explains how to work with database migrations in the EOSAI project.
 
 ## Overview
 

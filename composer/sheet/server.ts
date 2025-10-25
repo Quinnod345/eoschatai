@@ -6,15 +6,20 @@ import { z } from 'zod';
 
 export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
   kind: 'sheet',
-  onCreateDocument: async ({ title, dataStream, maxTokens }) => {
+  onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
-      system: sheetPrompt,
+      system: `${sheetPrompt}
+
+CRITICAL: If conversation context is provided, extract relevant data from it to populate the spreadsheet. Don't create sample data - use actual information from the conversation.`,
       maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
-      prompt: title,
+      prompt:
+        context && context.trim().length > 0
+          ? `${title}\n\nConversation Context (extract data from this):\n${context}`
+          : title,
       schema: z.object({
         csv: z.string().describe('CSV data'),
       }),

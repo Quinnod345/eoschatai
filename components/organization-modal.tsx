@@ -23,12 +23,18 @@ interface OrganizationModalProps {
   open: boolean;
   onClose: () => void;
   onContinue: (orgId: string) => void;
+  /**
+   * If true, this is part of a business upgrade flow.
+   * If false, this is standalone org creation and should prompt for upgrade.
+   */
+  isUpgradeFlow?: boolean;
 }
 
 export function OrganizationModal({
   open,
   onClose,
   onContinue,
+  isUpgradeFlow = false,
 }: OrganizationModalProps) {
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
   const [organizationName, setOrganizationName] = useState('');
@@ -37,6 +43,7 @@ export function OrganizationModal({
   const [error, setError] = useState<string | null>(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
   const [existingOrg, setExistingOrg] = useState<any>(null);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const user = useAccountStore((state) => state.user);
 
   // Check if user already has an organization when modal opens
@@ -88,6 +95,12 @@ export function OrganizationModal({
       return;
     }
 
+    // If not part of upgrade flow, prompt user about upgrading
+    if (!isUpgradeFlow && !showUpgradePrompt) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -109,6 +122,57 @@ export function OrganizationModal({
       // If user already has an org, that's actually okay - check if we can proceed
       if (error?.message?.includes('already belong to an organization')) {
         // Fetch the existing org
+        try {
+          const checkResponse = await fetch('/api/organizations');
+          if (checkResponse.ok) {
+            const data = await checkResponse.json();
+            if (data.organization) {
+              onContinue(data.organization.id);
+              return;
+            }
+          }
+        } catch (checkError) {
+          console.error('Failed to check existing org:', checkError);
+        }
+      }
+
+      setError(error instanceof Error ? error.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpgradeToBusinessFirst = () => {
+    // Close this modal and open business upgrade flow
+    onClose();
+    setTimeout(() => {
+      const event = new Event('open-business-flow');
+      window.dispatchEvent(event);
+    }, 100);
+  };
+
+  const handleContinueWithFree = async () => {
+    setShowUpgradePrompt(false);
+    // Now proceed with org creation
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: organizationName }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create organization');
+      }
+
+      const { organization } = await response.json();
+      onContinue(organization.id);
+    } catch (error: any) {
+      if (error?.message?.includes('already belong to an organization')) {
         try {
           const checkResponse = await fetch('/api/organizations');
           if (checkResponse.ok) {
@@ -199,6 +263,49 @@ export function OrganizationModal({
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">
                 Checking organization status...
+              </p>
+            </div>
+          ) : showUpgradePrompt ? (
+            /* Show upgrade prompt for standalone org creation */
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  You're about to create a <strong>Free organization</strong>.
+                  Organizations are designed for team collaboration with
+                  Business subscriptions.
+                </AlertDescription>
+              </Alert>
+
+              <div className="rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 p-4">
+                <h4 className="font-semibold text-sm mb-2">
+                  Free Organization Limitations:
+                </h4>
+                <ul className="text-sm space-y-1 text-muted-foreground">
+                  <li>• No Deep Research mode (40 web lookups)</li>
+                  <li>• No team collaboration features</li>
+                  <li>• Limited to individual features only</li>
+                  <li>• No advanced analytics</li>
+                  <li>• No priority support</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 p-4">
+                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Business Plan Benefits:
+                </h4>
+                <ul className="text-sm space-y-1 text-muted-foreground">
+                  <li>• Deep research with 40 web lookups</li>
+                  <li>• Team collaboration & shared resources</li>
+                  <li>• Unlimited voice recordings</li>
+                  <li>• Advanced analytics & custom AI training</li>
+                  <li>• Starting at $99/month for 2 seats</li>
+                </ul>
+              </div>
+
+              <p className="text-sm text-muted-foreground text-center">
+                You can upgrade your organization to Business at any time.
               </p>
             </div>
           ) : existingOrg ? (
@@ -309,31 +416,51 @@ export function OrganizationModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          {existingOrg ? (
-            <Button
-              onClick={() => onContinue(existingOrg.id)}
-              disabled={loading}
-            >
-              Continue to Business Upgrade
-            </Button>
+          {showUpgradePrompt ? (
+            <>
+              <Button variant="outline" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleContinueWithFree}
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Continue with Free'}
+              </Button>
+              <Button onClick={handleUpgradeToBusinessFirst}>
+                Upgrade to Business
+              </Button>
+            </>
           ) : (
-            <Button
-              onClick={
-                activeTab === 'create'
-                  ? handleCreateOrganization
-                  : handleJoinOrganization
-              }
-              disabled={loading}
-            >
-              {loading
-                ? 'Processing...'
-                : activeTab === 'create'
-                  ? 'Create Organization'
-                  : 'Join Organization'}
-            </Button>
+            <>
+              <Button variant="outline" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              {existingOrg ? (
+                <Button
+                  onClick={() => onContinue(existingOrg.id)}
+                  disabled={loading}
+                >
+                  Continue to Business Upgrade
+                </Button>
+              ) : (
+                <Button
+                  onClick={
+                    activeTab === 'create'
+                      ? handleCreateOrganization
+                      : handleJoinOrganization
+                  }
+                  disabled={loading}
+                >
+                  {loading
+                    ? 'Processing...'
+                    : activeTab === 'create'
+                      ? 'Create Organization'
+                      : 'Join Organization'}
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>

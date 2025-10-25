@@ -27,7 +27,7 @@ https://yourdomain.com/api/billing/webhook
 
 **Description**: 
 ```
-Subscription & billing events for EOS Chat AI
+Subscription & billing events for EOSAI
 ```
 
 ---
@@ -352,6 +352,16 @@ All webhook handlers are implemented and tested. Just need to configure in Strip
 ---
 
 **Next**: Copy webhook secret → Add to env → Test with Stripe CLI → Deploy
+
+
+
+
+
+
+
+
+
+
 
 
 

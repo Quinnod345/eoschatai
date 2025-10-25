@@ -35,7 +35,7 @@ async function testRedisConnection() {
     console.log('✅ Successfully connected to Redis!');
 
     // Test simple operation
-    await client.set('test-key', 'Hello from EOS Chat AI!');
+    await client.set('test-key', 'Hello from EOSAI!');
     const value = await client.get('test-key');
     console.log(`✅ Test operation successful. Value: ${value}`);
 

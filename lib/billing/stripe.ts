@@ -458,6 +458,53 @@ const clearProSubscription = async (
 const processPaymentFailed = async (event: Stripe.Event) => {
   const invoice = event.data.object as any; // Stripe.Invoice with expanded fields
 
+  // Start grace period on first failure
+  if (invoice.attempt_count && invoice.attempt_count === 1) {
+    console.log(
+      `[stripe] Payment failed for invoice ${invoice.id}, attempt 1/4. Starting grace period.`,
+    );
+
+    const invoiceSub = invoice.subscription as
+      | string
+      | Stripe.Subscription
+      | null;
+    if (invoiceSub) {
+      const subscriptionId =
+        typeof invoiceSub === 'string' ? invoiceSub : invoiceSub.id;
+
+      try {
+        const stripe = getStripeClient();
+        if (!stripe) return;
+
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
+        const context = deriveSubscriptionContext(subscription);
+
+        // Start grace period
+        const { startGracePeriod } = await import('./grace-period');
+
+        if (context.orgId) {
+          await startGracePeriod(
+            context.orgId,
+            'org',
+            'payment_failed',
+            subscriptionId,
+          );
+        } else if (context.userId) {
+          await startGracePeriod(
+            context.userId,
+            'user',
+            'payment_failed',
+            subscriptionId,
+          );
+        }
+      } catch (error) {
+        console.error('[stripe] Failed to start grace period:', error);
+      }
+    }
+    return;
+  }
+
   // Only downgrade after final failure (Stripe typically retries 3-4 times)
   // Don't downgrade on first failure to avoid false positives
   if (invoice.attempt_count && invoice.attempt_count < 4) {
@@ -491,6 +538,14 @@ const processPaymentFailed = async (event: Stripe.Event) => {
         await clearBusinessSubscription(context);
       } else {
         await clearProSubscription(context, subscription);
+      }
+
+      // End grace period (if any)
+      const { endGracePeriod } = await import('./grace-period');
+      if (context.orgId) {
+        await endGracePeriod(context.orgId, 'org');
+      } else if (context.userId) {
+        await endGracePeriod(context.userId, 'user');
       }
     } catch (error) {
       console.error('[stripe] Failed to process payment failure:', error);
@@ -821,7 +876,6 @@ export const handleStripeWebhook = async (event: Stripe.Event) => {
         `[stripe] Trial ending soon for subscription ${subscription.id}. User should add payment method.`,
       );
 
-      // TODO: Send notification to user
       // Get user/org from subscription metadata
       const userId = subscription.metadata?.user_id;
       const orgId = subscription.metadata?.org_id;
@@ -830,15 +884,30 @@ export const handleStripeWebhook = async (event: Stripe.Event) => {
         console.log(
           `[stripe] Notifying user ${userId} that trial ends in 3 days`,
         );
-        // TODO: Send email via Resend
-        // TODO: Create in-app notification
+
+        // Send notification
+        const { notifyTrialEnding } = await import('./notifications');
+        const hasPaymentMethod = subscription.default_payment_method !== null;
+        await notifyTrialEnding(userId, 3, hasPaymentMethod);
       }
 
       if (orgId) {
         console.log(
           `[stripe] Notifying org ${orgId} owner that trial ends in 3 days`,
         );
-        // TODO: Notify org owner
+
+        // Get org owner and notify
+        const schema = await import('@/lib/db/schema');
+        const [org] = await db
+          .select({ ownerId: schema.org.ownerId })
+          .from(schema.org)
+          .where(eq(schema.org.id, orgId));
+
+        if (org?.ownerId) {
+          const { notifyTrialEnding } = await import('./notifications');
+          const hasPaymentMethod = subscription.default_payment_method !== null;
+          await notifyTrialEnding(org.ownerId, 3, hasPaymentMethod);
+        }
       }
 
       break;

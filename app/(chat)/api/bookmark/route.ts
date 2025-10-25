@@ -15,6 +15,25 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Check entitlements for chat bookmarking
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.message_features.bookmark) {
+      return new Response(
+        JSON.stringify({
+          error: 'Chat bookmarking is a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'message_features.bookmark',
+        }),
+        {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
     const body = await request.json();
     const { chatId, note } = body;
 

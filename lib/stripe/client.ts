@@ -20,7 +20,7 @@ export const getStripeClient = (): Stripe | null => {
   stripeClient = new Stripe(secretKey, {
     apiVersion: '2025-08-27.basil',
     appInfo: {
-      name: 'EOS Chat AI',
+      name: 'EOSAI',
       version: '1.0.0',
     },
   });

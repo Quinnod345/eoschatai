@@ -108,7 +108,9 @@ function PureComposer({
 
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
-  const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
+  // Initialize to a large number so it defaults to latest when documents load
+  // This will be corrected to actual latest (documents.length - 1) in useEffect
+  const [currentVersionIndex, setCurrentVersionIndex] = useState(9999);
   // Track the latest content we intentionally saved to avoid stale overwrites
   const lastLocallySavedContentRef = useRef<string | null>(null);
   // Track when a streaming session is active to avoid remote clobbering
@@ -169,7 +171,21 @@ function PureComposer({
           mostRecentDocument.createdAt,
         ).getTime();
         setDocument(mostRecentDocument);
-        setCurrentVersionIndex(documents.length - 1);
+
+        // CRITICAL FIX: Always default to latest version (documents.length - 1), not first (0)
+        // Set version index on initial load (when it's 9999 or -1)
+        if (
+          currentVersionIndex === 9999 ||
+          currentVersionIndex === -1 ||
+          currentVersionIndex >= documents.length
+        ) {
+          console.log(
+            '[Composer] Setting version index to latest:',
+            documents.length - 1,
+          );
+          setCurrentVersionIndex(documents.length - 1);
+        }
+
         setComposer((currentComposer) => {
           if (!isMountedRef.current) return currentComposer;
           // Avoid clobbering in-flight or freshly streamed content with an empty/older fetch
@@ -177,6 +193,11 @@ function PureComposer({
           const localContent = currentComposer.content ?? '';
           const isStreaming =
             currentComposer.status === 'streaming' || isStreamingRef.current;
+
+          // CRITICAL FIX: On initial load (localContent is empty), ALWAYS load remote content
+          // This fixes the "blank document after reload" bug
+          const isInitialLoad =
+            !localContent || localContent.trim().length === 0;
 
           // Heuristic: only adopt remote content if it's newer/different and we are not streaming
           // and we didn't just save this exact content locally.
@@ -187,19 +208,37 @@ function PureComposer({
           const shouldOverrideContent =
             !isStreaming &&
             remoteContent !== undefined &&
-            remoteContent !== localContent &&
-            !isSameAsLastSaved &&
-            remoteCreatedAt > (lastRemoteAppliedAtRef.current || 0) &&
+            (isInitialLoad || // ✅ Always load on initial open
+              (remoteContent !== localContent &&
+                !isSameAsLastSaved &&
+                remoteCreatedAt > (lastRemoteAppliedAtRef.current || 0))) &&
             // For VTO, only override if the fetched content is valid VTO
             (currentComposer.kind !== 'vto' ||
               !remoteContent ||
               isValidVtoContent(remoteContent));
 
           if (shouldOverrideContent) {
+            console.log('[Composer] Loading remote content:', {
+              documentId: mostRecentDocument.id,
+              contentLength: remoteContent.length,
+              isInitialLoad,
+              currentVersionIndex,
+              documentsLength: documents?.length || 0,
+            });
             // Record last applied remote version timestamp to prevent older clobbers
             lastRemoteAppliedAtRef.current = remoteCreatedAt;
             return { ...currentComposer, content: remoteContent };
           }
+
+          console.log('[Composer] Not overriding content - check logs:', {
+            isStreaming,
+            remoteContentDefined: remoteContent !== undefined,
+            isInitialLoad,
+            isSameAsLastSaved,
+            localContentLength: localContent.length,
+            remoteContentLength: remoteContent.length,
+            currentVersionIndex,
+          });
 
           return currentComposer;
         });
@@ -283,12 +322,30 @@ function PureComposer({
     async (updatedContent: string) => {
       if (!composer || !composer.documentId) return;
 
+      // CRITICAL: Don't save while content is still streaming from server
+      // This prevents overwriting server-saved content with partial client state
+      if (composer.status === 'streaming') {
+        console.log(
+          '[Composer] Skipping save during streaming to prevent race condition',
+        );
+        return;
+      }
+
       // Never persist invalid/empty VTO content
       if (
         composer.kind === 'vto' &&
         (!isValidVtoContent(updatedContent) ||
           updatedContent.trim().length === 0)
       ) {
+        return;
+      }
+
+      // Don't save empty content for text documents (likely a race condition)
+      if (
+        composer.kind === 'text' &&
+        (!updatedContent || updatedContent.trim().length === 0)
+      ) {
+        console.log('[Composer] Skipping save of empty text content');
         return;
       }
 
@@ -393,6 +450,10 @@ function PureComposer({
 
   function getDocumentContentById(index: number) {
     if (!documents) return '';
+    // If index is invalid (initial state or out of range), return latest document content
+    if (index === -1 || index === 9999 || index >= documents.length) {
+      return documents[documents.length - 1]?.content ?? '';
+    }
     if (!documents[index]) return '';
     return documents[index].content ?? '';
   }
@@ -403,6 +464,21 @@ function PureComposer({
     if (type === 'latest') {
       setCurrentVersionIndex(documents.length - 1);
       setMode('edit');
+
+      // CRITICAL FIX: Force load the latest content when clicking "latest"
+      const latestDoc = documents[documents.length - 1];
+      if (latestDoc?.content) {
+        console.log('[Composer] Forcing load of latest version content:', {
+          contentLength: latestDoc.content.length,
+          documentId: latestDoc.id,
+        });
+        setComposer((current) => ({
+          ...current,
+          content: latestDoc.content ?? '',
+        }));
+        // Clear the saved content ref so it doesn't block future loads
+        lastLocallySavedContentRef.current = null;
+      }
     }
 
     if (type === 'toggle') {
@@ -430,7 +506,10 @@ function PureComposer({
 
   const isCurrentVersion =
     documents && documents.length > 0
-      ? currentVersionIndex === documents.length - 1
+      ? currentVersionIndex === documents.length - 1 ||
+        currentVersionIndex === -1 ||
+        currentVersionIndex === 9999 ||
+        currentVersionIndex >= documents.length // ✅ Treat special values as "latest"
       : true;
 
   const { width: windowWidth, height: windowHeight } = useWindowSize();
@@ -446,6 +525,15 @@ function PureComposer({
 
   useEffect(() => {
     if (composer.documentId !== 'init') {
+      // CRITICAL FIX: Reset refs when opening a new document
+      // This prevents stale "lastLocallySavedContentRef" from blocking content load
+      console.log('[Composer] Document ID changed, resetting refs:', {
+        newDocumentId: composer.documentId,
+        clearingLastSavedRef: lastLocallySavedContentRef.current !== null,
+      });
+      lastLocallySavedContentRef.current = null;
+      lastRemoteAppliedAtRef.current = 0;
+
       if (composerDefinition.initialize) {
         composerDefinition.initialize({
           documentId: composer.documentId,
@@ -716,7 +804,10 @@ function PureComposer({
                 title={composer.title}
                 content={
                   isCurrentVersion
-                    ? composer.content
+                    ? composer.content ||
+                      (documents && documents.length > 0
+                        ? (documents[documents.length - 1]?.content ?? '')
+                        : '')
                     : getDocumentContentById(currentVersionIndex)
                 }
                 mode={mode}

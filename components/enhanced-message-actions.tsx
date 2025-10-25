@@ -35,7 +35,7 @@ export function MessageActions({
     if (navigator.share) {
       navigator
         .share({
-          title: 'EOS Chat AI Message',
+          title: 'EOSAI Message',
           text: content,
         })
         .catch(() => {

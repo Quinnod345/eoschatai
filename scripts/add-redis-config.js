@@ -2,7 +2,7 @@
 
 /**
  * Helper script to add Redis configuration to your .env.local file
- * This is used to enable resumable streams in EOS Chat AI
+ * This is used to enable resumable streams in EOSAI
  */
 
 const fs = require('node:fs');
@@ -27,9 +27,7 @@ const rl = readline.createInterface({
 // Print header
 console.log('='.repeat(80));
 console.log(
-  ' EOS Chat AI - Redis Configuration Helper '
-    .padStart(50, '=')
-    .padEnd(80, '='),
+  ' EOSAI - Redis Configuration Helper '.padStart(50, '=').padEnd(80, '='),
 );
 console.log('='.repeat(80));
 console.log(
@@ -42,7 +40,7 @@ console.log(
 // Check if .env.local exists
 if (!fs.existsSync(ENV_FILE)) {
   console.log('⚠️  .env.local file not found. Creating a new one...');
-  fs.writeFileSync(ENV_FILE, '# EOS Chat AI environment variables\n', 'utf8');
+  fs.writeFileSync(ENV_FILE, '# EOSAI environment variables\n', 'utf8');
   console.log('✅ Created .env.local file');
 }
 

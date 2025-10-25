@@ -207,6 +207,11 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     }, [useFallback]);
 
     const supportsSVGFilters = () => {
+      // Check if we're in a browser environment
+      if (typeof navigator === 'undefined') {
+        return true; // Assume support on server, will be checked on client
+      }
+
       const isWebkit =
         /Safari/.test(navigator.userAgent) &&
         !/Chrome/.test(navigator.userAgent);

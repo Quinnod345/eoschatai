@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Search, TrendingUp, Globe, FileSearch, Sparkles } from 'lucide-react';
-import { UpgradePrompt } from '@/components/upgrade-prompt';
+import { PremiumFeaturesModal } from '@/components/premium-features-modal';
 import { motion } from 'framer-motion';
 
 interface DeepResearchModalProps {
@@ -19,6 +20,7 @@ interface DeepResearchModalProps {
 }
 
 export function DeepResearchModal({ open, onClose }: DeepResearchModalProps) {
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const features = [
     {
       icon: <Search className="w-5 h-5" />,
@@ -55,90 +57,95 @@ export function DeepResearchModal({ open, onClose }: DeepResearchModalProps) {
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
-              <Globe className="w-5 h-5 text-blue-600" />
-            </div>
-            <span>Nexus Deep Research</span>
-            <Sparkles className="w-5 h-5 text-yellow-500" />
-          </DialogTitle>
-          <DialogDescription className="text-base mt-2">
-            Advanced AI-powered research for leadership teams making strategic
-            decisions
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+                <Globe className="w-5 h-5 text-blue-600" />
+              </div>
+              <span>Nexus Deep Research</span>
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+            </DialogTitle>
+            <DialogDescription className="text-base mt-2">
+              Advanced AI-powered research for leadership teams making strategic
+              decisions
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Feature List */}
-          <div className="space-y-4">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex gap-3"
-              >
-                <div className="p-2 rounded-lg bg-muted h-fit">
-                  {feature.icon}
-                </div>
-                <div>
-                  <h4 className="font-semibold">{feature.title}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {feature.description}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Use Cases */}
-          <div>
-            <h4 className="font-semibold mb-3">Perfect for:</h4>
-            <ul className="space-y-2">
-              {useCases.map((useCase, index) => (
-                <motion.li
-                  key={useCase}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 + index * 0.05 }}
-                  className="flex items-start gap-2 text-sm"
+          <div className="space-y-6 py-4">
+            {/* Feature List */}
+            <div className="space-y-4">
+              {features.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="flex gap-3"
                 >
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
-                  <span>{useCase}</span>
-                </motion.li>
+                  <div className="p-2 rounded-lg bg-muted h-fit">
+                    {feature.icon}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold">{feature.title}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {feature.description}
+                    </p>
+                  </div>
+                </motion.div>
               ))}
-            </ul>
-          </div>
+            </div>
 
-          {/* CTA */}
-          <div className="rounded-lg border bg-muted/30 p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-3">
-              Deep Research is available with EOS Chat AI Business
-            </p>
-            <UpgradePrompt
-              feature="premium"
-              placement="deep-research:modal"
-              cta="View Premium Plans"
-            >
-              <Button className="w-full">
+            {/* Use Cases */}
+            <div>
+              <h4 className="font-semibold mb-3">Perfect for:</h4>
+              <ul className="space-y-2">
+                {useCases.map((useCase, index) => (
+                  <motion.li
+                    key={useCase}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + index * 0.05 }}
+                    className="flex items-start gap-2 text-sm"
+                  >
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                    <span>{useCase}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </div>
+
+            {/* CTA */}
+            <div className="rounded-lg border bg-muted/30 p-4 text-center">
+              <p className="text-sm text-muted-foreground mb-3">
+                Deep Research is available with EOSAI Business
+              </p>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setShowPremiumModal(true);
+                }}
+              >
                 <Sparkles className="w-4 h-4 mr-2" />
                 Unlock Deep Research
               </Button>
-            </UpgradePrompt>
+            </div>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <PremiumFeaturesModal
+        open={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+      />
+    </>
   );
 }
-

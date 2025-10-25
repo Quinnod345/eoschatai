@@ -27,8 +27,18 @@ export function CitationButton({
 }: CitationButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const handleClick = () => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Ensure URL is properly formatted
+    let targetUrl = url.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    console.log('[CitationButton] Opening URL:', targetUrl);
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   };
 
   if (inline) {
@@ -59,7 +69,18 @@ export function CitationButton({
           <TooltipContent side="top" className="max-w-sm">
             <div className="space-y-1">
               <p className="font-medium text-sm">{title}</p>
-              <p className="text-xs text-muted-foreground truncate">{url}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {(() => {
+                  try {
+                    const formattedUrl = url.startsWith('http')
+                      ? url
+                      : 'https://' + url;
+                    return new URL(formattedUrl).hostname;
+                  } catch {
+                    return url;
+                  }
+                })()}
+              </p>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -107,7 +128,16 @@ export function CitationButton({
             <div className="flex items-center gap-1 mt-1">
               <Globe className="h-3 w-3 text-muted-foreground" />
               <p className="text-xs text-muted-foreground truncate">
-                {new URL(url).hostname}
+                {(() => {
+                  try {
+                    const formattedUrl = url.startsWith('http')
+                      ? url
+                      : 'https://' + url;
+                    return new URL(formattedUrl).hostname;
+                  } catch {
+                    return url;
+                  }
+                })()}
               </p>
             </div>
           </div>

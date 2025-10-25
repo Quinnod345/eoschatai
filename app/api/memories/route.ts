@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { and, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { userMemory } from '@/lib/db/schema';
 
 export async function GET(request: Request) {
@@ -56,6 +56,57 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    // Check entitlements for memory feature
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.memory.enabled) {
+      return NextResponse.json(
+        {
+          error: 'Long-term memory is a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'memory',
+        },
+        { status: 403 },
+      );
+    }
+
+    // Check memory count limit - use COUNT query for efficiency
+    let currentMemoryCount = 0;
+    try {
+      const result = await db
+        .select({ count: count() })
+        .from(userMemory)
+        .where(eq(userMemory.userId, session.user.id));
+
+      currentMemoryCount = result[0]?.count || 0;
+    } catch (countError) {
+      console.error('Failed to count user memories:', countError);
+      return NextResponse.json(
+        {
+          error: 'Failed to check memory limit',
+          code: 'DATABASE_ERROR',
+        },
+        { status: 500 },
+      );
+    }
+
+    const maxMemories = accessContext.entitlements.features.memory.max_memories;
+    if (maxMemories !== -1 && currentMemoryCount >= maxMemories) {
+      return NextResponse.json(
+        {
+          error: `You've reached your memory limit (${maxMemories} memories)`,
+          code: 'LIMIT_REACHED',
+          limit: maxMemories,
+          current: currentMemoryCount,
+          requiredPlan: 'business',
+          feature: 'memory.unlimited',
+        },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const {
       summary,
@@ -91,6 +142,10 @@ export async function POST(request: Request) {
         updatedAt: now,
       })
       .returning();
+
+    // Update usage counter for memories
+    const { incrementUsageCounter } = await import('@/lib/entitlements');
+    await incrementUsageCounter(session.user.id, 'memories_stored', 1);
 
     return NextResponse.json({ memory: row });
   } catch (error) {

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
@@ -6,6 +6,7 @@ import { userDocuments } from '@/lib/db/schema';
 import { document } from '@/lib/db/schema';
 import type { ComposerKind } from '@/components/composer';
 import { eq, and, desc, sql } from 'drizzle-orm';
+import { withErrorHandler } from '@/lib/errors/api-wrapper';
 
 // Define the valid document categories
 type DocumentCategory =
@@ -24,7 +25,7 @@ const validCategories: DocumentCategory[] = [
   'Other',
 ];
 
-export async function GET(request: Request) {
+export const GET = withErrorHandler(async (request: NextRequest) => {
   const session = await auth();
 
   if (!session?.user) {
@@ -126,6 +127,25 @@ export async function GET(request: Request) {
         );
       }
 
+      // Check entitlements to see which composer types the user can access
+      const { getAccessContext } = await import('@/lib/entitlements');
+      const accessContext = await getAccessContext(session.user.id);
+      const allowedTypes = accessContext.entitlements.features.composer.types;
+
+      // If user is requesting an advanced type they don't have access to, return feature locked error
+      if (!allowedTypes.includes(kind)) {
+        return NextResponse.json(
+          {
+            error: `${kind} composer is a ${kind === 'text' ? 'Free' : 'Pro'} feature`,
+            code: 'FEATURE_LOCKED',
+            requiredPlan: kind === 'text' ? undefined : 'pro',
+            feature: 'composer.advanced',
+            allowedTypes,
+          },
+          { status: 403 },
+        );
+      }
+
       const docs = await db
         .select()
         .from(document)
@@ -156,9 +176,6 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.error('Error fetching documents:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch documents' },
-      { status: 500 },
-    );
+    throw error; // Let the error handler wrapper handle it
   }
-}
+});

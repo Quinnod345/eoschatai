@@ -1,24 +1,16 @@
 'use client';
 
 import { AccountProvider } from '@/components/account-provider';
-import { SimpleUpgradeModal } from '@/components/simple-upgrade-modal';
+import { PremiumFeaturesModal } from '@/components/premium-features-modal';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
-import type { UpgradeFeature } from '@/types/upgrade';
 
 function ModalWrapper({ children }: { children: React.ReactNode }) {
-  const { open, feature, onAutoRetry, closeModal } = useUpgradeStore();
+  const { open, closeModal } = useUpgradeStore();
 
   return (
     <>
       {children}
-      {feature && (
-        <SimpleUpgradeModal
-          feature={feature as UpgradeFeature}
-          open={open}
-          onClose={closeModal}
-          onAutoRetry={onAutoRetry ?? undefined}
-        />
-      )}
+      <PremiumFeaturesModal open={open} onClose={closeModal} />
     </>
   );
 }

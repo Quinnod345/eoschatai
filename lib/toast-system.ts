@@ -85,4 +85,79 @@ export const toastUtils = {
   copyError: () => toast.error('Failed to copy to clipboard'),
 };
 
+/**
+ * Smart error toast that adapts based on error type
+ * This integrates with the intelligent error handling system
+ */
+export async function smartError(
+  error: unknown,
+  options?: {
+    context?: string;
+    onRetry?: () => Promise<void> | void;
+    customMessage?: string;
+  },
+): Promise<void> {
+  // Dynamically import the error handler to avoid circular dependencies
+  const { handleError } = await import('./errors/handler');
+
+  await handleError(error, {
+    context: options?.context,
+    showToast: true,
+    allowRetry: !!options?.onRetry,
+    onRetry: options?.onRetry,
+    customMessage: options?.customMessage,
+  });
+}
+
+/**
+ * Show a retryable error with a retry button
+ */
+export function retryableError(
+  message: string,
+  onRetry: () => Promise<void> | void,
+  options?: ToastOptions,
+): void {
+  toast.error(message, {
+    ...options,
+    action: {
+      label: 'Retry',
+      onClick: async () => {
+        try {
+          await onRetry();
+        } catch (error) {
+          smartError(error, { context: 'Retry operation' });
+        }
+      },
+    },
+  });
+}
+
+/**
+ * Show an error with a custom action
+ */
+export function errorWithAction(
+  message: string,
+  actionLabel: string,
+  onAction: () => void,
+  options?: ToastOptions,
+): void {
+  toast.error(message, {
+    ...options,
+    action: {
+      label: actionLabel,
+      onClick: onAction,
+    },
+  });
+}
+
+/**
+ * Extended toast with smart error support
+ */
+export const toastWithSmart = {
+  ...toast,
+  smartError,
+  retryableError,
+  errorWithAction,
+};
+
 export default toast;

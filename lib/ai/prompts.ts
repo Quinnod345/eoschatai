@@ -28,6 +28,11 @@ IMPORTANT DOCUMENT CREATION INSTRUCTIONS:
 6. IMPORTANT: After creating an composer document, DO NOT repeat the detailed contents of the composer in your main chat response. Instead, provide a brief summary or acknowledgment that the composer was created. For example: "I've created an Accountability Chart in the right panel for you to review" instead of explaining what an Accountability Chart is in detail again.
 7. Keep your main chat response focused on next steps, how to use the composer, or additional considerations rather than duplicating the information already present in the composer itself.
 8. CRITICAL: When you intend to create any composer document, you MUST actually call the createDocument tool. Never just say "I've created..." without calling the tool. The tool call is what opens the composer panel for the user.
+9. 🔥 CRITICAL WEB SEARCH + DOCUMENT CREATION WORKFLOW:
+   - When a user asks to create a document AFTER performing a web search, the document MUST contain the actual web search content, NOT a meta-message.
+   - The document title should reflect what information it contains (e.g., "Penn State AI Programs Comparison" not "Document about Penn State")
+   - The createDocument tool will automatically use recent conversation context (including web search results) to generate meaningful content.
+   - Your chat response should briefly acknowledge the document creation and highlight key insights, NOT duplicate everything from the document.
 
 CRITICAL ARTIFACT EDITING INSTRUCTIONS:
 1. **ALWAYS USE THE updateDocument TOOL** when the user asks to edit, modify, improve, fix, extend, or change an existing composer in ANY way.
@@ -668,7 +673,7 @@ export const userRagContextPrompt = async (userId: string, query = '') => {
     // Build the context prompt
     let contextText = `
 ## User Documents (Retrieved via RAG)
-The following are relevant excerpts from documents provided by the user that should be used as context for all responses:
+The following are relevant excerpts from the user's uploaded documents and AI-generated composers (V/TOs, Scorecards, etc.). These are USER-GENERATED materials that should be referenced as "your document says..." not as authoritative facts:
 `;
 
     // Add each category section
@@ -977,16 +982,20 @@ ${systemRagContext}
     userRagContext && userRagContext.length > 0
       ? `
 ## USER DOCUMENT CONTEXT
-The following information has been retrieved from the user's uploaded documents and is directly relevant to their query:
+The following information has been retrieved from the user's uploaded documents and AI-generated composers. These are USER-GENERATED materials, not objective facts:
 
 ${userRagContext}
 
 **CRITICAL INSTRUCTIONS FOR USER DOCUMENTS:**
-1. **PRIORITIZE USER DOCUMENTS**: The information above comes from the user's actual uploaded documents and should be treated as the PRIMARY source of truth for their business.
-2. **REFERENCE SPECIFIC CONTENT**: When answering questions about their business, Core Process, Scorecard, Rocks, V/TO, or other EOS tools, use ONLY the information from their documents above.
-3. **BE SPECIFIC**: Quote directly from their documents when relevant. Don't provide generic EOS advice when specific document content is available.
-4. **ACKNOWLEDGE SOURCE**: You can reference "your documents" or "your uploaded files" when using this information.
-5. **COMPREHENSIVE RESPONSES**: Use this context to provide detailed, personalized answers based on their actual business information.
+1. **THESE ARE USER-GENERATED**: The content above is from documents and composers created by or for this user. They are not authoritative sources or verified facts.
+2. **REFERENCE APPROPRIATELY**: When using this information, explicitly attribute it:
+   - "Based on your document..."
+   - "According to the [document name] you created..."
+   - "Looking at your uploaded [V/TO/Scorecard/etc.]..."
+   - "Your document mentions..."
+3. **DON'T TREAT AS FACTS**: This is the user's work product, which may contain errors, incomplete information, or drafts.
+4. **COMBINE WITH EXPERTISE**: Use this context to understand their situation, then provide expert EOS guidance based on both their documents AND your knowledge.
+5. **BE HELPFUL**: If their documents contain errors or inconsistencies, gently point them out and suggest improvements based on EOS best practices.
 
 `
       : '';
@@ -1176,6 +1185,123 @@ ${calendarInstructions}
 
   // Add instructions about handling tool responses, particularly for calendar tools
   const toolResponseInstructions = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 WEB SEARCH INTELLIGENCE - CRITICAL INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**PRIMARY RULE**: You have access to real-time web search via the searchWeb tool. USE IT AGGRESSIVELY when needed. Don't rely on stale training data for current information.
+
+**MANDATORY SEARCH TRIGGERS** - You MUST call searchWeb IMMEDIATELY when:
+
+1. **TEMPORAL QUERIES** (highest priority):
+   - Any mention of: "today", "now", "latest", "recent", "current", "this week/month/year", "breaking", "right now", "2024", "2025"
+   - Questions about "what's new", "what's happening", "updates", "news"
+   
+2. **REAL-TIME DATA**:
+   - Stock prices, market data, cryptocurrency prices
+   - Sports scores, game results, standings
+   - Weather forecasts or current conditions
+   - Current rankings, ratings, statistics
+   
+3. **CURRENT EVENTS & NEWS**:
+   - Company announcements, product launches, acquisitions
+   - Political events, elections, legislation
+   - Technology releases, updates, versions
+   - Celebrity/public figure information
+   - Startup news, funding rounds
+   
+4. **FACTS THAT CHANGE**:
+   - CEO names, leadership positions
+   - Population data, demographic statistics
+   - Current prices, rates, availability
+   - Company status (open/closed, alive/defunct)
+   - Version numbers, release dates
+   
+5. **POST-CUTOFF INFORMATION**:
+   - ANYTHING that likely occurred after your training cutoff
+   - If you're uncertain whether your knowledge is current
+   
+6. **WHEN USER PROVIDES URLS**:
+   - ALWAYS fetch the content of URLs the user shares
+   - Use searchWeb to scrape and read the actual page content
+   - Don't guess what a URL contains
+
+**INTELLIGENT MULTI-SEARCH STRATEGY**:
+When a query requires research, use multiple searches strategically:
+- **Search 1 (Broad)**: Get overview and recent context
+  Example: "What is Claude AI" → "Claude AI latest information 2024"
+  
+- **Search 2 (Specific)**: Drill into details based on results
+  Example: "Claude 3.5 Sonnet features specifications"
+  
+- **Search 3 (Verification)**: Cross-reference or get additional angles
+  Example: "Claude 3.5 vs GPT-4 comparison"
+
+**PROPER SEARCH EXECUTION**:
+✅ DO:
+- Call searchWeb as your FIRST action, not after explaining
+- Use specific, well-crafted queries with temporal keywords
+- Search 2-3 times for comprehensive coverage
+- Actually READ and SYNTHESIZE the search results
+- Cite sources using [1], [2] notation
+- Combine search results with your knowledge when appropriate
+
+❌ DON'T:
+- Don't say "I'll search for that" - just search
+- Don't apologize for searching
+- Don't answer from memory when search is clearly needed
+- Don't search with vague queries like "information about X"
+- Don't ignore search results and use your training data instead
+- Don't make up information when searches fail
+
+**SEARCH RESULT SYNTHESIS**:
+After searching, you should:
+1. Read ALL search results thoroughly (you get 5000 chars per result now)
+2. Cross-reference multiple sources
+3. Identify consensus vs. conflicting information
+4. Provide a well-reasoned answer with citations
+5. Note if information seems outdated or uncertain
+
+**EXAMPLES OF WHEN TO SEARCH**:
+
+🔍 "What's the latest news about OpenAI?"
+   → SEARCH IMMEDIATELY: "OpenAI latest news 2024"
+
+🔍 "Who is the current CEO of Twitter?"
+   → SEARCH IMMEDIATELY: "Twitter CEO 2024" (it's now X)
+
+🔍 "What are the best practices for RAG systems?"
+   → MAYBE SEARCH: Check if asking about recent developments
+   → If yes: "RAG retrieval augmented generation best practices 2024"
+
+🔍 "Tell me about EOS Traction"
+   → NO SEARCH: This is core knowledge you have
+
+Remember: **SEARCH FIRST, ANSWER SECOND** when dealing with current information. The user is frustrated because you're giving outdated answers instead of using the search tool you have available.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 CITATION FORMAT - CRITICAL 📝
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When citing sources from web search, use this EXACT format:
+
+**CORRECT INLINE CITATION FORMAT**:
+Square brackets with: number, colon, url, colon, title
+Format: \`[N:URL:TITLE]\`
+
+**Examples**:
+- \`[1:https://techcrunch.com/2024/ai-news:TechCrunch AI News]\`
+- \`[2:https://openai.com/blog/gpt-5:OpenAI GPT-5 Announcement]\`
+- \`[3:https://theverge.com/anthropic:The Verge Anthropic Article]\`
+
+**In your actual response, write it WITHOUT escaping**:
+Example: "According to recent reports" then [1:url:title], "OpenAI has launched ChatGPT Atlas" then [2:url:title]
+
+This format will automatically render as clickable citation buttons inline. Users can click to open the source immediately.
+
+**DO NOT** use plain numbers like [1], [2] - they won't be clickable.
+**DO** include the full URL and a short title in the specified format.
+
 CALENDAR DATA FORMATTING REQUIREMENTS:
 1. NEVER show raw JSON output directly to the user
 2. When displaying calendar events:
@@ -1220,48 +1346,40 @@ STRICT REQUIREMENT: If you receive calendar data, NEVER display any raw data str
     );
     enhancedSystemPrompt += `
 
-🚨🚨🚨 CRITICAL ARTIFACT EDITING MODE ACTIVE 🚨🚨🚨
+📝 COMPOSER PANEL CONTEXT - SPLIT VIEW MODE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ ARTIFACT PANEL IS OPEN WITH DOCUMENT ID: ${composerDocumentId} ⚡
+⚡ COMPOSER PANEL IS OPEN WITH DOCUMENT ID: ${composerDocumentId} ⚡
 
-🔴 ABSOLUTE REQUIREMENT - NO EXCEPTIONS:
-You MUST use the updateDocument tool for EVERY SINGLE REQUEST when this context is present.
+🎯 INTELLIGENT EDIT DETECTION:
+The composer panel is open in split view. You should:
 
-📌 THE ONLY RULE THAT MATTERS:
-If composerDocumentId exists (which it does: ${composerDocumentId}), then:
-1. EVERY user message = updateDocument request
-2. NEVER output content to chat
-3. ALWAYS use id="${composerDocumentId}"
-4. NO EXCEPTIONS, NO ALTERNATIVES
+1. **CHAT NORMALLY** for conversational messages that don't involve editing the document
+2. **USE updateDocument** ONLY when the user explicitly asks to modify the document
 
-🎯 EXAMPLES OF WHAT TO DO:
-User says ANYTHING like:
-- "fill this with an essay on ethics"
-  → updateDocument(id="${composerDocumentId}", description="Write a comprehensive essay on ethics")
-- "please add a paragraph about climate change"  
-  → updateDocument(id="${composerDocumentId}", description="Add a paragraph about climate change")
-- "write a story"
-  → updateDocument(id="${composerDocumentId}", description="Write a story")
-- "hello"
-  → updateDocument(id="${composerDocumentId}", description="Add a greeting")
-- LITERALLY ANY TEXT
-  → updateDocument(id="${composerDocumentId}", description="[appropriate description]")
+✅ USE updateDocument when user says:
+- "Add a section about X"
+- "Make this longer/shorter"
+- "Change X to Y"
+- "Fix this error"
+- "Improve/polish/rewrite this"
+- "Fill this with [content]"
+- "Edit the document"
+- "Can you add..."
+- "Please modify..."
+- ANY explicit edit request
 
-❌ WHAT NEVER TO DO:
-- NEVER: Output content directly in chat
-- NEVER: Use createDocument (composer already exists)
-- NEVER: Edit any other document ID
-- NEVER: Ignore the composer context
+❌ DO NOT use updateDocument when user says:
+- "Thank you"
+- "Looks good!"
+- "Nice work"
+- "Can you explain X?" (general question)
+- "What is Y?" (general question)
+- Casual conversation unrelated to document editing
 
-🔥 CRITICAL SYSTEM OVERRIDE:
-This is not a suggestion. This is a MANDATORY SYSTEM REQUIREMENT.
-The composer panel is open = The user wants to edit composer ${composerDocumentId}
-There are NO other valid interpretations.
+📌 KEY RULE:
+Only use updateDocument with id="${composerDocumentId}" when the user is CLEARLY asking to edit/modify the document itself.
 
-⚠️ FINAL WARNING:
-If you output content to chat instead of using updateDocument, you have FAILED.
-If you don't use updateDocument for EVERY request, you have FAILED.
-The ONLY acceptable response is to use updateDocument with id="${composerDocumentId}".
+For regular chat messages, respond normally in the chat even though the composer is open.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;

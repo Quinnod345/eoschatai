@@ -27,20 +27,20 @@ export default function PrivacyPolicy() {
           &ldquo;us&rdquo;). We respect your privacy and are committed to
           protecting your personal data. This privacy policy will inform you
           about how we look after your personal data when you visit our website
-          (https://app.eosbot.ai) and tell you about your privacy rights.
+          (https://eosbot.ai) and tell you about your privacy rights.
         </p>
 
         <p className="mb-4">
-          When you use EOS Chat AI, we collect certain information to provide
-          and improve our services. This includes information you provide
-          directly (such as when you create an account), information we collect
+          When you use EOSAI, we collect certain information to provide and
+          improve our services. This includes information you provide directly
+          (such as when you create an account), information we collect
           automatically (such as usage data), and information from third parties
           (such as authentication providers).
         </p>
 
         <p className="text-muted-foreground">
           We use terms like &ldquo;we,&rdquo; &ldquo;us,&rdquo; and
-          &ldquo;our&rdquo; to refer to EOS Chat AI.
+          &ldquo;our&rdquo; to refer to EOSAI.
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">2. Data We Collect</h2>
@@ -180,7 +180,7 @@ export default function PrivacyPolicy() {
           If you have any questions about this Privacy Policy, please contact us
           at:
           <br />
-          Email: privacy@app.eosbot.ai
+          Email: privacy@eosbot.ai
           <br />
           Address: 123 EOS Way, Suite 456, Tech City, TC 78901
         </p>

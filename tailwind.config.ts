@@ -7,6 +7,13 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  blocklist: [
+    // Prevent citation patterns from being parsed as Tailwind classes
+    /^\[(?:CITE:)?\d+:/,
+    /^\[n:/,
+    /^\[number:/,
+    /url\(/,
+  ],
   theme: {
     extend: {
       fontFamily: {

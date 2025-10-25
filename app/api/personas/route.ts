@@ -117,6 +117,51 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Check entitlements for custom persona creation
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.personas.custom) {
+      return NextResponse.json(
+        {
+          error: 'Custom personas are a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'personas.custom',
+        },
+        { status: 403 },
+      );
+    }
+
+    // Check persona count limit
+    const currentPersonaCount = await db
+      .select()
+      .from(persona)
+      .where(
+        and(
+          eq(persona.userId, session.user.id),
+          or(
+            eq(persona.isSystemPersona, false),
+            isNull(persona.isSystemPersona),
+          ),
+        ),
+      );
+
+    const maxPersonas = accessContext.entitlements.features.personas.max_count;
+    if (maxPersonas !== -1 && currentPersonaCount.length >= maxPersonas) {
+      return NextResponse.json(
+        {
+          error: `You've reached your persona limit (${maxPersonas} personas)`,
+          code: 'LIMIT_REACHED',
+          limit: maxPersonas,
+          current: currentPersonaCount.length,
+          requiredPlan: 'business',
+          feature: 'personas.unlimited',
+        },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const {
       name,
@@ -134,9 +179,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If creating a shared persona, check permissions
+    // If creating a shared persona, check permissions and entitlements
     let orgId = null;
     if (isShared) {
+      // Check if shared personas are enabled
+      if (!accessContext.entitlements.features.personas.shared) {
+        return NextResponse.json(
+          {
+            error: 'Shared personas are a Business feature',
+            code: 'FEATURE_LOCKED',
+            requiredPlan: 'business',
+            feature: 'personas.shared',
+          },
+          { status: 403 },
+        );
+      }
+
       // Get user's org
       const [userRecord] = await db
         .select({ orgId: user.orgId })

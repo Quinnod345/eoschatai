@@ -38,17 +38,28 @@ export function Tooltip({
   const [content, setContent] = React.useState<React.ReactNode>(null);
   const triggerRef = React.useRef<HTMLElement>(null);
 
+  // Memoize setContent to prevent infinite loops
+  const setContentMemoized = React.useCallback(
+    (newContent: React.ReactNode) => {
+      setContent(newContent);
+    },
+    [],
+  );
+
+  const contextValue = React.useMemo(
+    () => ({
+      isOpen,
+      setIsOpen,
+      content,
+      setContent: setContentMemoized,
+      triggerRef,
+      delayDuration,
+    }),
+    [isOpen, setIsOpen, content, setContentMemoized, delayDuration],
+  );
+
   return (
-    <TooltipContext.Provider
-      value={{
-        isOpen,
-        setIsOpen,
-        content,
-        setContent,
-        triggerRef,
-        delayDuration,
-      }}
-    >
+    <TooltipContext.Provider value={contextValue}>
       {children}
     </TooltipContext.Provider>
   );
@@ -146,7 +157,7 @@ export const TooltipContent = React.forwardRef<
     React.useEffect(() => {
       setMounted(true);
       context.setContent(children);
-    }, [children, context]);
+    }, [children, context.setContent]); // Only depend on setContent function, not entire context
 
     React.useEffect(() => {
       if (!context.isOpen) {

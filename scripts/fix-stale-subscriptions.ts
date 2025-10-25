@@ -17,12 +17,13 @@ import { config } from 'dotenv';
 // Load environment variables first
 config({ path: '.env.local' });
 
-import { db } from '@/lib/db';
-import { user as userTable, org as orgTable } from '@/lib/db/schema';
-import { eq, isNotNull, or } from 'drizzle-orm';
-import Stripe from 'stripe';
+import { db } from "../lib/db";
+import { user as userTable, org as orgTable } from "../lib/db/schema";
+import { eq, isNotNull, or } from "drizzle-orm";
+import Stripe from "stripe";
 
-const isDryRun = process.argv.includes('--dry-run');
+const isDryRun = process.argv.includes("--dry-run");
+
 const shouldFix = process.argv.includes('--fix');
 
 if (!isDryRun && !shouldFix) {
@@ -47,11 +48,12 @@ async function main() {
   }
 
   const stripe = new Stripe(stripeKey, {
-    apiVersion: '2024-11-20.acacia',
+    apiVersion: '2025-08-27.basil',
   });
 
   let fixedUsers = 0;
   let fixedOrgs = 0;
+
   let errorsEncountered = 0;
 
   // Check users with Stripe customer IDs
@@ -200,7 +202,7 @@ async function main() {
   }
 
   // Summary
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📊 Summary');
   console.log('='.repeat(60));
 
@@ -217,7 +219,7 @@ async function main() {
     }
   }
 
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 }
 
 main()

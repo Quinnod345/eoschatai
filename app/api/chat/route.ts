@@ -239,8 +239,16 @@ If model is gpt-5, choose appropriate reasoning_effort based on complexity. No c
     maxTokens: 128,
     temperature: 0,
   });
+
   const cleaned = text.trim().replace(/^```json\s*|\s*```$/g, '');
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (parseError) {
+    console.error('[PREFLIGHT] Failed to parse nano response:', cleaned);
+    throw new Error('Nano preflight returned invalid JSON');
+  }
+
   const model = parsed.model === 'gpt-5' ? 'gpt-5' : 'gpt-4.1';
   const maxTokens = Number(parsed.max_tokens);
   // Normalize reasoning_effort to one of: 'low' | 'medium' | 'high'. Default to 'medium' if invalid.
@@ -321,12 +329,20 @@ export async function POST(request: Request) {
       chatLimit > 0 &&
       accessContext.user.usageCounters.chats_today >= chatLimit
     ) {
-      return new Response('You have reached your daily message limit.', {
-        status: 429,
-      });
+      return new Response(
+        JSON.stringify({
+          error: 'DAILY_LIMIT_REACHED',
+          message: 'You have reached your daily message limit.',
+          limit: chatLimit,
+          used: accessContext.user.usageCounters.chats_today,
+          plan: accessContext.user.plan,
+        }),
+        {
+          status: 429,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
-
-    await incrementUsageCounter(session.user.id, 'chats_today', 1);
 
     const chat = await getChatById({ id });
 
@@ -337,9 +353,30 @@ export async function POST(request: Request) {
         personaId: selectedPersonaId,
       });
 
-      const title = await generateTitleFromUserMessage({
-        message,
-      });
+      // Generate title with fallback in case AI fails
+      let title = 'New Chat';
+      try {
+        title = await generateTitleFromUserMessage({
+          message,
+        });
+      } catch (titleError) {
+        console.error('Title generation failed, using fallback:', titleError);
+        // Extract text from message for fallback title
+        const firstPart = message.parts?.[0];
+        let messageText = '';
+        if (typeof firstPart === 'string') {
+          messageText = firstPart;
+        } else if (
+          firstPart &&
+          typeof firstPart === 'object' &&
+          'text' in firstPart
+        ) {
+          messageText = firstPart.text || '';
+        }
+        const fallbackTitle = messageText.substring(0, 50);
+        title =
+          fallbackTitle + (messageText.length > 50 ? '...' : '') || 'New Chat';
+      }
 
       console.log('PERSONA_CHAT_API: Before UUID conversion', {
         chatId: id,
@@ -360,12 +397,16 @@ export async function POST(request: Request) {
         personaIdToSave = null;
         profileIdToSave = null;
 
+        // Sanitize title to prevent metadata injection
+        // Remove any existing metadata markers to prevent corruption
+        const sanitizedTitle = title.replace(/\|\|\|EOS_META:.*/g, '');
+
         // Encode the EOS Implementer selection in the title as metadata
         const metadata = {
           persona: 'eos-implementer',
           profile: selectedProfileId || null,
         };
-        titleWithMetadata = `${title}|||EOS_META:${JSON.stringify(metadata)}`;
+        titleWithMetadata = `${sanitizedTitle}|||EOS_META:${JSON.stringify(metadata)}`;
 
         console.log(
           'PERSONA_CHAT_API: EOS Implementer detected, storing metadata in title',
@@ -899,6 +940,9 @@ export async function POST(request: Request) {
         },
       ],
     });
+
+    // Increment usage counter AFTER message is successfully saved
+    await incrementUsageCounter(session.user.id, 'chats_today', 1);
 
     const streamId = generateUUID();
 
@@ -1446,6 +1490,13 @@ Always prioritize the user's document content over generic information. If speci
     // Create response stream
     const responseStream = createDataStream({
       execute: async (dataStream) => {
+        // Send initial status
+        dataStream.writeData({
+          type: 'chat-status',
+          status: 'processing',
+          message: 'Processing your request',
+        });
+
         console.log('[NEXUS MODE] Before condition check:', {
           selectedResearchMode,
           queryText,
@@ -1459,12 +1510,6 @@ Always prioritize the user's document content over generic information. If speci
         // Set up variables that will be used later
         // Keep original messages - we'll add User RAG context to system prompt instead
         const modifiedMessages = messages;
-
-        // Combine the enhanced system prompt with nexus research context
-        const finalSystemPrompt =
-          enhancedSystemPrompt +
-          nexusResearchContext +
-          toolResponseInstructions;
 
         // Preflight: decide model and token guidance using nano
         const hasCodeOrMath =
@@ -1485,28 +1530,67 @@ Always prioritize the user's document content over generic information. If speci
         let preflightMaxTokens = 2000;
         let preflightReasoningEffort: 'low' | 'medium' | 'high' | undefined =
           undefined;
-        // Remove preflight entirely when in Nexus mode
-        if (!isNexusMode) {
-          try {
-            const decision = await decideModelWithNano({
-              provider: providerForDecision,
-              queryText: queryText || '',
-              hasCodeOrMath,
-              hasDeepAnalysis,
-              hasFileUploads,
-              fileUploadCount,
-              inputCharacterCount: queryText.length,
-              mode: 'standard',
-              hasComposerOpen: Boolean(composerDocumentId),
-            });
-            preflightModel = decision.model;
-            preflightMaxTokens = decision.maxTokens;
-            preflightReasoningEffort = decision.reasoningEffort;
-          } catch (e) {
-            console.warn(
-              'Preflight decision failed, falling back to defaults',
-              e,
-            );
+
+        // If the user supplied URLs, instruct the model to fetch them via searchWeb before answering
+        const urlRegex = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/gi;
+        const suppliedUrls = Array.from(
+          new Set((queryText || '').match(urlRegex) || []),
+        );
+        const urlFetchInstruction =
+          suppliedUrls.length > 0
+            ? `\n\nUSER PROVIDED LINKS (RETRIEVE BEFORE ANSWERING):\n${suppliedUrls
+                .map((u, i) => `- [${i + 1}] ${u}`)
+                .join(
+                  '\n',
+                )}\n\nCRITICAL: Use the searchWeb tool to fetch the content of EACH link above BEFORE writing any part of your answer. If a link fails, perform a refined web search for the page title and topic. After fetching, think briefly, optionally refine search, then synthesize.\n`
+            : '';
+
+        // Combine the enhanced system prompt with nexus research context and URL instruction
+        const finalSystemPrompt =
+          enhancedSystemPrompt +
+          nexusResearchContext +
+          urlFetchInstruction +
+          toolResponseInstructions;
+
+        // Run preflight for all modes, but with different parameters for Nexus
+        dataStream.writeData({
+          type: 'chat-status',
+          status: 'preflight',
+          message: 'Analyzing request',
+        });
+
+        try {
+          const decision = await decideModelWithNano({
+            provider: providerForDecision,
+            queryText: queryText || '',
+            hasCodeOrMath,
+            hasDeepAnalysis: hasDeepAnalysis || isNexusMode, // Treat Nexus as deep analysis
+            hasFileUploads,
+            fileUploadCount,
+            inputCharacterCount: queryText.length,
+            mode: isNexusMode ? 'nexus' : 'standard',
+            hasComposerOpen: Boolean(composerDocumentId),
+          });
+          preflightModel = decision.model;
+          preflightMaxTokens = decision.maxTokens;
+          preflightReasoningEffort = decision.reasoningEffort;
+
+          console.log('[PREFLIGHT] Final decision:', {
+            model: preflightModel,
+            maxTokens: preflightMaxTokens,
+            reasoningEffort: preflightReasoningEffort,
+            mode: isNexusMode ? 'nexus' : 'standard',
+          });
+        } catch (e) {
+          console.warn(
+            'Preflight decision failed, falling back to defaults',
+            e,
+          );
+          // For Nexus mode, use more generous defaults
+          if (isNexusMode) {
+            preflightModel = 'gpt-5';
+            preflightMaxTokens = 8000;
+            preflightReasoningEffort = 'high';
           }
         }
 
@@ -1579,6 +1663,12 @@ Always prioritize the user's document content over generic information. If speci
           // Add a strong hint to the system prompt to use the createDocument tool
           preCreatedComposerNote = `\n\nCRITICAL: The user is asking to create an Accountability Chart (they may have misspelled it). You MUST use the createDocument tool with kind="accountability" and title="${suggestedTitle}". DO NOT just say you created it - actually call the createDocument tool to open the composer panel.`;
         }
+
+        dataStream.writeData({
+          type: 'chat-status',
+          status: 'generating',
+          message: 'Generating response',
+        });
 
         if (
           selectedResearchMode === 'nexus' &&
@@ -1870,7 +1960,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
         }
 
         // Set up a timeout variable
-        let responseTimeout: any;
+        let responseTimeout: NodeJS.Timeout | undefined;
 
         // Only proceed with actual chat generation if we're not in plan-pending mode
         if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL') {
@@ -1901,7 +1991,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               model: provider.languageModel(finalChatModel),
               system: `${finalSystemPrompt}${preCreatedComposerNote}`,
               messages: modifiedMessages,
-              maxSteps: isNexusMode ? 15 : 10, // More steps for nexus mode
+              maxSteps: isNexusMode ? 30 : 20, // Increased: Nexus needs more steps for comprehensive research
               experimental_activeTools: [
                 'searchWeb', // FIRST for priority - web search
                 'getWeather',
@@ -1913,6 +2003,12 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 'cleanKnowledgeBase',
                 'getCalendarEvents',
                 'createCalendarEvent',
+                'checkCalendarConflicts',
+                'findAvailableTimeSlots',
+                'getCalendarAnalytics',
+                'getDailyBriefing',
+                'parseNaturalLanguageEvent',
+                'findSmartAvailability',
               ],
               experimental_transform: smoothStream({ chunking: 'word' }), // Use smooth streaming for all modes
               experimental_generateMessageId: generateUUID,
@@ -1937,8 +2033,99 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                   session,
                   dataStream,
                   artifactMaxTokens,
-                  // Provide the original chat query so artifact generators can honor it
-                  context: queryText || '',
+                  // Provide the original chat query plus recent tool results for richer context
+                  context: (() => {
+                    let enrichedContext = queryText || '';
+                    const MAX_CONTEXT_SIZE = 2000000; // 2MB safety limit (extreme edge case protection)
+                    let searchResultsAdded = 0;
+
+                    // FIRST: Include recent conversation history for context
+                    const conversationHistory = messages
+                      .slice(-10) // Last 10 messages for conversation context
+                      .map((msg) => {
+                        if (msg.role === 'user') {
+                          // Extract text from user messages
+                          const textParts = msg.parts
+                            ?.filter((p: any) => p.type === 'text')
+                            .map((p: any) => p.text)
+                            .join('\n');
+                          return `User: ${textParts || msg.content}`;
+                        } else if (msg.role === 'assistant') {
+                          // Extract text from assistant messages
+                          const textParts = msg.parts
+                            ?.filter((p: any) => p.type === 'text')
+                            .map((p: any) => p.text)
+                            .join('\n');
+                          return `Assistant: ${textParts || msg.content}`;
+                        }
+                        return null;
+                      })
+                      .filter((m): m is string => m !== null)
+                      .join('\n\n');
+
+                    if (conversationHistory) {
+                      enrichedContext += '\n\n=== Recent Conversation ===\n';
+                      enrichedContext += `${conversationHistory}\n`;
+                    }
+
+                    // SECOND: Include ALL web search results from conversation history
+                    // Don't limit to recent messages - user might reference older searches
+                    for (const msg of messages) {
+                      if (msg.role === 'assistant' && msg.parts) {
+                        for (const part of msg.parts) {
+                          if (part.type === 'tool-invocation') {
+                            const toolInv = (part as any).toolInvocation;
+                            if (
+                              toolInv?.toolName === 'searchWeb' &&
+                              toolInv?.state === 'result' &&
+                              toolInv?.result
+                            ) {
+                              const results = toolInv.result.results || [];
+                              if (results.length > 0) {
+                                // Build the search result block first
+                                let searchBlock =
+                                  '\n\n=== Web Search Results ===\n';
+                                searchBlock += `Query: ${toolInv.result.query}\n\n`;
+                                results
+                                  .slice(0, 8)
+                                  .forEach((r: any, i: number) => {
+                                    searchBlock += `${i + 1}. **${r.title}**\n`;
+                                    searchBlock += `   URL: ${r.url}\n`;
+                                    // Use full content instead of just snippet (up to 5000 chars per result)
+                                    if (r.content) {
+                                      searchBlock += `   Content: ${r.content}\n`;
+                                    } else if (r.snippet) {
+                                      searchBlock += `   Snippet: ${r.snippet}\n`;
+                                    }
+                                    searchBlock += '\n';
+                                  });
+
+                                // Safety check: verify adding this block won't exceed limit
+                                if (
+                                  enrichedContext.length + searchBlock.length >
+                                  MAX_CONTEXT_SIZE
+                                ) {
+                                  console.warn(
+                                    `[Document Context] Reached max context size (${MAX_CONTEXT_SIZE} chars), stopping extraction. Added ${searchResultsAdded} search result sets. Next block would exceed limit by ${enrichedContext.length + searchBlock.length - MAX_CONTEXT_SIZE} chars.`,
+                                  );
+                                  break;
+                                }
+
+                                // Safe to add - won't exceed limit
+                                enrichedContext += searchBlock;
+                                searchResultsAdded++;
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    console.log(
+                      `[Document Context] Enriched with ${searchResultsAdded} search result sets, total context: ${enrichedContext.length} chars (${Math.round(enrichedContext.length / 1024)}KB)`,
+                    );
+                    return enrichedContext;
+                  })(),
                 }),
                 updateDocument: updateDocument({
                   session,
@@ -2248,7 +2435,6 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                                 minute: '2-digit',
                               },
                             ),
-                            location: location || 'No location',
                           },
                         };
                       }
@@ -2496,7 +2682,76 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                   },
                 }),
               },
-              onFinish: async ({ response }) => {
+              onStepFinish: async ({ toolCalls }) => {
+                // Send status updates for tool calls with concrete details
+                if (!toolCalls || toolCalls.length === 0) return;
+
+                for (const toolCall of toolCalls) {
+                  if (toolCall.toolName === 'searchWeb') {
+                    const q = (toolCall as any)?.args?.query;
+                    dataStream.writeData({
+                      type: 'chat-status',
+                      status: 'searching',
+                      message: q ? `Searching: ${q}` : 'Searching the web',
+                    });
+                  } else if (toolCall.toolName === 'getCalendarEvents') {
+                    dataStream.writeData({
+                      type: 'chat-status',
+                      status: 'calendar',
+                      message: 'Checking calendar',
+                    });
+                  } else if (toolCall.toolName === 'createDocument') {
+                    dataStream.writeData({
+                      type: 'chat-status',
+                      status: 'creating',
+                      message: 'Creating document',
+                    });
+                  }
+                }
+              },
+              onFinish: async ({ response, usage, finishReason }) => {
+                // Log usage statistics for monitoring
+                if (usage) {
+                  const outputTokens = usage.completionTokens || 0;
+                  const inputTokens = usage.promptTokens || 0;
+                  const totalTokens = usage.totalTokens || 0;
+
+                  console.log('[USAGE] Token consumption:', {
+                    input: inputTokens,
+                    output: outputTokens,
+                    total: totalTokens,
+                    model: finalChatModel,
+                    mode: isNexusMode ? 'nexus' : 'standard',
+                    finishReason,
+                  });
+
+                  // Warn if approaching output limits
+                  if (outputTokens > nexusTokenLimit * 0.9) {
+                    console.warn(
+                      `[USAGE] Response used ${outputTokens} tokens, very close to limit of ${nexusTokenLimit}`,
+                    );
+                  }
+
+                  // Alert if response was truncated due to token limit
+                  if (finishReason === 'length') {
+                    console.error(
+                      '[USAGE] Response truncated due to token limit!',
+                      {
+                        limit: nexusTokenLimit,
+                        used: outputTokens,
+                        model: finalChatModel,
+                      },
+                    );
+                    // Send warning to client
+                    dataStream.writeData({
+                      type: 'token-limit-warning',
+                      message: 'Response may be truncated due to length limits',
+                      tokensUsed: outputTokens,
+                      tokenLimit: nexusTokenLimit,
+                    });
+                  }
+                }
+
                 if (session.user?.id) {
                   try {
                     const assistantId = getTrailingMessageId({
@@ -2516,20 +2771,101 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
 
                     // Add citations to the message parts if in Nexus mode
                     const messageParts = [...(assistantMessage.parts || [])];
-                    // TODO: Fix citation type mismatch
-                    // if (
-                    //   selectedResearchMode === 'nexus' &&
-                    //   (globalThis as any).__nexusCitations
-                    // ) {
-                    //   const citations = (globalThis as any).__nexusCitations;
-                    //   if (citations && citations.length > 0) {
-                    //     // Add citations as a special part type
-                    //     messageParts.push({
-                    //       type: 'citations',
-                    //       citations: citations,
-                    //     });
-                    //   }
-                    // }
+
+                    // Get citations from Redis if available (better than globalThis)
+                    if (selectedResearchMode === 'nexus') {
+                      const redisUrl = process.env.REDIS_URL?.replace(
+                        /^["'](.*)["']$/,
+                        '$1',
+                      );
+                      if (redisUrl) {
+                        let redis: any = null;
+                        try {
+                          const { createClient } = await import('redis');
+                          redis = createClient({ url: redisUrl });
+                          await redis.connect();
+
+                          // Try to get citations from Redis
+                          const citationsData = await redis.get(
+                            `nexus:${streamId}:citations`,
+                          );
+                          if (citationsData) {
+                            let citations: any = null;
+                            try {
+                              citations = JSON.parse(citationsData);
+                            } catch (parseError) {
+                              console.error(
+                                '[NEXUS MODE] Failed to parse citations JSON:',
+                                parseError,
+                              );
+                              console.error(
+                                '[NEXUS MODE] Raw citations data:',
+                                citationsData?.substring(0, 500),
+                              );
+                              // Fallback: Try to recover citations by attempting alternate parsing
+                              try {
+                                // Sometimes data might be double-encoded or malformed
+                                citations = JSON.parse(
+                                  citationsData.replace(/\\/g, ''),
+                                );
+                                console.log(
+                                  '[NEXUS MODE] Successfully recovered citations using fallback parsing',
+                                );
+                              } catch (fallbackError) {
+                                console.error(
+                                  '[NEXUS MODE] Fallback parsing also failed, citations will be unavailable',
+                                );
+                                // Add error metadata to message so user knows citations failed
+                                (messageParts as any[]).push({
+                                  type: 'error',
+                                  errorId: 'citation-parse-failure',
+                                  message:
+                                    'Citation data was retrieved but could not be parsed',
+                                });
+                              }
+                            }
+                            if (
+                              citations &&
+                              Array.isArray(citations) &&
+                              citations.length > 0
+                            ) {
+                              console.log(
+                                `[NEXUS MODE] Retrieved ${citations.length} citations from Redis`,
+                              );
+                              // Store citations as metadata in the message
+                              // Using type assertion since we're storing custom metadata
+                              (messageParts as any[]).push({
+                                type: 'source',
+                                sourceId: 'nexus-citations',
+                                content: JSON.stringify({ citations }),
+                              });
+                            } else if (citations !== null) {
+                              console.warn(
+                                '[NEXUS MODE] Citations data was parsed but is not a valid array',
+                                typeof citations,
+                              );
+                            }
+                          }
+                        } catch (redisError) {
+                          console.error(
+                            '[NEXUS MODE] Failed to retrieve citations from Redis:',
+                            redisError,
+                          );
+                        } finally {
+                          // Ensure Redis connection is always closed
+                          if (redis) {
+                            try {
+                              await redis.disconnect();
+                            } catch (disconnectError) {
+                              console.error(
+                                '[NEXUS MODE] Error disconnecting from Redis:',
+                                disconnectError,
+                              );
+                            }
+                          }
+                        }
+                      }
+                    }
 
                     await saveMessages({
                       messages: [
@@ -2548,17 +2884,15 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
 
                     // Clean up nexus metadata if this was a nexus mode search
                     if (selectedResearchMode === 'nexus') {
-                      // Clean up global citations
-                      (globalThis as any).__nexusCitations = undefined;
-
                       const redisUrl = process.env.REDIS_URL?.replace(
                         /^["'](.*)["']$/,
                         '$1',
                       );
                       if (redisUrl) {
+                        let redis: any = null;
                         try {
                           const { createClient } = await import('redis');
-                          const redis = createClient({ url: redisUrl });
+                          redis = createClient({ url: redisUrl });
                           await redis.connect();
 
                           // Update metadata to completed status
@@ -2571,20 +2905,74 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                             }),
                           );
 
-                          await redis.disconnect();
+                          // Clean up citations data after saving
+                          await redis.del(`nexus:${streamId}:citations`);
+
                           console.log(
-                            '[NEXUS MODE] Updated stream metadata to completed status',
+                            '[NEXUS MODE] Updated stream metadata to completed status and cleaned up citations',
                           );
                         } catch (redisError) {
                           console.error(
                             '[NEXUS MODE] Failed to update completed state:',
                             redisError,
                           );
+                        } finally {
+                          // Ensure Redis connection is always closed
+                          if (redis) {
+                            try {
+                              await redis.disconnect();
+                            } catch (disconnectError) {
+                              console.error(
+                                '[NEXUS MODE] Error disconnecting from Redis:',
+                                disconnectError,
+                              );
+                            }
+                          }
                         }
                       }
                     }
                   } catch (error) {
                     console.error('Failed to save chat:', error);
+                    // Attempt to save partial message on error
+                    try {
+                      const partialMessage = response.messages.find(
+                        (m) => m.role === 'assistant',
+                      );
+                      if (partialMessage) {
+                        console.log(
+                          '[ERROR RECOVERY] Attempting to save partial message',
+                        );
+                        const partialId = generateUUID();
+                        await saveMessages({
+                          messages: [
+                            {
+                              id: partialId,
+                              chatId: id,
+                              role: 'assistant',
+                              parts: [
+                                {
+                                  type: 'text',
+                                  text:
+                                    (partialMessage as any).content ||
+                                    'Error: Message failed to save',
+                                },
+                              ],
+                              attachments: [],
+                              createdAt: new Date(),
+                              provider: selectedProvider,
+                            },
+                          ],
+                        });
+                        console.log(
+                          '[ERROR RECOVERY] Partial message saved successfully',
+                        );
+                      }
+                    } catch (recoveryError) {
+                      console.error(
+                        '[ERROR RECOVERY] Failed to save partial message:',
+                        recoveryError,
+                      );
+                    }
                   }
                 }
               },
@@ -2622,12 +3010,25 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               result.mergeIntoDataStream(dataStream);
             } catch (streamError) {
               console.error('RAG ERROR: Error processing stream:', streamError);
-              // Don't rethrow, just log it and continue
+              // Clear timeout on stream error
+              if (responseTimeout) clearTimeout(responseTimeout);
+              // Propagate error to user via dataStream
+              dataStream.writeData({
+                type: 'error',
+                error: 'Stream processing error occurred',
+              });
+            } finally {
+              // Ensure timeout is always cleared
+              if (responseTimeout) clearTimeout(responseTimeout);
             }
           } catch (error) {
             console.error('Fatal error in stream processing:', error);
             if (responseTimeout) clearTimeout(responseTimeout);
-            // We can't return a value here, but we've logged the error
+            // Notify user of error via dataStream
+            dataStream.writeData({
+              type: 'error',
+              error: 'Fatal error in chat processing',
+            });
           }
         } // End of if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL')
       },
@@ -3162,9 +3563,10 @@ export async function GET(request: Request) {
   // Check if this is a nexus mode stream by looking for metadata in Redis
   const redisUrl = process.env.REDIS_URL?.replace(/^["'](.*)["']$/, '$1');
   if (redisUrl) {
+    let redis: any = null;
     try {
       const { createClient } = await import('redis');
-      const redis = createClient({ url: redisUrl });
+      redis = createClient({ url: redisUrl });
       await redis.connect();
 
       // Check for nexus metadata
@@ -3174,25 +3576,43 @@ export async function GET(request: Request) {
         console.log(
           `[NEXUS MODE] Found nexus metadata for stream ${recentStreamId}`,
         );
-        const metadata = JSON.parse(nexusMetadata);
+        let metadata: any;
+        try {
+          metadata = JSON.parse(nexusMetadata);
 
-        // Log recovery information
-        console.log('[NEXUS MODE] Stream recovery:', {
-          streamId: recentStreamId,
-          status: metadata.status,
-          query: metadata.query,
-          startTime: metadata.startTime,
-          age: Date.now() - metadata.startTime,
-        });
+          // Log recovery information
+          console.log('[NEXUS MODE] Stream recovery:', {
+            streamId: recentStreamId,
+            status: metadata.status,
+            query: metadata.query,
+            startTime: metadata.startTime,
+            age: Date.now() - metadata.startTime,
+          });
+        } catch (parseError) {
+          console.error(
+            '[NEXUS MODE] Failed to parse metadata JSON:',
+            parseError,
+          );
+        }
       }
-
-      await redis.disconnect();
     } catch (redisError) {
       console.error(
         '[NEXUS MODE] Failed to check stream metadata:',
         redisError,
       );
       // Continue without metadata
+    } finally {
+      // Ensure Redis connection is always closed
+      if (redis) {
+        try {
+          await redis.disconnect();
+        } catch (disconnectError) {
+          console.error(
+            '[NEXUS MODE] Error disconnecting from Redis:',
+            disconnectError,
+          );
+        }
+      }
     }
   }
 

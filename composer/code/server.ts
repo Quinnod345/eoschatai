@@ -6,15 +6,20 @@ import { createDocumentHandler } from '@/lib/composer/server';
 
 export const codeDocumentHandler = createDocumentHandler<'code'>({
   kind: 'code',
-  onCreateDocument: async ({ title, dataStream, maxTokens }) => {
+  onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
-      system: codePrompt,
+      system: `${codePrompt}
+
+CRITICAL: If conversation context is provided, use it to understand what code the user wants and include relevant details from the conversation.`,
       maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
-      prompt: title,
+      prompt:
+        context && context.trim().length > 0
+          ? `${title}\n\nConversation Context:\n${context}`
+          : title,
       schema: z.object({
         code: z.string(),
       }),

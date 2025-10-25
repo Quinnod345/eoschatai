@@ -293,6 +293,7 @@ export function BusinessUpgradeFlow({
         open={showOrgModal}
         onClose={() => setShowOrgModal(false)}
         onContinue={handleOrgCreated}
+        isUpgradeFlow={true}
       />
     </>
   );

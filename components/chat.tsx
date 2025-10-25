@@ -20,7 +20,7 @@ import type { Session } from 'next-auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
-import { MessageLimitIndicator } from './message-limit-indicator';
+import { UsageLimitIndicator } from './usage-limit-indicator';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
@@ -341,7 +341,7 @@ export function Chat({
         responseStartTimeRef.current = null;
       }
     },
-    onError: (error) => {
+    onError: async (error) => {
       // Clear any timeout we might have set
       if (responseTimeoutRef.current) {
         clearTimeout(responseTimeoutRef.current);
@@ -349,6 +349,32 @@ export function Chat({
       }
 
       console.error('Chat error:', error);
+
+      // Check if this is a daily limit error (429)
+      if (error?.message) {
+        try {
+          const errorData = JSON.parse(error.message);
+          if (errorData.error === 'DAILY_LIMIT_REACHED') {
+            // Show a toast message for daily limit
+            toast.error(
+              'Daily message limit reached. Limit resets at midnight.',
+              {
+                duration: 5000,
+              },
+            );
+
+            // Open the upgrade modal if user is on free plan
+            if (errorData.plan === 'free') {
+              const upgradeModule = await import('@/lib/stores/upgrade-store');
+              upgradeModule.useUpgradeStore.getState().openModal('premium');
+            }
+
+            return;
+          }
+        } catch {
+          // Not a JSON error, continue with normal error handling
+        }
+      }
 
       // Don't attempt fallbacks if we're in a provider transition
       if (providerTransitioning) {
@@ -1701,6 +1727,7 @@ export function Chat({
           meetingMetadata={meetingMetadata}
           onStartReply={startReply}
           onRetry={handleRetry}
+          dataStream={data}
         />
 
         {/* Show follow-up questions if available */}
@@ -1845,14 +1872,14 @@ export function Chat({
           </div>
         )}
 
-        <form className="absolute bottom-0 left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 gap-2 w-full md:max-w-3xl z-10">
+        <form className="absolute bottom-0 left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10">
           {/* Reply Indicator */}
           <AnimatePresence initial={false}>
             {isReplying && (
               <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
+                initial={{ opacity: 0, y: 4, marginBottom: 0 }}
+                animate={{ opacity: 1, y: 0, marginBottom: 8 }}
+                exit={{ opacity: 0, y: 4, marginBottom: 0 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 26 }}
               >
                 <ReplyIndicator
@@ -1869,6 +1896,7 @@ export function Chat({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+              className="mt-2"
             >
               <MultimodalInput
                 chatId={id}
@@ -1896,8 +1924,6 @@ export function Chat({
             </motion.div>
           )}
         </form>
-
-        <MessageLimitIndicator />
       </div>
 
       <Composer

@@ -2,9 +2,10 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { withErrorHandler } from '@/lib/errors/api-wrapper';
 
-export async function GET() {
+export const GET = withErrorHandler(async (request: NextRequest) => {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -21,9 +22,6 @@ export async function GET() {
     return NextResponse.json(documents);
   } catch (error) {
     console.error('Error fetching user documents:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch documents' },
-      { status: 500 },
-    );
+    throw error; // Let the error handler wrapper handle it
   }
-}
+});

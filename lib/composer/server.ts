@@ -50,6 +50,10 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
   return {
     kind: config.kind,
     onCreateDocument: async (args: CreateDocumentCallbackProps) => {
+      console.log(
+        `[Document Handler] Starting onCreateDocument for ${config.kind}, id: ${args.id}`,
+      );
+
       const draftContent = await config.onCreateDocument({
         id: args.id,
         title: args.title,
@@ -59,7 +63,15 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         context: args.context,
       });
 
+      console.log(
+        `[Document Handler] Finished streaming content for ${args.id}, length: ${draftContent?.length || 0} chars`,
+      );
+
       if (args.session?.user?.id) {
+        console.log(
+          `[Document Handler] Saving document ${args.id} with content length: ${draftContent?.length || 0}`,
+        );
+
         await saveDocument({
           id: args.id,
           title: args.title,
@@ -67,6 +79,10 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
           kind: config.kind,
           userId: args.session.user.id,
         });
+
+        console.log(
+          `[Document Handler] Document ${args.id} saved successfully`,
+        );
       }
 
       return;

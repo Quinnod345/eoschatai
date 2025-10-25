@@ -11,7 +11,6 @@ import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { MessageSkeleton } from './message-skeleton';
 import { usePathname } from 'next/navigation';
 import { ComposerDashboard } from './composer-dashboard';
-import { CitationReferences } from './citation-button';
 
 interface CitationReference {
   number: number;
@@ -33,6 +32,7 @@ interface MessagesProps {
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
+  dataStream?: any[];
   onStartReply?: (
     messageId: string,
     content: string,
@@ -52,6 +52,7 @@ function PureMessages({
   citations: propCitations,
   searchProgress,
   meetingMetadata,
+  dataStream,
   onStartReply,
   onRetry,
 }: MessagesProps) {
@@ -59,8 +60,14 @@ function PureMessages({
 
   // Extract citations from message parts if available
   const extractedCitations = useMemo(() => {
+    console.log('[Citations Debug] Starting extraction', {
+      propCitationsCount: propCitations?.length || 0,
+      messagesCount: messages.length,
+    });
+
     // First check if we have citations from props (during active chat)
     if (propCitations && propCitations.length > 0) {
+      console.log('[Citations Debug] Using prop citations:', propCitations);
       return propCitations;
     }
 
@@ -72,18 +79,94 @@ function PureMessages({
         const parts: any[] = Array.isArray((msg as any)?.parts)
           ? ((msg as any)?.parts as any[])
           : [];
+
+        // Log full structure of parts to diagnose
+        console.log(`[Citations Debug] Message ${i} has ${parts.length} parts`);
+        parts.forEach((p, idx) => {
+          console.log(`[Citations Debug] Part ${idx}:`, {
+            type: p?.type,
+            keys: Object.keys(p || {}),
+            toolName: p?.toolName,
+            toolCallId: p?.toolCallId,
+            hasResult: !!p?.result,
+            hasArgs: !!p?.args,
+            state: p?.state,
+            // Log the actual part for inspection
+            fullPart: p,
+          });
+        });
+
+        // First check for explicit citations part
         const citationPart = parts.find(
           (part: any) => part?.type === 'citations',
         );
         if (citationPart?.citations) {
           return citationPart?.citations;
         }
+
+        // If no explicit citations, extract from searchWeb tool results
+        // Vercel AI SDK uses 'tool-invocation' type with nested toolInvocation object
+        const toolInvocationParts = parts.filter(
+          (part: any) => part?.type === 'tool-invocation',
+        );
+
+        console.log(
+          `[Citations Debug] Found ${toolInvocationParts.length} tool invocations`,
+        );
+
+        for (const toolPart of toolInvocationParts) {
+          // The actual tool data is nested in toolPart.toolInvocation
+          const invocation = toolPart?.toolInvocation;
+
+          if (!invocation) {
+            console.log('[Citations Debug] No toolInvocation nested object');
+            continue;
+          }
+
+          const toolName = invocation?.toolName;
+          const state = invocation?.state;
+          const result = invocation?.result;
+
+          console.log(`[Citations Debug] Tool invocation:`, {
+            toolName,
+            state,
+            hasResults: !!result?.results,
+            isArray: Array.isArray(result?.results),
+            resultKeys: result ? Object.keys(result) : [],
+          });
+
+          // Extract citations from searchWeb tool results (must be in 'result' state)
+          if (
+            toolName === 'searchWeb' &&
+            state === 'result' &&
+            result?.results &&
+            Array.isArray(result.results)
+          ) {
+            const citations: CitationReference[] = result.results.map(
+              (r: any) => ({
+                number: r.position || 0,
+                title: r.title || '',
+                url: r.url || '',
+                snippet: r.snippet || '',
+              }),
+            );
+
+            console.log('[Citations Debug] ✅ EXTRACTED CITATIONS:', citations);
+
+            if (citations.length > 0) {
+              return citations;
+            }
+          }
+        }
       }
     }
+    console.log('[Citations Debug] No citations found, returning empty');
     return [];
   }, [messages, propCitations]);
 
   const citations = extractedCitations;
+
+  console.log('[Citations Debug] Final citations for rendering:', citations);
 
   const {
     containerRef: messagesContainerRef,
@@ -271,18 +354,18 @@ function PureMessages({
       )}
 
       {shouldShowThinking && (
-        <ThinkingMessage searchProgress={searchProgress} />
+        <ThinkingMessage
+          searchProgress={searchProgress}
+          chatStatus={
+            dataStream?.length &&
+            dataStream[dataStream.length - 1]?.type === 'chat-status'
+              ? dataStream[dataStream.length - 1]
+              : undefined
+          }
+        />
       )}
 
-      {/* Show citation references if we have citations and the last message is from assistant */}
-      {citations &&
-        citations.length > 0 &&
-        filteredMessages.length > 0 &&
-        filteredMessages[filteredMessages.length - 1].role === 'assistant' && (
-          <div className="w-full max-w-3xl mx-auto px-4 py-6">
-            <CitationReferences citations={citations} />
-          </div>
-        )}
+      {/* Citations are now shown in the sources button in message actions, not here */}
 
       <motion.div
         ref={messagesEndRef}

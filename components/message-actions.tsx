@@ -17,10 +17,18 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import equal from 'fast-deep-equal';
 import { toast, toastUtils } from '@/lib/toast-system';
-import { Pin, MessageCircle, Share, RefreshCw } from 'lucide-react';
+import { Pin, MessageCircle, Share, RefreshCw, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { copyRichText, processMessageParts } from '@/lib/utils/copy-utils';
 import { FeedbackModal } from './feedback-modal';
+import { SourcesDialog } from './sources-dialog';
+
+interface CitationReference {
+  number: number;
+  title: string;
+  url: string;
+  snippet?: string;
+}
 
 export function PureMessageActions({
   chatId,
@@ -32,6 +40,7 @@ export function PureMessageActions({
   isPinned,
   onEdit,
   onRetry,
+  citations,
 }: {
   chatId: string;
   message: Message;
@@ -42,13 +51,18 @@ export function PureMessageActions({
   isPinned?: boolean;
   onEdit?: () => void;
   onRetry?: () => void;
+  citations?: CitationReference[];
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
   const [pendingVoteType, setPendingVoteType] = useState<'up' | 'down' | null>(
     null,
   );
+
+  // Check if this message has citations
+  const hasCitations = citations && citations.length > 0;
 
   const handleCopy = async () => {
     // Process message parts to get clean text with formatted mentions
@@ -77,7 +91,7 @@ export function PureMessageActions({
     if (navigator.share && textFromParts) {
       navigator
         .share({
-          title: 'EOS Chat AI Message',
+          title: 'EOSAI Message',
           text: textFromParts,
         })
         .catch(() => {
@@ -181,6 +195,34 @@ export function PureMessageActions({
           )}
 
           <div className="flex flex-row gap-1">
+            {/* Sources button - only show for assistant messages with citations */}
+            {message.role === 'assistant' && hasCitations && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <motion.div
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Button
+                      className="py-1 px-2 h-fit text-muted-foreground hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-400"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSourcesDialogOpen(true)}
+                    >
+                      <FileText className="h-3 w-3" />
+                      <span className="text-xs ml-1 font-medium">
+                        {citations.length}
+                      </span>
+                    </Button>
+                  </motion.div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  View {citations.length} source
+                  {citations.length !== 1 ? 's' : ''}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             {/* Enhanced actions for all messages */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -381,6 +423,15 @@ export function PureMessageActions({
           chatId={chatId}
           voteType={pendingVoteType}
           onSubmit={handleFeedbackSubmit}
+        />
+      )}
+
+      {/* Sources dialog */}
+      {hasCitations && (
+        <SourcesDialog
+          open={sourcesDialogOpen}
+          onOpenChange={setSourcesDialogOpen}
+          citations={citations}
         />
       )}
     </>

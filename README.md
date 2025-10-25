@@ -1,8 +1,8 @@
-# EOS Chat AI - Enterprise Operating System AI Assistant
+# EOSAI - Enterprise Operating System AI Assistant
 
 <div align="center">
-  <img alt="EOS Chat AI - Advanced AI chatbot for Enterprise Operating System implementation" src="app/(chat)/opengraph-image.png">
-  <h1>🚀 EOS Chat AI</h1>
+  <img alt="EOSAI - Advanced AI chatbot for Enterprise Operating System implementation" src="app/(chat)/opengraph-image.png">
+  <h1>🚀 EOSAI</h1>
   <p>
     <strong>A comprehensive AI-powered assistant for Enterprise Operating System (EOS) implementation</strong>
   </p>
@@ -24,9 +24,9 @@
 
 ## 🌟 Overview
 
-EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically designed for EOS (Entrepreneurial Operating System) implementation. It combines state-of-the-art AI capabilities with specialized business tools, comprehensive document intelligence, and personalized AI personas to transform how organizations implement and manage EOS methodologies.
+EOSAI is a revolutionary, enterprise-ready AI platform specifically designed for EOS (Entrepreneurial Operating System) implementation. It combines state-of-the-art AI capabilities with specialized business tools, comprehensive document intelligence, and personalized AI personas to transform how organizations implement and manage EOS methodologies.
 
-### 🎯 Why EOS Chat AI?
+### 🎯 Why EOSAI?
 
 - **🤖 Advanced AI**: Multi-provider support with streaming conversations
 - **📚 Document Intelligence**: RAG-powered knowledge extraction from your files
@@ -670,7 +670,7 @@ EOS Chat AI is a revolutionary, enterprise-ready AI platform specifically design
    pnpm dev
    ```
 
-Visit [http://localhost:3000](http://localhost:3000) to start using EOS Chat AI!
+Visit [http://localhost:3000](http://localhost:3000) to start using EOSAI!
 
 ### Essential Commands
 ```bash
@@ -711,7 +711,7 @@ pnpm test             # Run E2E tests
 
 ## 🌟 What Users Say
 
-> *"EOS Chat AI has revolutionized how we implement EOS in our company. The specialized personas and tools make complex processes simple."* 
+> *"EOSAI has revolutionized how we implement EOS in our company. The specialized personas and tools make complex processes simple."* 
 > 
 > **— Sarah Johnson, CEO at TechCorp**
 
@@ -771,7 +771,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
   <h2>🚀 Ready to Transform Your EOS Implementation?</h2>
   <p>
-    <strong>Start your journey with EOS Chat AI today</strong>
+    <strong>Start your journey with EOSAI today</strong>
   </p>
   
   <p>
@@ -786,7 +786,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
     </a>
   </p>
   
-  <p>Built with ❤️ by the EOS Chat AI Team</p>
+  <p>Built with ❤️ by the EOSAI Team</p>
   
   <p>
     <a href="https://vercel.com">

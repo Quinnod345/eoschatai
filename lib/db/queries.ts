@@ -300,21 +300,30 @@ export async function saveMessages({
   messages: Array<DBMessage>;
 }) {
   try {
-    return await db
-      .insert(message)
-      .values(messages)
-      .onConflictDoUpdate({
-        target: message.id,
-        set: {
-          role: sql`excluded.role`,
-          parts: sql`excluded.parts`,
-          attachments: sql`excluded.attachments`,
-          provider: sql`excluded.provider`,
-          createdAt: sql`excluded."createdAt"`,
-        },
-      });
+    const { executeWithRetry } = await import('./helpers/retry');
+
+    return await executeWithRetry(
+      () =>
+        db
+          .insert(message)
+          .values(messages)
+          .onConflictDoUpdate({
+            target: message.id,
+            set: {
+              role: sql`excluded.role`,
+              parts: sql`excluded.parts`,
+              attachments: sql`excluded.attachments`,
+              provider: sql`excluded.provider`,
+              createdAt: sql`excluded."createdAt"`,
+            },
+          }),
+      { operation: 'Save messages', retries: 3 },
+    );
   } catch (error) {
-    console.error('Failed to save messages in database', error);
+    console.error('[DB Error] Failed to save messages:', {
+      messageCount: messages.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -437,6 +446,14 @@ export async function saveDocument({
   userId: string;
 }) {
   try {
+    console.log(`[saveDocument] Saving document ${id}:`, {
+      title,
+      kind,
+      contentLength: content?.length || 0,
+      contentPreview: content?.substring(0, 100) || '[EMPTY]',
+      userId,
+    });
+
     // Use PostgreSQL's ON CONFLICT for upsert behavior
     const documents = await db.execute(sql`
       INSERT INTO "Document" (id, title, kind, content, "userId", "createdAt")
@@ -449,7 +466,9 @@ export async function saveDocument({
       RETURNING *
     `);
 
-    console.log(`Document saved/updated with ID: ${id}`);
+    console.log(
+      `[saveDocument] Document saved/updated with ID: ${id}, content length in DB: ${content?.length || 0}`,
+    );
     const documentsResult = Array.isArray(documents)
       ? documents
       : (documents as any).rows;

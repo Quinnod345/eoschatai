@@ -1,6 +1,6 @@
-# Performance Optimization Guide for EOS Chat AI
+# Performance Optimization Guide for EOSAI
 
-This guide documents all performance optimizations implemented in the EOS Chat AI application to improve speed, responsiveness, and resource efficiency.
+This guide documents all performance optimizations implemented in the EOSAI application to improve speed, responsiveness, and resource efficiency.
 
 ## Table of Contents
 1. [Database Optimizations](#database-optimizations)

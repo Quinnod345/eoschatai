@@ -188,7 +188,9 @@ export function getOptimalSearchConfig(
       ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT,
       scrapeOptions: {
         ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions,
-        formats: [...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions.formats],
+        formats: [
+          ...SEARCH_CONFIGS.NEXUS_RESEARCH_RECENT.scrapeOptions.formats,
+        ],
       },
     };
   } else if (context.priority === 'speed') {

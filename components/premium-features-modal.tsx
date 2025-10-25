@@ -36,12 +36,17 @@ const PLAN_FEATURES = {
     price: '$0',
     features: [
       { name: 'Basic EOS AI assistance', included: true },
-      { name: '5 chats per day', included: true },
-      { name: 'Basic document uploads', included: true },
-      { name: 'AI Personas', included: false },
+      { name: '20 chats per day', included: true },
+      { name: '5 document uploads', included: true },
+      { name: 'System personas only', included: true },
+      { name: 'Text composer only', included: true },
+      { name: 'Custom AI Personas', included: false },
+      { name: 'Advanced composers (code, chart, VTO)', included: false },
       { name: 'Export to PDF/DOCX', included: false },
       { name: 'Calendar integration', included: false },
-      { name: 'Voice recordings', included: false },
+      { name: 'Voice transcription', included: false },
+      { name: 'Long-term memory', included: false },
+      { name: 'Message pinning & bookmarking', included: false },
       { name: 'Deep research mode', included: false },
     ],
   },
@@ -52,13 +57,20 @@ const PLAN_FEATURES = {
     badge: 'Most Popular',
     features: [
       { name: 'Everything in Free', included: true },
-      { name: 'Unlimited chats', included: true },
-      { name: 'AI Personas - specialized assistants', included: true },
+      { name: '200 chats per day', included: true },
+      { name: '100 document uploads', included: true },
+      { name: '25 custom AI personas', included: true },
+      { name: 'Advanced composers (code, chart, sheet)', included: true },
       { name: 'Export to PDF/DOCX', included: true },
       { name: 'Google Calendar sync', included: true },
-      { name: 'Voice recordings (60 min/month)', included: true },
+      { name: 'Voice transcription (600 min/month)', included: true },
+      { name: 'Long-term memory (100 memories)', included: true },
+      { name: 'Message pinning & bookmarking', included: true },
+      { name: 'Version history (50 versions)', included: true },
+      { name: 'Advanced search & analytics', included: true },
       { name: 'Priority support', included: true },
-      { name: 'Deep research mode (Business only)', included: false },
+      { name: 'Deep research mode', included: false },
+      { name: 'Team features', included: false },
     ],
   },
   business: {
@@ -68,11 +80,17 @@ const PLAN_FEATURES = {
     badge: 'Best for Teams',
     features: [
       { name: 'Everything in Pro', included: true },
+      { name: '1000 chats per day per seat', included: true },
+      { name: 'Unlimited personas & memories', included: true },
+      { name: 'All composers (VTO, A/C Chart)', included: true },
       { name: 'Deep research with 40 lookups', included: true },
-      { name: 'Team collaboration features', included: true },
-      { name: 'Unlimited voice recordings', included: true },
-      { name: 'Advanced analytics', included: true },
-      { name: 'Custom AI training', included: true },
+      { name: 'Voice transcription (3000 min/month)', included: true },
+      { name: 'Team collaboration & sharing', included: true },
+      { name: 'Shared personas across org', included: true },
+      { name: 'L10 meeting management', included: true },
+      { name: 'Unlimited version history', included: true },
+      { name: 'Team analytics & insights', included: true },
+      { name: 'API access', included: true },
       { name: 'Dedicated account manager', included: true },
       { name: 'SSO & enhanced security', included: true },
     ],
@@ -204,7 +222,7 @@ export function PremiumFeaturesModal({
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <Crown className="w-6 h-6 text-yellow-500" />
               {currentPlan === 'free'
-                ? 'Unlock EOS Chat AI Premium'
+                ? 'Unlock EOSAI Premium'
                 : 'Upgrade Your Plan'}
             </DialogTitle>
             <DialogDescription className="text-base mt-2">

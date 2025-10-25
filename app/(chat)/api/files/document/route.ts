@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       'application/vnd.ms-powerpoint',
     ];
 
-    const validExtensions = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+    const validExtensions = ['docx', 'xlsx', 'pptx'];
 
     if (
       !validTypes.includes(file.type) &&
@@ -446,12 +446,14 @@ export async function POST(request: Request) {
         );
       }
     }
-    // TODO: Handle DOC and PPT files if needed (non-XML format is more complex)
+    // Unsupported format - only DOCX, XLSX, and PPTX are supported
+    // Note: DOC, XLS, and PPT (legacy Office formats) use binary format instead of XML
+    // and would require additional libraries like 'word-extractor' or 'officegen-parser'
     else {
       return NextResponse.json(
         {
           error:
-            'Unsupported document format. Please use DOCX, XLSX, or PPTX files.',
+            'Unsupported document format. Please use DOCX, XLSX, or PPTX files (not legacy DOC/XLS/PPT formats).',
         },
         { status: 400 },
       );

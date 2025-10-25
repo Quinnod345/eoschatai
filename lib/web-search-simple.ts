@@ -16,7 +16,7 @@ export interface SimpleSearchResult {
  */
 export async function searchWebSimple(
   query: string,
-  limit: number = 10,
+  limit = 10,
 ): Promise<SimpleSearchResult[]> {
   try {
     console.log(
@@ -33,13 +33,15 @@ export async function searchWebSimple(
       );
     }
 
-    // Use Firecrawl's search API with basic options
+    // Use Firecrawl's search API with improved options for better content extraction
     const searchResponse = await app.search(query, {
       limit: limit,
       scrapeOptions: {
         formats: ['markdown', 'html'],
-        waitFor: 1000,
-        timeout: 15000,
+        waitFor: 2500, // Increased from 1000ms to allow dynamic content to load
+        timeout: 30000, // Increased from 15000ms for more reliable scraping
+        onlyMainContent: true, // Focus on main content, skip ads/navigation
+        parsePDF: false, // Keep false for speed
       },
     });
 

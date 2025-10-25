@@ -9,11 +9,15 @@ import { inlineEditPrompt } from '@/lib/ai/prompts';
 
 export const vtoDocumentHandler = createDocumentHandler<'vto'>({
   kind: 'vto',
-  onCreateDocument: async ({ title, dataStream, maxTokens }) => {
+  onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
     let draft = '';
 
     const provider = createCustomProvider();
     const system = `You are generating a Vision/Traction Organizer (V/TO) JSON for an EOS Worldwide template.
+
+CRITICAL: If conversation context is provided, extract relevant company information (core values, goals, rocks, etc.) from it to populate the V/TO. Don't use generic placeholders if real data is available in the conversation.
+
+You are generating a Vision/Traction Organizer (V/TO) JSON for an EOS Worldwide template.
 Return STRICT JSON with the following shape and keys:
 {
   "coreValues": string[],
@@ -61,7 +65,10 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
       system,
       maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
-      prompt: `Create a V/TO for: ${title}`,
+      prompt:
+        context && context.trim().length > 0
+          ? `Create a V/TO for: ${title}\n\nConversation Context (extract V/TO data from this):\n${context}`
+          : `Create a V/TO for: ${title}`,
     });
 
     // Wrap with markers so client can parse during streaming

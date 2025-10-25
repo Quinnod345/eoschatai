@@ -65,8 +65,7 @@ export function ComposerPickerModal({
       {/* Backdrop */}
       <button
         type="button"
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in-0 duration-200 cursor-default"
-        style={{ zIndex: 2147483649 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in-0 duration-200 cursor-default z-[200]"
         onClick={(e) => {
           stopEvent(e);
           onClose();
@@ -78,8 +77,7 @@ export function ComposerPickerModal({
 
       {/* Modal */}
       <div
-        className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
-        style={{ zIndex: 2147483650 }}
+        className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none z-[210]"
         onMouseDownCapture={stopEvent}
         onPointerDownCapture={stopEvent}
       >

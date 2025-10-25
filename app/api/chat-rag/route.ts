@@ -3,39 +3,14 @@ import { findRelevantContent } from '@/lib/ai/embeddings';
 import { addResourceTool, getInformationTool } from '@/lib/ai/tools';
 import { myProvider } from '@/lib/ai/providers';
 import { systemPrompt } from '@/lib/ai/prompts';
-import { streamText, tool, type DataStreamWriter } from 'ai';
-import { NextResponse } from 'next/server';
+import { streamText, tool } from 'ai';
+import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { withErrorHandler } from '@/lib/errors/api-wrapper';
 
 export const maxDuration = 30; // 30 seconds
 
-// Create an adapter that implements DataStreamWriter interface using a WritableStreamDefaultWriter
-function createDataStreamWriterAdapter(
-  writer: WritableStreamDefaultWriter,
-): DataStreamWriter {
-  return {
-    write: (data) => {
-      writer.write(JSON.stringify(data));
-      return Promise.resolve();
-    },
-    writeData: (data) => {
-      writer.write(JSON.stringify({ type: 'data', data }));
-      return Promise.resolve();
-    },
-    writeMessageAnnotation: (data) => {
-      writer.write(JSON.stringify({ type: 'message_annotation', data }));
-      return Promise.resolve();
-    },
-    writeSource: (data) => {
-      writer.write(JSON.stringify({ type: 'source', data }));
-      return Promise.resolve();
-    },
-    merge: () => {},
-    onError: (error: unknown) => `Error in data stream: ${String(error)}`,
-  };
-}
-
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   // Auth check
   const session = await auth();
   if (!session?.user) {
@@ -44,11 +19,6 @@ export async function POST(req: Request) {
 
   // Get request body
   const { messages, chatId, modelId = 'chat-model' } = await req.json();
-
-  // Create data stream
-  const dataStream = new TransformStream();
-  const writer = dataStream.writable.getWriter();
-  const dataStreamWriter = createDataStreamWriterAdapter(writer);
 
   try {
     // Get the last user message to use for context retrieval
@@ -112,11 +82,7 @@ export async function POST(req: Request) {
           }),
           execute: async ({ title, content }) => {
             console.log('RAG: Adding resource to knowledge base', { title });
-            if (!addResourceTool.handler) {
-              console.error('RAG: addResourceTool.handler is undefined');
-              return { success: false, error: 'Tool handler is not available' };
-            }
-            const result = await addResourceTool.handler(
+            const result = await addResourceTool.execute(
               { title, content },
               session.user.id,
             );
@@ -145,15 +111,7 @@ export async function POST(req: Request) {
               query,
               limit: 5,
             });
-            if (!getInformationTool.handler) {
-              console.error('RAG: getInformationTool.handler is undefined');
-              return {
-                success: false,
-                error: 'Tool handler is not available',
-                results: [],
-              };
-            }
-            const result = await getInformationTool.handler(
+            const result = await getInformationTool.execute(
               { query, limit: 5 },
               session.user.id,
             );
@@ -169,10 +127,6 @@ export async function POST(req: Request) {
     return result.toDataStreamResponse();
   } catch (error) {
     console.error('Error in chat-rag route:', error);
-    writer.close();
-    return NextResponse.json(
-      { error: 'Failed to process chat request' },
-      { status: 500 },
-    );
+    throw error; // Let the error handler wrapper handle it
   }
-}
+});

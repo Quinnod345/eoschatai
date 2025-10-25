@@ -88,6 +88,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Create the organization with the user as owner
+      // Note: Organizations are created with 'free' plan by default.
+      // Users are prompted in the UI to upgrade to Business for full team features.
+      // Organizations can be upgraded later via the billing/checkout flow.
       const [createdOrg] = await tx
         .insert(orgTable)
         .values({

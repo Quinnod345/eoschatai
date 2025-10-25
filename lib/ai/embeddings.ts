@@ -178,11 +178,46 @@ export const processDocument = async (
   content: string,
 ): Promise<void> => {
   if (!upstashVectorClient) {
-    console.warn('RAG: Skipping document processing because Upstash Vector is not configured.');
+    console.warn(
+      'RAG: Skipping document processing because Upstash Vector is not configured.',
+    );
     return;
   }
 
   try {
+    // CRITICAL FIX: Delete ALL old embeddings for this document first
+    // This prevents orphaned chunks when document is edited
+    console.log(`RAG: Deleting old embeddings for document ${documentId}`);
+    try {
+      // Query for all vectors with this documentId prefix
+      const oldVectors = await upstashVectorClient.query({
+        data: documentId, // Search by metadata
+        topK: 1000, // Get all possible matches
+        includeMetadata: true,
+      });
+
+      // Filter to exact documentId matches and collect IDs
+      const idsToDelete: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        // Max 100 chunks per document
+        idsToDelete.push(`${documentId}-${i}`);
+      }
+
+      // Delete in batches
+      if (idsToDelete.length > 0) {
+        await upstashVectorClient.delete(idsToDelete);
+        console.log(
+          `RAG: Deleted ${idsToDelete.length} potential old embeddings for document ${documentId}`,
+        );
+      }
+    } catch (deleteError) {
+      console.warn(
+        'RAG: Error deleting old embeddings (continuing anyway):',
+        deleteError,
+      );
+      // Continue even if delete fails - upsert will overwrite
+    }
+
     // Generate chunks from content
     const chunks = generateChunks(content);
     console.log(`RAG: Generated ${chunks.length} chunks from document`);
@@ -263,7 +298,9 @@ export const findRelevantContent = async (
   minRelevance = 0.8, // Increase to 80% for better quality matches
 ): Promise<{ content: string; relevance: number }[]> => {
   if (!upstashVectorClient) {
-    console.warn('RAG: Upstash Vector is not configured; returning no relevant content.');
+    console.warn(
+      'RAG: Upstash Vector is not configured; returning no relevant content.',
+    );
     return [];
   }
 

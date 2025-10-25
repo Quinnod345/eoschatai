@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { fetcher } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/lib/toast-system';
+import { useUpgradeStore } from '@/lib/stores/upgrade-store';
+import { useAccountStore } from '@/lib/stores/account-store';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -52,6 +54,9 @@ export function ComposerDashboard() {
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
   const [userPlan, setUserPlan] = useState<'free' | 'pro' | 'business'>('free');
+  const { openModal } = useUpgradeStore();
+  const accountEntitlements = useAccountStore((state) => state.entitlements);
+  const accountUser = useAccountStore((state) => state.user);
 
   // Fetch user plan for composer count pill (client-safe)
   useEffect(() => {
@@ -77,24 +82,41 @@ export function ComposerDashboard() {
     { revalidateOnFocus: false },
   );
 
-  const { data, mutate, isLoading, isValidating } = useSWR<{
+  const { data, mutate, isLoading, isValidating, error } = useSWR<{
     documents: Row[];
-  }>(kind ? `/api/documents?composerKind=${kind}` : null, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 4000,
-    revalidateIfStale: true,
-    revalidateOnReconnect: true,
-  });
-
-  const rows = useMemo(
-    () =>
-      isRecordings
-        ? [] // Recordings handled separately
-        : (data?.documents ?? []).filter(
-            (d) => !/^User Note:/i.test(d.title || ''),
-          ),
-    [data, isRecordings],
+  }>(
+    !isRecordings && kind ? `/api/documents?composerKind=${kind}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 4000,
+      revalidateIfStale: true,
+      revalidateOnReconnect: true,
+      onError: (err) => {
+        console.error('Error fetching documents:', err);
+      },
+    },
   );
+
+  const rows = useMemo(() => {
+    if (isRecordings) {
+      return []; // Recordings handled separately
+    }
+    const filtered = (data?.documents ?? []).filter(
+      (d) => !/^User Note:/i.test(d.title || ''),
+    );
+    console.log(
+      `[ComposerDashboard] kind=${kind}, documents fetched:`,
+      data?.documents?.length ?? 0,
+      'after filtering:',
+      filtered.length,
+      'user plan:',
+      accountUser?.plan,
+      'composer types allowed:',
+      accountEntitlements?.features.composer.types,
+    );
+    return filtered;
+  }, [data, isRecordings, kind, accountUser, accountEntitlements]);
 
   // Transform recordings data for display
   const recordingRows = useMemo(() => {
@@ -371,7 +393,58 @@ export function ComposerDashboard() {
         </Button>
       </div>
 
-      {isInitialLoading ? (
+      {error ? (
+        <div className="text-sm text-muted-foreground">
+          <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-4">
+            <p className="font-medium text-red-900 dark:text-red-200 mb-2">
+              {(error as any)?.info?.code === 'FEATURE_LOCKED'
+                ? `${displayPlural} require ${(error as any)?.info?.requiredPlan || 'Pro'} plan`
+                : `Error loading ${displayPlural.toLowerCase()}`}
+            </p>
+            <p className="text-red-700 dark:text-red-300 text-xs">
+              {(error as any)?.info?.error ||
+                error?.message ||
+                'Failed to fetch documents. Please try again.'}
+            </p>
+            <div className="flex gap-2 mt-3">
+              {(error as any)?.info?.code === 'FEATURE_LOCKED' ? (
+                <>
+                  <Button size="sm" onClick={() => openModal('premium')}>
+                    Upgrade Plan
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      // Refresh account data to sync entitlements
+                      try {
+                        const res = await fetch('/api/me', {
+                          cache: 'no-store',
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          useAccountStore.getState().setBootstrap(data);
+                          toast.success('Account refreshed');
+                          // Retry fetching documents
+                          mutate();
+                        }
+                      } catch {
+                        toast.error('Failed to refresh');
+                      }
+                    }}
+                  >
+                    Refresh Account
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => mutate()}>
+                  Retry
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : isInitialLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <motion.article
