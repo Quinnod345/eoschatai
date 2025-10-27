@@ -752,6 +752,14 @@ export const resetDailyUsageCounters = async () => {
   `);
 };
 
+export const resetUserDailyUsageCounters = async (userId: string) => {
+  await updateUsageCounters(userId, (current) => ({
+    ...current,
+    chats_today: 0,
+    deep_runs_day: 0,
+  }));
+};
+
 export const resetMonthlyUsageCounters = async () => {
   await db.execute(`
     UPDATE "User"

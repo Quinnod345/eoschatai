@@ -225,8 +225,6 @@ const Sidebar = React.forwardRef<
             <div className="flex h-full w-full flex-col relative">
               {/* Gradient mesh background for mobile */}
               <div className="sidebar-gradient-mesh" />
-              {/* LiquidGL lens overlay for mobile */}
-              <div className="liquid-gl-lens" aria-hidden="true" />
               {children}
             </div>
           </SheetContent>
@@ -276,8 +274,6 @@ const Sidebar = React.forwardRef<
           >
             {/* Gradient mesh background */}
             <div className="sidebar-gradient-mesh" />
-            {/* LiquidGL lens overlay (kept outside normal flow) */}
-            <div className="liquid-gl-lens" aria-hidden="true" />
             {children}
           </div>
         </div>

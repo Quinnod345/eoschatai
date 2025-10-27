@@ -11,15 +11,6 @@ import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { mutate as swrMutate } from 'swr';
 import { useTheme } from 'next-themes';
-import Script from 'next/script';
-
-// Type declarations for liquidGL
-declare global {
-  interface Window {
-    liquidGL?: any;
-    html2canvas?: any;
-  }
-}
 
 import {
   PlusIcon,
@@ -67,55 +58,11 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   >(null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [liquidGLReady, setLiquidGLReady] = useState(false);
-  const liquidGLInitialized = useRef(false);
 
   // Once mounted on client, we can safely show the UI without hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Initialize liquidGL after scripts are loaded
-  useEffect(() => {
-    if (liquidGLReady && !liquidGLInitialized.current && state === 'expanded') {
-      // Wait a bit for DOM to be ready
-      setTimeout(() => {
-        try {
-          // @ts-ignore
-          if (window.liquidGL && window.html2canvas) {
-            // Initialize liquidGL on the dedicated lens layer
-            // @ts-ignore
-            window.liquidGL({
-              snapshot: 'body',
-              target: '.liquid-gl-lens',
-              resolution: 2.2,
-              // Stronger refraction and crisper edge bevels for a flawless glass look
-              refraction: 0.02,
-              bevelDepth: 0.08,
-              bevelWidth: 0.22,
-              // Add subtle frost to increase perceived blur within the lens
-              frost: 0.08,
-              shadow: false,
-              specular: true,
-              reveal: 'fade',
-              tilt: false,
-              tiltFactor: 3,
-              // Slightly stronger magnification to emphasize edge refraction
-              magnify: 1.08,
-              on: {
-                init(instance: any) {
-                  console.log('LiquidGL initialized on sidebar');
-                  liquidGLInitialized.current = true;
-                },
-              },
-            });
-          }
-        } catch (error) {
-          console.error('Failed to initialize liquidGL:', error);
-        }
-      }, 100);
-    }
-  }, [liquidGLReady, state]);
 
   // Determine which logo to use based on theme
   // Keep composer selection in sync with URL (?dashboard=...)
@@ -420,28 +367,6 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </motion.div>
         )}
       </Sidebar>
-
-      {/* Load liquidGL dependencies */}
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log('html2canvas loaded');
-          if (typeof window !== 'undefined' && window.liquidGL) {
-            setLiquidGLReady(true);
-          }
-        }}
-      />
-      <Script
-        src="/scripts/liquidGL.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log('liquidGL loaded');
-          if (typeof window !== 'undefined' && window.html2canvas) {
-            setLiquidGLReady(true);
-          }
-        }}
-      />
     </>
   );
 }

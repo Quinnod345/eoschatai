@@ -185,17 +185,38 @@ export function ComposerDashboard() {
   }, [router, kind, isRecordings]);
 
   const handleOpen = useCallback(
-    (doc: Row | any) => {
+    async (doc: Row | any) => {
       if (isRecordings) {
         // Open recording modal with this recording
         router.push(`/chat?recordingId=${doc.id}`);
       } else {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('dashboard');
-        url.searchParams.set('documentId', doc.id);
-        url.searchParams.set('documentTitle', doc.title || 'Untitled');
-        url.searchParams.set('composerKind', doc.kind);
-        router.replace(url.toString());
+        // Find the chat associated with this document
+        try {
+          const chatRes = await fetch(`/api/chats/by-document?id=${doc.id}`);
+          const { chatId } = await chatRes.json();
+          
+          if (chatId) {
+            // Navigate to the existing chat and open the composer
+            router.push(`/chat/${chatId}?documentId=${doc.id}&documentTitle=${encodeURIComponent(doc.title || 'Untitled')}&composerKind=${doc.kind}`);
+          } else {
+            // No existing chat, open in new chat
+            const url = new URL(window.location.href);
+            url.searchParams.delete('dashboard');
+            url.searchParams.set('documentId', doc.id);
+            url.searchParams.set('documentTitle', doc.title || 'Untitled');
+            url.searchParams.set('composerKind', doc.kind);
+            router.replace(url.toString());
+          }
+        } catch (error) {
+          console.error('Failed to find chat for document:', error);
+          // Fallback: open in current chat
+          const url = new URL(window.location.href);
+          url.searchParams.delete('dashboard');
+          url.searchParams.set('documentId', doc.id);
+          url.searchParams.set('documentTitle', doc.title || 'Untitled');
+          url.searchParams.set('composerKind', doc.kind);
+          router.replace(url.toString());
+        }
       }
     },
     [router, isRecordings],

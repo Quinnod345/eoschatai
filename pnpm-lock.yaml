@@ -209,9 +209,6 @@ importers:
       liquid-glass-react:
         specifier: ^1.1.1
         version: 1.1.1(react-dom@19.0.0-rc-45804af1-20241021(react@19.0.0-rc-45804af1-20241021))(react@19.0.0-rc-45804af1-20241021)
-      liquidGL:
-        specifier: github:naughtyduk/liquidGL
-        version: https://codeload.github.com/naughtyduk/liquidGL/tar.gz/731381e03438d1138091a8f86fd8b48bde549ebf
       lottie-react:
         specifier: ^2.4.1
         version: 2.4.1(react-dom@19.0.0-rc-45804af1-20241021(react@19.0.0-rc-45804af1-20241021))(react@19.0.0-rc-45804af1-20241021)
@@ -5061,10 +5058,6 @@ packages:
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
-
-  liquidGL@https://codeload.github.com/naughtyduk/liquidGL/tar.gz/731381e03438d1138091a8f86fd8b48bde549ebf:
-    resolution: {tarball: https://codeload.github.com/naughtyduk/liquidGL/tar.gz/731381e03438d1138091a8f86fd8b48bde549ebf}
-    version: 0.0.0
 
   loader-runner@4.3.0:
     resolution: {integrity: sha512-3R/1M+yS3j5ou80Me59j7F9IMs4PXs3VqRrm0TU3AbKPxlmpoY1TNscJV/oGJXo8qCatFGTfDbY6W6ipGOYXfg==}
@@ -12003,8 +11996,6 @@ snapshots:
     dependencies:
       react: 19.0.0-rc-45804af1-20241021
       react-dom: 19.0.0-rc-45804af1-20241021(react@19.0.0-rc-45804af1-20241021)
-
-  liquidGL@https://codeload.github.com/naughtyduk/liquidGL/tar.gz/731381e03438d1138091a8f86fd8b48bde549ebf: {}
 
   loader-runner@4.3.0: {}
 

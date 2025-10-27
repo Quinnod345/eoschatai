@@ -1976,13 +1976,49 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         Unlimited chats available on your plan
                                       </p>
                                     ) : (
-                                      <p className="text-xs text-muted-foreground">
-                                        {entitlements.features.chats_per_day -
-                                          (usageCounters?.chats_today ?? 0) >
-                                        0
-                                          ? `${entitlements.features.chats_per_day - (usageCounters?.chats_today ?? 0)} chats remaining today`
-                                          : 'Daily limit reached. Resets at midnight.'}
-                                      </p>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs text-muted-foreground">
+                                          {entitlements.features.chats_per_day -
+                                            (usageCounters?.chats_today ?? 0) >
+                                          0
+                                            ? `${entitlements.features.chats_per_day - (usageCounters?.chats_today ?? 0)} chats remaining today`
+                                            : 'Daily limit reached. Resets at midnight.'}
+                                        </p>
+                                        {process.env.NODE_ENV !==
+                                          'production' && (
+                                          <button
+                                            type="button"
+                                            onClick={async () => {
+                                              try {
+                                                const res = await fetch(
+                                                  '/api/debug/reset-usage',
+                                                  {
+                                                    method: 'POST',
+                                                    headers: {
+                                                      'Content-Type':
+                                                        'application/json',
+                                                    },
+                                                    body: JSON.stringify({
+                                                      scope: 'self',
+                                                    }),
+                                                  },
+                                                );
+                                                if (res.ok) {
+                                                  window.location.reload();
+                                                }
+                                              } catch (error) {
+                                                console.error(
+                                                  'Failed to reset usage:',
+                                                  error,
+                                                );
+                                              }
+                                            }}
+                                            className="text-xs text-blue-500 hover:text-blue-600 underline"
+                                          >
+                                            Reset
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                 )}

@@ -45,6 +45,13 @@ export async function POST(request: Request) {
     await invalidateUserEntitlementsCache(session.user.id);
     await getUserEntitlements(session.user.id);
     await broadcastEntitlementsUpdated(session.user.id);
+    
+    // Reset daily usage counters when upgrading to premium
+    if (plan === 'pro' || plan === 'business') {
+      const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+      await resetUserDailyUsageCounters(session.user.id);
+    }
+    
     return NextResponse.json({ ok: true, plan });
   } catch (error) {
     console.error('[billing.admin] Failed to set plan', error);

@@ -317,6 +317,12 @@ export function Chat({
     },
     onFinish: (message) => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
+      // Dispatch event to refresh sidebar history
+      console.log('[Chat] Message finished, dispatching newMessageSent event', {
+        chatId: id,
+        messageId: message.id,
+      });
+      window.dispatchEvent(new Event('newMessageSent'));
       // Clear any timeout we might have set
       if (responseTimeoutRef.current) {
         clearTimeout(responseTimeoutRef.current);

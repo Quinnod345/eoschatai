@@ -173,6 +173,25 @@ export function SidebarHistory({
     };
   }, [mutateIndicators]);
 
+  // Listen for new message events to refresh chat history
+  useEffect(() => {
+    const handleNewMessage = () => {
+      console.log('[SidebarHistory] New message sent, refreshing sidebar');
+      // Force immediate refresh
+      mutate();
+      // Also refresh after a delay to catch any DB lag
+      setTimeout(() => {
+        console.log('[SidebarHistory] Secondary refresh after delay');
+        mutate();
+      }, 1000);
+    };
+
+    window.addEventListener('newMessageSent', handleNewMessage);
+    return () => {
+      window.removeEventListener('newMessageSent', handleNewMessage);
+    };
+  }, [mutate]);
+
   // Force refresh when navigating to a new chat
   useEffect(() => {
     if (id && typeof id === 'string') {

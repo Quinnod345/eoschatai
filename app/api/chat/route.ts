@@ -222,6 +222,13 @@ TOKEN BUDGET ADJUSTMENTS:
 - Literary/rhetorical analysis: +50–60% tokens baseline
 - Multiple adjustments stack (e.g., file upload + long input + analysis)
 
+DOCUMENT EDITING TRIGGERS (use high token budgets):
+- "expand", "add more", "elaborate", "add detail", "add examples"
+- "edit the document", "update the document", "revise", "rewrite"
+- "add transitions", "improve", "enhance", "make it better"
+- Document editing requires 3000–8000 tokens minimum for substantial edits
+- When composer_open is true, assume document editing context
+
 INTELLIGENCE SIGNALS:
 - Major token increase for: "deep", "comprehensive", "thorough", "in-depth", "analysis", multi-part requests, academic analysis, literary criticism.
 - Moderate increase for: examples, comparisons, strategies, step-by-step.
@@ -230,12 +237,12 @@ INTELLIGENCE SIGNALS:
 MODE CONTEXT:
 - mode: ${mode}
 - composer_open: ${hasComposerOpen}
-If mode is nexus, allow even higher budgets. If an composer is open, still return a single budget for the chat model.
+If mode is nexus, allow even higher budgets. If composer_open is true, allocate AT LEAST 4000 tokens for document editing tasks.
 
 Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000>,"reasoning_effort":"low"|"medium"|"high"}. 
 If model is gpt-4.1, reasoning_effort must be "low" (ignored for GPT-4.1). 
 If model is gpt-5, choose appropriate reasoning_effort based on complexity. No commentary.`,
-    prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}`,
+    prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}\ncomposer_open: ${hasComposerOpen}`,
     maxTokens: 128,
     temperature: 0,
   });
@@ -1610,9 +1617,14 @@ Always prioritize the user's document content over generic information. If speci
         const temperature = finalChatModel === 'gpt-5' ? 1 : 0.8;
 
         // For Nexus mode, allow reasonable cap; otherwise, clamp by both preflight and model limit
+        // When a composer is open, use a much higher minimum for document editing
+        const baseMinTokens = composerDocumentId ? 4000 : 1000;
         const nexusTokenLimit = isNexusMode
           ? 16000 // Doubled from 8000
-          : Math.min(safeHardLimit, Math.max(1000, preflightMaxTokens)); // Increased min from 512 to 1000
+          : Math.min(
+              safeHardLimit,
+              Math.max(baseMinTokens, preflightMaxTokens),
+            );
 
         // Compute artifact token multiplier without disrupting preflight
         // More generous boost: 2.0x up to a higher cap

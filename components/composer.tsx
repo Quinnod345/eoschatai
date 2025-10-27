@@ -121,12 +121,6 @@ function PureComposer({
   const isMountedRef = useRef<boolean>(true);
   // Abort controller for fetch requests
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [mirroredChatId, setMirroredChatId] = useState<string | null>(null);
-  const [mirroredMessages, setMirroredMessages] = useState<Array<UIMessage>>(
-    [],
-  );
-  const [mirroredVotes, setMirroredVotes] = useState<Array<Vote>>([]);
-  const [isMirroredLoading, setIsMirroredLoading] = useState(false);
 
   const { open: isSidebarOpen } = useSidebar();
   // Inline title editing
@@ -249,71 +243,6 @@ function PureComposer({
   useEffect(() => {
     mutateDocuments();
   }, [composer.status, mutateDocuments]);
-  // Load mirrored chat for this composer if it exists
-  useEffect(() => {
-    let cancelled = false;
-    const abortController = new AbortController();
-
-    async function loadMirrored() {
-      if (!composer.documentId || composer.documentId === 'init') return;
-      setIsMirroredLoading(true);
-      try {
-        const chatRes = await fetch(
-          `/api/chats/by-document?id=${composer.documentId}`,
-          { signal: abortController.signal },
-        );
-
-        if (cancelled || !isMountedRef.current) return;
-
-        const { chatId } = await chatRes.json();
-        if (!chatId || cancelled || !isMountedRef.current) {
-          setMirroredChatId(null);
-          setMirroredMessages([]);
-          setMirroredVotes([]);
-          return;
-        }
-        setMirroredChatId(chatId);
-
-        const msgsRes = await fetch(`/api/chats/messages?chatId=${chatId}`, {
-          signal: abortController.signal,
-        });
-
-        if (cancelled || !isMountedRef.current) return;
-
-        const data = await msgsRes.json();
-        if (
-          !cancelled &&
-          isMountedRef.current &&
-          Array.isArray(data?.messages)
-        ) {
-          const uiMsgs = data.messages.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            parts: m.parts,
-            createdAt: m.createdAt,
-          }));
-          setMirroredMessages(uiMsgs);
-        }
-      } catch (e) {
-        if (e instanceof Error && e.name === 'AbortError') return;
-
-        if (!cancelled && isMountedRef.current) {
-          setMirroredChatId(null);
-          setMirroredMessages([]);
-          setMirroredVotes([]);
-        }
-      } finally {
-        if (!cancelled && isMountedRef.current) setIsMirroredLoading(false);
-      }
-    }
-
-    loadMirrored();
-
-    return () => {
-      cancelled = true;
-      abortController.abort();
-    };
-  }, [composer.documentId]);
 
   const { mutate } = useSWRConfig();
   const [isContentDirty, setIsContentDirty] = useState(false);
@@ -603,13 +532,11 @@ function PureComposer({
 
               <div className="flex flex-col h-full justify-between items-center">
                 <ComposerMessages
-                  chatId={mirroredChatId || chatId}
-                  status={isMirroredLoading ? 'submitted' : status}
-                  votes={mirroredChatId ? mirroredVotes : votes}
-                  messages={mirroredChatId ? mirroredMessages : messages}
-                  setMessages={
-                    mirroredChatId ? ((() => {}) as any) : setMessages
-                  }
+                  chatId={chatId}
+                  status={status}
+                  votes={votes}
+                  messages={messages}
+                  setMessages={setMessages}
                   reload={reload}
                   isReadonly={isReadonly}
                   composerStatus={composer.status}
@@ -617,7 +544,7 @@ function PureComposer({
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-6 pb-6">
                   <MultimodalInput
-                    chatId={mirroredChatId || chatId}
+                    chatId={chatId}
                     input={input}
                     setInput={setInput}
                     handleSubmit={handleSubmit}
@@ -625,12 +552,10 @@ function PureComposer({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    messages={mirroredChatId ? mirroredMessages : messages}
+                    messages={messages}
                     append={append}
                     className="bg-transparent dark:bg-transparent composer-embedded"
-                    setMessages={
-                      mirroredChatId ? ((() => {}) as any) : setMessages
-                    }
+                    setMessages={setMessages}
                     selectedVisibilityType={selectedVisibilityType}
                   />
                 </form>

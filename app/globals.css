@@ -1076,14 +1076,6 @@ body.has-chat-mesh .eos-chat-mesh {
   z-index: 1;
 }
 
-/* LiquidGL lens overlay positioning */
-.glass-sidebar .liquid-gl-lens {
-  position: absolute;
-  inset: 0;
-  z-index: 0; /* under content, above background mesh */
-  pointer-events: none;
-}
-
 /* Force three-dots menu buttons to be dark in light mode, accent in dark */
 .glass-sidebar [data-sidebar="menu-action"] {
   color: hsl(var(--sidebar-foreground)) !important;

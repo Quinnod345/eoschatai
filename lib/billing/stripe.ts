@@ -352,6 +352,9 @@ const applyProSubscription = async (
     if (!userRecord) return;
     await updateUserPlan(userRecord.id, 'pro', customerId);
     await recomputeUserEntitlements(userRecord.id);
+    // Reset daily usage counters when upgrading to premium
+    const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+    await resetUserDailyUsageCounters(userRecord.id);
     await trackSubscriptionActivated({
       plan: 'pro',
       user_id: userRecord.id,
@@ -366,6 +369,9 @@ const applyProSubscription = async (
     subscription.customer as string | undefined,
   );
   await recomputeUserEntitlements(userId);
+  // Reset daily usage counters when upgrading to premium
+  const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+  await resetUserDailyUsageCounters(userId);
   await trackSubscriptionActivated({
     plan: 'pro',
     user_id: userId,
@@ -392,6 +398,9 @@ const applyBusinessSubscription = async (
     if (resolvedUserId) {
       await updateUserPlan(resolvedUserId, 'business', customerId);
       await recomputeUserEntitlements(resolvedUserId);
+      // Reset daily usage counters when upgrading to premium
+      const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+      await resetUserDailyUsageCounters(resolvedUserId);
       await trackSubscriptionActivated({
         plan: 'business',
         user_id: resolvedUserId,
@@ -421,6 +430,13 @@ const applyBusinessSubscription = async (
   }
 
   await recomputeEntitlementsForUsers(memberIds);
+  
+  // Reset daily usage counters for all org members when upgrading to premium
+  const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+  for (const memberId of memberIds) {
+    await resetUserDailyUsageCounters(memberId);
+  }
+  
   await trackSubscriptionActivated({
     plan: 'business',
     org_id: orgId,
@@ -699,6 +715,9 @@ const processCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
     (session.metadata?.plan as 'pro' | 'business' | undefined) || 'pro';
   await updateUserPlan(userId, plan, customerId);
   await recomputeUserEntitlements(userId);
+  // Reset daily usage counters when purchasing a subscription
+  const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+  await resetUserDailyUsageCounters(userId);
   await trackSubscriptionActivated({ plan, user_id: userId });
 };
 
