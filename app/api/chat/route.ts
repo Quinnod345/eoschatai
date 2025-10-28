@@ -14,6 +14,7 @@ import {
   deleteChatById,
   getChatById,
   getMessagesByChatId,
+  getRecentMessagesByChatId,
   getStreamIdsByChatId,
   saveChat,
   saveMessages,
@@ -452,7 +453,31 @@ export async function POST(request: Request) {
       }
     }
 
-    const previousMessages = await getMessagesByChatId({ id });
+    // Get recent messages with sliding window (limit to last 50)
+    const { messages: previousMessages, totalCount } =
+      await getRecentMessagesByChatId({ chatId: id, limit: 50 });
+
+    // Check if we need to generate/retrieve conversation summary
+    let conversationSummaryText = '';
+    if (totalCount > 50) {
+      console.log(
+        `Message History: Chat has ${totalCount} messages, loading summary for older context`,
+      );
+
+      // Get chat record to check for existing summary
+      const chatRecord = await getChatById({ id });
+      if (chatRecord?.conversationSummary) {
+        conversationSummaryText = chatRecord.conversationSummary;
+        console.log(
+          `Message History: Using existing summary (${conversationSummaryText.length} chars)`,
+        );
+      } else {
+        // TODO: Generate summary asynchronously in background
+        console.log(
+          'Message History: No summary available yet, will generate in background',
+        );
+      }
+    }
 
     const normalizedPreviousMessages = previousMessages.map((dbMessage) => ({
       ...dbMessage,
@@ -620,6 +645,7 @@ export async function POST(request: Request) {
       userRagContext,
       personaRagContext,
       systemRagContext,
+      memoryContext,
     ] = await Promise.all([
       // General RAG (Knowledge Base) - Company RAG
       queryText
@@ -828,6 +854,52 @@ export async function POST(request: Request) {
               });
           })()
         : Promise.resolve(''),
+
+      // Memory RAG (User Memories)
+      session.user.id && queryText
+        ? (() => {
+            const memoryRagStart = Date.now();
+            console.log(
+              `Memory RAG: Starting retrieval for user ${session.user.id} with query: "${queryText}"`,
+            );
+
+            return import('@/lib/ai/memory-rag')
+              .then(({ findRelevantMemories, formatMemoriesForPrompt }) =>
+                findRelevantMemories(session.user.id, ragQueryText, 10, 0.5)
+                  .then((memories) => {
+                    const memoryRagTime = Date.now() - memoryRagStart;
+                    console.log(
+                      `Memory RAG: Retrieved ${memories.length} relevant memories in ${memoryRagTime}ms`,
+                    );
+
+                    if (memories.length > 0) {
+                      console.log(
+                        `Memory RAG: Top memory: "${memories[0].summary.substring(0, 100)}..." (relevance: ${(memories[0].relevance * 100).toFixed(1)}%)`,
+                      );
+                    }
+
+                    // Format memories into prompt
+                    const formattedMemories = formatMemoriesForPrompt(memories);
+                    
+                    if (formattedMemories.length > 0) {
+                      console.log(
+                        `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
+                      );
+                    }
+
+                    return formattedMemories;
+                  }),
+              )
+              .catch((error) => {
+                const memoryRagTime = Date.now() - memoryRagStart;
+                console.error(
+                  `Memory RAG: Error retrieving memories after ${memoryRagTime}ms:`,
+                  error,
+                );
+                return '';
+              });
+          })()
+        : Promise.resolve(''),
     ]);
 
     const ragEndTime = Date.now();
@@ -851,6 +923,7 @@ export async function POST(request: Request) {
         `\n  - User documents: ${userRagContext.length} characters`,
         `\n  - Persona documents: ${personaRagContext.length} characters`,
         `\n  - System knowledge: ${systemRagContext.length} characters`,
+        `\n  - User memories: ${memoryContext.length} characters`,
       );
     }
 
@@ -977,6 +1050,8 @@ export async function POST(request: Request) {
       userRagContext: userRagContext, // User-specific document context
       personaRagContext: personaRagContext, // Persona-specific document context
       systemRagContext: systemRagContext, // System-specific document context
+      memoryContext: memoryContext, // User memories
+      conversationSummary: conversationSummaryText, // Conversation summary for long chats
       userId: session.user.id,
       userEmail: session.user.email || '', // Add userEmail for hardcoded EOS implementer access
       query: queryText,
@@ -2893,6 +2968,58 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                         },
                       ],
                     });
+
+                    // Log context usage for effectiveness tracking
+                    try {
+                      const { logContextUsage } = await import(
+                        '@/lib/db/context-tracking'
+                      );
+                      
+                      // Count chunks from each source
+                      const systemChunks = systemRagContext
+                        ? (systemRagContext.match(/\[\d+\]/g) || []).length
+                        : 0;
+                      const personaChunks = personaRagContext
+                        ? (personaRagContext.match(/\[\d+\]/g) || []).length
+                        : 0;
+                      const userChunksMatch = userRagContext
+                        ? (userRagContext.match(/\[\d+\]/g) || []).length
+                        : 0;
+                      const memoryChunksMatch = memoryContext
+                        ? (memoryContext.match(/^-/gm) || []).length
+                        : 0;
+
+                      await logContextUsage({
+                        chatId: id,
+                        messageId: assistantId,
+                        userId: session.user.id,
+                        queryComplexity: undefined, // Will be added when we integrate query analysis
+                        systemChunks,
+                        personaChunks,
+                        userChunks: userChunksMatch,
+                        memoryChunks: memoryChunksMatch,
+                        conversationSummaryUsed: conversationSummaryText.length > 0,
+                        totalTokens: usage?.totalTokens,
+                        contextTokens: usage?.promptTokens,
+                        responseTokens: usage?.completionTokens,
+                        model: finalChatModel,
+                        metadata: {
+                          personaId: selectedPersonaId,
+                          profileId: selectedProfileId,
+                          researchMode: selectedResearchMode,
+                        },
+                      });
+
+                      console.log(
+                        `[CONTEXT TRACKING] Logged usage: ${systemChunks} system, ${personaChunks} persona, ${userChunksMatch} user chunks, ${memoryChunksMatch} memories`,
+                      );
+                    } catch (trackingError) {
+                      console.error(
+                        '[CONTEXT TRACKING] Failed to log usage:',
+                        trackingError,
+                      );
+                      // Don't throw - tracking shouldn't break chat
+                    }
 
                     // Clean up nexus metadata if this was a nexus mode search
                     if (selectedResearchMode === 'nexus') {

@@ -125,23 +125,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = new Date();
-    const [row] = await db
-      .insert(userMemory)
-      .values({
-        userId: session.user.id,
-        summary,
-        content: content || null,
-        topic: topic || null,
-        memoryType: (memoryType || 'other') as any,
-        confidence,
-        status: (status || 'active') as any,
-        tags: tags || null,
-        sourceMessageId: sourceMessageId || null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+    // Use the saveUserMemory function which creates embeddings automatically
+    const { saveUserMemory } = await import('@/lib/ai/memory');
+    
+    const row = await saveUserMemory({
+      userId: session.user.id,
+      sourceMessageId: sourceMessageId || undefined,
+      summary,
+      content: content || undefined,
+      topic: topic || undefined,
+      memoryType: (memoryType as any) || undefined,
+      confidence: confidence || 60,
+    });
+
+    console.log(`Memory API: Created memory with embeddings for user ${session.user.id}`);
 
     // Update usage counter for memories
     const { incrementUsageCounter } = await import('@/lib/entitlements');

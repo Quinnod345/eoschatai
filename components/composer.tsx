@@ -117,6 +117,8 @@ function PureComposer({
   const isStreamingRef = useRef<boolean>(false);
   // Track last remote version timestamp that we applied to composer.content
   const lastRemoteAppliedAtRef = useRef<number>(0);
+  // Track previous documents array to detect when new versions are added
+  const documentsRef = useRef<Array<Document> | undefined>(undefined);
   // Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef<boolean>(true);
   // Abort controller for fetch requests
@@ -166,19 +168,30 @@ function PureComposer({
         ).getTime();
         setDocument(mostRecentDocument);
 
-        // CRITICAL FIX: Always default to latest version (documents.length - 1), not first (0)
-        // Set version index on initial load (when it's 9999 or -1)
+        // CRITICAL FIX: Always keep currentVersionIndex pointing to latest
+        // Update when:
+        // 1. Initial load (9999 or -1)
+        // 2. Index is out of bounds
+        // 3. User is on latest and new version was created (index is last but array grew)
+        const isOnLatest = currentVersionIndex === (documentsRef.current?.length ?? 0) - 1;
+        const didArrayGrow = (documentsRef.current?.length || 0) < documents.length;
+        
         if (
           currentVersionIndex === 9999 ||
           currentVersionIndex === -1 ||
-          currentVersionIndex >= documents.length
+          currentVersionIndex >= documents.length ||
+          (isOnLatest && didArrayGrow) // ✅ Keep following latest when new versions are created
         ) {
           console.log(
-            '[Composer] Setting version index to latest:',
+            '[Composer] Updating version index to latest:',
             documents.length - 1,
+            { wasOnLatest: isOnLatest, didArrayGrow }
           );
           setCurrentVersionIndex(documents.length - 1);
         }
+        
+        // Update the ref for next comparison
+        documentsRef.current = documents;
 
         setComposer((currentComposer) => {
           if (!isMountedRef.current) return currentComposer;

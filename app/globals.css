@@ -2453,3 +2453,85 @@ body {
   -webkit-backdrop-filter: blur(10px) saturate(160%);
   backdrop-filter: blur(10px) saturate(160%);
 }
+/* ===================================================================
+   User Settings: Disable EOS Gradients
+   =================================================================== */
+
+/* When gradients are disabled via user settings, remove gradient effects */
+html[data-eos-gradients="disabled"] .eos-gradient-text,
+html[data-eos-gradients="disabled"] .eos-animated-gradient-text {
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  color: inherit !important;
+}
+
+/* Disable rotating gradient backgrounds */
+html[data-eos-gradients="disabled"] .eos-rotating-gradient {
+  background: transparent !important;
+  animation: none !important;
+  opacity: 0 !important;
+  display: none !important;
+}
+
+html[data-eos-gradients="disabled"] .gradient-flow {
+  background: none !important;
+  animation: none !important;
+}
+
+/* Disable EOS flow background gradients */
+html[data-eos-gradients="disabled"] .eos-flow-bg::before {
+  display: none !important;
+}
+
+/* Disable app-level mesh gradients */
+html[data-eos-gradients="disabled"] .eos-app-mesh::before {
+  display: none !important;
+  opacity: 0 !important;
+  animation: none !important;
+}
+
+/* Disable chat mesh gradients */
+html[data-eos-gradients="disabled"] .eos-chat-mesh::after {
+  display: none !important;
+  opacity: 0 !important;
+  animation: none !important;
+  background: none !important;
+}
+
+html[data-eos-gradients="disabled"] .eos-chat-mesh.eos-chat-active::after {
+  display: none !important;
+  opacity: 0 !important;
+  animation: none !important;
+}
+
+/* Disable mesh gradients */
+html[data-eos-gradients="disabled"] .sidebar-gradient-mesh,
+html[data-eos-gradients="disabled"] .card-gradient-overlay {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+/* Disable EOS glow animations when gradients are disabled */
+html[data-eos-gradients="disabled"] .eos-glow,
+html[data-eos-gradients="disabled"] .navy-glow {
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+html[data-eos-gradients="disabled"] .border-pulse {
+  animation: none !important;
+}
+
+/* Disable gradient overlays in components */
+html[data-eos-gradients="disabled"] [class*="gradient-to"],
+html[data-eos-gradients="disabled"] [class*="bg-gradient"] {
+  /* Only disable EOS-specific gradients, not all gradients */
+}
+
+/* Specifically target auth page gradients that use inline styles */
+html[data-eos-gradients="disabled"] .eos-rotating-gradient[style] {
+  background: transparent !important;
+  filter: none !important;
+  opacity: 0 !important;
+}

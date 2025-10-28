@@ -82,6 +82,9 @@ export const chat = pgTable('Chat', {
   personaId: uuid('personaId').references(() => persona.id),
   profileId: uuid('profileId').references(() => personaProfile.id),
   metadata: json('metadata').$type<{ isVoiceChat?: boolean }>(),
+  conversationSummary: text('conversationSummary'),
+  lastSummarizedAt: timestamp('lastSummarizedAt'),
+  totalMessages: integer('totalMessages').default(0),
 });
 
 export type Chat = InferSelectModel<typeof chat>;
@@ -320,6 +323,7 @@ export const document = pgTable('Document', {
   isContext: boolean('isContext').default(false), // Controls whether embeddings exist for this composer document
   isShared: boolean('isShared').default(false), // Whether this document is shared
   shareSettings: json('shareSettings'), // Sharing settings for the document
+  contentSummary: text('contentSummary'), // AI-generated summary for large documents
 });
 
 export type Document = InferSelectModel<typeof document>;
@@ -437,12 +441,14 @@ export const embeddings = pgTable(
     chunk: text('chunk').notNull(),
     embedding: vector('embedding', { dimensions: 1536 }).notNull(),
     createdAt: timestamp('createdAt').notNull().defaultNow(),
+    isSummary: boolean('isSummary').default(false), // Whether this embedding is from a summary
   },
   (table) => ({
     embeddingIdx: index('embedding_idx').using(
       'hnsw',
       table.embedding.op('vector_cosine_ops'),
     ),
+    summaryIdx: index('embedding_summary_idx').on(table.isSummary),
   }),
 );
 
@@ -518,6 +524,9 @@ export const userSettings = pgTable('UserSettings', {
   // Feature toggles
   autocompleteEnabled: boolean('autocompleteEnabled').default(true),
   personaContextDocumentIds: jsonb('personaContextDocumentIds'),
+  // UI preferences
+  disableGlassEffects: boolean('disableGlassEffects').default(false),
+  disableEosGradient: boolean('disableEosGradient').default(false),
 });
 
 export const bundleDocument = pgTable(
@@ -729,6 +738,36 @@ export const personaComposerDocument = pgTable(
 export type PersonaComposerDocument = InferSelectModel<
   typeof personaComposerDocument
 >;
+
+// Circle.so course persona tracking table
+export const circleCoursePersona = pgTable(
+  'CircleCoursePersona',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    circleSpaceId: varchar('circleSpaceId', { length: 128 }).notNull(),
+    circleCourseId: varchar('circleCourseId', { length: 128 }).notNull(),
+    personaId: uuid('personaId')
+      .notNull()
+      .references(() => persona.id, { onDelete: 'cascade' }),
+    courseName: varchar('courseName', { length: 256 }).notNull(),
+    courseDescription: text('courseDescription'),
+    targetAudience: varchar('targetAudience', { length: 32 }).notNull(), // 'implementer' or 'client'
+    lastSyncedAt: timestamp('lastSyncedAt'),
+    syncStatus: varchar('syncStatus', { length: 32 }).default('pending'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique circle course ID
+    circleCourseUnique: unique().on(table.circleCourseId),
+    circleCourseIdx: index('circle_course_persona_course_idx').on(
+      table.circleCourseId,
+    ),
+    personaIdx: index('circle_course_persona_persona_idx').on(table.personaId),
+  }),
+);
+
+export type CircleCoursePersona = InferSelectModel<typeof circleCoursePersona>;
 
 // EOS Persona Profiles table for sub-groups within personas (e.g., Vision Building Day 2, etc.)
 export const personaProfile = pgTable('PersonaProfile', {
@@ -1136,3 +1175,45 @@ export const documentUndoStack = pgTable(
 );
 
 export type DocumentUndoStack = InferSelectModel<typeof documentUndoStack>;
+
+// Context Usage Log for tracking effectiveness of RAG system
+export const contextUsageLog = pgTable(
+  'ContextUsageLog',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    chatId: uuid('chatId').references(() => chat.id, { onDelete: 'cascade' }),
+    messageId: uuid('messageId').references(() => message.id, {
+      onDelete: 'cascade',
+    }),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    queryComplexity: varchar('queryComplexity', { length: 20 }),
+    systemChunks: integer('systemChunks').default(0),
+    personaChunks: integer('personaChunks').default(0),
+    userChunks: integer('userChunks').default(0),
+    memoryChunks: integer('memoryChunks').default(0),
+    conversationSummaryUsed: boolean('conversationSummaryUsed').default(false),
+    totalTokens: integer('totalTokens'),
+    contextTokens: integer('contextTokens'),
+    responseTokens: integer('responseTokens'),
+    model: varchar('model', { length: 50 }),
+    userFeedback: varchar('userFeedback', {
+      enum: ['helpful', 'not_helpful', 'pending'],
+    }).default('pending'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    metadata: jsonb('metadata'), // Additional tracking data
+  },
+  (table) => ({
+    chatIdx: index('context_log_chat_idx').on(table.chatId),
+    messageIdx: index('context_log_message_idx').on(table.messageId),
+    userIdx: index('context_log_user_idx').on(table.userId),
+    feedbackIdx: index('context_log_feedback_idx').on(table.userFeedback),
+    complexityIdx: index('context_log_complexity_idx').on(
+      table.queryComplexity,
+    ),
+    createdIdx: index('context_log_created_idx').on(table.createdAt),
+  }),
+);
+
+export type ContextUsageLog = InferSelectModel<typeof contextUsageLog>;

@@ -331,7 +331,7 @@ export function PureMessageActions({
 
             {/* Voting and retry actions for assistant messages only */}
             {message.role === 'assistant' && (
-              <>
+              <div className="flex items-center opacity-0 group-hover/message:opacity-100 transition-opacity duration-200">
                 <div className="w-px h-6 bg-border mx-1" />
 
                 <Tooltip>
@@ -406,7 +406,7 @@ export function PureMessageActions({
                     </Tooltip>
                   </>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

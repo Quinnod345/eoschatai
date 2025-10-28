@@ -341,6 +341,56 @@ export async function getMessagesByChatId({ id }: { id: string }) {
   }
 }
 
+/**
+ * Get recent messages from a chat with sliding window limit
+ * @param chatId - Chat ID
+ * @param limit - Maximum number of recent messages to return (default: 50)
+ * @returns Array of recent messages in chronological order with total count
+ */
+export async function getRecentMessagesByChatId({
+  chatId,
+  limit = 50,
+}: {
+  chatId: string;
+  limit?: number;
+}): Promise<{ messages: DBMessage[]; totalCount: number }> {
+  try {
+    // Get total message count
+    const countResult = await db
+      .select({ count: count() })
+      .from(message)
+      .where(eq(message.chatId, chatId));
+
+    const totalCount = countResult[0]?.count || 0;
+
+    // Get recent messages in descending order, then reverse for chronological
+    const recentMessages = await db
+      .select()
+      .from(message)
+      .where(eq(message.chatId, chatId))
+      .orderBy(desc(message.createdAt))
+      .limit(limit);
+
+    // Reverse to get chronological order (oldest first)
+    const chronologicalMessages = recentMessages.reverse();
+
+    console.log(
+      `Message Retrieval: Loaded ${chronologicalMessages.length} of ${totalCount} total messages for chat ${chatId}`,
+    );
+
+    return {
+      messages: chronologicalMessages,
+      totalCount: totalCount as number,
+    };
+  } catch (error) {
+    console.error(
+      'Failed to get recent messages by chat id from database',
+      error,
+    );
+    throw error;
+  }
+}
+
 export async function voteMessage({
   chatId,
   messageId,
@@ -475,7 +525,11 @@ export async function saveDocument({
 
     // Process the document for embeddings (only for text kind)
     if (kind === 'text' && content) {
-      await processDocument(id, content);
+      await processDocument(id, content, {
+        useSummary: true,
+        documentKind: kind,
+        documentTitle: title,
+      });
     }
 
     return documentsResult;
@@ -818,6 +872,8 @@ export async function getUserSettings({ userId }: { userId: string }) {
         usePrimaryDocsForPersona: userSettings.usePrimaryDocsForPersona,
         personaContextDocumentIds: userSettings.personaContextDocumentIds,
         autocompleteEnabled: userSettings.autocompleteEnabled,
+        disableGlassEffects: userSettings.disableGlassEffects,
+        disableEosGradient: userSettings.disableEosGradient,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -868,6 +924,9 @@ export async function updateUserSettings({
     companyState?: string | null;
     autocompleteEnabled?: boolean;
     profilePicture?: string;
+    // UI preferences
+    disableGlassEffects?: boolean;
+    disableEosGradient?: boolean;
   };
 }) {
   try {
@@ -931,6 +990,8 @@ export async function updateUserSettings({
     allow('usePrimaryDocsForPersona', incoming.usePrimaryDocsForPersona);
     allow('personaContextDocumentIds', incoming.personaContextDocumentIds);
     allow('autocompleteEnabled', incoming.autocompleteEnabled);
+    allow('disableGlassEffects', incoming.disableGlassEffects);
+    allow('disableEosGradient', incoming.disableEosGradient);
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {

@@ -1,0 +1,305 @@
+import { db } from '@/lib/db';
+import { userMemory, userMemoryEmbedding } from '@/lib/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
+import { openai } from '@ai-sdk/openai';
+import { embed } from 'ai';
+
+/**
+ * Memory object structure returned by RAG retrieval
+ */
+export interface RelevantMemory {
+  id: string;
+  summary: string;
+  content: string | null;
+  memoryType: string;
+  confidence: number;
+  topic: string | null;
+  relevance: number;
+  createdAt: Date;
+}
+
+/**
+ * Find relevant memories from the user's memory bank using vector similarity search
+ * @param userId - The user's ID
+ * @param query - The search query
+ * @param limit - Maximum number of memories to return (default: 10)
+ * @param threshold - Minimum similarity threshold 0-1 (default: 0.4, more lenient than documents)
+ * @returns Array of relevant memories with relevance scores
+ */
+export async function findRelevantMemories(
+  userId: string,
+  query: string,
+  limit = 10,
+  threshold = 0.4,
+): Promise<RelevantMemory[]> {
+  try {
+    console.log(
+      `Memory RAG: Searching for user ${userId} with query: "${query}"`,
+    );
+
+    // First, check if there are ANY memories with embeddings for this user
+    const memoriesWithEmbeddings = await db
+      .select({ count: sql<number>`count(DISTINCT ${userMemory.id})` })
+      .from(userMemory)
+      .innerJoin(
+        userMemoryEmbedding,
+        eq(userMemory.id, userMemoryEmbedding.memoryId),
+      )
+      .where(
+        and(
+          eq(userMemory.userId, userId),
+          eq(userMemory.status, 'active'),
+        ),
+      );
+
+    const memoryCount = memoriesWithEmbeddings[0]?.count || 0;
+    console.log(
+      `Memory RAG: User has ${memoryCount} memories with embeddings`,
+    );
+
+    if (memoryCount === 0) {
+      console.log(
+        'Memory RAG: No memories with embeddings found. Checking for memories without embeddings...',
+      );
+
+      // Fallback: Get all active memories (no vector search)
+      const allMemories = await db
+        .select()
+        .from(userMemory)
+        .where(
+          and(
+            eq(userMemory.userId, userId),
+            eq(userMemory.status, 'active'),
+          ),
+        )
+        .limit(limit);
+
+      if (allMemories.length > 0) {
+        console.log(
+          `Memory RAG: Found ${allMemories.length} memories without embeddings (will be returned as-is)`,
+        );
+        console.warn(
+          '⚠️  IMPORTANT: Memories found but missing embeddings. Run: pnpm tsx scripts/backfill-memory-embeddings.ts',
+        );
+
+        return allMemories.map((memory) => ({
+          id: memory.id,
+          summary: memory.summary,
+          content: memory.content,
+          memoryType: memory.memoryType || 'other',
+          confidence: memory.confidence || 60,
+          topic: memory.topic,
+          relevance: 0.6, // Default relevance since we can't compute it
+          createdAt: memory.createdAt,
+        }));
+      } else {
+        console.log('Memory RAG: No memories found for this user');
+        return [];
+      }
+    }
+
+    // Generate embedding for the query
+    const { embedding } = await embed({
+      model: openai.embedding('text-embedding-ada-002'),
+      value: query,
+    });
+
+    // Search for similar memories using pgvector cosine similarity
+    // Only include active memories with confidence > 40
+    const results = await db
+      .select({
+        id: userMemory.id,
+        summary: userMemory.summary,
+        content: userMemory.content,
+        memoryType: userMemory.memoryType,
+        confidence: userMemory.confidence,
+        topic: userMemory.topic,
+        createdAt: userMemory.createdAt,
+        similarity: sql<number>`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)})`,
+      })
+      .from(userMemory)
+      .innerJoin(
+        userMemoryEmbedding,
+        eq(userMemory.id, userMemoryEmbedding.memoryId),
+      )
+      .where(
+        and(
+          eq(userMemory.userId, userId),
+          eq(userMemory.status, 'active'),
+          sql`${userMemory.confidence} > 40`,
+          sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${threshold}`,
+        ),
+      )
+      .orderBy(
+        sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) DESC`,
+      )
+      .limit(limit);
+
+    console.log(
+      `Memory RAG: Found ${results.length} relevant memories for user (threshold: ${threshold})`,
+    );
+
+    if (results.length === 0) {
+      console.log(
+        `Memory RAG: No memories above threshold ${threshold}, trying lower threshold...`,
+      );
+
+      // Try again with much lower threshold (0.2)
+      const lowerResults = await db
+        .select({
+          id: userMemory.id,
+          summary: userMemory.summary,
+          content: userMemory.content,
+          memoryType: userMemory.memoryType,
+          confidence: userMemory.confidence,
+          topic: userMemory.topic,
+          createdAt: userMemory.createdAt,
+          similarity: sql<number>`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)})`,
+        })
+        .from(userMemory)
+        .innerJoin(
+          userMemoryEmbedding,
+          eq(userMemory.id, userMemoryEmbedding.memoryId),
+        )
+        .where(
+          and(
+            eq(userMemory.userId, userId),
+            eq(userMemory.status, 'active'),
+            sql`${userMemory.confidence} > 40`,
+            sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > 0.2`,
+          ),
+        )
+        .orderBy(
+          sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) DESC`,
+        )
+        .limit(limit);
+
+      console.log(
+        `Memory RAG: Found ${lowerResults.length} memories with lower threshold`,
+      );
+
+      // Return formatted memory objects
+      return lowerResults.map((result) => ({
+        id: result.id,
+        summary: result.summary,
+        content: result.content,
+        memoryType: result.memoryType || 'other',
+        confidence: result.confidence || 60,
+        topic: result.topic,
+        relevance: result.similarity,
+        createdAt: result.createdAt,
+      }));
+    }
+
+    // Return formatted memory objects
+    return results.map((result) => ({
+      id: result.id,
+      summary: result.summary,
+      content: result.content,
+      memoryType: result.memoryType || 'other',
+      confidence: result.confidence || 60,
+      topic: result.topic,
+      relevance: result.similarity,
+      createdAt: result.createdAt,
+    }));
+  } catch (error) {
+    console.error('Memory RAG: Error finding relevant memories:', error);
+    return [];
+  }
+}
+
+/**
+ * Format memories into a structured prompt section
+ * @param memories - Array of relevant memories
+ * @returns Formatted prompt string
+ */
+export function formatMemoriesForPrompt(memories: RelevantMemory[]): string {
+  if (!memories || memories.length === 0) {
+    return '';
+  }
+
+  // Group memories by type
+  const groupedByType = memories.reduce(
+    (acc, memory) => {
+      const type = memory.memoryType;
+      if (!acc[type]) {
+        acc[type] = [];
+      }
+      acc[type].push(memory);
+      return acc;
+    },
+    {} as Record<string, RelevantMemory[]>,
+  );
+
+  // Type labels for display
+  const typeLabels: Record<string, string> = {
+    preference: 'User Preferences',
+    profile: 'Personal Profile',
+    company: 'Company Information',
+    task: 'Tasks & Actions',
+    knowledge: 'Knowledge & Facts',
+    personal: 'Personal Context',
+    other: 'Other Information',
+  };
+
+  // Build the formatted output
+  let output = `## USER MEMORIES
+The following are facts this user has explicitly asked you to remember:
+
+`;
+
+  // Sort types by priority
+  const typePriority = [
+    'preference',
+    'company',
+    'profile',
+    'knowledge',
+    'task',
+    'personal',
+    'other',
+  ];
+
+  for (const type of typePriority) {
+    if (groupedByType[type] && groupedByType[type].length > 0) {
+      const typeMemories = groupedByType[type];
+      const avgConfidence = Math.round(
+        typeMemories.reduce((sum, m) => sum + m.confidence, 0) /
+          typeMemories.length,
+      );
+
+      output += `### ${typeLabels[type]} (Confidence: ${avgConfidence}%)\n`;
+
+      for (const memory of typeMemories) {
+        // Include both summary and content if available
+        const text = memory.content || memory.summary;
+        output += `- ${text}`;
+
+        // Add topic if available and different from content
+        if (memory.topic && !text.includes(memory.topic)) {
+          output += ` [Topic: ${memory.topic}]`;
+        }
+
+        // Add relevance indicator for highly relevant memories
+        if (memory.relevance > 0.8) {
+          output += ` 🎯`;
+        }
+
+        output += '\n';
+      }
+
+      output += '\n';
+    }
+  }
+
+  output += `**CRITICAL MEMORY INSTRUCTIONS:**
+1. These are facts the user explicitly asked you to remember
+2. Treat these as VERIFIED user preferences and information
+3. Reference these memories naturally in your responses
+4. If a memory contradicts current conversation, acknowledge and ask for clarification
+5. Use memories to personalize responses and show continuity
+
+`;
+
+  return output;
+}
+

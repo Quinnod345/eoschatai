@@ -201,7 +201,11 @@ export const addResourceTool: Tool<{ title: string; content: string }> = {
       // Process the document to create embeddings (wrap in try/catch to handle vector dimension issues)
       console.log('RAG: Generating embeddings for document');
       try {
-        await processDocument(newDocumentId, contentText);
+        await processDocument(newDocumentId, contentText, {
+          useSummary: true,
+          documentKind: 'text',
+          documentTitle: normalizedTitle,
+        });
         console.log('RAG: Embeddings generated and stored successfully');
       } catch (error) {
         console.error(

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useId, forwardRef } from 'react';
 import { useTheme } from 'next-themes';
+import { useUserSettings } from './user-settings-provider';
 
 export interface GlassSurfaceProps {
   children?: React.ReactNode;
@@ -89,6 +90,10 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     },
     ref,
   ) => {
+    // Check user settings for glass effects preference
+    const { settings, loading } = useUserSettings();
+    // Default to enabled while loading to avoid flash, then respect user setting
+    const isGlassDisabled = loading ? false : (settings?.disableGlassEffects ?? false);
     const uniqueId = useId().replace(/:/g, '-');
     const filterId = `glass-filter-${uniqueId}`;
     const redGradId = `red-grad-${uniqueId}`;
@@ -142,8 +147,8 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     };
 
     useEffect(() => {
-      // Skip all displacement map work when using fallback
-      if (useFallback) return;
+      // Skip all displacement map work when using fallback or glass is disabled
+      if (useFallback || isGlassDisabled) return;
 
       updateDisplacementMap();
       [
@@ -185,8 +190,8 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     ]);
 
     useEffect(() => {
-      // Skip all displacement map work when using fallback
-      if (useFallback || !containerRef.current) return;
+      // Skip all displacement map work when using fallback or glass is disabled
+      if (useFallback || isGlassDisabled || !containerRef.current) return;
 
       // Use requestAnimationFrame to ensure layout is complete
       requestAnimationFrame(() => {
@@ -204,7 +209,7 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
       return () => {
         resizeObserver.disconnect();
       };
-    }, [useFallback]);
+    }, [useFallback, isGlassDisabled]);
 
     const supportsSVGFilters = () => {
       // Check if we're in a browser environment
@@ -241,7 +246,9 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
         '--glass-saturation': saturation,
       } as React.CSSProperties;
 
-      const svgSupported = useFallback ? false : supportsSVGFilters();
+      // Force fallback if glass effects are disabled by user
+      const shouldUseFallback = useFallback || isGlassDisabled;
+      const svgSupported = shouldUseFallback ? false : supportsSVGFilters();
       const backdropFilterSupported = supportsBackdropFilter();
 
       if (svgSupported) {
@@ -369,7 +376,7 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
           style={getContainerStyles()}
           {...props}
         >
-          {!useFallback && (
+          {!useFallback && !isGlassDisabled && (
             <svg
               className="w-full h-full pointer-events-none absolute inset-0 opacity-0 -z-10"
               xmlns="http://www.w3.org/2000/svg"
@@ -497,7 +504,7 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
         {...restProps}
         {...elementProps}
       >
-        {!useFallback && (
+        {!useFallback && !isGlassDisabled && (
           <svg
             className="w-full h-full pointer-events-none absolute inset-0 opacity-0 -z-10"
             xmlns="http://www.w3.org/2000/svg"

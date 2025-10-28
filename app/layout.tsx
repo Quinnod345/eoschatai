@@ -11,6 +11,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { UISettingsProvider } from '@/components/ui-settings-provider';
 import { LoadingProvider } from '@/components/providers/loading-provider';
 import { UserSettingsProvider } from '@/components/user-settings-provider';
+import { SettingsEffectsManager } from '@/components/settings-effects-manager';
 import { Analytics } from '@vercel/analytics/next';
 
 import './globals.css';
@@ -128,6 +129,7 @@ export default async function RootLayout({
           <ToastProvider />
           <SessionProvider>
             <UserSettingsProvider>
+              <SettingsEffectsManager />
               <UISettingsProvider>
                 <LoadingProvider />
                 {children}

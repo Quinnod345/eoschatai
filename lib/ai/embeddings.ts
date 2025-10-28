@@ -176,6 +176,11 @@ export const generateEmbedding = async (
 export const processDocument = async (
   documentId: string,
   content: string,
+  options?: {
+    useSummary?: boolean;
+    documentKind?: string;
+    documentTitle?: string;
+  },
 ): Promise<void> => {
   if (!upstashVectorClient) {
     console.warn(
@@ -183,6 +188,8 @@ export const processDocument = async (
     );
     return;
   }
+
+  const { useSummary = true, documentKind, documentTitle } = options || {};
 
   try {
     // CRITICAL FIX: Delete ALL old embeddings for this document first
@@ -202,6 +209,8 @@ export const processDocument = async (
         // Max 100 chunks per document
         idsToDelete.push(`${documentId}-${i}`);
       }
+      // Also delete summary chunk if exists
+      idsToDelete.push(`${documentId}-summary`);
 
       // Delete in batches
       if (idsToDelete.length > 0) {
@@ -218,9 +227,55 @@ export const processDocument = async (
       // Continue even if delete fails - upsert will overwrite
     }
 
-    // Generate chunks from content
+    // Check if document is large and should use summary
+    const isLargeDocument = content.length > 5000;
+    let summaryText = '';
+    const shouldUseSummary = useSummary && isLargeDocument && documentKind;
+
+    if (shouldUseSummary) {
+      console.log(
+        `RAG: Document is large (${content.length} chars), generating summary...`,
+      );
+
+      try {
+        const { summarizeComposer } = await import('./composer-summarizer');
+        const mockDocument = {
+          id: documentId,
+          title: documentTitle || 'Document',
+          content,
+          kind: documentKind as any,
+        } as any;
+
+        summaryText = await summarizeComposer(mockDocument);
+
+        if (summaryText) {
+          console.log(
+            `RAG: Generated summary (${summaryText.length} chars, ${((summaryText.length / content.length) * 100).toFixed(1)}% of original)`,
+          );
+
+          // Store summary in database
+          const { db } = await import('@/lib/db');
+          const { document } = await import('@/lib/db/schema');
+          const { eq } = await import('drizzle-orm');
+
+          await db
+            .update(document)
+            .set({ contentSummary: summaryText })
+            .where(eq(document.id, documentId));
+
+          console.log(
+            `RAG: Stored summary in database for document ${documentId}`,
+          );
+        }
+      } catch (summaryError) {
+        console.error('RAG: Error generating summary:', summaryError);
+        // Continue with full content embeddings
+      }
+    }
+
+    // Generate chunks from content (always create full content chunks as fallback)
     const chunks = generateChunks(content);
-    console.log(`RAG: Generated ${chunks.length} chunks from document`);
+    console.log(`RAG: Generated ${chunks.length} chunks from full document content`);
 
     // Generate embeddings for chunks
     const { embeddings } = await embedMany({
@@ -246,8 +301,37 @@ export const processDocument = async (
         documentId,
         chunk,
         createdAt: new Date().toISOString(),
+        isSummary: false,
       },
     }));
+
+    // If we have a summary, also create summary embeddings (preferred for retrieval)
+    if (summaryText && summaryText.length > 0) {
+      console.log(`RAG: Generating embeddings for summary...`);
+
+      const summaryChunks = generateChunks(summaryText, 512);
+      const { embeddings: summaryEmbeddings } = await embedMany({
+        model: embeddingModel,
+        values: summaryChunks,
+      });
+
+      // Add summary vectors with special metadata
+      const summaryVectors = summaryChunks.map((chunk, index) => ({
+        id: `${documentId}-summary-${index}`,
+        vector: summaryEmbeddings[index],
+        metadata: {
+          documentId,
+          chunk,
+          createdAt: new Date().toISOString(),
+          isSummary: true, // Mark as summary for prioritized retrieval
+        },
+      }));
+
+      vectors.push(...summaryVectors);
+      console.log(
+        `RAG: Added ${summaryVectors.length} summary embeddings (total: ${vectors.length} vectors)`,
+      );
+    }
 
     // Upsert vectors in batches to avoid rate limits
     const batchSize = 100;

@@ -65,7 +65,8 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/api/document') ||
       pathname.startsWith('/api/history') ||
       pathname.startsWith('/api/suggestions') ||
-      pathname.startsWith('/account')
+      pathname.startsWith('/account') ||
+      pathname.startsWith('/academy')
     ) {
       // Redirect to login page instead of homepage for protected routes
       const url = new URL('/login', request.url);

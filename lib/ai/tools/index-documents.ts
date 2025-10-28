@@ -61,7 +61,11 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
 
           try {
             // Process the document - will be stored in Upstash Vector
-            await processDocument(doc.id, doc.content);
+            await processDocument(doc.id, doc.content, {
+              useSummary: true,
+              documentKind: doc.kind,
+              documentTitle: doc.title,
+            });
             indexed++;
 
             // Provide progress updates

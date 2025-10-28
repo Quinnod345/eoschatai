@@ -746,6 +746,8 @@ export const systemPrompt = async ({
   userRagContext = '',
   personaRagContext = '',
   systemRagContext = '',
+  memoryContext = '',
+  conversationSummary = '',
   userId,
   userEmail,
   query = '',
@@ -759,6 +761,8 @@ export const systemPrompt = async ({
   userRagContext?: string;
   personaRagContext?: string;
   systemRagContext?: string;
+  memoryContext?: string;
+  conversationSummary?: string;
   userId?: string;
   userEmail?: string;
   query?: string;
@@ -1024,6 +1028,30 @@ ${personaRagContext}
 `
       : '';
 
+  // Add memory context if available
+  const userMemoryContext =
+    memoryContext && memoryContext.length > 0
+      ? memoryContext
+      : '';
+
+  // Add conversation summary if available (for long conversations)
+  const conversationHistoryContext =
+    conversationSummary && conversationSummary.length > 0
+      ? `
+## CONVERSATION HISTORY SUMMARY
+The following is a summary of the earlier part of this conversation:
+
+${conversationSummary}
+
+**CONTEXT USAGE:**
+- Use this summary to understand the broader context of the conversation
+- Reference facts and decisions from the summary when relevant
+- Don't repeat information already covered in the summary
+- Focus on building upon previous discussion
+
+`
+      : '';
+
   // Debug logging for document context
   if (systemDocumentContext.length > 0) {
     console.log(
@@ -1041,6 +1069,16 @@ ${personaRagContext}
     );
   } else {
     console.log('System Prompt: No user document context available');
+  }
+  if (userMemoryContext.length > 0) {
+    console.log(
+      `System Prompt: Including user memories (${userMemoryContext.length} chars)`,
+    );
+  }
+  if (conversationHistoryContext.length > 0) {
+    console.log(
+      `System Prompt: Including conversation summary (${conversationHistoryContext.length} chars)`,
+    );
   }
 
   // Determine if we should use persona-only mode
@@ -1062,11 +1100,15 @@ ${requestPrompt}
 
 ${context}
 
+${conversationHistoryContext}
+
 ${systemDocumentContext}
 
 ${personaDocumentContext}
 
 ${userDocumentContext}
+
+${userMemoryContext}
 
 ${companyContext}
 
@@ -1117,11 +1159,15 @@ ${requestPrompt}
 
 ${context}
 
+${conversationHistoryContext}
+
 ${systemDocumentContext}
 
 ${personaDocumentContext}
 
 ${userDocumentContext}
+
+${userMemoryContext}
 
 ${companyContext}
 

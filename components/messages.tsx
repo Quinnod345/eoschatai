@@ -298,7 +298,7 @@ function PureMessages({
   return (
     <div
       ref={messagesContainerRef}
-      className={`${meshClasses} flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent`}
+      className={`${meshClasses} flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-64 relative bg-transparent`}
     >
       {/* Spacer (like SwiftUI Spacer()) */}
       <div className="shrink-0 h-2" />

@@ -24,6 +24,8 @@ interface UserSettings {
   fontSize?: string;
   notificationsEnabled?: boolean;
   autocompleteEnabled?: boolean;
+  disableGlassEffects?: boolean;
+  disableEosGradient?: boolean;
 }
 
 interface UserSettingsContextType {
@@ -45,6 +47,8 @@ export function UserSettingsProvider({
     notificationsEnabled: true,
     language: 'english',
     fontSize: 'medium',
+    disableGlassEffects: false,
+    disableEosGradient: false,
   });
   const [loading, setLoading] = useState(true);
 
