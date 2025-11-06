@@ -50,7 +50,10 @@ export default function CourseActivationPage() {
         audience,
       });
 
-      const url = new URL('/api/circle/activate-course', window.location.origin);
+      const url = new URL(
+        '/api/circle/activate-course',
+        window.location.origin,
+      );
       url.searchParams.set('courseId', courseId);
       if (spaceId) url.searchParams.set('spaceId', spaceId);
       url.searchParams.set('audience', audience);
@@ -66,7 +69,8 @@ export default function CourseActivationPage() {
 
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.error || `Failed to activate course: ${response.statusText}`,
+          errorData.error ||
+            `Failed to activate course: ${response.statusText}`,
         );
       }
 
@@ -166,10 +170,9 @@ export default function CourseActivationPage() {
           isOpen={isModalOpen}
           onClose={handleModalClose}
           courseData={courseData}
+          courseId={courseId}
         />
       )}
     </div>
   );
 }
-
-

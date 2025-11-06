@@ -409,6 +409,7 @@ export async function POST(request: Request) {
       'Rocks',
       'A/C',
       'Core Process',
+      'Persona Document',
       'Other',
     ];
     if (!validCategories.includes(category)) {
@@ -490,6 +491,7 @@ export async function POST(request: Request) {
         | 'Rocks'
         | 'A/C'
         | 'Core Process'
+        | 'Persona Document'
         | 'Other';
 
       // Get isContext from form data (defaults to true if not specified)

@@ -698,6 +698,77 @@ const runMigrate = async () => {
           console.error('Error ensuring UserMemory tables:', error);
         }
 
+        // Add Circle.so course persona tables
+        try {
+          console.log('Running Circle.so course persona migrations...');
+
+          // Check if CircleCoursePersona table exists
+          const circleTableExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_name = 'CircleCoursePersona'
+            ) as "exists"
+          `;
+
+          if (!circleTableExists[0].exists) {
+            await connection`
+              CREATE TABLE IF NOT EXISTS "CircleCoursePersona" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "circleSpaceId" VARCHAR(128) NOT NULL,
+                "circleCourseId" VARCHAR(128) NOT NULL,
+                "personaId" UUID NOT NULL REFERENCES "Persona"(id) ON DELETE CASCADE,
+                "courseName" VARCHAR(256) NOT NULL,
+                "courseDescription" TEXT,
+                "targetAudience" VARCHAR(32) NOT NULL,
+                "lastSyncedAt" TIMESTAMP,
+                "syncStatus" VARCHAR(32) DEFAULT 'pending',
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE("circleCourseId")
+              )
+            `;
+            await connection`CREATE INDEX "circle_course_persona_course_idx" ON "CircleCoursePersona"("circleCourseId")`;
+            await connection`CREATE INDEX "circle_course_persona_persona_idx" ON "CircleCoursePersona"("personaId")`;
+            console.log('Created CircleCoursePersona table and indexes');
+          } else {
+            console.log('CircleCoursePersona table already exists');
+          }
+
+          // Check if UserCoursePersonaSubscription table exists
+          const subscriptionTableExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_name = 'UserCoursePersonaSubscription'
+            ) as "exists"
+          `;
+
+          if (!subscriptionTableExists[0].exists) {
+            await connection`
+              CREATE TABLE IF NOT EXISTS "UserCoursePersonaSubscription" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "userId" UUID NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+                "personaId" UUID NOT NULL REFERENCES "Persona"(id) ON DELETE CASCADE,
+                "isActive" BOOLEAN NOT NULL DEFAULT true,
+                "activatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "deactivatedAt" TIMESTAMP,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE("userId", "personaId")
+              )
+            `;
+            await connection`CREATE INDEX "user_course_persona_sub_user_idx" ON "UserCoursePersonaSubscription"("userId")`;
+            await connection`CREATE INDEX "user_course_persona_sub_persona_idx" ON "UserCoursePersonaSubscription"("personaId")`;
+            await connection`CREATE INDEX "user_course_persona_sub_active_idx" ON "UserCoursePersonaSubscription"("userId", "isActive")`;
+            console.log(
+              'Created UserCoursePersonaSubscription table and indexes',
+            );
+          } else {
+            console.log('UserCoursePersonaSubscription table already exists');
+          }
+        } catch (error) {
+          console.error('Error creating Circle.so course persona tables:', error);
+        }
+
         const end = Date.now();
         console.log('✅ Migrations completed in', end - start, 'ms');
 

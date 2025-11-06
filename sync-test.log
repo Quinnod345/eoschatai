@@ -1,0 +1,7 @@
+
+========================================
+Circle Course → Upstash Sync
+========================================
+
+❌ Error: Missing Upstash environment variables
+   Please set UPSTASH_USER_RAG_REST_URL and UPSTASH_USER_RAG_REST_TOKEN

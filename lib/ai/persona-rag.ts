@@ -37,16 +37,37 @@ export const personaRagContextPrompt = async (
       return '';
     }
 
-    // First, verify the persona belongs to the user
+    // First, verify the persona exists and is accessible
+    // System personas (userId: null) are accessible to all users
     const [personaData] = await db
       .select()
       .from(persona)
-      .where(and(eq(persona.id, personaId), eq(persona.userId, userId)))
+      .where(eq(persona.id, personaId))
       .limit(1);
 
     if (!personaData) {
-      console.log('Persona RAG context: Persona not found or unauthorized');
+      console.log('Persona RAG context: Persona not found');
       return '';
+    }
+
+    // Verify authorization: persona must either be a system persona or belong to the user
+    if (personaData.userId !== null && personaData.userId !== userId) {
+      console.log(
+        'Persona RAG context: Persona is not a system persona and does not belong to user',
+      );
+      return '';
+    }
+
+    // Check if this is a Circle course persona (uses shared Upstash namespace)
+    if (personaData.knowledgeNamespace?.startsWith('circle-course-')) {
+      console.log(
+        `Persona RAG context: Circle course persona detected, using Upstash namespace: ${personaData.knowledgeNamespace}`,
+      );
+      return await getCircleCourseContext(
+        personaData.knowledgeNamespace,
+        query,
+        personaData.name,
+      );
     }
 
     // Get the document IDs associated with this persona (uploaded user docs)
@@ -237,6 +258,20 @@ export const processPersonaDocuments = async (
       return;
     }
 
+    // Check if this is a Circle course persona
+    const [personaData] = await db
+      .select()
+      .from(persona)
+      .where(eq(persona.id, personaId))
+      .limit(1);
+
+    if (personaData?.knowledgeNamespace?.startsWith('circle-course-')) {
+      console.log(
+        'Persona RAG: Skipping document processing for Circle course persona (uses pre-synced Upstash data)',
+      );
+      return;
+    }
+
     // Import the necessary functions
     const { processUserDocument } = await import('./user-rag');
 
@@ -315,3 +350,139 @@ export const deletePersonaDocuments = async (personaId: string) => {
     throw error;
   }
 };
+
+/**
+ * Get context from Circle course stored in Upstash
+ * Circle courses use a shared namespace (circle-course-{courseId})
+ */
+async function getCircleCourseContext(
+  namespace: string,
+  query: string,
+  personaName: string,
+): Promise<string> {
+  try {
+    console.log(
+      `Persona RAG: Querying Circle course namespace ${namespace} for query: "${query}"`,
+    );
+
+    // Import Upstash and embedding functions
+    const { Index } = await import('@upstash/vector');
+    const { openai } = await import('@ai-sdk/openai');
+    const { embed } = await import('ai');
+
+    // Initialize Upstash client
+    const upstashUrl = process.env.UPSTASH_USER_RAG_REST_URL;
+    const upstashToken = process.env.UPSTASH_USER_RAG_REST_TOKEN;
+
+    if (!upstashUrl || !upstashToken) {
+      console.error('Persona RAG: Missing Upstash environment variables');
+      return '';
+    }
+
+    const upstashClient = new Index({
+      url: upstashUrl,
+      token: upstashToken,
+    });
+
+    // Get namespace client
+    const namespaceClient = upstashClient.namespace(namespace);
+
+    // Generate embedding for query
+    const embeddingModel = openai.embedding('text-embedding-ada-002');
+    const { embedding } = await embed({
+      model: embeddingModel,
+      value: query,
+    });
+
+    console.log(
+      `Persona RAG: Generated ${embedding.length}-dimensional embedding for query`,
+    );
+
+    // Query Upstash for relevant content
+    const results = await namespaceClient.query({
+      vector: embedding,
+      topK: 10, // Get top 10 most relevant chunks
+      includeMetadata: true,
+      includeVectors: false,
+    });
+
+    console.log(
+      `Persona RAG: Found ${results?.length || 0} results from Circle course namespace`,
+    );
+
+    if (!results || results.length === 0) {
+      console.log('Persona RAG: No relevant course content found');
+      return '';
+    }
+
+    // Filter by relevance threshold
+    const minRelevance = 0.5;
+    const relevantResults = results.filter(
+      (result: any) => result.score >= minRelevance,
+    );
+
+    console.log(
+      `Persona RAG: ${relevantResults.length} results above threshold (${minRelevance * 100}%)`,
+    );
+
+    if (relevantResults.length === 0) {
+      return '';
+    }
+
+    // Build context from results
+    let contextText = `
+## Course Content (${personaName})
+The following are relevant excerpts from the course materials:
+
+`;
+
+    // Group by document if possible
+    const documentGroups: Record<string, any[]> = {};
+    for (const result of relevantResults) {
+      const docTitle: string =
+        (result.metadata?.documentTitle as string) || 'Course Material';
+      if (!documentGroups[docTitle]) {
+        documentGroups[docTitle] = [];
+      }
+      documentGroups[docTitle].push(result);
+    }
+
+    // Add each document section
+    for (const docTitle of Object.keys(documentGroups)) {
+      const docs = documentGroups[docTitle];
+      if (!docs) continue;
+
+      contextText += `\n### ${docTitle}\n`;
+
+      // Sort by relevance and take top chunks
+      docs
+        .sort((a: any, b: any) => b.score - a.score)
+        .slice(0, 3) // Top 3 chunks per document
+        .forEach((doc: any, index: number) => {
+          const content = doc.metadata?.chunk || '';
+          const relevance = (doc.score * 100).toFixed(1);
+          contextText += `\n[Relevance: ${relevance}%]\n${content}\n`;
+          if (index < docs.length - 1) contextText += '\n---\n';
+        });
+
+      contextText += '\n';
+    }
+
+    contextText += `
+COURSE CONTENT INSTRUCTIONS:
+1. This content is from the course materials specifically designed for this persona.
+2. Use this information to provide accurate, course-aligned responses.
+3. Reference specific lessons or concepts when relevant.
+4. If the query is outside the course scope, acknowledge this and provide general guidance.
+`;
+
+    console.log(
+      `Persona RAG: Generated Circle course context with ${contextText.length} characters`,
+    );
+
+    return contextText;
+  } catch (error) {
+    console.error('Persona RAG: Error fetching Circle course context:', error);
+    return '';
+  }
+}

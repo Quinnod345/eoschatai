@@ -573,7 +573,12 @@ export function PersonaWizard({
           }
 
           const uploadResult = await uploadResponse.json();
-          const documentId = uploadResult.id;
+          const documentId = uploadResult.document?.id || uploadResult.id;
+
+          if (!documentId) {
+            console.error('Upload result missing document ID:', uploadResult);
+            throw new Error(`Upload succeeded but no document ID returned for ${file.name}`);
+          }
 
           // Process document into persona namespace
           const processResponse = await fetch(
@@ -593,7 +598,9 @@ export function PersonaWizard({
           );
 
           if (!processResponse.ok) {
-            throw new Error(`Failed to process ${file.name} for persona`);
+            const errorData = await processResponse.json().catch(() => ({}));
+            console.error('Process document failed:', errorData);
+            throw new Error(`Failed to process ${file.name} for persona: ${errorData.error || 'Unknown error'}`);
           }
 
           processedDocIds.push(documentId);

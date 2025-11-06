@@ -10,6 +10,7 @@ import type { Session } from 'next-auth';
 import { useEffect, useState, useCallback } from 'react';
 import { generateUUID } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
+import { toast } from 'sonner';
 
 interface ChatClientWrapperProps {
   id: string;
@@ -23,6 +24,13 @@ interface ChatClientWrapperProps {
   initialPersonaId?: string;
   initialProfileId?: string;
   initialResearchMode: ResearchMode;
+  courseActivationParams?: {
+    courseActivated: boolean;
+    courseName?: string;
+    error?: string;
+    errorMessage?: string;
+    courseId?: string;
+  };
   documentContext?: {
     type: 'ai-document' | 'user-document';
     id: string;
@@ -43,6 +51,7 @@ export function ChatClientWrapper({
   initialPersonaId,
   initialProfileId,
   initialResearchMode,
+  courseActivationParams,
   documentContext,
 }: ChatClientWrapperProps) {
   // Ensure sidebar is refreshed when viewing this chat
@@ -61,9 +70,42 @@ export function ChatClientWrapper({
     const timer = setTimeout(() => {
       setLoading(false);
     }, 100);
-    
+
     return () => clearTimeout(timer);
   }, [setLoading]);
+
+  // Handle course activation notifications
+  useEffect(() => {
+    if (!courseActivationParams) return;
+
+    // Only show success if explicitly activated (not on normal page load)
+    if (
+      courseActivationParams.courseActivated && 
+      courseActivationParams.courseName && 
+      !courseActivationParams.error
+    ) {
+      toast.success('Course Assistant Activated!', {
+        description: `${courseActivationParams.courseName} assistant is ready. You can now ask questions about the course content.`,
+        duration: 5000,
+      });
+    }
+
+    // Show error toast for course not found
+    if (courseActivationParams.error === 'course_not_found') {
+      toast.error('Course Not Found', {
+        description: `The course "${courseActivationParams.courseName || 'Unknown'}" hasn't been synced yet. Contact your administrator to sync course ID ${courseActivationParams.courseId}.`,
+        duration: 8000,
+      });
+    }
+
+    // Show error toast for activation failure
+    if (courseActivationParams.error === 'activation_failed') {
+      toast.error('Activation Failed', {
+        description: courseActivationParams.errorMessage || 'There was an error activating the course assistant. Please try again.',
+        duration: 6000,
+      });
+    }
+  }, [courseActivationParams]);
 
   // Check for pending recording message
   useEffect(() => {

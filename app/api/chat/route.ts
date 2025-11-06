@@ -865,30 +865,34 @@ export async function POST(request: Request) {
 
             return import('@/lib/ai/memory-rag')
               .then(({ findRelevantMemories, formatMemoriesForPrompt }) =>
-                findRelevantMemories(session.user.id, ragQueryText, 10, 0.5)
-                  .then((memories) => {
-                    const memoryRagTime = Date.now() - memoryRagStart;
+                findRelevantMemories(
+                  session.user.id,
+                  ragQueryText,
+                  10,
+                  0.5,
+                ).then((memories) => {
+                  const memoryRagTime = Date.now() - memoryRagStart;
+                  console.log(
+                    `Memory RAG: Retrieved ${memories.length} relevant memories in ${memoryRagTime}ms`,
+                  );
+
+                  if (memories.length > 0) {
                     console.log(
-                      `Memory RAG: Retrieved ${memories.length} relevant memories in ${memoryRagTime}ms`,
+                      `Memory RAG: Top memory: "${memories[0].summary.substring(0, 100)}..." (relevance: ${(memories[0].relevance * 100).toFixed(1)}%)`,
                     );
+                  }
 
-                    if (memories.length > 0) {
-                      console.log(
-                        `Memory RAG: Top memory: "${memories[0].summary.substring(0, 100)}..." (relevance: ${(memories[0].relevance * 100).toFixed(1)}%)`,
-                      );
-                    }
+                  // Format memories into prompt
+                  const formattedMemories = formatMemoriesForPrompt(memories);
 
-                    // Format memories into prompt
-                    const formattedMemories = formatMemoriesForPrompt(memories);
-                    
-                    if (formattedMemories.length > 0) {
-                      console.log(
-                        `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
-                      );
-                    }
+                  if (formattedMemories.length > 0) {
+                    console.log(
+                      `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
+                    );
+                  }
 
-                    return formattedMemories;
-                  }),
+                  return formattedMemories;
+                }),
               )
               .catch((error) => {
                 const memoryRagTime = Date.now() - memoryRagStart;
@@ -2974,7 +2978,7 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                       const { logContextUsage } = await import(
                         '@/lib/db/context-tracking'
                       );
-                      
+
                       // Count chunks from each source
                       const systemChunks = systemRagContext
                         ? (systemRagContext.match(/\[\d+\]/g) || []).length
@@ -2998,7 +3002,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                         personaChunks,
                         userChunks: userChunksMatch,
                         memoryChunks: memoryChunksMatch,
-                        conversationSummaryUsed: conversationSummaryText.length > 0,
+                        conversationSummaryUsed:
+                          conversationSummaryText.length > 0,
                         totalTokens: usage?.totalTokens,
                         contextTokens: usage?.promptTokens,
                         responseTokens: usage?.completionTokens,

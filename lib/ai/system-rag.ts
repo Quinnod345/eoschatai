@@ -315,3 +315,77 @@ ${contextText}
     return '';
   }
 }
+
+/**
+ * Process a document and store it in the systemEmbeddings table
+ * Used for course personas and other system knowledge
+ */
+export async function processSystemDocument(
+  content: string,
+  namespace: string,
+  metadata: {
+    title: string;
+    fileName?: string;
+    category?: string;
+    fileType?: string;
+    lessonId?: string;
+    order?: number;
+  },
+): Promise<void> {
+  try {
+    console.log(
+      `System RAG: Processing document "${metadata.title}" into namespace "${namespace}"`,
+    );
+
+    // Generate chunks from content
+    const chunks = splitIntoChunks(content, 800, 200);
+    console.log(`System RAG: Generated ${chunks.length} chunks from document`);
+
+    // Generate embeddings for chunks
+    const { embedMany } = await import('ai');
+    const { embeddings } = await embedMany({
+      model: openai.embedding('text-embedding-ada-002'),
+      values: chunks,
+    });
+
+    console.log(
+      `System RAG: Generated ${embeddings.length} embeddings with dimension ${embeddings[0]?.length || 0}`,
+    );
+
+    // Store chunks and embeddings in systemEmbeddings table
+    const embeddingsData = chunks.map((chunk, index) => ({
+      namespace,
+      chunk,
+      title: metadata.title,
+      metadata: {
+        fileName: metadata.fileName || metadata.title,
+        category: metadata.category || 'Course Content',
+        fileType: metadata.fileType || 'lesson',
+        lessonId: metadata.lessonId,
+        order: metadata.order,
+        createdAt: new Date().toISOString(),
+      },
+      embedding: embeddings[index],
+    }));
+
+    // Insert embeddings in batches
+    const batchSize = 50;
+    for (let i = 0; i < embeddingsData.length; i += batchSize) {
+      const batch = embeddingsData.slice(i, i + batchSize);
+      await db.insert(systemEmbeddings).values(batch);
+      console.log(
+        `System RAG: Stored batch ${i / batchSize + 1} of ${Math.ceil(embeddingsData.length / batchSize)}`,
+      );
+    }
+
+    console.log(
+      `System RAG: ✅ Successfully stored ${embeddingsData.length} chunks for "${metadata.title}" in namespace "${namespace}"`,
+    );
+  } catch (error) {
+    console.error(
+      `System RAG: Error processing document for namespace ${namespace}:`,
+      error,
+    );
+    throw error;
+  }
+}

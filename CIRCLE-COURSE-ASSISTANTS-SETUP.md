@@ -14,10 +14,21 @@ Add the following environment variables to your `.env.local` file:
 
 ```env
 # Circle.so API Configuration
-CIRCLE_API_TOKEN=your_circle_api_token_here
+CIRCLE_API_TOKEN=your_admin_api_token_here
+CIRCLE_HEADLESS_AUTH_TOKEN=your_headless_auth_token_here
 ```
 
-**CIRCLE_API_TOKEN**: Your Circle.so API authentication token. You can obtain this from your Circle.so account settings under API & Webhooks.
+**CIRCLE_API_TOKEN**: Your Circle.so **Admin API** token for managing space groups and community data:
+1. Go to **Settings** > **Developers** > **Tokens**
+2. Create a new token with type **"Admin API"**
+3. Copy the token value
+
+**CIRCLE_HEADLESS_AUTH_TOKEN**: Your Circle.so **Headless Auth** token for fetching post content:
+1. Go to **Settings** > **Developers** > **Tokens**
+2. Create a new token with type **"Headless Auth"**
+3. Copy the token value
+
+**Note**: You need BOTH tokens - the Admin API token for space group management and the Headless Auth token for accessing post content.
 
 ### Optional Variables
 
@@ -25,26 +36,55 @@ CIRCLE_API_TOKEN=your_circle_api_token_here
 # Circle.so Space ID (optional - can be provided per-link)
 CIRCLE_SPACE_ID=your_default_space_id
 
-# Circle.so API Base URL (optional - defaults to https://api.circle.so/v1)
-CIRCLE_API_BASE_URL=https://api.circle.so/v1
+# Circle.so API Base URL (optional - defaults to https://app.circle.so/api/v1)
+CIRCLE_API_BASE_URL=https://app.circle.so/api/v1
 ```
 
-**CIRCLE_SPACE_ID**: Your default Circle.so space ID. This can be overridden on a per-course basis via URL parameters, but setting a default simplifies your course links.
+**CIRCLE_SPACE_ID**: Your default Circle.so space ID. This can be overridden on a per-course basis via URL parameters, but setting a default simplifies your course links. The space ID is the numeric ID visible in your Circle admin URL.
 
-**CIRCLE_API_BASE_URL**: The base URL for the Circle.so API. Only change this if you're using a custom Circle.so instance or testing environment.
+**CIRCLE_API_BASE_URL**: The base URL for the Circle.so Admin API. The default is `https://app.circle.so/api/v1`. Only change this if you're using a custom Circle.so instance or testing environment.
 
 ## Getting Your Circle.so API Token
 
 1. Log in to your Circle.so admin dashboard
-2. Navigate to **Settings** > **API & Webhooks**
-3. Click **Generate New Token** or copy an existing token
-4. Copy the token and add it to your `.env.local` file
+2. Navigate to **Settings** > **Developers** > **Tokens**
+3. Click **Create New Token**
+4. Set the token type to **"Admin API"** (NOT "Headless Auth")
+5. Copy the generated token and add it to your `.env.local` file
+
+**Important**: The token type must be "Admin API" to access course/space group data. Headless Auth tokens are only for member-facing features.
 
 ## Getting Your Space ID
 
+Your Space ID is the numeric ID of your Circle community:
+
 1. Log in to your Circle.so admin dashboard
-2. The space ID is visible in the URL when viewing your space: `https://app.circle.so/spaces/{SPACE_ID}`
-3. Alternatively, you can find it in the API documentation section of your Circle.so settings
+2. Look at the URL: `https://app.circle.so/c/{SPACE_ID}/home`
+3. The number in the URL is your space ID (e.g., `2310423`)
+4. Alternatively, in the terminal, run:
+   ```bash
+   curl -H "Authorization: Bearer YOUR_API_TOKEN" \
+        https://app.circle.so/api/v1/me
+   ```
+   This will return your community info including the space ID
+
+## Getting Course IDs (Space Group IDs)
+
+In Circle.so, courses are called "Space Groups". To get the ID of a course/space group:
+
+**Method 1: Via Admin UI**
+1. Go to your Circle community
+2. Navigate to the course/space group
+3. Look at the URL: `https://app.circle.so/c/{SPACE_ID}/space-group/{COURSE_ID}`
+4. The `COURSE_ID` is the numeric ID you need
+
+**Method 2: Via API**
+```bash
+curl -H "Authorization: Bearer YOUR_API_TOKEN" \
+     https://app.circle.so/api/v1/space_groups?per_page=100
+```
+
+This will list all your courses/space groups with their IDs and names.
 
 ## Database Migration
 
@@ -137,9 +177,38 @@ The initial sync typically takes 30-60 seconds depending on course size:
 1. **Overview Document**: Course description and summary
 2. **Lesson Documents**: Each lesson is converted to a separate document
 3. **Vector Embeddings**: All content is chunked and embedded for semantic search
-4. **Persona Namespace**: Content is isolated in the course persona's namespace
+4. **Persona Namespace**: Content is isolated in the course persona's namespace (e.g., `circle-course-907974`)
 
-## Persona Instructions
+### What Gets Fetched
+
+**For Course-Type Spaces** (like your Pasta course):
+- ✅ ALL sections in the course
+- ✅ ALL lessons in each section
+- ✅ Full lesson content from `rich_text_body.circle_ios_fallback_text`
+- ✅ Lesson names, descriptions, and order
+- ✅ Handles pagination automatically
+
+**For Regular Discussion Spaces**:
+- ✅ ALL posts in the space
+- ✅ Post titles and full body content
+- ✅ Pinned posts (prioritized first)
+- ✅ Handles pagination automatically
+
+**Example for Your Pasta Course:**
+- Document 1: "Test - Overview" (course description)
+- Document 2: "Test - Lesson 1: Tomato garlic pasta" (full recipe, ~1893 characters)
+- Each document is chunked, embedded, and searchable
+
+### User Subscriptions
+
+Course personas are **shared system resources**:
+- ✅ One persona serves all users (efficient)
+- ✅ Users "subscribe" to see it in their persona list
+- ✅ Users can remove it from their list (deactivates subscription)
+- ✅ Persona and content remain for other users
+- ✅ User can re-activate anytime by clicking the course link again
+
+## Persona Instructions & Prioritization
 
 Each course assistant uses specialized instructions based on:
 
@@ -156,6 +225,39 @@ The system automatically selects the appropriate template based on course name:
 - **Scorecard/Data** courses → Data Component template
 - **Meeting/Level 10** courses → Meeting Pulse template
 - **Other** courses → Default EOS template
+
+### Content Prioritization in Chat
+
+When a user asks a question, the AI retrieves context in this priority order:
+
+1. **Priority 1: System Knowledge** - Course assistant instructions and framework
+2. **Priority 2: User Memories** - Facts the user asked to remember
+3. **Priority 3: Persona Documents** 🔥 **YOUR COURSE CONTENT** 🔥
+   - Retrieves up to 14 relevant chunks
+   - Uses semantic search with 0.5 threshold (high recall)
+   - Isolated in course persona namespace
+   - **EXPLICITLY PRIORITIZED** over user documents
+4. **Priority 4: Conversation Summary** - Previous chat context
+5. **Priority 5: User Documents** - User's uploaded files
+6. **Priority 6: Company Context** - User's company info
+
+**The AI is explicitly instructed:**
+> "HIGHEST PRIORITY: When persona documents are present, they take PRECEDENCE over both general user documents and company knowledge. Use this specialized content to demonstrate the persona's deep expertise in their domain."
+
+This ensures course content is ALWAYS prioritized when answering questions!
+
+## Removing Course Assistants
+
+Users can remove course assistants from their persona list:
+
+1. **Via Personas Dropdown**: Click the delete/trash icon on a course persona
+2. **What Happens**:
+   - Your subscription is deactivated (you won't see it anymore)
+   - The persona and its content remain in the system
+   - Other users are not affected
+   - You can re-activate anytime by clicking the course link again
+
+**Note**: Course personas are **never fully deleted** - they're shared resources. When you "delete" one, you're just unsubscribing from it.
 
 ## Testing Your Setup
 

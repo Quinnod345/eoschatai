@@ -3,7 +3,7 @@
   "version": "3.0.19",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "NODE_OPTIONS=\"--max-old-space-size=4096\" next dev --turbo",
     "build": "tsx lib/db/migrate && NODE_OPTIONS=\"--max-old-space-size=4096\" next build",
     "start": "next start",
     "lint": "next lint && biome lint --write --unsafe",
@@ -82,7 +82,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "@specy/liquid-glass-react": "^1.0.2",
     "@upstash/redis": "^1.35.0",
-    "@upstash/vector": "^1.2.1",
+    "@upstash/vector": "^1.2.2",
     "@vercel/analytics": "^1.5.0",
     "@vercel/blob": "^0.24.1",
     "@vercel/functions": "^2.0.0",

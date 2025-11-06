@@ -49,6 +49,7 @@ import { useUserSettings } from '@/components/user-settings-provider';
 import { useTheme } from 'next-themes';
 import { OrganizationSettings } from '@/components/organization-settings';
 import { useAccountStore } from '@/lib/stores/account-store';
+import { CoursePersonasAdmin } from '@/components/course-personas-admin';
 
 function MemoriesManager() {
   const [query, setQuery] = React.useState('');
@@ -268,6 +269,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     accountAge: number;
   } | null>(null);
 
+  // Check if user is admin
+  const isAdmin = session?.user?.email === 'quinn@upaway.dev';
+
   // Navigation items
   const navigationItems = [
     { id: 'profile', label: 'Profile', icon: UserCircle },
@@ -279,6 +283,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'usage', label: 'Usage', icon: BarChart },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'memories', label: 'Memories', icon: Database },
+    ...(isAdmin ? [{ id: 'admin', label: '🔧 Admin', icon: Shield }] : []),
   ];
 
   // Fetch settings on mount and when URL parameters change
@@ -2204,6 +2209,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div>
                       <h3 className="text-xl font-semibold mb-6">Memories</h3>
                       <MemoriesManager />
+                    </div>
+                  )}
+
+                  {/* Admin Section - Course Personas */}
+                  {activeSection === 'admin' && isAdmin && (
+                    <div>
+                      <h3 className="text-xl font-semibold mb-6">
+                        🔧 Admin: Course Personas
+                      </h3>
+                      <CoursePersonasAdmin />
                     </div>
                   )}
                 </div>

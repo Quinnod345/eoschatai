@@ -1,0 +1,6 @@
+{
+  "runtime": "nodejs20.x",
+  "memory": 3008,
+  "maxDuration": 300
+}
+

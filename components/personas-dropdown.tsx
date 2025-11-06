@@ -14,7 +14,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { PlusIcon, PencilEditIcon, UserIcon } from '@/components/icons';
+import {
+  PlusIcon,
+  PencilEditIcon,
+  UserIcon,
+  TrashIcon,
+} from '@/components/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import type { Persona } from '@/lib/db/schema';
@@ -29,6 +34,7 @@ interface PersonasDropdownProps {
   onPersonaSelect: (personaId: string | null) => void;
   onCreatePersona: () => void;
   onEditPersona: (persona: Persona) => void;
+  messages?: any[]; // Array of messages to determine if chat has been used
 }
 
 export function PersonasDropdown({
@@ -36,6 +42,7 @@ export function PersonasDropdown({
   onPersonaSelect,
   onCreatePersona,
   onEditPersona,
+  messages = [],
 }: PersonasDropdownProps) {
   const [systemPersonas, setSystemPersonas] = useState<Persona[]>([]);
   const [userPersonas, setUserPersonas] = useState<Persona[]>([]);
@@ -44,6 +51,10 @@ export function PersonasDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPersonaId, setHoveredPersonaId] = useState<string | null>(null);
   const [showPersonasModal, setShowPersonasModal] = useState(false);
+  const [isSwitchingPersona, setIsSwitchingPersona] = useState(false);
+
+  // Determine if chat has been used (has any messages)
+  const chatHasMessages = messages.length > 0;
 
   // Check if user has access to personas (any premium feature except deep_research means they have Pro)
   const entitlements = useAccountStore((state) => state.entitlements);
@@ -55,6 +66,15 @@ export function PersonasDropdown({
 
   const allPersonas = [...systemPersonas, ...userPersonas];
   const selectedPersona = allPersonas.find((p) => p.id === selectedPersonaId);
+
+  // Helper to check if hovering would trigger a new chat
+  const shouldShowNewChatOverlay = (personaId: string | null) => {
+    return (
+      chatHasMessages &&
+      hoveredPersonaId === personaId &&
+      personaId !== selectedPersonaId
+    );
+  };
 
   // Add debug logging
   useEffect(() => {
@@ -133,12 +153,51 @@ export function PersonasDropdown({
   };
 
   const handlePersonaSelect = async (personaId: string | null) => {
+    // Prevent multiple clicks while switching
+    if (isSwitchingPersona) {
+      console.log(
+        'PERSONA_DROPDOWN: Already switching persona, ignoring click',
+      );
+      return;
+    }
+
     console.log('PERSONA_DROPDOWN: handlePersonaSelect called', {
       selectedPersonaId: personaId,
       currentSelectedPersonaId: selectedPersonaId,
+      chatHasMessages,
       timestamp: new Date().toISOString(),
     });
 
+    // If chat has messages and switching to a different persona, create new chat
+    if (chatHasMessages && personaId !== selectedPersonaId) {
+      setIsSwitchingPersona(true);
+      setIsOpen(false); // Close dropdown immediately for better UX
+
+      try {
+        console.log(
+          'PERSONA_DROPDOWN: Starting new chat with persona:',
+          personaId,
+        );
+
+        // Navigate to new chat with personaId parameter
+        // Use 'withPersona=true' flag to indicate this is an explicit persona selection
+        const newChatUrl = personaId
+          ? `/chat?personaId=${personaId}&withPersona=true`
+          : '/chat';
+
+        console.log('PERSONA_DROPDOWN: Navigating to:', newChatUrl);
+        window.location.href = newChatUrl;
+      } catch (error) {
+        console.error('PERSONA_DROPDOWN: Error switching persona:', error);
+        setIsSwitchingPersona(false);
+        alert(
+          `Failed to switch persona: ${error instanceof Error ? error.message : 'Please try again.'}`,
+        );
+      }
+      return;
+    }
+
+    // Normal flow for empty chats or same persona
     console.log('PERSONA_DROPDOWN: Calling onPersonaSelect callback');
     onPersonaSelect(personaId);
     setIsOpen(false);
@@ -148,6 +207,46 @@ export function PersonasDropdown({
     event.stopPropagation();
     onEditPersona(persona);
     setIsOpen(false);
+  };
+
+  const handleDeletePersona = async (
+    persona: Persona,
+    event: React.MouseEvent,
+  ) => {
+    event.stopPropagation();
+
+    // Confirm deletion
+    const confirmMessage = persona.isSystemPersona
+      ? `Delete "${persona.name}" course assistant? This will remove it for everyone and delete all synced course content. You can re-create it by clicking the course link again.`
+      : `Delete "${persona.name}"? This will permanently delete the persona and all its associated data.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/personas?id=${persona.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Refresh personas list
+        fetchPersonas();
+        // Dispatch event for other components
+        window.dispatchEvent(new Event('personasUpdated'));
+
+        // If this was the selected persona, clear selection
+        if (selectedPersonaId === persona.id) {
+          onPersonaSelect(null);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Failed to remove persona: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting persona:', error);
+      alert('Failed to remove persona. Please try again.');
+    }
   };
 
   // If user doesn't have access, show a button that opens the modal
@@ -291,6 +390,22 @@ export function PersonasDropdown({
             avoidCollisions={true}
             collisionPadding={{ top: 8, right: 8, bottom: 80, left: 8 }}
           >
+            {/* Loading overlay while switching persona */}
+            {isSwitchingPersona && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center rounded-lg z-50"
+              >
+                <div className="text-center">
+                  <div className="w-8 h-8 border-3 border-eos-orange/30 border-t-eos-orange rounded-full animate-spin mx-auto mb-2" />
+                  <div className="text-sm font-medium text-foreground">
+                    Starting new chat...
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -301,7 +416,7 @@ export function PersonasDropdown({
               <DropdownMenuItem
                 onClick={() => handlePersonaSelect(null)}
                 className={`
-                  cursor-pointer p-3 rounded-lg mb-2 group
+                  cursor-pointer p-3 rounded-lg mb-2 group relative overflow-hidden
                   transition-all duration-200 ease-out
                   hover:bg-gradient-to-r hover:from-eos-orange/10 hover:to-eos-orangeLight/5
                   ${!selectedPersonaId ? 'bg-eos-orange/10 border border-eos-orange/20' : 'hover:bg-accent/50'}
@@ -341,6 +456,34 @@ export function PersonasDropdown({
                     </div>
                   </div>
                 </div>
+
+                {/* New Chat Overlay */}
+                <AnimatePresence>
+                  {shouldShowNewChatOverlay('default') && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center rounded-lg"
+                    >
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        transition={{ duration: 0.2, delay: 0.05 }}
+                        className="text-center px-4"
+                      >
+                        <div className="text-sm font-semibold text-eos-orange mb-1">
+                          Start New Chat
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          with this persona
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </DropdownMenuItem>
 
               {systemPersonas.length > 0 && (
@@ -360,7 +503,7 @@ export function PersonasDropdown({
                     <DropdownMenuItem
                       onClick={() => handlePersonaSelect(persona.id)}
                       className={`
-                        cursor-pointer p-3 rounded-lg mb-2 group relative
+                        cursor-pointer p-3 rounded-lg mb-2 group relative overflow-hidden
                         transition-all duration-200 ease-out
                         hover:bg-gradient-to-r hover:from-eos-navy/10 hover:to-eos-navyLight/5
                         ${selectedPersonaId === persona.id ? 'bg-eos-navy/10 border border-eos-navy/20' : 'hover:bg-accent/50'}
@@ -426,24 +569,52 @@ export function PersonasDropdown({
                             </div>
                           )}
                         </div>
-                        <motion.div
-                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          {/* Only show edit button for non-system personas */}
-                          {!persona.isSystemPersona && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          {/* Show delete button for all system personas (course assistants) */}
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 hover:bg-eos-navy/20 hover:text-eos-navy rounded-lg"
-                              onClick={(e) => handleEditPersona(persona, e)}
+                              className="h-8 w-8 p-0 hover:bg-red-500/20 hover:text-red-500 rounded-lg"
+                              onClick={(e) => handleDeletePersona(persona, e)}
+                              title="Remove course assistant"
                             >
-                              <PencilEditIcon size={16} />
+                              <TrashIcon size={16} />
                             </Button>
-                          )}
-                        </motion.div>
+                          </motion.div>
+                        </div>
                       </div>
+
+                      {/* New Chat Overlay */}
+                      <AnimatePresence>
+                        {shouldShowNewChatOverlay(persona.id) && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center rounded-lg"
+                          >
+                            <motion.div
+                              initial={{ scale: 0.8, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.8, opacity: 0 }}
+                              transition={{ duration: 0.2, delay: 0.05 }}
+                              className="text-center px-4"
+                            >
+                              <div className="text-sm font-semibold text-eos-navy mb-1">
+                                Start New Chat
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                with this persona
+                              </div>
+                            </motion.div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </DropdownMenuItem>
                   </motion.div>
                 ))}
@@ -467,7 +638,7 @@ export function PersonasDropdown({
                         <DropdownMenuItem
                           onClick={() => handlePersonaSelect(persona.id)}
                           className={`
-                            cursor-pointer p-3 rounded-lg mb-2 group relative
+                            cursor-pointer p-3 rounded-lg mb-2 group relative overflow-hidden
                             transition-all duration-200 ease-out
                             hover:bg-gradient-to-r hover:from-eos-navy/10 hover:to-eos-navyLight/5
                             ${selectedPersonaId === persona.id ? 'bg-eos-navy/10 border border-eos-navy/20' : 'hover:bg-accent/50'}
@@ -521,6 +692,34 @@ export function PersonasDropdown({
                               </Button>
                             </motion.div>
                           </div>
+
+                          {/* New Chat Overlay */}
+                          <AnimatePresence>
+                            {shouldShowNewChatOverlay(persona.id) && (
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center rounded-lg"
+                              >
+                                <motion.div
+                                  initial={{ scale: 0.8, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.8, opacity: 0 }}
+                                  transition={{ duration: 0.2, delay: 0.05 }}
+                                  className="text-center px-4"
+                                >
+                                  <div className="text-sm font-semibold text-eos-navy mb-1">
+                                    Start New Chat
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    with this persona
+                                  </div>
+                                </motion.div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </DropdownMenuItem>
                       </motion.div>
                     ))}
@@ -545,7 +744,7 @@ export function PersonasDropdown({
                     <DropdownMenuItem
                       onClick={() => handlePersonaSelect(persona.id)}
                       className={`
-                        cursor-pointer p-3 rounded-lg mb-2 group relative
+                        cursor-pointer p-3 rounded-lg mb-2 group relative overflow-hidden
                         transition-all duration-200 ease-out
                         hover:bg-gradient-to-r hover:from-eos-navy/10 hover:to-eos-navyLight/5
                         ${selectedPersonaId === persona.id ? 'bg-eos-navy/10 border border-eos-navy/20' : 'hover:bg-accent/50'}
@@ -611,21 +810,63 @@ export function PersonasDropdown({
                             </div>
                           )}
                         </div>
-                        <motion.div
-                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-eos-navy/20 hover:text-eos-navy rounded-lg"
-                            onClick={(e) => handleEditPersona(persona, e)}
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
                           >
-                            <PencilEditIcon size={16} />
-                          </Button>
-                        </motion.div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-eos-navy/20 hover:text-eos-navy rounded-lg"
+                              onClick={(e) => handleEditPersona(persona, e)}
+                            >
+                              <PencilEditIcon size={16} />
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-red-500/20 hover:text-red-500 rounded-lg"
+                              onClick={(e) => handleDeletePersona(persona, e)}
+                            >
+                              <TrashIcon size={16} />
+                            </Button>
+                          </motion.div>
+                        </div>
                       </div>
+
+                      {/* New Chat Overlay */}
+                      <AnimatePresence>
+                        {shouldShowNewChatOverlay(persona.id) && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center rounded-lg"
+                          >
+                            <motion.div
+                              initial={{ scale: 0.8, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.8, opacity: 0 }}
+                              transition={{ duration: 0.2, delay: 0.05 }}
+                              className="text-center px-4"
+                            >
+                              <div className="text-sm font-semibold text-eos-navy mb-1">
+                                Start New Chat
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                with this persona
+                              </div>
+                            </motion.div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </DropdownMenuItem>
                   </motion.div>
                 ))}

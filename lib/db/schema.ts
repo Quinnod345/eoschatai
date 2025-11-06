@@ -36,6 +36,7 @@ export const user = pgTable(
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId'),
+    profilePicture: text('profilePicture'),
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
@@ -561,7 +562,7 @@ export const userDocuments = pgTable('UserDocuments', {
   fileSize: integer('fileSize').notNull(),
   fileType: varchar('fileType', { length: 255 }).notNull(),
   category: varchar('category', {
-    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process', 'Other'],
+    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process', 'Persona Document', 'Other'],
   }).notNull(),
   content: text('content').notNull(),
   isContext: boolean('isContext').default(true), // Controls whether embeddings exist for this document
@@ -768,6 +769,41 @@ export const circleCoursePersona = pgTable(
 );
 
 export type CircleCoursePersona = InferSelectModel<typeof circleCoursePersona>;
+
+// User subscriptions to course personas (allows users to activate/deactivate course assistants)
+export const userCoursePersonaSubscription = pgTable(
+  'UserCoursePersonaSubscription',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    personaId: uuid('personaId')
+      .notNull()
+      .references(() => persona.id, { onDelete: 'cascade' }),
+    isActive: boolean('isActive').notNull().default(true),
+    activatedAt: timestamp('activatedAt').notNull().defaultNow(),
+    deactivatedAt: timestamp('deactivatedAt'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique user-persona pairs
+    userPersonaUnique: unique().on(table.userId, table.personaId),
+    userIdx: index('user_course_persona_sub_user_idx').on(table.userId),
+    personaIdx: index('user_course_persona_sub_persona_idx').on(
+      table.personaId,
+    ),
+    activeIdx: index('user_course_persona_sub_active_idx').on(
+      table.userId,
+      table.isActive,
+    ),
+  }),
+);
+
+export type UserCoursePersonaSubscription = InferSelectModel<
+  typeof userCoursePersonaSubscription
+>;
 
 // EOS Persona Profiles table for sub-groups within personas (e.g., Vision Building Day 2, etc.)
 export const personaProfile = pgTable('PersonaProfile', {

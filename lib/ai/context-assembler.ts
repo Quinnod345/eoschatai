@@ -111,7 +111,7 @@ export async function assembleContextWithBudget(options: {
       } else {
         // Check if it's a system persona via database
         const { db } = await import('@/lib/db');
-        const { persona } = await import('@/lib/db/schema');
+        const { persona, circleCoursePersona } = await import('@/lib/db/schema');
         const { eq } = await import('drizzle-orm');
 
         const [personaData] = await db
@@ -121,6 +121,14 @@ export async function assembleContextWithBudget(options: {
           .limit(1);
 
         if (personaData?.isSystemPersona) {
+          // Check if this is a Circle.so course persona
+          const [coursePersona] = await db
+            .select()
+            .from(circleCoursePersona)
+            .where(eq(circleCoursePersona.personaId, personaId))
+            .limit(1);
+
+          // Course personas and other system personas use PostgreSQL
           systemRagContent = await systemRagContextPrompt(
             personaId,
             profileId || null,

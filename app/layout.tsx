@@ -15,7 +15,8 @@ import { SettingsEffectsManager } from '@/components/settings-effects-manager';
 import { Analytics } from '@vercel/analytics/next';
 
 import './globals.css';
-import { SessionProvider } from 'next-auth/react';
+import { SessionProviderWrapper } from '@/components/session-provider-wrapper';
+import { SessionMonitor } from '@/components/session-monitor';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://eosbot.ai'),
@@ -127,7 +128,8 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <ToastProvider />
-          <SessionProvider>
+          <SessionProviderWrapper>
+            <SessionMonitor />
             <UserSettingsProvider>
               <SettingsEffectsManager />
               <UISettingsProvider>
@@ -135,7 +137,7 @@ export default async function RootLayout({
                 {children}
               </UISettingsProvider>
             </UserSettingsProvider>
-          </SessionProvider>
+          </SessionProviderWrapper>
           <Analytics />
         </ThemeProvider>
       </body>

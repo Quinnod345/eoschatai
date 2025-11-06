@@ -21,6 +21,13 @@ export default async function ChatPage({
     dashboard?: string;
     newComposerKind?: string;
     newComposerTitle?: string;
+    personaId?: string;
+    withPersona?: string; // Flag for "start new chat with this persona" feature
+    courseActivated?: string;
+    courseName?: string;
+    error?: string;
+    errorMessage?: string;
+    courseId?: string;
   }>;
 }) {
   const session = await auth();
@@ -34,15 +41,41 @@ export default async function ChatPage({
   // Await searchParams as required by Next.js 15
   const params = await searchParams;
 
-  // Get user settings to retrieve research mode preference
+  // Get user settings to retrieve persona, profile, and research mode preferences
   let userResearchMode: ResearchMode = 'off';
+  let initialPersonaId: string | undefined;
+  let initialProfileId: string | undefined;
+  
   try {
     const userSettings = await getUserSettings({ userId: session.user.id });
     console.log('[NewChat] User settings fetched:', {
       userId: session.user.id,
+      selectedPersonaId: userSettings?.selectedPersonaId,
+      selectedProfileId: userSettings?.selectedProfileId,
       selectedResearchMode: userSettings?.selectedResearchMode,
-      allSettings: userSettings,
     });
+
+    // PRIORITY 1: Course activation (courseActivated=true)
+    if (params.personaId && params.courseActivated === 'true') {
+      initialPersonaId = params.personaId;
+      console.log('[NewChat] Persona ID set from course activation:', initialPersonaId);
+    }
+    // PRIORITY 2: Explicit "start new chat with this persona" (withPersona=true flag)
+    else if (params.personaId && params.withPersona === 'true') {
+      initialPersonaId = params.personaId;
+      console.log('[NewChat] Persona ID set from explicit "new chat with persona" action:', initialPersonaId);
+    }
+    // PRIORITY 3: Default to undefined (will use default EOS AI in client)
+    // DO NOT use saved persona preference - each new chat starts fresh with EOS AI
+    else {
+      initialPersonaId = undefined;
+      console.log('[NewChat] New chat - defaulting to EOS AI');
+    }
+    
+    if (userSettings?.selectedProfileId) {
+      initialProfileId = userSettings.selectedProfileId;
+      console.log('[NewChat] Profile ID set from user settings:', initialProfileId);
+    }
 
     if (userSettings?.selectedResearchMode) {
       const rawMode = userSettings.selectedResearchMode;
@@ -55,7 +88,7 @@ export default async function ChatPage({
     }
   } catch (error) {
     console.error(
-      '[NewChat] Error fetching user settings for research mode:',
+      '[NewChat] Error fetching user settings for persona/profile/research mode:',
       error,
     );
   }
@@ -91,8 +124,19 @@ export default async function ChatPage({
           isReadonly={false}
           session={session}
           autoResume={false}
-          initialPersonaId={undefined}
-          initialProfileId={undefined}
+          initialPersonaId={initialPersonaId}
+          courseActivationParams={
+            params.courseActivated || params.error || params.courseName
+              ? {
+                  courseActivated: params.courseActivated === 'true',
+                  courseName: params.courseName,
+                  error: params.error,
+                  errorMessage: params.errorMessage,
+                  courseId: params.courseId,
+                }
+              : undefined
+          }
+          initialProfileId={initialProfileId}
           initialResearchMode={userResearchMode}
           documentContext={null}
         />
@@ -113,8 +157,19 @@ export default async function ChatPage({
         isReadonly={false}
         session={session}
         autoResume={false}
-        initialPersonaId={undefined}
-        initialProfileId={undefined}
+        initialPersonaId={initialPersonaId}
+        courseActivationParams={
+          params.courseActivated || params.error || params.courseName
+            ? {
+                courseActivated: params.courseActivated === 'true',
+                courseName: params.courseName,
+                error: params.error,
+                errorMessage: params.errorMessage,
+                courseId: params.courseId,
+              }
+            : undefined
+        }
+        initialProfileId={initialProfileId}
         initialResearchMode={userResearchMode}
         documentContext={null}
       />

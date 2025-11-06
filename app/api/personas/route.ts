@@ -6,6 +6,8 @@ import {
   personaComposerDocument,
   document,
   user,
+  userCoursePersonaSubscription,
+  circleCoursePersona,
 } from '@/lib/db/schema';
 import { eq, or, isNull, and, ne, inArray, desc } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
@@ -30,7 +32,8 @@ export async function GET() {
     );
 
     // Get system personas from database (excluding EOS Implementer since it's now hardcoded)
-    const systemPersonas = await db
+    // For course personas, only show ones the user has subscribed to
+    const allSystemPersonas = await db
       .select()
       .from(persona)
       .where(
@@ -40,6 +43,41 @@ export async function GET() {
         ),
       )
       .orderBy(persona.createdAt);
+
+    // Get user's course persona subscriptions
+    const courseSubscriptions = await db
+      .select({
+        personaId: userCoursePersonaSubscription.personaId,
+      })
+      .from(userCoursePersonaSubscription)
+      .where(
+        and(
+          eq(userCoursePersonaSubscription.userId, session.user.id),
+          eq(userCoursePersonaSubscription.isActive, true),
+        ),
+      );
+
+    const subscribedCoursePersonaIds = new Set(
+      courseSubscriptions.map((s) => s.personaId),
+    );
+
+    // Get all course persona IDs to identify which personas are course-based
+    const coursePersonas = await db
+      .select({ personaId: circleCoursePersona.personaId })
+      .from(circleCoursePersona);
+
+    const coursePersonaIds = new Set(coursePersonas.map((cp) => cp.personaId));
+
+    // Filter system personas: include non-course personas OR course personas user is subscribed to
+    const systemPersonas = allSystemPersonas.filter((p) => {
+      const isCoursePersona = coursePersonaIds.has(p.id);
+      if (!isCoursePersona) {
+        // Not a course persona, include it
+        return true;
+      }
+      // Is a course persona, only include if user is subscribed
+      return subscribedCoursePersonaIds.has(p.id);
+    });
 
     // Add hardcoded EOS Implementer if user has access
     const finalSystemPersonas = [...systemPersonas];
@@ -321,6 +359,158 @@ export async function POST(request: NextRequest) {
     console.error('Error creating persona:', error);
     return NextResponse.json(
       { error: 'Failed to create persona' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const personaId = searchParams.get('id');
+
+    if (!personaId) {
+      return NextResponse.json(
+        { error: 'Persona ID is required' },
+        { status: 400 },
+      );
+    }
+
+    // Check if this is a course persona
+    console.log(
+      `[Persona Delete] Checking if ${personaId} is a course persona...`,
+    );
+
+    const [coursePersona] = await db
+      .select()
+      .from(circleCoursePersona)
+      .where(eq(circleCoursePersona.personaId, personaId))
+      .limit(1);
+
+    console.log(
+      `[Persona Delete] Course persona check result:`,
+      coursePersona ? 'Found' : 'Not found',
+    );
+
+    if (coursePersona) {
+      // For course personas, fully delete the persona and all its data
+      console.log(
+        `[Persona Delete] Deleting course persona ${personaId} and all associated data`,
+      );
+
+      // Delete from Upstash Vector namespace
+      try {
+        const { Index } = await import('@upstash/vector');
+        const url = process.env.UPSTASH_USER_RAG_REST_URL;
+        const token = process.env.UPSTASH_USER_RAG_REST_TOKEN;
+
+        if (url && token) {
+          const client = new Index({ url, token });
+          const namespaceClient = client.namespace(personaId);
+
+          // Delete all vectors in the namespace
+          await namespaceClient.reset();
+          console.log(
+            `[Persona Delete] Deleted Upstash vectors for namespace ${personaId}`,
+          );
+        }
+      } catch (vectorError) {
+        console.error('[Persona Delete] Error deleting vectors:', vectorError);
+        // Continue with database deletion
+      }
+
+      // First, null out any chats using this persona
+      const { chat } = await import('@/lib/db/schema');
+      await db
+        .update(chat)
+        .set({ personaId: null })
+        .where(eq(chat.personaId, personaId));
+
+      console.log(`[Persona Delete] Nulled persona references in Chat table`);
+
+      // Delete the course persona mapping
+      await db
+        .delete(circleCoursePersona)
+        .where(eq(circleCoursePersona.personaId, personaId));
+
+      // Delete all user subscriptions
+      await db
+        .delete(userCoursePersonaSubscription)
+        .where(eq(userCoursePersonaSubscription.personaId, personaId));
+
+      // Delete the persona itself
+      await db.delete(persona).where(eq(persona.id, personaId));
+
+      console.log(
+        `[Persona Delete] ✅ Deleted course persona and all data for ${personaId}`,
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: 'Course assistant deleted completely',
+      });
+    }
+
+    // For regular user personas, proceed with normal deletion
+    const [personaToDelete] = await db
+      .select()
+      .from(persona)
+      .where(eq(persona.id, personaId))
+      .limit(1);
+
+    if (!personaToDelete) {
+      return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
+    }
+
+    // Verify ownership (allow null userId which means it's a system persona user can manage)
+    if (
+      personaToDelete.userId !== null &&
+      personaToDelete.userId !== session.user.id
+    ) {
+      return NextResponse.json(
+        { error: 'You do not have permission to delete this persona' },
+        { status: 403 },
+      );
+    }
+
+    // First, null out any chats using this persona
+    const { chat } = await import('@/lib/db/schema');
+    await db
+      .update(chat)
+      .set({ personaId: null })
+      .where(eq(chat.personaId, personaId));
+
+    console.log(`[Persona Delete] Nulled persona references in Chat table`);
+
+    // Delete persona documents from vector store
+    try {
+      const { deletePersonaDocuments } = await import('@/lib/ai/persona-rag');
+      await deletePersonaDocuments(personaId);
+    } catch (error) {
+      console.error(
+        'Error deleting persona documents from vector store:',
+        error,
+      );
+      // Continue with database deletion even if vector deletion fails
+    }
+
+    // Delete the persona (cascades to related records)
+    await db.delete(persona).where(eq(persona.id, personaId));
+
+    return NextResponse.json({
+      success: true,
+      message: 'Persona deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting persona:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete persona' },
       { status: 500 },
     );
   }

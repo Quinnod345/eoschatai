@@ -20,3 +20,5 @@ CREATE INDEX "circle_course_persona_course_idx" ON "CircleCoursePersona"("circle
 CREATE INDEX "circle_course_persona_persona_idx" ON "CircleCoursePersona"("personaId");
 
 
+
+

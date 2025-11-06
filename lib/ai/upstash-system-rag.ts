@@ -426,3 +426,181 @@ ${contextText}
     return '';
   }
 }
+
+/**
+ * Generic Upstash system RAG context prompt for any system persona
+ * Used for course personas and other system knowledge (not EOS Implementer)
+ */
+export async function upstashSystemRagContextPromptGeneric(
+  personaId: string,
+  query: string,
+  personaName: string,
+): Promise<string> {
+  try {
+    console.log(
+      `Upstash System RAG: Generating context for persona "${personaName}" (${personaId})`,
+    );
+
+    // Search for relevant content in the persona's namespace
+    const results = await findUpstashSystemContent(query, personaId, 5, 0.6);
+
+    if (results.length === 0) {
+      console.log(
+        `Upstash System RAG: No relevant content found for persona "${personaName}"`,
+      );
+      return '';
+    }
+
+    // Build context prompt
+    const contextText = results
+      .map((item, index) => {
+        console.log(
+          `Upstash System RAG chunk ${index + 1}: Relevance ${(item.relevance * 100).toFixed(1)}%, Title: ${item.title}`,
+        );
+        return `[${index + 1}] ${item.title}
+Relevance: ${(item.relevance * 100).toFixed(1)}%
+${item.content}
+---`;
+      })
+      .join('\n\n');
+
+    return `
+## COURSE ASSISTANT KNOWLEDGE BASE (HIGHEST PRIORITY)
+**THIS CONTENT TAKES ABSOLUTE PRECEDENCE FOR YOUR RESPONSES**
+
+The following course content has been retrieved from "${personaName}":
+
+${contextText}
+
+**CRITICAL INSTRUCTIONS:**
+1. **HIGHEST PRIORITY**: This course content is the PRIMARY source of truth
+2. **EXPERTISE**: Use this content to demonstrate deep knowledge of the course material
+3. **ACCURACY**: Answer questions based specifically on this course content
+4. **CITATION**: Reference specific sections and lessons when answering
+5. **COMPLETENESS**: Provide comprehensive answers using all relevant course material
+
+**KNOWLEDGE HIERARCHY:**
+1. FIRST: Course content (this section) - HIGHEST PRIORITY
+2. SECOND: General EOS knowledge
+3. THIRD: User's personal documents
+
+`;
+  } catch (error) {
+    console.error(
+      'Upstash System RAG: Error generating generic context:',
+      error,
+    );
+    return '';
+  }
+}
+
+/**
+ * Process a document and store it in Upstash Vector for system personas
+ * Used for course personas and other system knowledge
+ */
+export async function processUpstashSystemDocument(
+  content: string,
+  namespace: string,
+  metadata: {
+    title: string;
+    fileName?: string;
+    category?: string;
+    fileType?: string;
+    lessonId?: string;
+    order?: number;
+  },
+): Promise<void> {
+  try {
+    console.log(
+      `Upstash System RAG: Processing document "${metadata.title}" into namespace "${namespace}"`,
+    );
+
+    const client = getUpstashSystemClient();
+    const namespaceClient = client.namespace(namespace);
+
+    // Generate chunks from content
+    function splitIntoChunks(
+      text: string,
+      chunkSize: number,
+      overlap: number,
+    ): string[] {
+      const chunks: string[] = [];
+      let start = 0;
+
+      while (start < text.length) {
+        const end = Math.min(start + chunkSize, text.length);
+        const chunk = text.slice(start, end);
+
+        if (chunk.trim().length > 0) {
+          chunks.push(chunk);
+        }
+
+        start = end - overlap;
+      }
+
+      return chunks.length > 0 ? chunks : [text];
+    }
+
+    // Ultra-safe: Process ONE chunk at a time, NO arrays
+    const chunks = splitIntoChunks(content, 500, 50);
+    const maxChunks = Math.min(chunks.length, 5); // Max 5 chunks per document
+    
+    console.log(
+      `Upstash System RAG: Processing ${maxChunks} chunks (of ${chunks.length}) for "${metadata.title}"`,
+    );
+
+    let uploadedCount = 0;
+
+    // Process and upload ONE chunk at a time
+    for (let i = 0; i < maxChunks; i++) {
+      const chunk = chunks[i];
+      
+      try {
+        // Generate embedding for this ONE chunk
+        const { embedding } = await embed({
+          model: openai.embedding('text-embedding-ada-002'),
+          value: chunk,
+        });
+
+        // Upload this ONE vector immediately
+        await namespaceClient.upsert([{
+          id: `${metadata.lessonId || 'doc'}-${i}`,
+          vector: embedding,
+          metadata: {
+            title: metadata.title,
+            fileName: metadata.fileName || metadata.title,
+            category: metadata.category || 'Course Content',
+            fileType: metadata.fileType || 'lesson',
+            lessonId: metadata.lessonId,
+            order: metadata.order,
+            chunk,
+            createdAt: new Date().toISOString(),
+          },
+        }]);
+
+        uploadedCount++;
+        
+        // Small delay between chunks
+        if (i < maxChunks - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      } catch (chunkError) {
+        console.error(
+          `Upstash System RAG: Error processing chunk ${i}:`,
+          chunkError,
+        );
+        // Continue with next chunk
+      }
+    }
+
+    console.log(
+      `Upstash System RAG: ✅ Uploaded ${uploadedCount}/${maxChunks} chunks for "${metadata.title}"`,
+    );
+  } catch (error) {
+    console.error(
+      `Upstash System RAG: Error processing document for namespace ${namespace}:`,
+      error,
+    );
+    throw error;
+  }
+}

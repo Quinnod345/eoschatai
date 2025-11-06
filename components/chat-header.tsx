@@ -250,6 +250,7 @@ function PureChatHeader({
               onPersonaSelect={handlePersonaSelect}
               onCreatePersona={handleCreatePersona}
               onEditPersona={handleEditPersona}
+              messages={messages}
             />
 
             {/* EOS Profiles Dropdown - only show when a persona is selected */}
