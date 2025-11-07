@@ -1894,3 +1894,40 @@ export const CompassIcon = ({ size = 16 }: { size?: number }) => {
     </svg>
   );
 };
+
+export const ExternalLinkIcon = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      width={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: 'currentcolor' }}
+    >
+      <path d="M6 3H3.5C2.67157 3 2 3.67157 2 4.5V12.5C2 13.3284 2.67157 14 3.5 14H11.5C12.3284 14 13 13.3284 13 12.5V10" />
+      <path d="M9 2H14M14 2V7M14 2L7 9" />
+    </svg>
+  );
+};
+
+export const ArrowRightIcon = ({ size = 16 }: { size?: number }) => {
+  return (
+    <svg
+      height={size}
+      width={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: 'currentcolor' }}
+    >
+      <path d="M2 8H14M14 8L9 3M14 8L9 13" />
+    </svg>
+  );
+};

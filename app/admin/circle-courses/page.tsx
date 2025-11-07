@@ -172,7 +172,9 @@ export default function CircleCoursesAdminPage() {
             >
               {copiedLink === 'all-implementer' ? (
                 <>
-                  <CheckIcon size={16} className="text-green-500" />
+                  <span className="text-green-500">
+                    <CheckIcon size={16} />
+                  </span>
                   Copied!
                 </>
               ) : (
@@ -189,7 +191,9 @@ export default function CircleCoursesAdminPage() {
             >
               {copiedLink === 'all-client' ? (
                 <>
-                  <CheckIcon size={16} className="text-green-500" />
+                  <span className="text-green-500">
+                    <CheckIcon size={16} />
+                  </span>
                   Copied!
                 </>
               ) : (
@@ -259,7 +263,9 @@ export default function CircleCoursesAdminPage() {
                     >
                       {copiedLink === implementerLinkId ? (
                         <>
-                          <CheckIcon size={14} className="text-green-500" />
+                          <span className="text-green-500">
+                            <CheckIcon size={14} />
+                          </span>
                           Copied
                         </>
                       ) : (
@@ -300,7 +306,9 @@ export default function CircleCoursesAdminPage() {
                     >
                       {copiedLink === clientLinkId ? (
                         <>
-                          <CheckIcon size={14} className="text-green-500" />
+                          <span className="text-green-500">
+                            <CheckIcon size={14} />
+                          </span>
                           Copied
                         </>
                       ) : (
