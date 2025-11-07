@@ -872,8 +872,6 @@ export async function getUserSettings({ userId }: { userId: string }) {
         usePrimaryDocsForPersona: userSettings.usePrimaryDocsForPersona,
         personaContextDocumentIds: userSettings.personaContextDocumentIds,
         autocompleteEnabled: userSettings.autocompleteEnabled,
-        disableGlassEffects: userSettings.disableGlassEffects,
-        disableEosGradient: userSettings.disableEosGradient,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -924,9 +922,6 @@ export async function updateUserSettings({
     companyState?: string | null;
     autocompleteEnabled?: boolean;
     profilePicture?: string;
-    // UI preferences
-    disableGlassEffects?: boolean;
-    disableEosGradient?: boolean;
   };
 }) {
   try {
@@ -990,8 +985,6 @@ export async function updateUserSettings({
     allow('usePrimaryDocsForPersona', incoming.usePrimaryDocsForPersona);
     allow('personaContextDocumentIds', incoming.personaContextDocumentIds);
     allow('autocompleteEnabled', incoming.autocompleteEnabled);
-    allow('disableGlassEffects', incoming.disableGlassEffects);
-    allow('disableEosGradient', incoming.disableEosGradient);
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {

@@ -100,9 +100,7 @@ export default function CourseActivationPage() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="w-12 h-12 text-eos-orange animate-spin">
-              <LoaderIcon size={48} />
-            </div>
+            <LoaderIcon className="w-12 h-12 text-eos-orange animate-spin" />
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold bg-gradient-to-r from-eos-orange to-eos-orangeLight bg-clip-text text-transparent">

@@ -94,58 +94,29 @@ export const {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account, trigger }) {
-      try {
-        // On sign-in, store user info in token
-        if (user) {
-          token.id = user.id as string;
-          token.type = user.type;
-          token.profilePicture = user.profilePicture;
-        }
-
-        // If the user signed in with Google, let's check if they exist in our database
-        // If not, we'll create a new user
-        if (account && account.provider === 'google' && token.email) {
-          const googleUser = await getOrCreateGoogleUser(token.email);
-          token.id = googleUser.id;
-          token.type = 'regular';
-          token.profilePicture = googleUser.profilePicture;
-        }
-
-        // On update (session refresh), ensure we keep the existing token data
-        if (trigger === 'update' && token.id) {
-          // Token data is preserved during updates
-          return token;
-        }
-
-        return token;
-      } catch (error) {
-        console.error('[auth] JWT callback error:', error);
-        // Return token as-is to prevent session breakage
-        // This ensures existing sessions don't break due to transient errors
-        return token;
+    async jwt({ token, user, account }) {
+      if (user) {
+        token.id = user.id as string;
+        token.type = user.type;
       }
+
+      // If the user signed in with Google, let's check if they exist in our database
+      // If not, we'll create a new user
+      if (account && account.provider === 'google' && token.email) {
+        const user = await getOrCreateGoogleUser(token.email);
+        token.id = user.id;
+        token.type = 'regular';
+      }
+
+      return token;
     },
     async session({ session, token }) {
-      try {
-        // Ensure we always have user data in the session
-        if (session.user) {
-          if (token.id) {
-            session.user.id = token.id;
-            session.user.type = token.type || 'guest';
-            session.user.profilePicture = token.profilePicture;
-          } else {
-            // If token is missing id, this session is invalid
-            console.error('[auth] Session token missing required id field');
-          }
-        }
-
-        return session;
-      } catch (error) {
-        console.error('[auth] Session callback error:', error);
-        // Return session as-is to prevent total failure
-        return session;
+      if (session.user) {
+        session.user.id = token.id;
+        session.user.type = token.type;
       }
+
+      return session;
     },
   },
 });

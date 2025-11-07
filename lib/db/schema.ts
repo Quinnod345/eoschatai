@@ -36,7 +36,6 @@ export const user = pgTable(
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId'),
-    profilePicture: text('profilePicture'),
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),

@@ -14,16 +14,66 @@ interface Course {
 }
 
 const COURSES: Course[] = [
-  { id: '782928', name: 'EOS A - Z', vectors: 264, namespace: 'circle-course-782928' },
-  { id: '813417', name: 'EOS Implementer Community', vectors: 50, namespace: 'circle-course-813417' },
-  { id: '815352', name: 'Biz Dev', vectors: 39, namespace: 'circle-course-815352' },
-  { id: '815357', name: 'Practice Management', vectors: 40, namespace: 'circle-course-815357' },
-  { id: '815361', name: 'Client Resources', vectors: 66, namespace: 'circle-course-815361' },
-  { id: '815371', name: 'Path to Mastery', vectors: 39, namespace: 'circle-course-815371' },
-  { id: '815739', name: 'Events', vectors: 24, namespace: 'circle-course-815739' },
-  { id: '839429', name: 'Getting Started', vectors: 54, namespace: 'circle-course-839429' },
-  { id: '850665', name: 'Franchise Advisory Council', vectors: 1, namespace: 'circle-course-850665' },
-  { id: '879850', name: 'QCE Contributors Training', vectors: 1, namespace: 'circle-course-879850' },
+  {
+    id: '782928',
+    name: 'EOS A - Z',
+    vectors: 264,
+    namespace: 'circle-course-782928',
+  },
+  {
+    id: '813417',
+    name: 'EOS Implementer Community',
+    vectors: 50,
+    namespace: 'circle-course-813417',
+  },
+  {
+    id: '815352',
+    name: 'Biz Dev',
+    vectors: 39,
+    namespace: 'circle-course-815352',
+  },
+  {
+    id: '815357',
+    name: 'Practice Management',
+    vectors: 40,
+    namespace: 'circle-course-815357',
+  },
+  {
+    id: '815361',
+    name: 'Client Resources',
+    vectors: 66,
+    namespace: 'circle-course-815361',
+  },
+  {
+    id: '815371',
+    name: 'Path to Mastery',
+    vectors: 39,
+    namespace: 'circle-course-815371',
+  },
+  {
+    id: '815739',
+    name: 'Events',
+    vectors: 24,
+    namespace: 'circle-course-815739',
+  },
+  {
+    id: '839429',
+    name: 'Getting Started',
+    vectors: 54,
+    namespace: 'circle-course-839429',
+  },
+  {
+    id: '850665',
+    name: 'Franchise Advisory Council',
+    vectors: 1,
+    namespace: 'circle-course-850665',
+  },
+  {
+    id: '879850',
+    name: 'QCE Contributors Training',
+    vectors: 1,
+    namespace: 'circle-course-879850',
+  },
   { id: '907974', name: 'Test', vectors: 3, namespace: 'circle-course-907974' },
 ];
 
@@ -36,7 +86,10 @@ export default function CircleCoursesAdminPage() {
     setBaseUrl(window.location.origin);
   }, []);
 
-  const getActivationLink = (courseId: string, audience: 'implementer' | 'client') => {
+  const getActivationLink = (
+    courseId: string,
+    audience: 'implementer' | 'client',
+  ) => {
     return `${baseUrl}/api/circle/activate-course?courseId=${courseId}&audience=${audience}`;
   };
 
@@ -52,9 +105,9 @@ export default function CircleCoursesAdminPage() {
 
   const copyAllLinks = async (audience: 'implementer' | 'client') => {
     const links = COURSES.map(
-      (course) => `${course.name}: ${getActivationLink(course.id, audience)}`
+      (course) => `${course.name}: ${getActivationLink(course.id, audience)}`,
     ).join('\n');
-    
+
     try {
       await navigator.clipboard.writeText(links);
       setCopiedLink(`all-${audience}`);
@@ -73,7 +126,8 @@ export default function CircleCoursesAdminPage() {
             Circle Course Activation Links
           </h1>
           <p className="text-muted-foreground">
-            Manage and share activation links for all Circle.so course assistants
+            Manage and share activation links for all Circle.so course
+            assistants
           </p>
         </div>
 
@@ -95,12 +149,12 @@ export default function CircleCoursesAdminPage() {
             <div className="text-2xl font-bold text-blue-600 mb-1">
               {COURSES.length * 2}
             </div>
-            <div className="text-sm text-muted-foreground">Activation Links</div>
+            <div className="text-sm text-muted-foreground">
+              Activation Links
+            </div>
           </div>
           <div className="bg-card border border-border rounded-xl p-6">
-            <div className="text-2xl font-bold text-purple-600 mb-1">
-              100%
-            </div>
+            <div className="text-2xl font-bold text-purple-600 mb-1">100%</div>
             <div className="text-sm text-muted-foreground">Search Working</div>
           </div>
         </div>
@@ -118,9 +172,7 @@ export default function CircleCoursesAdminPage() {
             >
               {copiedLink === 'all-implementer' ? (
                 <>
-                  <span className="text-green-500">
-                    <CheckIcon size={16} />
-                  </span>
+                  <CheckIcon size={16} className="text-green-500" />
                   Copied!
                 </>
               ) : (
@@ -137,9 +189,7 @@ export default function CircleCoursesAdminPage() {
             >
               {copiedLink === 'all-client' ? (
                 <>
-                  <span className="text-green-500">
-                    <CheckIcon size={16} />
-                  </span>
+                  <CheckIcon size={16} className="text-green-500" />
                   Copied!
                 </>
               ) : (
@@ -178,7 +228,9 @@ export default function CircleCoursesAdminPage() {
                       <span>•</span>
                       <span>{course.vectors} vectors</span>
                       <span>•</span>
-                      <span className="font-mono text-xs">{course.namespace}</span>
+                      <span className="font-mono text-xs">
+                        {course.namespace}
+                      </span>
                     </div>
                   </div>
                   <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
@@ -200,14 +252,14 @@ export default function CircleCoursesAdminPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => copyToClipboard(implementerLink, implementerLinkId)}
+                      onClick={() =>
+                        copyToClipboard(implementerLink, implementerLinkId)
+                      }
                       className="flex items-center gap-2 flex-shrink-0"
                     >
                       {copiedLink === implementerLinkId ? (
                         <>
-                          <span className="text-green-500">
-                            <CheckIcon size={14} />
-                          </span>
+                          <CheckIcon size={14} className="text-green-500" />
                           Copied
                         </>
                       ) : (
@@ -248,9 +300,7 @@ export default function CircleCoursesAdminPage() {
                     >
                       {copiedLink === clientLinkId ? (
                         <>
-                          <span className="text-green-500">
-                            <CheckIcon size={14} />
-                          </span>
+                          <CheckIcon size={14} className="text-green-500" />
                           Copied
                         </>
                       ) : (
@@ -286,11 +336,12 @@ export default function CircleCoursesAdminPage() {
             <li>• System queries Upstash RAG for course content (~1 sec)</li>
             <li>• GPT-4.1 generates personalized instructions (~3 sec)</li>
             <li>• User-specific persona is created (~1 sec)</li>
-            <li>• User can immediately start chatting with the course assistant</li>
+            <li>
+              • User can immediately start chatting with the course assistant
+            </li>
           </ul>
         </div>
       </div>
     </div>
   );
 }
-

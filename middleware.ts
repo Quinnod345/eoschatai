@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
-    secureCookie: process.env.NODE_ENV === 'production',
+    secureCookie: !isDevelopmentEnvironment,
   });
 
   // If no token (logged out) and trying to access a protected route, redirect to login
@@ -81,21 +81,9 @@ export async function middleware(request: NextRequest) {
 
   const isGuest = guestRegex.test(token?.email ?? '');
 
-  // If authenticated user (not guest) tries to access landing page, redirect to chat
-  if (token && !isGuest && pathname === '/') {
-    return NextResponse.redirect(new URL('/chat', request.url));
-  }
-
-  // Redirect guest users away from protected routes only
+  // Redirect guest users to home page instead of login
   if (token && isGuest) {
-    // Only redirect if trying to access protected routes
-    if (
-      pathname.startsWith('/chat') ||
-      pathname.startsWith('/account') ||
-      pathname.startsWith('/academy')
-    ) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   // If authenticated user tries to access login/register pages, redirect to chat
