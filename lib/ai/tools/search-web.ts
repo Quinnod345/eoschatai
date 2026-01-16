@@ -1,5 +1,5 @@
 import { tool } from 'ai';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { searchWebSimple } from '@/lib/web-search-simple';
 
 /**
@@ -102,7 +102,7 @@ Each search result has:
 Write the citation in your response text using the format shown above.
 
 This will render as a clickable citation button that opens the source.`,
-  parameters: z.object({
+  inputSchema: z.object({
     query: z
       .string()
       .describe(

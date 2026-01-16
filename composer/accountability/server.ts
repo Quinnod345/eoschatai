@@ -100,7 +100,7 @@ function defaultChart(title?: string): AccountabilityChartData {
 export const accountabilityDocumentHandler =
   createDocumentHandler<'accountability'>({
     kind: 'accountability',
-    onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
+    onCreateDocument: async ({ title, dataStream, maxOutputTokens, context }) => {
       // Stream STRICT JSON for the Accountability Chart between markers (AI decides structure/content)
       const provider = createCustomProvider();
       const system = `You are generating an EOS Accountability Chart JSON. Return STRICT JSON with this shape:
@@ -128,7 +128,7 @@ Rules:
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+        maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Create an Accountability Chart JSON.
 CRITICAL: The JSON must include "title": "${title || 'Accountability Chart'}".
@@ -137,27 +137,37 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       });
 
       let draft = 'AC_DATA_BEGIN\n';
-      dataStream.writeData({ type: 'text-delta', content: 'AC_DATA_BEGIN\n' });
+      dataStream.write({
+        'type': 'data',
+        'value': [{ type: 'text-delta', content: 'AC_DATA_BEGIN\n' }]
+      });
 
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          draft += delta.textDelta;
-          dataStream.writeData({
-            type: 'text-delta',
-            content: delta.textDelta,
+          draft += delta.text;
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'text-delta',
+              content: delta.text,
+            }]
           });
         }
       }
 
       draft += '\nAC_DATA_END';
-      dataStream.writeData({ type: 'text-delta', content: '\nAC_DATA_END' });
+      dataStream.write({
+        'type': 'data',
+        'value': [{ type: 'text-delta', content: '\nAC_DATA_END' }]
+      });
       return draft;
     },
     onUpdateDocument: async ({
       document,
       description,
       dataStream,
-      maxTokens,
+      maxOutputTokens,
     }) => {
       // Inline AI edit for Accountability JSON; model decides changes based on description.
       const provider = createCustomProvider();
@@ -167,7 +177,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+        maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Apply the requested edit to the Accountability Chart JSON and return only JSON.`,
       });
@@ -175,7 +185,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       let responseContent = '';
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          responseContent += delta.textDelta;
+          responseContent += delta.text;
         }
       }
 
@@ -183,12 +193,18 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
         responseContent.includes('AC_DATA_BEGIN') &&
         responseContent.includes('AC_DATA_END')
       ) {
-        dataStream.writeData({ type: 'text-delta', content: responseContent });
+        dataStream.write({
+          'type': 'data',
+          'value': [{ type: 'text-delta', content: responseContent }]
+        });
         return responseContent;
       }
 
       const wrapped = `AC_DATA_BEGIN\n${responseContent}\nAC_DATA_END`;
-      dataStream.writeData({ type: 'text-delta', content: wrapped });
+      dataStream.write({
+        'type': 'data',
+        'value': [{ type: 'text-delta', content: wrapped }]
+      });
       return wrapped;
     },
   });

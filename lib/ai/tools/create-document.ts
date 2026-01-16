@@ -1,7 +1,7 @@
 import { generateUUID } from '@/lib/utils';
 import { tool } from 'ai';
-import type { DataStreamWriter } from 'ai';
-import { z } from 'zod';
+import type { UIMessageStreamWriter } from 'ai';
+import { z } from 'zod/v3';
 import type { Session } from 'next-auth';
 import {
   composerKinds,
@@ -10,7 +10,7 @@ import {
 
 interface CreateDocumentProps {
   session: Session;
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
   artifactMaxTokens?: number;
   // Optional: original user query/context to guide artifact generation
   context?: string;
@@ -25,7 +25,7 @@ export const createDocument = ({
   tool({
     description:
       'Create a document for a writing or content creation activities. This tool will call other functions that will generate the contents of the document based on the title and kind.',
-    parameters: z.object({
+    inputSchema: z.object({
       title: z.string(),
       kind: z.enum(composerKinds),
     }),
@@ -34,24 +34,40 @@ export const createDocument = ({
 
       console.log(`Creating document with kind: ${kind}, title: ${title}`);
 
-      dataStream.writeData({
-        type: 'kind',
-        content: kind,
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'kind',
+          content: kind,
+        }]
       });
 
-      dataStream.writeData({
-        type: 'id',
-        content: id,
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'id',
+          content: id,
+        }]
       });
 
-      dataStream.writeData({
-        type: 'title',
-        content: title,
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'title',
+          content: title,
+        }]
       });
 
-      dataStream.writeData({
-        type: 'clear',
-        content: '',
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'clear',
+          content: '',
+        }]
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -70,14 +86,17 @@ export const createDocument = ({
         title,
         dataStream,
         session,
-        maxTokens: artifactMaxTokens,
+        maxOutputTokens: artifactMaxTokens,
         // Pass through chat context so the handler can respect explicit user instructions
         context,
       });
 
       console.log(`Document creation complete for kind: ${kind}`);
 
-      dataStream.writeData({ type: 'finish', content: '' });
+      dataStream.write({
+        'type': 'data',
+        'value': [{ type: 'finish', content: '' }]
+      });
 
       return {
         id,

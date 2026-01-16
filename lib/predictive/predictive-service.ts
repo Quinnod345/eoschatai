@@ -112,7 +112,7 @@ async function getNanoPrediction({
     const { text } = await generateText({
       model: provider.languageModel('gpt-4.1-nano'),
       temperature: 0.3,
-      maxTokens: 60,
+      maxOutputTokens: 60,
       system: `You are EOS Chat's predictive composer, optimized for EOS terminology.
 Generate up to 5 likely completions that help EOS leaders finish their question succinctly.
 Focus on Level 10 meetings, IDS, Scorecards, Rocks, accountability, and EOS cadence.

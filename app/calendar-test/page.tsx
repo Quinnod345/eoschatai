@@ -5,7 +5,13 @@ import { useState } from 'react';
 
 export default function CalendarTestPage() {
   const [message, setMessage] = useState('');
-  const { messages, input, handleSubmit, setInput, isLoading } = useChat();
+  const [input, setInput] = useState('');
+  const {
+    messages,
+    handleSubmit,
+    setInput,
+    isLoading
+  } = useChat();
 
   const askAboutCalendar = () => {
     setInput('What events do I have scheduled for tomorrow?');

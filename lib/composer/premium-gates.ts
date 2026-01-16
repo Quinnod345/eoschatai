@@ -164,17 +164,17 @@ export function getPlanBadge(plan: PlanType): {
  */
 export const AI_GENERATION_LIMITS = {
   free: {
-    maxTokens: 2000,
+    maxOutputTokens: 2000,
     timeout: 30000, // 30 seconds
     retries: 1,
   },
   pro: {
-    maxTokens: 8000,
+    maxOutputTokens: 8000,
     timeout: 60000, // 60 seconds
     retries: 2,
   },
   business: {
-    maxTokens: 16000,
+    maxOutputTokens: 16000,
     timeout: 120000, // 120 seconds
     retries: 3,
   },

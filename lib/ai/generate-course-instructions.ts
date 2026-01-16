@@ -70,7 +70,7 @@ Generate the persona instructions now:`;
     const { text } = await generateText({
       model: openai('gpt-4.1-mini'), // Using gpt-4.1-mini for instruction generation
       prompt,
-      maxTokens: 600,
+      maxOutputTokens: 600,
       temperature: 0.7,
     });
 
@@ -214,7 +214,7 @@ Generate the persona instructions now:`;
     const { text } = await generateText({
       model: openai('gpt-4o'), // Using GPT-4.1 (latest)
       prompt,
-      maxTokens: 800,
+      maxOutputTokens: 800,
       temperature: 0.7,
     });
 

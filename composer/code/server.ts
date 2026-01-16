@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { streamObject } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
 import { codePrompt, inlineEditPrompt } from '@/lib/ai/prompts';
@@ -6,7 +6,7 @@ import { createDocumentHandler } from '@/lib/composer/server';
 
 export const codeDocumentHandler = createDocumentHandler<'code'>({
   kind: 'code',
-  onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
+  onCreateDocument: async ({ title, dataStream, maxOutputTokens, context }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
@@ -15,7 +15,7 @@ export const codeDocumentHandler = createDocumentHandler<'code'>({
       system: `${codePrompt}
 
 CRITICAL: If conversation context is provided, use it to understand what code the user wants and include relevant details from the conversation.`,
-      maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+      maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       prompt:
         context && context.trim().length > 0
           ? `${title}\n\nConversation Context:\n${context}`
@@ -33,9 +33,13 @@ CRITICAL: If conversation context is provided, use it to understand what code th
         const { code } = object;
 
         if (code) {
-          dataStream.writeData({
-            type: 'code-delta',
-            content: code ?? '',
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'code-delta',
+              content: code ?? '',
+            }]
           });
 
           draftContent = code;
@@ -49,7 +53,7 @@ CRITICAL: If conversation context is provided, use it to understand what code th
     document,
     description,
     dataStream,
-    maxTokens,
+    maxOutputTokens,
   }) => {
     let draftContent = '';
 
@@ -57,7 +61,7 @@ CRITICAL: If conversation context is provided, use it to understand what code th
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
       system: inlineEditPrompt(document.content || '', description, 'code'),
-      maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+      maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({
         code: z.string(),
@@ -72,9 +76,13 @@ CRITICAL: If conversation context is provided, use it to understand what code th
         const { code } = object;
 
         if (code) {
-          dataStream.writeData({
-            type: 'code-delta',
-            content: code ?? '',
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'code-delta',
+              content: code ?? '',
+            }]
           });
 
           draftContent = code;

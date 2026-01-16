@@ -339,7 +339,7 @@ export async function assembleContextWithBudget(options: {
 
   if (queryAnalysis) {
     console.log(
-      `  - Query complexity: ${queryAnalysis.complexity} - ${queryAnalysis.reasoning}`,
+      `  - Query complexity: ${queryAnalysis.complexity} - ${queryAnalysis.reasoningText}`,
     );
   }
 

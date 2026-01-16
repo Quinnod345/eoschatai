@@ -88,7 +88,7 @@ function sanitizeParts<T extends { type: string; [k: string]: any }>(
   parts: T[],
 ): T[] {
   return parts.filter(
-    (part) => !(part.type === 'reasoning' && part.reasoning === 'undefined'),
+    (part) => !(part.type === 'reasoning' && part.reasoningText === 'undefined'),
   );
 }
 
@@ -155,6 +155,7 @@ async function migrateMessages() {
         const [firstAssistantMessage] = assistantMessages;
 
         try {
+          /* FIXME(@ai-sdk-upgrade-v5): The `appendResponseMessages` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
           const uiSection = appendResponseMessages({
             messages: [userMessage],
             // @ts-expect-error: message.content has different type

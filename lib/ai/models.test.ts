@@ -6,7 +6,7 @@ export const chatModel = new MockLanguageModelV1({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',
-    usage: { promptTokens: 10, completionTokens: 20 },
+    usage: { inputTokens: 10, outputTokens: 20 },
     text: `Hello, world!`,
   }),
   doStream: async ({ prompt }) => ({
@@ -23,7 +23,7 @@ export const titleModel = new MockLanguageModelV1({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',
-    usage: { promptTokens: 10, completionTokens: 20 },
+    usage: { inputTokens: 10, outputTokens: 20 },
     text: `This is a test title`,
   }),
   doStream: async () => ({
@@ -36,7 +36,7 @@ export const titleModel = new MockLanguageModelV1({
           type: 'finish',
           finishReason: 'stop',
           logprobs: undefined,
-          usage: { completionTokens: 10, promptTokens: 3 },
+          usage: { outputTokens: 10, inputTokens: 3 },
         },
       ],
     }),
@@ -48,7 +48,7 @@ export const composerModel = new MockLanguageModelV1({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',
-    usage: { promptTokens: 10, completionTokens: 20 },
+    usage: { inputTokens: 10, outputTokens: 20 },
     text: `Hello, world!`,
   }),
   doStream: async ({ prompt }) => ({

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 /**
  * Common validation schemas for API routes
@@ -74,7 +74,7 @@ export const researchPlanSchema = z.object({
   steps: z.array(z.object({
     type: z.enum(['search', 'analyze', 'synthesize']),
     query: z.string(),
-    reasoning: z.string().optional(),
+    reasoningText: z.string().optional(),
   })).max(10),
   metadata: z.record(z.unknown()).optional(),
 });

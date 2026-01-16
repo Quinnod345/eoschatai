@@ -2,7 +2,7 @@ import { findRelevantContent, processDocument } from './embeddings';
 import { generateUUID } from '../utils';
 import { document } from '../db/schema';
 import { safeParseJson } from '../fetch-utils';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // Helper function to check if environment variables are set correctly
 function checkEnvironmentVariables() {

@@ -3,7 +3,7 @@ import { auth } from '@/app/(auth)/auth';
 import type { ComposerKind } from '@/components/composer';
 import { documentHandlersByComposerKind } from '@/lib/composer/server';
 import { getDocumentById } from '@/lib/db/queries';
-import type { DataStreamWriter } from 'ai';
+import type { UIMessageStreamWriter } from 'ai';
 
 // UUID validation regex
 const UUID_REGEX =
@@ -12,7 +12,7 @@ const UUID_REGEX =
 const MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
 // No-op DataStreamWriter used for non-streaming API
-function createNoopStream(): DataStreamWriter {
+function createNoopStream(): UIMessageStreamWriter {
   return {
     write: () => Promise.resolve(),
     writeData: () => Promise.resolve(),
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       const createHandler = handler.onCreateDocument as (args: {
         id: string;
         title: string;
-        dataStream: DataStreamWriter;
+        dataStream: UIMessageStreamWriter;
         session: any;
       }) => Promise<void>;
 
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     const updateHandler = handler.onUpdateDocument as (args: {
       document: any;
       description: string;
-      dataStream: DataStreamWriter;
+      dataStream: UIMessageStreamWriter;
       session: any;
     }) => Promise<void>;
 

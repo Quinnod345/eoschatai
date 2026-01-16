@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { db } from '@/lib/db';
 import { orgInvitation } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';

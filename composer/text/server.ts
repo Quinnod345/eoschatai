@@ -16,7 +16,7 @@ export const textDocumentHandler = createDocumentHandler<'text'>({
     title,
     dataStream,
     session,
-    maxTokens,
+    maxOutputTokens,
     context,
   }) => {
     let draftContent = '';
@@ -75,7 +75,7 @@ STRICT OUTPUT INSTRUCTIONS:
       model: provider.languageModel('composer-model'),
       // Include systemContext and user-provided chat context
       system: systemContext,
-      maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+      maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       // Use title plus context (if provided) to guide content generation
       prompt:
@@ -103,15 +103,19 @@ Generate the document content now (pure Markdown, no meta-commentary):`
       const { type } = delta;
 
       if (type === 'text-delta') {
-        const { textDelta } = delta;
+        const { text: textDelta } = delta;
         const cleaned = scrubMeta(textDelta);
         if (cleaned.length === 0) continue;
 
         draftContent += cleaned;
 
-        dataStream.writeData({
-          type: 'text-delta',
-          content: cleaned,
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'text-delta',
+            content: cleaned,
+          }]
         });
       }
     }
@@ -122,7 +126,7 @@ Generate the document content now (pure Markdown, no meta-commentary):`
     document,
     description,
     dataStream,
-    maxTokens,
+    maxOutputTokens,
   }) => {
     let draftContent = '';
 
@@ -136,10 +140,10 @@ STRICT OUTPUT INSTRUCTIONS:
 - Do NOT include meta commentary or assistant statements.
 
 ${inlineEditPrompt(document.content || '', description, 'text')}`,
-      maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+      maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Please apply the requested edit: ${description}`,
-      experimental_providerMetadata: {
+      providerOptions: {
         openai: {
           prediction: {
             type: 'content',
@@ -160,14 +164,18 @@ ${inlineEditPrompt(document.content || '', description, 'text')}`,
       const { type } = delta;
 
       if (type === 'text-delta') {
-        const { textDelta } = delta;
+        const { text: textDelta } = delta;
         const cleaned = scrubMeta(textDelta);
         if (cleaned.length === 0) continue;
 
         draftContent += cleaned;
-        dataStream.writeData({
-          type: 'text-delta',
-          content: cleaned,
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'text-delta',
+            content: cleaned,
+          }]
         });
       }
     }

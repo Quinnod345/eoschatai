@@ -106,7 +106,7 @@ When you generate this migration checklist, you must IMMEDIATELY:
 - [x] **ACTION**: Run `pnpm install`
 
 ### 2.5 Commit Changes
-- [ ] **ACTION**: Commit package updates: `git add package.json pnpm-lock.yaml && git commit -m "Update to AI SDK 5"`
+- [x] **ACTION**: Commit package updates: `git add package.json pnpm-lock.yaml && git commit -m "Update to AI SDK 5"`
 
 **After completing Phase 2, update this file to mark items as [x], then proceed to Phase 3.**
 

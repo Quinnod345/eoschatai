@@ -155,7 +155,7 @@ export class FiresearchService {
         query.query,
         sources,
         analysis,
-        query.maxTokens || 8000,
+        query.maxOutputTokens || 8000,
         query.model || 'gpt-4o',
       );
 

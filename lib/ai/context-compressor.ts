@@ -50,7 +50,7 @@ TASK: Compress this to approximately ${targetTokens} tokens while:
 5. Keeping all critical instructions and guidelines
 
 COMPRESSED VERSION:`,
-      maxTokens: targetTokens,
+      maxOutputTokens: targetTokens,
       temperature: 0.3, // Low temperature for consistent compression
     });
 
@@ -183,7 +183,7 @@ export async function extractKeyPoints(
 ${text}
 
 KEY POINTS:`,
-      maxTokens: maxPoints * 30, // Roughly 30 tokens per point
+      maxOutputTokens: maxPoints * 30, // Roughly 30 tokens per point
       temperature: 0.3,
     });
 

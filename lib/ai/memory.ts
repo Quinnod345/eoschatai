@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { db } from '@/lib/db';
 import { userMemory, userMemoryEmbedding } from '@/lib/db/schema';
 import { generateChunks, generateEmbeddings } from '@/lib/ai/embeddings';

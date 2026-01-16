@@ -1,4 +1,4 @@
-import type { Message } from 'ai';
+import type { UIMessage } from 'ai';
 import { useSWRConfig } from 'swr';
 import { useCopyToClipboard } from 'usehooks-ts';
 import { useState } from 'react';
@@ -45,7 +45,7 @@ export function PureMessageActions({
   citations,
 }: {
   chatId: string;
-  message: Message;
+  message: UIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
   onPin?: (messageId: string) => void;

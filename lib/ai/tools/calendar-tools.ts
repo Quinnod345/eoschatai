@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { google } from 'googleapis';
 import { addDays, format, startOfDay, endOfDay } from 'date-fns';
 import type { calendar_v3 } from 'googleapis';

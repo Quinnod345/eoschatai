@@ -32,7 +32,7 @@ export interface ResearchQuery {
   // Ranking strategy
   ranking?: 'heuristic' | 'ml';
   // Token budget for synthesis
-  maxTokens?: number;
+  maxOutputTokens?: number;
   // Target model for synthesis
   model?: string;
 }

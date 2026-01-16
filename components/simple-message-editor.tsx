@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Message } from 'ai';
+import type { UIMessage } from 'ai';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
@@ -11,10 +11,10 @@ import { LoaderIcon } from 'lucide-react';
 import { EditConfirmationDialog } from './edit-confirmation-dialog';
 
 export type SimpleMessageEditorProps = {
-  message: Message;
+  message: UIMessage;
   setMode: (mode: 'view' | 'edit') => void;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
   ) => void;
   reload: () => void;
 };

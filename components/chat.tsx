@@ -220,25 +220,29 @@ export function Chat({
   const responseSizeRef = useRef<number>(0);
   const messageTokenCountRef = useRef<{ [id: string]: number }>({});
 
+  const [input, setInput] = useState('');
+
   // Set up chat
   const {
     messages,
     setMessages,
     handleSubmit,
-    input,
     setInput,
     append,
     status,
     stop,
     reload,
     experimental_resume,
-    data,
+    data
   } = useChat({
     id,
     initialMessages,
-    experimental_throttle: 0, // No throttling for better performance
-    sendExtraMessageFields: true,
+
+    // No throttling for better performance
+    experimental_throttle: 0,
+
     generateId: generateUUID,
+
     experimental_prepareRequestBody: (body) => {
       // Reset performance tracking for new requests
       responseStartTimeRef.current = performance.now();
@@ -312,6 +316,7 @@ export function Chat({
 
       return requestBody;
     },
+
     onFinish: (message) => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
       // Dispatch event to refresh sidebar history
@@ -344,6 +349,7 @@ export function Chat({
         responseStartTimeRef.current = null;
       }
     },
+
     onError: async (error) => {
       // Clear any timeout we might have set
       if (responseTimeoutRef.current) {
@@ -468,7 +474,7 @@ export function Chat({
 
       // Show general error message for other errors
       toast.error(error.message);
-    },
+    }
   });
 
   // Track current Nexus stream ID for recovery

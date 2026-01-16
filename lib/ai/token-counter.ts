@@ -71,7 +71,7 @@ export function freeAllEncodings() {
  * @returns Token budget configuration
  */
 export function estimateTokenBudget(model: string): {
-  maxTokens: number;
+  maxOutputTokens: number;
   systemPromptBudget: number;
   messageBudget: number;
   responseBudget: number;
@@ -138,7 +138,7 @@ export function estimateTokenBudget(model: string): {
   const config = budgets[model] || budgets['gpt-4.1'];
 
   return {
-    maxTokens: config.max,
+    maxOutputTokens: config.max,
     systemPromptBudget: config.system,
     messageBudget: config.message,
     responseBudget: config.response,

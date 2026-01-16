@@ -31,7 +31,7 @@ Summary:`;
   const result = await generateText({
     model: openai(SUMMARY_MODEL),
     prompt,
-    maxTokens: 500,
+    maxOutputTokens: 500,
     temperature: 0.3,
   });
 

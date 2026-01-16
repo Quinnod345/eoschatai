@@ -489,6 +489,7 @@ const PurePreviewMessage = ({
     });
   }
 
+  /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
   return (
     <AnimatePresence>
       <motion.div
@@ -569,7 +570,7 @@ const PurePreviewMessage = ({
             {/* Render reasoning text if present (GPT-5 thinking) */}
             {message.role === 'assistant' &&
               (message as any).experimental_providerMetadata?.openai
-                ?.reasoning && (
+                ?.reasoningText && (
                 <div className="flex flex-col gap-2 p-4 bg-muted/50 rounded-lg border border-muted">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                     <AIActiveLoaderIcon size={16} />
@@ -578,7 +579,7 @@ const PurePreviewMessage = ({
                   <div className="text-sm text-muted-foreground whitespace-pre-wrap font-mono">
                     {
                       (message as any).experimental_providerMetadata.openai
-                        .reasoning
+                        .reasoningText
                     }
                   </div>
                 </div>
@@ -648,7 +649,6 @@ const PurePreviewMessage = ({
                           <PencilEditIcon />
                         </Button>
                       )}
-
                       <div
                         data-testid="message-content"
                         className={cn('flex flex-col gap-4', {
@@ -666,7 +666,7 @@ const PurePreviewMessage = ({
 
                         {containsMentions ? (
                           // Custom rendering for text with mentions
-                          <div className="prose dark:prose-invert prose-sm max-w-none">
+                          (<div className="prose dark:prose-invert prose-sm max-w-none">
                             {formatMentionsInText(sanitizeText(part.text)).map(
                               (node, i) => (
                                 <React.Fragment
@@ -676,10 +676,10 @@ const PurePreviewMessage = ({
                                 </React.Fragment>
                               ),
                             )}
-                          </div>
+                          </div>)
                         ) : (
                           // Regular markdown rendering for text without mentions
-                          <SmoothMarkdown
+                          (<SmoothMarkdown
                             citations={citations}
                             isStreaming={
                               isLoading &&
@@ -688,7 +688,7 @@ const PurePreviewMessage = ({
                             }
                           >
                             {sanitizeText(part.text)}
-                          </SmoothMarkdown>
+                          </SmoothMarkdown>)
                         )}
 
                       </div>

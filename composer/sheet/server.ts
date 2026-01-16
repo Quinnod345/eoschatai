@@ -2,11 +2,11 @@ import { createCustomProvider } from '@/lib/ai/providers';
 import { sheetPrompt, inlineEditPrompt } from '@/lib/ai/prompts';
 import { createDocumentHandler } from '@/lib/composer/server';
 import { streamObject } from 'ai';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
   kind: 'sheet',
-  onCreateDocument: async ({ title, dataStream, maxTokens, context }) => {
+  onCreateDocument: async ({ title, dataStream, maxOutputTokens, context }) => {
     let draftContent = '';
 
     const provider = createCustomProvider();
@@ -15,7 +15,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
       system: `${sheetPrompt}
 
 CRITICAL: If conversation context is provided, extract relevant data from it to populate the spreadsheet. Don't create sample data - use actual information from the conversation.`,
-      maxTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+      maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
       prompt:
         context && context.trim().length > 0
           ? `${title}\n\nConversation Context (extract data from this):\n${context}`
@@ -33,9 +33,13 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
         const { csv } = object;
 
         if (csv) {
-          dataStream.writeData({
-            type: 'sheet-delta',
-            content: csv,
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'sheet-delta',
+              content: csv,
+            }]
           });
 
           draftContent = csv;
@@ -43,9 +47,13 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
       }
     }
 
-    dataStream.writeData({
-      type: 'sheet-delta',
-      content: draftContent,
+    dataStream.write({
+      'type': 'data',
+
+      'value': [{
+        type: 'sheet-delta',
+        content: draftContent,
+      }]
     });
 
     return draftContent;
@@ -54,7 +62,7 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
     document,
     description,
     dataStream,
-    maxTokens,
+    maxOutputTokens,
   }) => {
     let draftContent = '';
 
@@ -62,7 +70,7 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
     const { fullStream } = streamObject({
       model: provider.languageModel('composer-model'),
       system: inlineEditPrompt(document.content || '', description, 'sheet'),
-      maxTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+      maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
       prompt: `Please apply the requested edit: ${description}`,
       schema: z.object({
         csv: z.string(),
@@ -77,9 +85,13 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
         const { csv } = object;
 
         if (csv) {
-          dataStream.writeData({
-            type: 'sheet-delta',
-            content: csv,
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'sheet-delta',
+              content: csv,
+            }]
           });
 
           draftContent = csv;

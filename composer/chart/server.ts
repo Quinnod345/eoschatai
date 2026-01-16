@@ -73,9 +73,13 @@ export const chartDocumentHandler = createDocumentHandler({
     console.log('Sending chart data via text-delta');
 
     // Send with a special marker to help client-side processing
-    dataStream.writeData({
-      type: 'text-delta',
-      content: `CHART_DATA_BEGIN\n${chartContent}\nCHART_DATA_END`,
+    dataStream.write({
+      'type': 'data',
+
+      'value': [{
+        type: 'text-delta',
+        content: `CHART_DATA_BEGIN\n${chartContent}\nCHART_DATA_END`,
+      }]
     });
 
     console.log('Chart document created successfully');
@@ -199,9 +203,13 @@ export const chartDocumentHandler = createDocumentHandler({
       const finalChartContent = JSON.stringify(updatedChartData, null, 2);
 
       // Send the updated chart data
-      dataStream.writeData({
-        type: 'text-delta',
-        content: `CHART_DATA_BEGIN\n${finalChartContent}\nCHART_DATA_END`,
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'text-delta',
+          content: `CHART_DATA_BEGIN\n${finalChartContent}\nCHART_DATA_END`,
+        }]
       });
 
       if (hasChanges) {

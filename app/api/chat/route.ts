@@ -1,7 +1,7 @@
 import {
   appendClientMessage,
   appendResponseMessages,
-  createDataStream,
+  createUIMessageStream,
   streamText,
   tool,
   generateText,
@@ -50,7 +50,7 @@ import {
 } from '@/lib/ai/tools';
 import { triggerBackgroundSummary } from '@/lib/ai/background-summary';
 import { searchWeb } from '@/lib/ai/tools/search-web';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
@@ -157,7 +157,7 @@ async function decideModelWithNano(args: {
   hasComposerOpen?: boolean;
 }): Promise<{
   model: 'gpt-4.1' | 'gpt-5';
-  maxTokens: number;
+  maxOutputTokens: number;
   reasoningEffort?: 'low' | 'medium' | 'high';
 }> {
   const {
@@ -253,7 +253,7 @@ Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000
 If model is gpt-4.1, reasoning_effort must be "low" (ignored for GPT-4.1). 
 If model is gpt-5, choose appropriate reasoning_effort based on complexity. No commentary.`,
     prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}\ncomposer_open: ${hasComposerOpen}`,
-    maxTokens: 128,
+    maxOutputTokens: 128,
     temperature: 0,
   });
 
@@ -282,10 +282,10 @@ If model is gpt-5, choose appropriate reasoning_effort based on complexity. No c
   if (!Number.isFinite(maxTokens)) {
     throw new Error('Nano preflight returned invalid max_tokens');
   }
-  console.log('[PREFLIGHT] Decision', { model, maxTokens, reasoningEffort });
+  console.log('[PREFLIGHT] Decision', { model, maxOutputTokens, reasoningEffort });
   return {
     model,
-    maxTokens: Math.max(200, Math.floor(maxTokens)),
+    maxOutputTokens: Math.max(200, Math.floor(maxTokens)),
     reasoningEffort: model === 'gpt-5' ? reasoningEffort : undefined,
   };
 }
@@ -489,6 +489,7 @@ export async function POST(request: Request) {
       }
     }
 
+    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
     const normalizedPreviousMessages = previousMessages.map((dbMessage) => ({
       ...dbMessage,
       experimental_attachments: Array.isArray(dbMessage.attachments)
@@ -496,6 +497,7 @@ export async function POST(request: Request) {
         : [],
     }));
 
+    /* FIXME(@ai-sdk-upgrade-v5): The `appendClientMessage` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
     const messages = appendClientMessage({
       // @ts-expect-error: todo add type conversion from DBMessage[] to UIMessage[]
       messages: normalizedPreviousMessages,
@@ -1044,6 +1046,7 @@ export async function POST(request: Request) {
       country,
     };
 
+    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
     await saveMessages({
       messages: [
         {
@@ -1607,13 +1610,17 @@ Always prioritize the user's document content over generic information. If speci
     }
 
     // Create response stream
-    const responseStream = createDataStream({
+    const responseStream = createUIMessageStream({
       execute: async (dataStream) => {
         // Send initial status
-        dataStream.writeData({
-          type: 'chat-status',
-          status: 'processing',
-          message: 'Processing your request',
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'chat-status',
+            status: 'processing',
+            message: 'Processing your request',
+          }]
         });
 
         console.log('[NEXUS MODE] Before condition check:', {
@@ -1675,10 +1682,14 @@ Always prioritize the user's document content over generic information. If speci
           toolResponseInstructions;
 
         // Run preflight for all modes, but with different parameters for Nexus
-        dataStream.writeData({
-          type: 'chat-status',
-          status: 'preflight',
-          message: 'Analyzing request',
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'chat-status',
+            status: 'preflight',
+            message: 'Analyzing request',
+          }]
         });
 
         try {
@@ -1694,12 +1705,12 @@ Always prioritize the user's document content over generic information. If speci
             hasComposerOpen: Boolean(composerDocumentId),
           });
           preflightModel = decision.model;
-          preflightMaxTokens = decision.maxTokens;
+          preflightMaxTokens = decision.maxOutputTokens;
           preflightReasoningEffort = decision.reasoningEffort;
 
           console.log('[PREFLIGHT] Final decision:', {
             model: preflightModel,
-            maxTokens: preflightMaxTokens,
+            maxOutputTokens: preflightMaxTokens,
             reasoningEffort: preflightReasoningEffort,
             mode: isNexusMode ? 'nexus' : 'standard',
           });
@@ -1791,10 +1802,14 @@ Always prioritize the user's document content over generic information. If speci
           preCreatedComposerNote = `\n\nCRITICAL: The user is asking to create an Accountability Chart (they may have misspelled it). You MUST use the createDocument tool with kind="accountability" and title="${suggestedTitle}". DO NOT just say you created it - actually call the createDocument tool to open the composer panel.`;
         }
 
-        dataStream.writeData({
-          type: 'chat-status',
-          status: 'generating',
-          message: 'Generating response',
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'chat-status',
+            status: 'generating',
+            message: 'Generating response',
+          }]
         });
 
         // NEXUS AGENTIC RESEARCH MODE
@@ -1806,9 +1821,13 @@ Always prioritize the user's document content over generic information. If speci
           console.log('[NEXUS MODE] Agentic research mode enabled');
           
           // Signal that we're in Nexus mode
-          dataStream.writeData({
-            type: 'nexus-mode-active',
-            message: 'Nexus Research Mode activated',
+          dataStream.write({
+            'type': 'data',
+
+            'value': [{
+              type: 'nexus-mode-active',
+              message: 'Nexus Research Mode activated',
+            }]
           });
           
           // The nexusResearcherPrompt is appended to the system prompt below
@@ -1873,7 +1892,7 @@ Always prioritize the user's document content over generic information. If speci
               experimental_generateMessageId: generateUUID,
               // Dynamic settings based on Nexus mode
               temperature: temperature, // Use the variable we defined
-              maxTokens: nexusTokenLimit, // Much higher limit for nexus/o3
+              maxOutputTokens: nexusTokenLimit, // Much higher limit for nexus/o3
               // Add reasoning effort for GPT-5
               ...(finalChatModel === 'gpt-5' && preflightReasoningEffort
                 ? {
@@ -1998,7 +2017,7 @@ Always prioritize the user's document content over generic information. If speci
                 addResource: tool({
                   description:
                     'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
-                  parameters: z.object({
+                  inputSchema: z.object({
                     title: z.string().describe('Title of the resource'),
                     content: z.string().describe('Content of the resource'),
                   }),
@@ -2033,7 +2052,7 @@ Always prioritize the user's document content over generic information. If speci
                 getInformation: tool({
                   description:
                     "Retrieve relevant information from the EOS knowledge base to help answer the user's question.",
-                  parameters: z.object({
+                  inputSchema: z.object({
                     query: z
                       .string()
                       .describe(
@@ -2058,7 +2077,7 @@ Always prioritize the user's document content over generic information. If speci
                 cleanKnowledgeBase: tool({
                   description:
                     "ADMIN ONLY: Remove content from the knowledge base that doesn't belong or is misleading. Only use when users specifically request to clean up the knowledge base.",
-                  parameters: z.object({
+                  inputSchema: z.object({
                     keyword: z
                       .string()
                       .describe(
@@ -2114,7 +2133,7 @@ Always prioritize the user's document content over generic information. If speci
                 getCalendarEvents: tool({
                   description:
                     "Get the user's upcoming calendar events. Use this when the user asks about their schedule, upcoming meetings, or events.",
-                  parameters: z.object({}),
+                  inputSchema: z.object({}),
                   execute: async () => {
                     // Defaults handled inside tool implementation to avoid schema 'required' issues
                     const timeMin = undefined;
@@ -2232,7 +2251,7 @@ Always prioritize the user's document content over generic information. If speci
                 createCalendarEvent: tool({
                   description:
                     "Create a new event in the user's Google Calendar. Use this when the user wants to schedule a meeting or add an event to their calendar.",
-                  parameters: z.object({
+                  inputSchema: z.object({
                     summary: z
                       .string()
                       .describe('The title/summary of the event'),
@@ -2317,7 +2336,7 @@ Always prioritize the user's document content over generic information. If speci
                 checkCalendarConflicts: tool({
                   description:
                     'Check if there are any calendar conflicts for a proposed time. Use this proactively when users mention scheduling something.',
-                  parameters: z.object({
+                  inputSchema: z.object({
                     startDateTime: z
                       .string()
                       .describe('Start time in ISO format'),
@@ -2351,7 +2370,7 @@ Always prioritize the user's document content over generic information. If speci
                 findAvailableTimeSlots: tool({
                   description:
                     'Find available time slots in the calendar for scheduling meetings. Use this when users ask for available times or need to schedule something.',
-                  parameters: z.object({
+                  inputSchema: z.object({
                     duration: z.number().describe('Duration in minutes'),
                     searchDays: z
                       .number()
@@ -2385,7 +2404,7 @@ Always prioritize the user's document content over generic information. If speci
                 getCalendarAnalytics: tool({
                   description:
                     'Get analytics and insights about calendar usage, meeting patterns, and upcoming events that need preparation.',
-                  parameters: z.object({}),
+                  inputSchema: z.object({}),
                   execute: async () => {
                     const days = 30; // default handled internally
                     try {
@@ -2412,7 +2431,7 @@ Always prioritize the user's document content over generic information. If speci
                 getDailyBriefing: tool({
                   description:
                     "Get a daily briefing of today's calendar events and important reminders. Use this proactively when users start their day or ask about their schedule.",
-                  parameters: z.object({}),
+                  inputSchema: z.object({}),
                   execute: async () => {
                     const includePrep = true; // default handled internally
                     try {
@@ -2439,7 +2458,7 @@ Always prioritize the user's document content over generic information. If speci
                 parseNaturalLanguageEvent: tool({
                   description:
                     'Parse natural language into calendar event details. Use this when users describe events in natural language like "Schedule a meeting with John tomorrow at 2pm".',
-                  parameters: z.object({
+                  inputSchema: z.object({
                     text: z
                       .string()
                       .describe('Natural language description of the event'),
@@ -2474,7 +2493,7 @@ Always prioritize the user's document content over generic information. If speci
                 findSmartAvailability: tool({
                   description:
                     'Intelligently find available time slots based on user preferences and context. Use when users mention "free time", "available", or want to schedule something.',
-                  parameters: z.object({}),
+                  inputSchema: z.object({}),
                   execute: async () => {
                     const duration = 30;
                     const searchDays = 7;
@@ -2554,11 +2573,15 @@ Always prioritize the user's document content over generic information. If speci
                       const searchResult = toolResults?.find(
                         (tr: any) => tr.toolCallId === toolCall.toolCallId
                       );
-                      dataStream.writeData({
-                        type: 'nexus-search-progress',
-                        query: q || 'Searching...',
-                        resultsFound: (searchResult as any)?.result?.resultCount || 0,
-                        phase: 'researching',
+                      dataStream.write({
+                        'type': 'data',
+
+                        'value': [{
+                          type: 'nexus-search-progress',
+                          query: q || 'Searching...',
+                          resultsFound: (searchResult as any)?.result?.resultCount || 0,
+                          phase: 'researching',
+                        }]
                       });
                       console.log('[NEXUS] Search completed:', {
                         query: q,
@@ -2566,23 +2589,35 @@ Always prioritize the user's document content over generic information. If speci
                       });
                     } else {
                       // Standard mode: simple status update
-                      dataStream.writeData({
-                        type: 'chat-status',
-                        status: 'searching',
-                        message: q ? `Searching: ${q}` : 'Searching the web',
+                      dataStream.write({
+                        'type': 'data',
+
+                        'value': [{
+                          type: 'chat-status',
+                          status: 'searching',
+                          message: q ? `Searching: ${q}` : 'Searching the web',
+                        }]
                       });
                     }
                   } else if (toolCall.toolName === 'getCalendarEvents') {
-                    dataStream.writeData({
-                      type: 'chat-status',
-                      status: 'calendar',
-                      message: 'Checking calendar',
+                    dataStream.write({
+                      'type': 'data',
+
+                      'value': [{
+                        type: 'chat-status',
+                        status: 'calendar',
+                        message: 'Checking calendar',
+                      }]
                     });
                   } else if (toolCall.toolName === 'createDocument') {
-                    dataStream.writeData({
-                      type: 'chat-status',
-                      status: 'creating',
-                      message: 'Creating document',
+                    dataStream.write({
+                      'type': 'data',
+
+                      'value': [{
+                        type: 'chat-status',
+                        status: 'creating',
+                        message: 'Creating document',
+                      }]
                     });
                   }
                 }
@@ -2590,8 +2625,8 @@ Always prioritize the user's document content over generic information. If speci
               onFinish: async ({ response, usage, finishReason }) => {
                 // Log usage statistics for monitoring
                 if (usage) {
-                  const outputTokens = usage.completionTokens || 0;
-                  const inputTokens = usage.promptTokens || 0;
+                  const outputTokens = usage.outputTokens || 0;
+                  const inputTokens = usage.inputTokens || 0;
                   const totalTokens = usage.totalTokens || 0;
 
                   console.log('[USAGE] Token consumption:', {
@@ -2621,11 +2656,15 @@ Always prioritize the user's document content over generic information. If speci
                       },
                     );
                     // Send warning to client
-                    dataStream.writeData({
-                      type: 'token-limit-warning',
-                      message: 'Response may be truncated due to length limits',
-                      tokensUsed: outputTokens,
-                      tokenLimit: nexusTokenLimit,
+                    dataStream.write({
+                      'type': 'data',
+
+                      'value': [{
+                        type: 'token-limit-warning',
+                        message: 'Response may be truncated due to length limits',
+                        tokensUsed: outputTokens,
+                        tokenLimit: nexusTokenLimit,
+                      }]
                     });
                   }
                 }
@@ -2642,6 +2681,7 @@ Always prioritize the user's document content over generic information. If speci
                       throw new Error('No assistant message found!');
                     }
 
+                    /* FIXME(@ai-sdk-upgrade-v5): The `appendResponseMessages` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
                     const [, assistantMessage] = appendResponseMessages({
                       messages: [message],
                       responseMessages: response.messages,
@@ -2745,6 +2785,7 @@ Always prioritize the user's document content over generic information. If speci
                       }
                     }
 
+                    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
                     await saveMessages({
                       messages: [
                         {
@@ -2792,8 +2833,8 @@ Always prioritize the user's document content over generic information. If speci
                         conversationSummaryUsed:
                           conversationSummaryText.length > 0,
                         totalTokens: usage?.totalTokens,
-                        contextTokens: usage?.promptTokens,
-                        responseTokens: usage?.completionTokens,
+                        contextTokens: usage?.inputTokens,
+                        responseTokens: usage?.outputTokens,
                         model: finalChatModel,
                         metadata: {
                           personaId: selectedPersonaId,
@@ -2940,15 +2981,19 @@ Always prioritize the user's document content over generic information. If speci
 
               // Important: Don't consume the stream before merging if we've pre-created content
               // The consumeStream() call was preventing pre-created data from reaching the client
-              result.mergeIntoDataStream(dataStream);
+              result.mergeIntoUIMessageStream(dataStream);
             } catch (streamError) {
               console.error('RAG ERROR: Error processing stream:', streamError);
               // Clear timeout on stream error
               if (responseTimeout) clearTimeout(responseTimeout);
               // Propagate error to user via dataStream
-              dataStream.writeData({
-                type: 'error',
-                error: 'Stream processing error occurred',
+              dataStream.write({
+                'type': 'data',
+
+                'value': [{
+                  type: 'error',
+                  error: 'Stream processing error occurred',
+                }]
               });
             } finally {
               // Ensure timeout is always cleared
@@ -2958,9 +3003,13 @@ Always prioritize the user's document content over generic information. If speci
             console.error('Fatal error in stream processing:', error);
             if (responseTimeout) clearTimeout(responseTimeout);
             // Notify user of error via dataStream
-            dataStream.writeData({
-              type: 'error',
-              error: 'Fatal error in chat processing',
+            dataStream.write({
+              'type': 'data',
+
+              'value': [{
+                type: 'error',
+                error: 'Fatal error in chat processing',
+              }]
             });
           }
       },
@@ -3591,7 +3640,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const emptyDataStream = createDataStream({
+  const emptyDataStream = createUIMessageStream({
     execute: () => {},
   });
 

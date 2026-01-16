@@ -5,7 +5,7 @@ import { myProvider } from '@/lib/ai/providers';
 import { systemPrompt } from '@/lib/ai/prompts';
 import { streamText, tool } from 'ai';
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { withErrorHandler } from '@/lib/errors/api-wrapper';
 
 export const maxDuration = 30; // 30 seconds
@@ -69,14 +69,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       model: myProvider.languageModel(modelId as 'chat-model'),
       messages,
       system: `${baseSystemPrompt}\n\nALWAYS use the getInformation tool when you don't have enough context from the retrieved information above!\n\nIMPORTANT RAG RESPONSE INSTRUCTIONS:\n1. NEVER mention phrases like "Based on our knowledge base" or "According to our records" in your responses\n2. Provide COMPREHENSIVE and DETAILED responses that connect concepts and expand on key points\n3. Use RICH MARKDOWN FORMATTING with clear sections, hierarchical headings, and proper formatting\n4. When using retrieved information, incorporate it NATURALLY into your response without attributing it to a knowledge base\n5. TARGET RESPONSE LENGTH: Aim for approximately 1500 tokens (~1125 words) but always complete your thoughts naturally\n6. NATURAL COMPLETION: Never stop mid-sentence or mid-thought - complete your response naturally even if approaching the target length`,
-      maxTokens: 2500, // High safety limit to prevent hard cutoffs while keeping responses reasonable
+      maxOutputTokens: 2500, // High safety limit to prevent hard cutoffs while keeping responses reasonable
       temperature: 0.7,
       tools: {
         // Add Resource tool - saves information to knowledge base
         addResource: tool({
           description:
             'Add a new resource to the EOS knowledge base. Use this whenever the user shares information that should be remembered for future reference.',
-          parameters: z.object({
+          inputSchema: z.object({
             title: z.string().describe('Title of the resource'),
             content: z.string().describe('Content of the resource'),
           }),
@@ -99,7 +99,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         getInformation: tool({
           description:
             "Retrieve more relevant information from the EOS knowledge base. Use this when you need additional context to answer the user's question.",
-          parameters: z.object({
+          inputSchema: z.object({
             query: z
               .string()
               .describe(
@@ -124,7 +124,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       },
     });
 
-    return result.toDataStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error('Error in chat-rag route:', error);
     throw error; // Let the error handler wrapper handle it

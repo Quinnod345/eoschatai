@@ -3,7 +3,7 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { userMemory } from '@/lib/db/schema';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // Validation schema for creating a memory
 const createMemorySchema = z.object({

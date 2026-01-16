@@ -1,13 +1,13 @@
-import type { DataStreamWriter } from 'ai';
+import type { UIMessageStreamWriter } from 'ai';
 import { tool } from 'ai';
 import type { Session } from 'next-auth';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { getDocumentById } from '@/lib/db/queries';
 import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 interface UpdateDocumentProps {
   session: Session;
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
   artifactMaxTokens?: number;
 }
 
@@ -19,7 +19,7 @@ export const updateDocument = ({
   tool({
     description:
       'Update an existing document or composer with the given description. MANDATORY: Use this tool WHENEVER the user asks to edit, modify, extend, improve, fix, change, expand, shorten, rewrite, polish, wordsmith, add to, remove from, or update existing content in ANY way. NEVER output edited text in the chat - always use this tool instead.',
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string().describe('The ID of the document to update'),
       description: z
         .string()
@@ -36,20 +36,28 @@ export const updateDocument = ({
         };
       }
 
-      dataStream.writeData({
-        type: 'clear',
-        content: document.title,
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'clear',
+          content: document.title,
+        }]
       });
 
       // Send AI edit metadata to the frontend
-      dataStream.writeData({
-        type: 'ai-edit-start',
-        content: JSON.stringify({
-          documentId: id,
-          description,
-          originalContent: document.content,
-          timestamp: new Date().toISOString(),
-        }),
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'ai-edit-start',
+          content: JSON.stringify({
+            documentId: id,
+            description,
+            originalContent: document.content,
+            timestamp: new Date().toISOString(),
+          }),
+        }]
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -66,20 +74,27 @@ export const updateDocument = ({
         description,
         dataStream,
         session,
-        maxTokens: artifactMaxTokens,
+        maxOutputTokens: artifactMaxTokens,
       });
 
       // Send completion signal with AI edit metadata
-      dataStream.writeData({
-        type: 'ai-edit-complete',
-        content: JSON.stringify({
-          documentId: id,
-          description,
-          timestamp: new Date().toISOString(),
-        }),
+      dataStream.write({
+        'type': 'data',
+
+        'value': [{
+          type: 'ai-edit-complete',
+          content: JSON.stringify({
+            documentId: id,
+            description,
+            timestamp: new Date().toISOString(),
+          }),
+        }]
       });
 
-      dataStream.writeData({ type: 'finish', content: '' });
+      dataStream.write({
+        'type': 'data',
+        'value': [{ type: 'finish', content: '' }]
+      });
 
       return {
         id,

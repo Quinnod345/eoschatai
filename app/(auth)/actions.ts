@@ -1,6 +1,6 @@
 'use server';
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { randomBytes } from 'node:crypto';
 import { eq, and, gt, isNull } from 'drizzle-orm';
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import {
   checkOrgPermission,
   changeUserRole,

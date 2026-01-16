@@ -3,18 +3,18 @@ import { document } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { processDocument } from '../embeddings';
 import { tool } from 'ai';
-import { z } from 'zod';
-import type { DataStreamWriter } from 'ai';
+import { z } from 'zod/v3';
+import type { UIMessageStreamWriter } from 'ai';
 
 interface IndexDocumentsProps {
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
 }
 
 export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
   tool({
     description:
       'Index existing documents to make them searchable through the EOS knowledge base',
-    parameters: z.object({
+    inputSchema: z.object({
       documentId: z
         .string()
         .optional()
@@ -29,7 +29,10 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
     execute: async ({ documentId, reindex = false }) => {
       try {
         // Log that we're indexing documents
-        dataStream.writeData('Indexing documents...');
+        dataStream.write({
+          'type': 'data',
+          'value': ['Indexing documents...']
+        });
 
         // Build query
         const query = documentId
@@ -70,8 +73,11 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
 
             // Provide progress updates
             if (docs.length > 1) {
-              dataStream.writeData(
-                `Indexed ${indexed} of ${docs.length} documents...`,
+              dataStream.write(
+                {
+                  'type': 'data',
+                  'value': [`Indexed ${indexed} of ${docs.length} documents...`]
+                },
               );
             }
           } catch (error) {

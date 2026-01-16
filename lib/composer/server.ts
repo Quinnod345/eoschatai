@@ -5,7 +5,7 @@ import { textDocumentHandler } from '@/composer/text/server';
 import { chartDocumentHandler } from '@/composer/chart/server';
 import { vtoDocumentHandler } from '@/composer/vto/server';
 import type { ComposerKind } from '@/components/composer';
-import type { DataStreamWriter } from 'ai';
+import type { UIMessageStreamWriter } from 'ai';
 import type { Session } from 'next-auth';
 import type { Document } from '@/lib/db/schema';
 import { saveDocument } from '@/lib/db/queries';
@@ -22,18 +22,18 @@ export interface SaveDocumentProps {
 export interface CreateDocumentCallbackProps {
   id: string;
   title: string;
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
   session: Session;
-  maxTokens?: number;
+  maxOutputTokens?: number;
   context?: string;
 }
 
 export interface UpdateDocumentCallbackProps {
   document: Document;
   description: string;
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
   session: Session;
-  maxTokens?: number;
+  maxOutputTokens?: number;
 }
 
 export interface DocumentHandler<T = ComposerKind> {
@@ -59,7 +59,7 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         title: args.title,
         dataStream: args.dataStream,
         session: args.session,
-        maxTokens: args.maxTokens,
+        maxOutputTokens: args.maxOutputTokens,
         context: args.context,
       });
 
@@ -93,7 +93,7 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         description: args.description,
         dataStream: args.dataStream,
         session: args.session,
-        maxTokens: args.maxTokens,
+        maxOutputTokens: args.maxOutputTokens,
       });
 
       if (args.session?.user?.id) {

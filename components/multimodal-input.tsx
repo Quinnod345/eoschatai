@@ -2122,6 +2122,7 @@ function PureMultimodalInput({
     try {
       if (hasProcessedContent) {
         // Use append for messages with processed content
+        /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
         append(
           {
             role: 'user',
@@ -2151,6 +2152,7 @@ function PureMultimodalInput({
                 // ignore
               }
             }
+            /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
             append(
               { role: 'user', content },
               {
@@ -2160,6 +2162,7 @@ function PureMultimodalInput({
             );
           } else {
             // If we have text, use the finalInputContent with mentions appended
+            /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
             append(
               {
                 role: 'user',

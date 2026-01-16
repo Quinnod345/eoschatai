@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 export interface QueryAnalysis {
   complexity: 'simple' | 'medium' | 'complex';
@@ -13,7 +13,7 @@ export interface QueryAnalysis {
     user: number;
     memories: number;
   };
-  reasoning: string;
+  reasoningText: string;
 }
 
 /**
@@ -56,7 +56,7 @@ export async function analyzeQueryComplexity(
         requiresWebSearch: z.boolean().describe(
           'True if query needs current/real-time information',
         ),
-        reasoning: z.string().describe(
+        reasoningText: z.string().describe(
           'Brief explanation of the complexity assessment',
         ),
       }),
@@ -85,7 +85,7 @@ Provide a classification.`,
     console.log(
       `Query Analyzer: Classified as ${analysis.complexity} (User context: ${analysis.requiresUserContext}, Memories: ${analysis.requiresMemories})`,
     );
-    console.log(`Query Analyzer: ${analysis.reasoning}`);
+    console.log(`Query Analyzer: ${analysis.reasoningText}`);
 
     return {
       ...analysis,
@@ -135,7 +135,7 @@ function analyzeWithHeuristics(query: string): QueryAnalysis {
     requiresMemories,
     requiresWebSearch,
     suggestedChunkLimits: limits,
-    reasoning: `Heuristic analysis: ${wordCount} words, ${hasPersonalPronouns ? 'personal' : 'general'} query`,
+    reasoningText: `Heuristic analysis: ${wordCount} words, ${hasPersonalPronouns ? 'personal' : 'general'} query`,
   };
 }
 
@@ -190,7 +190,7 @@ function getDefaultAnalysis(
     requiresMemories: false,
     requiresWebSearch: false,
     suggestedChunkLimits: getChunkLimitsForComplexity(complexity),
-    reasoning: 'Default analysis for empty or invalid query',
+    reasoningText: 'Default analysis for empty or invalid query',
   };
 }
 

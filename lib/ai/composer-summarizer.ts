@@ -37,7 +37,7 @@ Content:
 ${document.content}
 
 Generate a comprehensive summary that preserves all key information while being more concise.`,
-      maxTokens: 800,
+      maxOutputTokens: 800,
       temperature: 0.3,
     });
 

@@ -59,7 +59,7 @@ CONVERSATION TO SUMMARIZE:
 ${conversationText}
 
 SUMMARY:`,
-      maxTokens: 800,
+      maxOutputTokens: 800,
     });
 
     console.log(

@@ -4,7 +4,7 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const emailUpdateSchema = z.object({
   email: z.string().email('Invalid email format'),

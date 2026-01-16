@@ -57,6 +57,7 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
 
   // Function to convert DB messages to UI messages
   function convertToUIMessages(messages: Array<DBMessage>): Array<UIMessage> {
+    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
     return messages.map((message) => ({
       id: message.id,
       parts: message.parts as UIMessage['parts'],

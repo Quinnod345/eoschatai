@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Session } from 'next-auth';
-import { type DataStreamWriter, streamObject, tool } from 'ai';
+import { type UIMessageStreamWriter, streamObject, tool } from 'ai';
 import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
 import type { Suggestion } from '@/lib/db/schema';
 import { generateUUID } from '@/lib/utils';
@@ -8,7 +8,7 @@ import { myProvider } from '../providers';
 
 interface RequestSuggestionsProps {
   session: Session;
-  dataStream: DataStreamWriter;
+  dataStream: UIMessageStreamWriter;
 }
 
 export const requestSuggestions = ({
@@ -17,7 +17,7 @@ export const requestSuggestions = ({
 }: RequestSuggestionsProps) =>
   tool({
     description: 'Request suggestions for a document',
-    parameters: z.object({
+    inputSchema: z.object({
       documentId: z
         .string()
         .describe('The ID of the document to request edits'),
@@ -58,9 +58,13 @@ export const requestSuggestions = ({
           isResolved: false,
         };
 
-        dataStream.writeData({
-          type: 'suggestion',
-          content: suggestion,
+        dataStream.write({
+          'type': 'data',
+
+          'value': [{
+            type: 'suggestion',
+            content: suggestion,
+          }]
         });
 
         suggestions.push(suggestion);

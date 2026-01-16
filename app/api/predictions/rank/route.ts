@@ -1,6 +1,6 @@
 import { auth } from '@/app/(auth)/auth';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { addSuggestion } from '@/lib/redis/autocomplete';
 
 const requestSchema = z.object({

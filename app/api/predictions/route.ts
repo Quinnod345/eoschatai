@@ -1,6 +1,6 @@
 import { auth } from '@/app/(auth)/auth';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { getSuggestions } from '@/lib/redis/autocomplete';
 import { createCustomProvider } from '@/lib/ai/providers';
 import { generateText } from 'ai';
@@ -80,7 +80,7 @@ Focus on EOS business topics: Rocks, L10 meetings, IDS, V/TO, accountability cha
       const { text } = await generateText({
         model: provider.languageModel('gpt-4.1-nano'),
         temperature: 0.3,
-        maxTokens: 60,
+        maxOutputTokens: 60,
         system: systemPrompt,
         prompt: promptStr,
       });
