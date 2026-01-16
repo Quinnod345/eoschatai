@@ -1,5 +1,5 @@
 import { findRelevantContent } from '../embeddings';
-import { tool } from 'ai';
+import { generateId, tool } from 'ai';
 import { z } from 'zod/v3';
 import type { UIMessageStreamWriter } from 'ai';
 
@@ -20,8 +20,9 @@ export const retrieveContextTool = ({ dataStream }: RetrieveContextProps) =>
       try {
         // Log that we're searching
         dataStream.write({
-          'type': 'data',
-          'value': [`Searching knowledge base for: ${query}`]
+          type: 'data-tool',
+          id: generateId(),
+          data: { message: `Searching knowledge base for: ${query}` }
         });
 
         // Retrieve relevant context

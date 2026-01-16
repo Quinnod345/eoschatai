@@ -1,5 +1,5 @@
 import { generateUUID } from '@/lib/utils';
-import { tool } from 'ai';
+import { generateId, tool } from 'ai';
 import type { UIMessageStreamWriter } from 'ai';
 import { z } from 'zod/v3';
 import type { Session } from 'next-auth';
@@ -35,39 +35,39 @@ export const createDocument = ({
       console.log(`Creating document with kind: ${kind}, title: ${title}`);
 
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'kind',
           content: kind,
-        }]
+        }
       });
 
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'id',
           content: id,
-        }]
+        }
       });
 
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'title',
           content: title,
-        }]
+        }
       });
 
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'clear',
           content: '',
-        }]
+        }
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -94,8 +94,9 @@ export const createDocument = ({
       console.log(`Document creation complete for kind: ${kind}`);
 
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'finish', content: '' }]
+        type: 'data-tool',
+        id: generateId(),
+        data: { type: 'finish', content: '' }
       });
 
       return {

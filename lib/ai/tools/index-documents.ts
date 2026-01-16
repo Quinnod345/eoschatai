@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { document } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { processDocument } from '../embeddings';
-import { tool } from 'ai';
+import { generateId, tool } from 'ai';
 import { z } from 'zod/v3';
 import type { UIMessageStreamWriter } from 'ai';
 
@@ -30,8 +30,9 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
       try {
         // Log that we're indexing documents
         dataStream.write({
-          'type': 'data',
-          'value': ['Indexing documents...']
+          type: 'data-tool',
+          id: generateId(),
+          data: { message: 'Indexing documents...' }
         });
 
         // Build query
@@ -73,12 +74,11 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
 
             // Provide progress updates
             if (docs.length > 1) {
-              dataStream.write(
-                {
-                  'type': 'data',
-                  'value': [`Indexed ${indexed} of ${docs.length} documents...`]
-                },
-              );
+              dataStream.write({
+                type: 'data-tool',
+                id: generateId(),
+                data: { message: `Indexed ${indexed} of ${docs.length} documents...` }
+              });
             }
           } catch (error) {
             console.error(`Error indexing document ${doc.id}:`, error);

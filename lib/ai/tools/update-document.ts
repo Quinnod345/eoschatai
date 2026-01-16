@@ -1,5 +1,5 @@
 import type { UIMessageStreamWriter } from 'ai';
-import { tool } from 'ai';
+import { generateId, tool } from 'ai';
 import type { Session } from 'next-auth';
 import { z } from 'zod/v3';
 import { getDocumentById } from '@/lib/db/queries';
@@ -37,19 +37,19 @@ export const updateDocument = ({
       }
 
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'clear',
           content: document.title,
-        }]
+        }
       });
 
       // Send AI edit metadata to the frontend
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'ai-edit-start',
           content: JSON.stringify({
             documentId: id,
@@ -57,7 +57,7 @@ export const updateDocument = ({
             originalContent: document.content,
             timestamp: new Date().toISOString(),
           }),
-        }]
+        }
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -79,21 +79,22 @@ export const updateDocument = ({
 
       // Send completion signal with AI edit metadata
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-tool',
+        id: generateId(),
+        data: {
           type: 'ai-edit-complete',
           content: JSON.stringify({
             documentId: id,
             description,
             timestamp: new Date().toISOString(),
           }),
-        }]
+        }
       });
 
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'finish', content: '' }]
+        type: 'data-tool',
+        id: generateId(),
+        data: { type: 'finish', content: '' }
       });
 
       return {

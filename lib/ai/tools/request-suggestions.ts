@@ -1,6 +1,6 @@
 import { z } from 'zod/v3';
 import type { Session } from 'next-auth';
-import { type UIMessageStreamWriter, streamObject, tool } from 'ai';
+import { type UIMessageStreamWriter, generateId, streamObject, tool } from 'ai';
 import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
 import type { Suggestion } from '@/lib/db/schema';
 import { generateUUID } from '@/lib/utils';
@@ -59,12 +59,12 @@ export const requestSuggestions = ({
         };
 
         dataStream.write({
-          'type': 'data',
-
-          'value': [{
+          type: 'data-tool',
+          id: generateId(),
+          data: {
             type: 'suggestion',
             content: suggestion,
-          }]
+          }
         });
 
         suggestions.push(suggestion);
