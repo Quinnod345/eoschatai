@@ -2120,19 +2120,24 @@ function PureMultimodalInput({
     }
 
     try {
+      // AI SDK 5: Convert attachments to file parts
+      const fileParts = attachments.map((attachment) => ({
+        type: 'file' as const,
+        url: attachment.url,
+        mediaType: attachment.contentType,
+        name: attachment.name,
+      }));
+
       if (hasProcessedContent) {
         // Use append for messages with processed content
-        /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-        append(
-          {
-            role: 'user',
-            content: finalInputContent, // Send the combined content
-          },
-          {
-            experimental_attachments:
-              attachments.length > 0 ? attachments : undefined,
-          },
-        );
+        // AI SDK 5: Attachments are now file parts in the parts array
+        append({
+          role: 'user',
+          parts: [
+            { type: 'text', text: finalInputContent },
+            ...fileParts,
+          ],
+        });
         // Don't clear input state yet - will be cleared after height reset
       } else {
         // No processed content, use standard handleSubmit
@@ -2152,27 +2157,24 @@ function PureMultimodalInput({
                 // ignore
               }
             }
-            /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-            append(
-              { role: 'user', content },
-              {
-                experimental_attachments:
-                  attachments.length > 0 ? attachments : undefined,
-              },
-            );
+            // AI SDK 5: Attachments are now file parts in the parts array
+            append({
+              role: 'user',
+              parts: [
+                { type: 'text', text: content },
+                ...fileParts,
+              ],
+            });
           } else {
             // If we have text, use the finalInputContent with mentions appended
-            /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-            append(
-              {
-                role: 'user',
-                content: finalInputContent,
-              },
-              {
-                experimental_attachments:
-                  attachments.length > 0 ? attachments : undefined,
-              },
-            );
+            // AI SDK 5: Attachments are now file parts in the parts array
+            append({
+              role: 'user',
+              parts: [
+                { type: 'text', text: finalInputContent },
+                ...fileParts,
+              ],
+            });
           }
           // Don't clear input state yet - will be cleared after height reset
         } else {

@@ -16,7 +16,8 @@ export type ChatHelpers = UseChatHelpers<UIMessage>;
 // AI SDK 5: Define explicit types for component props
 // These methods were renamed or removed in SDK 5, but we use adapters in chat.tsx
 export type ChatStatus = 'submitted' | 'streaming' | 'ready' | 'error';
-export type AppendFunction = (message: { role: string; content?: string; parts?: any[] }, options?: { experimental_attachments?: Attachment[] }) => void;
+// AI SDK 5: Attachments are now file parts in the parts array
+export type AppendFunction = (message: { role: string; content?: string; parts?: any[] }, options?: { body?: Record<string, unknown> }) => void;
 export type HandleSubmitFunction = (event?: { preventDefault?: () => void }, options?: any) => void;
 export type ReloadFunction = (options?: { messageId?: string }) => void;
 export type SetInputFunction = (value: string) => void;

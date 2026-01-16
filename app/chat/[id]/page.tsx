@@ -16,6 +16,7 @@ import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 import { Suspense } from 'react';
 import { ChatLoading } from '@/components/chat-loading';
+import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 
 // Silent logger to prevent errors from showing on screen during development
 const silentLog = {
@@ -56,18 +57,32 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
   const { id } = params;
 
   // Function to convert DB messages to UI messages
+  // AI SDK 5: Use conversion function to handle v4 → v5 format changes
   function convertToUIMessages(messages: Array<DBMessage>): Array<UIMessage> {
-    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-    return messages.map((message) => ({
-      id: message.id,
-      parts: message.parts as UIMessage['parts'],
-      role: message.role as UIMessage['role'],
-      content: '',
-      createdAt: message.createdAt,
-      experimental_attachments: Array.isArray(message.attachments)
-        ? message.attachments
-        : [],
-    }));
+    return messages.map((message, index) => {
+      // Convert attachments to file parts and merge with existing parts
+      const attachmentParts = Array.isArray(message.attachments)
+        ? message.attachments.map((att: any) => ({
+            type: 'file' as const,
+            url: att.url,
+            mediaType: att.contentType || att.mediaType,
+            name: att.name,
+          }))
+        : [];
+      
+      const existingParts = Array.isArray(message.parts) ? message.parts : [];
+      
+      // Build base message with parts
+      const baseMessage = {
+        id: message.id,
+        parts: [...existingParts, ...attachmentParts],
+        role: message.role as UIMessage['role'],
+        createdAt: message.createdAt,
+      };
+      
+      // Apply v4 → v5 conversion for any legacy parts (tool-invocation, etc.)
+      return convertV4MessageToV5(baseMessage as any, index) as UIMessage;
+    });
   }
 
   // Add error handling and retry logic for getting the chat

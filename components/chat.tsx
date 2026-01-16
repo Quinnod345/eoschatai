@@ -494,11 +494,24 @@ export function Chat({
 
   // AI SDK 5: Create append adapter using sendMessage
   // MUST be defined before any useEffect that uses it
+  // Supports both text content and file parts (attachments)
   const appendAdapter = useCallback(
-    (message: { role: string; content?: string; parts?: any[] }) => {
+    (message: { role: string; content?: string; parts?: any[] }, options?: { body?: Record<string, unknown> }) => {
+      // Build parts array from message
+      const parts: any[] = [];
+      
+      // Add text part from content or existing parts
       const text = message.content || message.parts?.find((p: any) => p.type === 'text')?.text || '';
       if (text) {
-        sendMessage({ text });
+        parts.push({ type: 'text', text });
+      }
+      
+      // Add file parts from existing parts (SDK 5 attachments are file parts)
+      const fileParts = message.parts?.filter((p: any) => p.type === 'file') || [];
+      parts.push(...fileParts);
+      
+      if (parts.length > 0) {
+        sendMessage({ parts }, options);
       }
     },
     [sendMessage],

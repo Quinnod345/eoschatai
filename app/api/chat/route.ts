@@ -55,6 +55,7 @@ import { searchWeb } from '@/lib/ai/tools/search-web';
 import { z } from 'zod/v3';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
+import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
 // import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
@@ -491,13 +492,30 @@ export async function POST(request: Request) {
       }
     }
 
-    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-    const normalizedPreviousMessages = previousMessages.map((dbMessage) => ({
-      ...dbMessage,
-      experimental_attachments: Array.isArray(dbMessage.attachments)
-        ? dbMessage.attachments
-        : [],
-    }));
+    // AI SDK 5: Attachments are now file parts in the parts array
+    // Apply v4 → v5 conversion for any legacy parts (tool-invocation, etc.)
+    const normalizedPreviousMessages = previousMessages.map((dbMessage, index) => {
+      // Convert attachments to file parts and merge with existing parts
+      const attachmentParts = Array.isArray(dbMessage.attachments)
+        ? dbMessage.attachments.map((att: any) => ({
+            type: 'file' as const,
+            url: att.url,
+            mediaType: att.contentType || att.mediaType,
+            name: att.name,
+          }))
+        : [];
+      
+      // Ensure parts is an array before spreading
+      const existingParts = Array.isArray(dbMessage.parts) ? dbMessage.parts : [];
+      
+      const baseMessage = {
+        ...dbMessage,
+        parts: [...existingParts, ...attachmentParts],
+      };
+      
+      // Apply v4 → v5 conversion for any legacy parts
+      return convertV4MessageToV5(baseMessage as any, index);
+    });
 
     // Manually append client message (appendClientMessage was removed in AI SDK 5)
     const messages = [...normalizedPreviousMessages, message] as UIMessage[];
@@ -1044,15 +1062,23 @@ export async function POST(request: Request) {
       country,
     };
 
-    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
+    // AI SDK 5: Extract file parts from message.parts to save as attachments
+    const fileParts = (message.parts || []).filter((part: any) => part.type === 'file');
+    const nonFileParts = (message.parts || []).filter((part: any) => part.type !== 'file');
+    const attachmentsToSave = fileParts.map((part: any) => ({
+      url: part.url,
+      contentType: part.mediaType,
+      name: part.name,
+    }));
+    
     await saveMessages({
       messages: [
         {
           chatId: id,
           id: message.id,
           role: 'user',
-          parts: message.parts,
-          attachments: message.experimental_attachments ?? [],
+          parts: nonFileParts.length > 0 ? nonFileParts : message.parts,
+          attachments: attachmentsToSave,
           createdAt: new Date(),
           provider: selectedProvider,
         },
@@ -1949,19 +1975,26 @@ Always prioritize the user's document content over generic information. If speci
                     for (const msg of messages) {
                       if (msg.role === 'assistant' && msg.parts) {
                         for (const part of msg.parts) {
-                          if (part.type === 'tool-invocation') {
+                          // AI SDK 5: Handle both old format (tool-invocation) and new format (tool-*)
+                          const isToolPart = part.type === 'tool-invocation' || (part.type as string)?.startsWith('tool-');
+                          if (isToolPart) {
                             const toolInv = (part as any).toolInvocation;
+                            const toolName = toolInv?.toolName || (part.type as string)?.replace('tool-', '');
+                            const state = toolInv?.state || (part as any).state;
+                            const result = toolInv?.result || (part as any).output;
+                            
+                            // AI SDK 5: state 'result' renamed to 'output-available'
                             if (
-                              toolInv?.toolName === 'searchWeb' &&
-                              toolInv?.state === 'result' &&
-                              toolInv?.result
+                              toolName === 'searchWeb' &&
+                              (state === 'result' || state === 'output-available') &&
+                              result
                             ) {
-                              const results = toolInv.result.results || [];
+                              const results = result.results || [];
                               if (results.length > 0) {
                                 // Build the search result block first
                                 let searchBlock =
                                   '\n\n=== Web Search Results ===\n';
-                                searchBlock += `Query: ${toolInv.result.query}\n\n`;
+                                searchBlock += `Query: ${result.query}\n\n`;
                                 results
                                   .slice(0, 8)
                                   .forEach((r: any, i: number) => {

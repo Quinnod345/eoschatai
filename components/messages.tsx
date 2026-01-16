@@ -105,9 +105,10 @@ function PureMessages({
         }
 
         // If no explicit citations, extract from searchWeb tool results
-        // Vercel AI SDK uses 'tool-invocation' type with nested toolInvocation object
+        // AI SDK 5: Tool parts are now type: `tool-${toolName}` with properties directly on part
+        // Handle both old format (tool-invocation) and new format (tool-*)
         const toolInvocationParts = parts.filter(
-          (part: any) => part?.type === 'tool-invocation',
+          (part: any) => part?.type === 'tool-invocation' || part?.type?.startsWith('tool-'),
         );
 
         console.log(
@@ -115,17 +116,16 @@ function PureMessages({
         );
 
         for (const toolPart of toolInvocationParts) {
-          // The actual tool data is nested in toolPart.toolInvocation
+          // AI SDK 5: Handle both old nested format and new flat format
           const invocation = toolPart?.toolInvocation;
+          const toolName = invocation?.toolName || toolPart?.type?.replace('tool-', '');
+          const state = invocation?.state || toolPart?.state;
+          const result = invocation?.result || toolPart?.output;
 
-          if (!invocation) {
-            console.log('[Citations Debug] No toolInvocation nested object');
+          if (!toolName) {
+            console.log('[Citations Debug] No tool name found');
             continue;
           }
-
-          const toolName = invocation?.toolName;
-          const state = invocation?.state;
-          const result = invocation?.result;
 
           console.log(`[Citations Debug] Tool invocation:`, {
             toolName,
@@ -135,10 +135,11 @@ function PureMessages({
             resultKeys: result ? Object.keys(result) : [],
           });
 
-          // Extract citations from searchWeb tool results (must be in 'result' state)
+          // Extract citations from searchWeb tool results
+          // AI SDK 5: state 'result' renamed to 'output-available'
           if (
             toolName === 'searchWeb' &&
-            state === 'result' &&
+            (state === 'result' || state === 'output-available') &&
             result?.results &&
             Array.isArray(result.results)
           ) {

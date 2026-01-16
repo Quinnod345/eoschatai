@@ -512,7 +512,8 @@ const PurePreviewMessage = ({
     });
   }
 
-  /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
+  // AI SDK 5: Attachments are now file parts in the parts array
+  // The getMessageAttachments helper handles both formats for backward compatibility
   return (
     <AnimatePresence>
       <motion.div
@@ -754,7 +755,10 @@ const PurePreviewMessage = ({
                 const args = toolInvocation?.args || toolPart.input;
                 const result = toolInvocation?.result || toolPart.output;
 
-                if (state === 'call' || state === 'input-streaming') {
+                // AI SDK 5: Handle loading states
+                // - 'call' (v4) / 'input-streaming' (v5) - input being streamed
+                // - 'input-available' (v5) - input complete, tool executing
+                if (state === 'call' || state === 'input-streaming' || state === 'input-available') {
                   return (
                     <div
                       key={toolCallId}
@@ -783,6 +787,18 @@ const PurePreviewMessage = ({
                   );
                 }
 
+                // AI SDK 5: Handle error state
+                if (state === 'output-error') {
+                  const errorText = toolPart.errorText || 'Tool execution failed';
+                  return (
+                    <div key={toolCallId} className="text-destructive text-sm">
+                      Error in {toolName}: {errorText}
+                    </div>
+                  );
+                }
+
+                // AI SDK 5: Handle success states
+                // - 'result' (v4) / 'output-available' (v5)
                 if (state === 'result' || state === 'output-available') {
                   // Filter out searchWeb tool results - citations are shown inline instead
                   if (toolName === 'searchWeb') {
