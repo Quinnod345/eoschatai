@@ -7,8 +7,13 @@ import {
   expect,
   type Page,
 } from '@playwright/test';
-import { generateId } from 'ai';
+import { randomBytes } from 'crypto';
 import { ChatPage } from './pages/chat';
+
+// AI SDK 5: generateId no longer takes length argument
+function generateId(length = 12): string {
+  return randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+}
 import { getUnixTime } from 'date-fns';
 
 export type UserContext = {
