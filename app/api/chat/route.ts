@@ -1,5 +1,6 @@
 import {
   createUIMessageStream,
+  createUIMessageStreamResponse,
   streamText,
   tool,
   generateText,
@@ -3378,7 +3379,8 @@ ${
           console.log(
             '[NEXUS MODE] Resumable stream unavailable, using direct stream',
           );
-          return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
+          // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
+          return createUIMessageStreamResponse({ stream: responseStream });
         }
 
         console.log(
@@ -3390,7 +3392,8 @@ ${
           `[NEXUS MODE] Error with resumable stream: ${streamError}`,
         );
         console.log('[NEXUS MODE] Falling back to direct response stream');
-        return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
+        // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
+        return createUIMessageStreamResponse({ stream: responseStream });
       }
     }
 
@@ -3448,7 +3451,8 @@ ${
           console.log(
             'Resumable stream unavailable, using direct response stream',
           );
-          return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
+          // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
+          return createUIMessageStreamResponse({ stream: responseStream });
         }
 
         console.log(`Resumable stream created for ID: ${streamId}`);
@@ -3457,11 +3461,13 @@ ${
       } catch (streamError) {
         console.error(`Error with resumable stream: ${streamError}`);
         console.log('Falling back to direct response stream');
-        return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
+        // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
+        return createUIMessageStreamResponse({ stream: responseStream });
       }
     } else {
       console.log('Using direct response stream (no resumable context)');
-      return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
+      // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
+      return createUIMessageStreamResponse({ stream: responseStream });
     }
   } catch (error) {
     console.error('Unhandled error in chat POST route:', error);
