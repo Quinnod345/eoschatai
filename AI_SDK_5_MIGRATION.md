@@ -210,25 +210,51 @@ The following fixes have been applied:
 - [x] Fixed `Attachment` type import (removed from 'ai', defined locally)
 - [x] Fixed `dataStream: writer` parameter passing to tools
 
-### 4.5 Remaining TypeScript Errors (Manual Fix Required)
+### 4.5 Completed Fixes (More Progress)
 
-**Files requiring significant manual work:**
+- [x] `components/chat.tsx` - Migrated useChat hook to AI SDK 5 API:
+  - Created `DefaultChatTransport` for request preparation
+  - Changed destructured values to new API (`sendMessage`, `regenerate`, etc.)
+  - Created adapter functions for backward compatibility (`appendAdapter`, `reloadAdapter`)
+  - Fixed `message.content` → `message.parts` in all places
+  - Fixed `setMessages` calls to use `parts` instead of `content`
 
-1. **`components/chat.tsx`** - useChat hook API completely changed:
-   - `handleSubmit` → use `sendMessage`
-   - `append` → use `sendMessage` with different signature
-   - `reload` → `regenerate`
-   - `initialMessages` → `messages`
-   - `experimental_resume`, `data` → removed/changed
+- [x] `app/calendar-test/page.tsx` - Fully migrated to AI SDK 5
 
-2. **`app/calendar-test/page.tsx`** - Same useChat changes + `message.content` → `message.parts`
+- [x] All composer files - Fixed data stream format
 
-3. **`app/api/chat/route.ts`** - Stream type issues with resumable-stream library:
-   - `ReadableStream<UIMessageChunk>` not compatible with `ReadableStream<string>`
+- [x] All tool files - Fixed data stream format
 
-4. **Composer files** - `type: 'data'` → `type: 'data-status'` pattern needed
+### 4.6 Remaining TypeScript Errors (Manual Fix Required)
 
-5. **Tool files** - `type: 'data'` → `type: 'data-status'` pattern needed
+**Remaining errors (~131 lines) fall into these categories:**
+
+1. **`UseChatHelpers` type parameter** - Many components need type parameter:
+   - `components/composer.tsx`, `multimodal-input.tsx`, `messages.tsx`, etc.
+   - Fix: Change `UseChatHelpers` to `UseChatHelpers<UIMessage>`
+
+2. **`Attachment` type removed** - Multiple files import it:
+   - `components/composer.tsx`, `multimodal-input.tsx`, `preview-attachment.tsx`, etc.
+   - Fix: Define local Attachment type or use file parts
+
+3. **`message.content` still used** - Some components:
+   - `components/message.tsx`, `message-editor.tsx`
+   - Fix: Use `message.parts` with text extraction helper
+
+4. **Stream type mismatch with resumable-stream**:
+   - `app/api/chat/route.ts` - `ReadableStream<UIMessageChunk>` vs `ReadableStream<string>`
+   - Fix: May require updating resumable-stream usage or type casting
+
+5. **Test file issues**:
+   - `MockLanguageModelV1` → `MockLanguageModelV3`
+   - `LanguageModelV1StreamPart` removed
+   - `result` → `output` in tool results
+
+6. **`experimental_generateMessageId` removed from streamText**:
+   - Move to `toUIMessageStreamResponse` options
+
+7. **`textDelta` property changes in compositor files**:
+   - `delta.textDelta` should be `delta.text`
 
 **After completing Phase 4, proceed to Phase 5.**
 
