@@ -6,14 +6,14 @@ const textPartSchema = z.object({
   type: z.enum(['text']),
 });
 
-export /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
-const postRequestBodySchema = z.object({
+// AI SDK 5: Message format changed - id is nanoid (not UUID), createdAt optional, content optional (use parts)
+export const postRequestBodySchema = z.object({
   id: z.string().uuid(),
   message: z.object({
-    id: z.string().uuid(),
-    createdAt: z.coerce.date(),
+    id: z.string(), // SDK 5 uses nanoid format, not UUID
+    createdAt: z.coerce.date().optional(), // Optional in SDK 5
     role: z.enum(['user']),
-    content: z.string().min(1).max(100000),
+    content: z.string().max(100000).optional(), // Optional in SDK 5 (parts is primary)
     parts: z.array(textPartSchema),
     experimental_attachments: z
       .array(
