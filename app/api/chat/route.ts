@@ -1,10 +1,10 @@
 import {
-  appendClientMessage,
-  appendResponseMessages,
   createUIMessageStream,
   streamText,
   tool,
   generateText,
+  UIMessage,
+  stepCountIs,
 } from 'ai';
 import { auth } from '@/app/(auth)/auth';
 import { isAdminEmail } from '@/lib/auth/admin';
@@ -282,7 +282,7 @@ If model is gpt-5, choose appropriate reasoning_effort based on complexity. No c
   if (!Number.isFinite(maxTokens)) {
     throw new Error('Nano preflight returned invalid max_tokens');
   }
-  console.log('[PREFLIGHT] Decision', { model, maxOutputTokens, reasoningEffort });
+  console.log('[PREFLIGHT] Decision', { model, maxOutputTokens: maxTokens, reasoningEffort });
   return {
     model,
     maxOutputTokens: Math.max(200, Math.floor(maxTokens)),
@@ -497,12 +497,8 @@ export async function POST(request: Request) {
         : [],
     }));
 
-    /* FIXME(@ai-sdk-upgrade-v5): The `appendClientMessage` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
-    const messages = appendClientMessage({
-      // @ts-expect-error: todo add type conversion from DBMessage[] to UIMessage[]
-      messages: normalizedPreviousMessages,
-      message,
-    });
+    // Manually append client message (appendClientMessage was removed in AI SDK 5)
+    const messages = [...normalizedPreviousMessages, message] as UIMessage[];
 
     // Get the last user message to use for RAG context retrieval
     const lastUserMessage = message.parts[0];
@@ -1868,7 +1864,7 @@ Always prioritize the user's document content over generic information. If speci
               model: provider.languageModel(finalChatModel),
               system: `${finalSystemPrompt}${preCreatedComposerNote}`,
               messages: modifiedMessages,
-              maxSteps: isNexusMode ? 30 : 20, // Increased: Nexus needs more steps for comprehensive research
+              stopWhen: stepCountIs(isNexusMode ? 30 : 20), // Increased: Nexus needs more steps for comprehensive research
               experimental_activeTools: [
                 'searchWeb', // FIRST for priority - web search
                 'getWeather',
@@ -2681,11 +2677,10 @@ Always prioritize the user's document content over generic information. If speci
                       throw new Error('No assistant message found!');
                     }
 
-                    /* FIXME(@ai-sdk-upgrade-v5): The `appendResponseMessages` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
-                    const [, assistantMessage] = appendResponseMessages({
-                      messages: [message],
-                      responseMessages: response.messages,
-                    });
+                    // Get assistant message directly from response (appendResponseMessages was removed in AI SDK 5)
+                    const assistantMessage = response.messages.find(
+                      (m) => m.role === 'assistant'
+                    ) || response.messages[response.messages.length - 1];
 
                     // Add citations to the message parts if in Nexus mode
                     const messageParts = [...(assistantMessage.parts || [])];
