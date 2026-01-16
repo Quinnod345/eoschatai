@@ -2714,69 +2714,52 @@ Always prioritize the user's document content over generic information. If speci
 
                 if (session.user?.id) {
                   try {
-                    // AI SDK 5: response.messages contains ModelMessages, not UIMessages with IDs
+                    // AI SDK 5: Use result.text, result.toolCalls, result.toolResults for proper data
                     // Generate a new ID for the assistant message
                     const assistantId = generateUUID();
-                    
-                    // Get all assistant and tool messages from the response
-                    const assistantMessages = response.messages.filter(
-                      (message) => message.role === 'assistant'
-                    );
-                    const toolMessages = response.messages.filter(
-                      (message) => message.role === 'tool'
-                    );
                     
                     // Build message parts including text AND tool invocations
                     const messageParts: any[] = [];
                     
-                    // Extract content from assistant messages
-                    for (const msg of assistantMessages) {
-                      if (typeof msg.content === 'string') {
-                        if (msg.content.trim()) {
-                          messageParts.push({ type: 'text', text: msg.content });
-                        }
-                      } else if (Array.isArray(msg.content)) {
-                        for (const part of msg.content) {
-                          if (part.type === 'text' && part.text?.trim()) {
-                            messageParts.push({ type: 'text', text: part.text });
-                          } else if (part.type === 'tool-call') {
-                            // AI SDK 5: Tool calls are in assistant message content
-                            // Find the corresponding tool result
-                            const toolResult = toolMessages.find((tm) => {
-                              if (Array.isArray(tm.content)) {
-                                return tm.content.some(
-                                  (tc: any) => tc.toolCallId === part.toolCallId
-                                );
-                              }
-                              return false;
-                            });
-                            
-                            // Extract the result from tool message
-                            // SDK 5: tool-result parts have 'output' property, not 'result'
-                            let toolOutput: any = undefined;
-                            if (toolResult && Array.isArray(toolResult.content)) {
-                              const resultPart = toolResult.content.find(
-                                (tc: any) => tc.toolCallId === part.toolCallId
-                              );
-                              if (resultPart) {
-                                // SDK 5 uses 'output', SDK 4 used 'result'
-                                toolOutput = (resultPart as any).output ?? (resultPart as any).result;
-                              }
-                            }
-                            
-                            // Save as SDK 5 tool part format: tool-{toolName}
-                            // Cast part to any to access args property
-                            const toolCallPart = part as any;
-                            messageParts.push({
-                              type: `tool-${part.toolName}`,
-                              toolCallId: part.toolCallId,
-                              toolName: part.toolName,
-                              input: toolCallPart.args,
-                              state: toolOutput !== undefined ? 'output-available' : 'input-available',
-                              output: toolOutput,
-                            });
-                          }
-                        }
+                    // Get the final text from the result (this awaits the stream completion)
+                    const finalText = await result.text;
+                    if (finalText && finalText.trim()) {
+                      messageParts.push({ type: 'text', text: finalText });
+                    }
+                    
+                    // Get tool calls and results from result object (SDK 5 recommended approach)
+                    const toolCalls = await result.toolCalls;
+                    const toolResults = await result.toolResults;
+                    
+                    console.log('[SAVE] Tool calls found:', toolCalls?.length || 0);
+                    console.log('[SAVE] Tool results found:', toolResults?.length || 0);
+                    
+                    // Match tool calls with their results
+                    if (toolCalls && toolCalls.length > 0) {
+                      for (const toolCall of toolCalls) {
+                        const tc = toolCall as any; // Cast for flexibility with dynamic tools
+                        
+                        // Find the matching result
+                        const matchingResult = toolResults?.find(
+                          (tr: any) => tr.toolCallId === tc.toolCallId
+                        );
+                        const mr = matchingResult as any;
+                        
+                        console.log(`[SAVE] Tool ${tc.toolName}:`, {
+                          toolCallId: tc.toolCallId,
+                          hasResult: !!matchingResult,
+                          resultKeys: mr?.result ? Object.keys(mr.result) : [],
+                        });
+                        
+                        // Save as SDK 5 tool part format: tool-{toolName}
+                        messageParts.push({
+                          type: `tool-${tc.toolName}`,
+                          toolCallId: tc.toolCallId,
+                          toolName: tc.toolName,
+                          input: tc.args,
+                          state: matchingResult ? 'output-available' : 'input-available',
+                          output: mr?.result,
+                        });
                       }
                     }
 
