@@ -1,15 +1,16 @@
 import { simulateReadableStream } from 'ai';
-import { MockLanguageModelV1 } from 'ai/test';
+import { MockLanguageModelV3 } from 'ai/test';
 import { getResponseChunksByPrompt } from '@/tests/prompts/utils';
 
-export const chatModel = new MockLanguageModelV1({
+// AI SDK 5: MockLanguageModelV1 renamed to MockLanguageModelV3
+export const chatModel = new MockLanguageModelV3({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',
     usage: { inputTokens: 10, outputTokens: 20 },
     text: `Hello, world!`,
   }),
-  doStream: async ({ prompt }) => ({
+  doStream: async ({ prompt }: { prompt: any }) => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 500,
       initialDelayInMs: 1000,
@@ -51,7 +52,7 @@ export const composerModel = new MockLanguageModelV1({
     usage: { inputTokens: 10, outputTokens: 20 },
     text: `Hello, world!`,
   }),
-  doStream: async ({ prompt }) => ({
+  doStream: async ({ prompt }: { prompt: any }) => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 50,
       initialDelayInMs: 100,

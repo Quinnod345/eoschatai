@@ -1,4 +1,6 @@
-import type { ModelMessage, LanguageModelV1StreamPart } from 'ai';
+import type { ModelMessage } from 'ai';
+// AI SDK 5: LanguageModelV1StreamPart renamed/removed, use any for test compatibility
+type LanguageModelStreamPart = any;
 import { TEST_PROMPTS } from './basic';
 
 export function compareMessages(
