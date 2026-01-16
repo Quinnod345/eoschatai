@@ -1634,11 +1634,14 @@ Always prioritize the user's document content over generic information. If speci
     }
 
     // Create response stream
+    // AI SDK 5: Provide originalMessages and generateId to prevent duplicate messages
     const responseStream = createUIMessageStream({
+      originalMessages: normalizedPreviousMessages,
+      generateId: generateUUID,
       execute: async ({ writer }) => {
         // Send initial status
         writer.write({
-          type: 'data-status',
+          type: 'data-custom',
           id: generateUUID(),
           data: {
             type: 'chat-status',
@@ -1707,7 +1710,7 @@ Always prioritize the user's document content over generic information. If speci
 
         // Run preflight for all modes, but with different parameters for Nexus
         writer.write({
-          type: 'data-status',
+          type: 'data-custom',
           id: generateUUID(),
           data: {
             type: 'chat-status',
@@ -1827,7 +1830,7 @@ Always prioritize the user's document content over generic information. If speci
         }
 
         writer.write({
-          type: 'data-status',
+          type: 'data-custom',
           id: generateUUID(),
           data: {
             type: 'chat-status',
@@ -1846,7 +1849,7 @@ Always prioritize the user's document content over generic information. If speci
           
           // Signal that we're in Nexus mode
           writer.write({
-            type: 'data-status',
+            type: 'data-custom',
             id: generateUUID(),
             data: {
               type: 'nexus-mode-active',
@@ -2605,7 +2608,7 @@ Always prioritize the user's document content over generic information. If speci
                         (tr: any) => tr.toolCallId === toolCall.toolCallId
                       );
                       writer.write({
-                        type: 'data-status',
+                        type: 'data-custom',
                         id: generateUUID(),
                         data: {
                           type: 'nexus-search-progress',
@@ -2621,7 +2624,7 @@ Always prioritize the user's document content over generic information. If speci
                     } else {
                       // Standard mode: simple status update
                       writer.write({
-                        type: 'data-status',
+                        type: 'data-custom',
                         id: generateUUID(),
                         data: {
                           type: 'chat-status',
@@ -2632,7 +2635,7 @@ Always prioritize the user's document content over generic information. If speci
                     }
                   } else if (toolCall.toolName === 'getCalendarEvents') {
                     writer.write({
-                      type: 'data-status',
+                      type: 'data-custom',
                       id: generateUUID(),
                       data: {
                         type: 'chat-status',
@@ -2642,7 +2645,7 @@ Always prioritize the user's document content over generic information. If speci
                     });
                   } else if (toolCall.toolName === 'createDocument') {
                     writer.write({
-                      type: 'data-status',
+                      type: 'data-custom',
                       id: generateUUID(),
                       data: {
                         type: 'chat-status',
@@ -2688,7 +2691,7 @@ Always prioritize the user's document content over generic information. If speci
                     );
                     // Send warning to client
                     writer.write({
-                      type: 'data-status',
+                      type: 'data-custom',
                       id: generateUUID(),
                       data: {
                         type: 'token-limit-warning',

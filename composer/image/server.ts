@@ -1,13 +1,14 @@
 import { openai } from '@ai-sdk/openai';
 import { createDocumentHandler } from '@/lib/composer/server';
-import { experimental_generateImage, generateId } from 'ai';
+// AI SDK 5: generateImage renamed to generateImage
+import { generateImage, generateId } from 'ai';
 
 export const imageDocumentHandler = createDocumentHandler<'image'>({
   kind: 'image',
   onCreateDocument: async ({ title, dataStream }) => {
     let draftContent = '';
 
-    const { image } = await experimental_generateImage({
+    const { image } = await generateImage({
       model: openai.image('dall-e-3'),
       prompt: title,
       n: 1,
@@ -29,7 +30,7 @@ export const imageDocumentHandler = createDocumentHandler<'image'>({
   onUpdateDocument: async ({ description, dataStream }) => {
     let draftContent = '';
 
-    const { image } = await experimental_generateImage({
+    const { image } = await generateImage({
       model: openai.image('dall-e-3'),
       prompt: description,
       n: 1,
