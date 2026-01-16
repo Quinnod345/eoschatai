@@ -2714,53 +2714,75 @@ Always prioritize the user's document content over generic information. If speci
 
                 if (session.user?.id) {
                   try {
-                    // AI SDK 5: Use result.text, result.toolCalls, result.toolResults for proper data
-                    // Generate a new ID for the assistant message
+                    // AI SDK 5: Use result.steps to get ALL tool calls across all steps
+                    // result.toolCalls only returns the LAST step's calls!
                     const assistantId = generateUUID();
                     
                     // Build message parts including text AND tool invocations
                     const messageParts: any[] = [];
                     
-                    // Get the final text from the result (this awaits the stream completion)
-                    const finalText = await result.text;
+                    // Get all steps to collect tool calls from ALL steps (not just last)
+                    const steps = await result.steps;
+                    
+                    console.log('[SAVE] Total steps:', steps?.length || 0);
+                    
+                    // Collect ALL tool calls and results from ALL steps
+                    const allToolCalls: any[] = [];
+                    const allToolResults: any[] = [];
+                    let finalText = '';
+                    
+                    for (const step of steps || []) {
+                      // Accumulate text from each step
+                      if (step.text) {
+                        finalText += step.text;
+                      }
+                      
+                      // Collect tool calls from this step
+                      if (step.toolCalls && step.toolCalls.length > 0) {
+                        console.log(`[SAVE] Step has ${step.toolCalls.length} tool calls`);
+                        allToolCalls.push(...step.toolCalls);
+                      }
+                      
+                      // Collect tool results from this step
+                      if (step.toolResults && step.toolResults.length > 0) {
+                        console.log(`[SAVE] Step has ${step.toolResults.length} tool results`);
+                        allToolResults.push(...step.toolResults);
+                      }
+                    }
+                    
+                    // Add the final text
                     if (finalText && finalText.trim()) {
                       messageParts.push({ type: 'text', text: finalText });
                     }
                     
-                    // Get tool calls and results from result object (SDK 5 recommended approach)
-                    const toolCalls = await result.toolCalls;
-                    const toolResults = await result.toolResults;
-                    
-                    console.log('[SAVE] Tool calls found:', toolCalls?.length || 0);
-                    console.log('[SAVE] Tool results found:', toolResults?.length || 0);
+                    console.log('[SAVE] Total tool calls found:', allToolCalls.length);
+                    console.log('[SAVE] Total tool results found:', allToolResults.length);
                     
                     // Match tool calls with their results
-                    if (toolCalls && toolCalls.length > 0) {
-                      for (const toolCall of toolCalls) {
-                        const tc = toolCall as any; // Cast for flexibility with dynamic tools
-                        
-                        // Find the matching result
-                        const matchingResult = toolResults?.find(
-                          (tr: any) => tr.toolCallId === tc.toolCallId
-                        );
-                        const mr = matchingResult as any;
-                        
-                        console.log(`[SAVE] Tool ${tc.toolName}:`, {
-                          toolCallId: tc.toolCallId,
-                          hasResult: !!matchingResult,
-                          resultKeys: mr?.result ? Object.keys(mr.result) : [],
-                        });
-                        
-                        // Save as SDK 5 tool part format: tool-{toolName}
-                        messageParts.push({
-                          type: `tool-${tc.toolName}`,
-                          toolCallId: tc.toolCallId,
-                          toolName: tc.toolName,
-                          input: tc.args,
-                          state: matchingResult ? 'output-available' : 'input-available',
-                          output: mr?.result,
-                        });
-                      }
+                    for (const toolCall of allToolCalls) {
+                      const tc = toolCall as any;
+                      
+                      // Find the matching result
+                      const matchingResult = allToolResults.find(
+                        (tr: any) => tr.toolCallId === tc.toolCallId
+                      );
+                      const mr = matchingResult as any;
+                      
+                      console.log(`[SAVE] Tool ${tc.toolName}:`, {
+                        toolCallId: tc.toolCallId,
+                        hasResult: !!matchingResult,
+                        resultKeys: mr?.result ? Object.keys(mr.result) : [],
+                      });
+                      
+                      // Save as SDK 5 tool part format: tool-{toolName}
+                      messageParts.push({
+                        type: `tool-${tc.toolName}`,
+                        toolCallId: tc.toolCallId,
+                        toolName: tc.toolName,
+                        input: tc.args,
+                        state: matchingResult ? 'output-available' : 'input-available',
+                        output: mr?.result,
+                      });
                     }
 
                     // Get citations from Redis if available (better than globalThis)
