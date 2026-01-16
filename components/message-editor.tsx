@@ -13,6 +13,17 @@ import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
 import type { ChatHelpers, ReloadFunction } from './multimodal-input/types';
 
+// AI SDK 5: Helper to extract text content from message parts
+function getMessageContent(message: UIMessage): string {
+  const anyMessage = message as any;
+  if (anyMessage.content) return anyMessage.content;
+  if (!message.parts) return '';
+  return message.parts
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map((p) => p.text)
+    .join('');
+}
+
 export type MessageEditorProps = {
   message: UIMessage;
   setMode: Dispatch<SetStateAction<'view' | 'edit'>>;
@@ -28,7 +39,7 @@ export function MessageEditor({
 }: MessageEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const [draftContent, setDraftContent] = useState<string>(message.content);
+  const [draftContent, setDraftContent] = useState<string>(getMessageContent(message));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -81,9 +92,8 @@ export function MessageEditor({
               id: message.id,
             });
 
-            // @ts-expect-error todo: support UIMessage in setMessages
-            setMessages((messages) => {
-              const index = messages.findIndex((m) => m.id === message.id);
+            setMessages((messages: UIMessage[]) => {
+              const index = messages.findIndex((m: UIMessage) => m.id === message.id);
 
               if (index !== -1) {
                 const updatedMessage = {

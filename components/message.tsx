@@ -48,8 +48,31 @@ interface CitationReference {
 }
 
 // Extend UIMessage type to include provider
+// AI SDK 5: content is now in parts, experimental_attachments replaced with file parts
 interface ExtendedUIMessage extends UIMessage {
   provider?: string;
+  // AI SDK 5 compatibility: these properties may not exist on UIMessage
+  content?: string;
+  experimental_attachments?: Array<{ name?: string; contentType?: string; url: string }>;
+}
+
+// AI SDK 5: Helper to extract text content from message parts
+function getMessageContent(message: ExtendedUIMessage): string {
+  if (message.content) return message.content;
+  if (!message.parts) return '';
+  return message.parts
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map((p) => p.text)
+    .join('');
+}
+
+// AI SDK 5: Helper to extract attachments from message (file parts)
+function getMessageAttachments(message: ExtendedUIMessage): Array<{ name?: string; contentType?: string; url: string }> {
+  if (message.experimental_attachments) return message.experimental_attachments;
+  if (!message.parts) return [];
+  return message.parts
+    .filter((p): p is { type: 'file'; url: string; mimeType?: string; name?: string } => p.type === 'file')
+    .map((p) => ({ name: p.name, contentType: p.mimeType, url: p.url }));
 }
 
 interface PDFContent {
@@ -320,8 +343,8 @@ const PurePreviewMessage = ({
     // This handles streaming messages that haven't been persisted to DB yet
     let workingParts = message.parts;
 
-    if (!workingParts && message.content) {
-      workingParts = [{ type: 'text' as const, text: message.content }];
+    if (!workingParts && getMessageContent(message)) {
+      workingParts = [{ type: 'text' as const, text: getMessageContent(message) }];
     } else if (!workingParts) {
       return {
         parts: [],
@@ -456,7 +479,7 @@ const PurePreviewMessage = ({
       hasMentions,
       replyContext,
     };
-  }, [message.parts, message.content, message.id]);
+  }, [message.parts, message.id]);
 
   const {
     parts,
@@ -524,8 +547,7 @@ const PurePreviewMessage = ({
             {/* Removed duplicate per-role inline preview; embedded content renders once below */}
 
             {/* Show regular attachments */}
-            {message.experimental_attachments &&
-              message.experimental_attachments.length > 0 && (
+            {getMessageAttachments(message).length > 0 && (
                 <div className="flex flex-row justify-end">
                   <GlassSurface
                     width="auto"
@@ -545,7 +567,7 @@ const PurePreviewMessage = ({
                       data-testid={`message-attachments`}
                       className="flex flex-row gap-2 p-2"
                     >
-                      {message.experimental_attachments.map((attachment) => (
+                      {getMessageAttachments(message).map((attachment) => (
                         <PreviewAttachment
                           key={attachment.url}
                           attachment={attachment}
@@ -720,13 +742,19 @@ const PurePreviewMessage = ({
                 }
               }
 
-              if (type === 'tool-invocation') {
-                const { toolInvocation } = part;
-                const { toolName, toolCallId, state } = toolInvocation;
+              // AI SDK 5: Tool parts are now type: `tool-${toolName}` with properties directly on part
+              // Handle both old format (tool-invocation) and new format (tool-*)
+              if (type === 'tool-invocation' || type.startsWith('tool-')) {
+                // Extract tool info from either format
+                const toolPart = part as any;
+                const toolInvocation = toolPart.toolInvocation;
+                const toolName = toolInvocation?.toolName || type.replace('tool-', '');
+                const toolCallId = toolInvocation?.toolCallId || toolPart.toolCallId;
+                const state = toolInvocation?.state || toolPart.state;
+                const args = toolInvocation?.args || toolPart.input;
+                const result = toolInvocation?.result || toolPart.output;
 
-                if (state === 'call') {
-                  const { args } = toolInvocation;
-
+                if (state === 'call' || state === 'input-streaming') {
                   return (
                     <div
                       key={toolCallId}
@@ -755,9 +783,7 @@ const PurePreviewMessage = ({
                   );
                 }
 
-                if (state === 'result') {
-                  const { result } = toolInvocation;
-
+                if (state === 'result' || state === 'output-available') {
                   // Filter out searchWeb tool results - citations are shown inline instead
                   if (toolName === 'searchWeb') {
                     return null;
