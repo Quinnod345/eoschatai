@@ -3408,18 +3408,10 @@ ${
           return responseStream as unknown as ReadableStream<string>;
         });
 
-        if (!resumableStream) {
-          console.log(
-            '[NEXUS MODE] Resumable stream unavailable, using direct stream',
-          );
-          // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
-          return createUIMessageStreamResponse({ stream: responseStream });
-        }
-
-        console.log(
-          `[NEXUS MODE] Resumable stream created for ID: ${streamId}`,
-        );
-        return createTextStreamResponse(resumableStream);
+        // AI SDK 5: Resumable streams use incompatible protocol (text/v1 vs UIMessage)
+        // Always use createUIMessageStreamResponse for proper streaming
+        console.log('[NEXUS MODE] Using direct UI message stream response');
+        return createUIMessageStreamResponse({ stream: responseStream });
       } catch (streamError) {
         console.error(
           `[NEXUS MODE] Error with resumable stream: ${streamError}`,
@@ -3430,75 +3422,10 @@ ${
       }
     }
 
-    // Standard resumable stream handling for non-nexus mode
-    else if (streamContext) {
-      try {
-        console.log(`Using resumable stream with ID: ${streamId}`);
-        console.log('About to call streamContext.resumableStream...');
-
-        // Add a timeout to detect stalled streams
-        // AI SDK 5: Stream type is now UIMessageChunk, cast for resumable-stream compatibility
-        const streamPromise = streamContext.resumableStream(streamId, () => {
-          console.log('Stream factory function called for streamId:', streamId);
-          return responseStream as unknown as ReadableStream<string>;
-        });
-
-        console.log('Stream promise created, waiting for resolution...');
-
-        // Create a timeout promise with cleanup
-        let timeoutId: NodeJS.Timeout | null = null;
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error('Resumable stream creation timed out'));
-          }, 10000); // 10 second timeout for stream creation
-        });
-
-        // Race the stream creation against the timeout
-        const resumableStream = await Promise.race([
-          streamPromise.finally(() => {
-            // Clean up timeout if stream resolves first
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-          }),
-          timeoutPromise.finally(() => {
-            // Clean up timeout if timeout resolves first
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-          }),
-        ]).catch((error) => {
-          // Ensure timeout is cleared on error
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-          console.error(`Resumable stream error or timeout: ${error}`);
-          console.log('Falling back to direct response stream');
-          return responseStream as unknown as ReadableStream<string>;
-        });
-
-        if (!resumableStream) {
-          console.log(
-            'Resumable stream unavailable, using direct response stream',
-          );
-          // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
-          return createUIMessageStreamResponse({ stream: responseStream });
-        }
-
-        console.log(`Resumable stream created for ID: ${streamId}`);
-        console.log('Resumable stream type:', typeof resumableStream);
-        return createTextStreamResponse(resumableStream);
-      } catch (streamError) {
-        console.error(`Error with resumable stream: ${streamError}`);
-        console.log('Falling back to direct response stream');
-        // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
-        return createUIMessageStreamResponse({ stream: responseStream });
-      }
-    } else {
-      console.log('Using direct response stream (no resumable context)');
+    // AI SDK 5: Bypass resumable streams - they use incompatible text/v1 protocol
+    // TODO: Update resumable-stream integration for AI SDK 5 UIMessage protocol
+    else {
+      console.log('Using direct UI message stream response (AI SDK 5)');
       // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
       return createUIMessageStreamResponse({ stream: responseStream });
     }
@@ -3678,25 +3605,11 @@ export async function GET(request: Request) {
     }
   }
 
-  const emptyDataStream = createUIMessageStream({
-    execute: () => {},
-  });
-
-  try {
-    // AI SDK 5: Cast stream type for resumable-stream compatibility
-    const resumableStream = await streamContext.resumableStream(
-      recentStreamId,
-      () => emptyDataStream as unknown as ReadableStream<string>,
-    );
-
-    return createTextStreamResponse(resumableStream, {
-      status: 200,
-    });
-  } catch (error) {
-    console.error('Error creating resumable stream:', error);
-    // Fallback to minimal response if stream creation fails
-    return new Response(null, { status: 204 });
-  }
+  // AI SDK 5: Stream resumption via Redis uses incompatible protocol
+  // Return 204 to signal client that resumption is not available
+  // TODO: Implement AI SDK 5 compatible stream resumption
+  console.log(`Stream resumption not available for ${recentStreamId} (AI SDK 5 migration)`);
+  return new Response(null, { status: 204 });
 }
 
 export async function DELETE(request: Request) {
