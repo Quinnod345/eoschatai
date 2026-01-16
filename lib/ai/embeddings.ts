@@ -192,18 +192,10 @@ export const processDocument = async (
   const { useSummary = true, documentKind, documentTitle } = options || {};
 
   try {
-    // CRITICAL FIX: Delete ALL old embeddings for this document first
-    // This prevents orphaned chunks when document is edited
+    // Delete old embeddings for this document to prevent orphaned chunks when document is edited
+    // We use deterministic IDs, so we can delete by known pattern without querying
     console.log(`RAG: Deleting old embeddings for document ${documentId}`);
     try {
-      // Query for all vectors with this documentId prefix
-      const oldVectors = await upstashVectorClient.query({
-        data: documentId, // Search by metadata
-        topK: 1000, // Get all possible matches
-        includeMetadata: true,
-      });
-
-      // Filter to exact documentId matches and collect IDs
       const idsToDelete: string[] = [];
       for (let i = 0; i < 100; i++) {
         // Max 100 chunks per document
@@ -212,13 +204,11 @@ export const processDocument = async (
       // Also delete summary chunk if exists
       idsToDelete.push(`${documentId}-summary`);
 
-      // Delete in batches
-      if (idsToDelete.length > 0) {
-        await upstashVectorClient.delete(idsToDelete);
-        console.log(
-          `RAG: Deleted ${idsToDelete.length} potential old embeddings for document ${documentId}`,
-        );
-      }
+      // Delete by known IDs (upsert behavior - no error if they don't exist)
+      await upstashVectorClient.delete(idsToDelete);
+      console.log(
+        `RAG: Cleaned up old embeddings for document ${documentId}`,
+      );
     } catch (deleteError) {
       console.warn(
         'RAG: Error deleting old embeddings (continuing anyway):',
