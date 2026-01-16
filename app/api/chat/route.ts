@@ -1886,7 +1886,7 @@ Always prioritize the user's document content over generic information. If speci
               ],
               // Removed smoothStream transform - frontend handles smoothing with useSmoothStream hook
               // This allows immediate character-by-character streaming without word buffering
-              experimental_generateMessageId: generateUUID,
+              // AI SDK 5: experimental_generateMessageId removed - use generateId in toUIMessageStreamResponse
               // Dynamic settings based on Nexus mode
               temperature: temperature, // Use the variable we defined
               maxOutputTokens: nexusTokenLimit, // Much higher limit for nexus/o3
@@ -1924,14 +1924,14 @@ Always prioritize the user's document content over generic information. If speci
                             ?.filter((p: any) => p.type === 'text')
                             .map((p: any) => p.text)
                             .join('\n');
-                          return `User: ${textParts || msg.content}`;
+                          return `User: ${textParts || ''}`;
                         } else if (msg.role === 'assistant') {
                           // Extract text from assistant messages
                           const textParts = msg.parts
                             ?.filter((p: any) => p.type === 'text')
                             .map((p: any) => p.text)
                             .join('\n');
-                          return `Assistant: ${textParts || msg.content}`;
+                          return `Assistant: ${textParts || ''}`;
                         }
                         return null;
                       })
@@ -2684,7 +2684,8 @@ Always prioritize the user's document content over generic information. If speci
                     ) || response.messages[response.messages.length - 1];
 
                     // Add citations to the message parts if in Nexus mode
-                    const messageParts = [...(assistantMessage.parts || [])];
+                    // AI SDK 5: Cast to access parts (ModelMessage doesn't have parts type exposed)
+                    const messageParts = [...((assistantMessage as any).parts || [])];
 
                     // Get citations from Redis if available (better than globalThis)
                     if (selectedResearchMode === 'nexus') {
@@ -2781,7 +2782,7 @@ Always prioritize the user's document content over generic information. If speci
                       }
                     }
 
-                    /* FIXME(@ai-sdk-upgrade-v5): The `experimental_attachments` property has been replaced with the parts array. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#attachments--file-parts */
+                    // AI SDK 5: experimental_attachments removed, attachments now in parts array
                     await saveMessages({
                       messages: [
                         {
@@ -2789,8 +2790,7 @@ Always prioritize the user's document content over generic information. If speci
                           chatId: id,
                           role: assistantMessage.role,
                           parts: messageParts,
-                          attachments:
-                            assistantMessage.experimental_attachments ?? [],
+                          attachments: [], // Attachments now part of file parts
                           createdAt: new Date(),
                           provider: selectedProvider,
                         },
@@ -3317,6 +3317,7 @@ ${
         }
 
         // Create resumable stream with enhanced error handling
+        // AI SDK 5: Stream type is now UIMessageChunk, cast to any for resumable-stream compatibility
         const streamPromise = streamContext.resumableStream(streamId, () => {
           console.log(
             '[NEXUS MODE] Stream factory function called for streamId:',
@@ -3324,7 +3325,7 @@ ${
           );
 
           // Return the original response stream - it already has nexus handling
-          return responseStream;
+          return responseStream as unknown as ReadableStream<string>;
         });
 
         // Create a timeout promise with longer duration for nexus searches
@@ -3361,14 +3362,14 @@ ${
             `[NEXUS MODE] Resumable stream error or timeout: ${error}`,
           );
           console.log('[NEXUS MODE] Falling back to direct response stream');
-          return responseStream;
+          return responseStream as unknown as ReadableStream<string>;
         });
 
         if (!resumableStream) {
           console.log(
             '[NEXUS MODE] Resumable stream unavailable, using direct stream',
           );
-          return createTextStreamResponse(responseStream);
+          return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
         }
 
         console.log(
@@ -3380,7 +3381,7 @@ ${
           `[NEXUS MODE] Error with resumable stream: ${streamError}`,
         );
         console.log('[NEXUS MODE] Falling back to direct response stream');
-        return createTextStreamResponse(responseStream);
+        return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
       }
     }
 
@@ -3391,9 +3392,10 @@ ${
         console.log('About to call streamContext.resumableStream...');
 
         // Add a timeout to detect stalled streams
+        // AI SDK 5: Stream type is now UIMessageChunk, cast for resumable-stream compatibility
         const streamPromise = streamContext.resumableStream(streamId, () => {
           console.log('Stream factory function called for streamId:', streamId);
-          return responseStream;
+          return responseStream as unknown as ReadableStream<string>;
         });
 
         console.log('Stream promise created, waiting for resolution...');
@@ -3430,14 +3432,14 @@ ${
           }
           console.error(`Resumable stream error or timeout: ${error}`);
           console.log('Falling back to direct response stream');
-          return responseStream;
+          return responseStream as unknown as ReadableStream<string>;
         });
 
         if (!resumableStream) {
           console.log(
             'Resumable stream unavailable, using direct response stream',
           );
-          return createTextStreamResponse(responseStream);
+          return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
         }
 
         console.log(`Resumable stream created for ID: ${streamId}`);
@@ -3446,11 +3448,11 @@ ${
       } catch (streamError) {
         console.error(`Error with resumable stream: ${streamError}`);
         console.log('Falling back to direct response stream');
-        return createTextStreamResponse(responseStream);
+        return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
       }
     } else {
       console.log('Using direct response stream (no resumable context)');
-      return createTextStreamResponse(responseStream);
+      return createTextStreamResponse(responseStream as unknown as ReadableStream<string>);
     }
   } catch (error) {
     console.error('Unhandled error in chat POST route:', error);
@@ -3633,9 +3635,10 @@ export async function GET(request: Request) {
   });
 
   try {
+    // AI SDK 5: Cast stream type for resumable-stream compatibility
     const resumableStream = await streamContext.resumableStream(
       recentStreamId,
-      () => emptyDataStream,
+      () => emptyDataStream as unknown as ReadableStream<string>,
     );
 
     return createTextStreamResponse(resumableStream, {
