@@ -5,6 +5,7 @@ import {
   generateText,
   UIMessage,
   stepCountIs,
+  convertToModelMessages,
 } from 'ai';
 import { auth } from '@/app/(auth)/auth';
 import { isAdminEmail } from '@/lib/auth/admin';
@@ -1799,13 +1800,13 @@ Always prioritize the user's document content over generic information. If speci
         }
 
         writer.write({
-          'type': 'data',
-
-          'value': [{
+          type: 'data-status',
+          id: generateUUID(),
+          data: {
             type: 'chat-status',
             status: 'generating',
             message: 'Generating response',
-          }]
+          }
         });
 
         // NEXUS AGENTIC RESEARCH MODE
@@ -1818,12 +1819,12 @@ Always prioritize the user's document content over generic information. If speci
           
           // Signal that we're in Nexus mode
           writer.write({
-            'type': 'data',
-
-            'value': [{
+            type: 'data-status',
+            id: generateUUID(),
+            data: {
               type: 'nexus-mode-active',
               message: 'Nexus Research Mode activated',
-            }]
+            }
           });
           
           // The nexusResearcherPrompt is appended to the system prompt below
@@ -1863,7 +1864,7 @@ Always prioritize the user's document content over generic information. If speci
             const result = streamText({
               model: provider.languageModel(finalChatModel),
               system: `${finalSystemPrompt}${preCreatedComposerNote}`,
-              messages: modifiedMessages,
+              messages: convertToModelMessages(modifiedMessages),
               stopWhen: stepCountIs(isNexusMode ? 30 : 20), // Increased: Nexus needs more steps for comprehensive research
               experimental_activeTools: [
                 'searchWeb', // FIRST for priority - web search
@@ -1905,7 +1906,7 @@ Always prioritize the user's document content over generic information. If speci
                 getWeather,
                 createDocument: createDocument({
                   session,
-                  dataStream,
+                  dataStream: writer,
                   artifactMaxTokens,
                   // Provide the original chat query plus recent tool results for richer context
                   context: (() => {
@@ -2003,12 +2004,12 @@ Always prioritize the user's document content over generic information. If speci
                 }),
                 updateDocument: updateDocument({
                   session,
-                  dataStream,
+                  dataStream: writer,
                   artifactMaxTokens,
                 }),
                 requestSuggestions: requestSuggestions({
                   session,
-                  dataStream,
+                  dataStream: writer,
                 }),
                 addResource: tool({
                   description:
@@ -2570,14 +2571,14 @@ Always prioritize the user's document content over generic information. If speci
                         (tr: any) => tr.toolCallId === toolCall.toolCallId
                       );
                       writer.write({
-                        'type': 'data',
-
-                        'value': [{
+                        type: 'data-status',
+                        id: generateUUID(),
+                        data: {
                           type: 'nexus-search-progress',
                           query: q || 'Searching...',
                           resultsFound: (searchResult as any)?.result?.resultCount || 0,
                           phase: 'researching',
-                        }]
+                        }
                       });
                       console.log('[NEXUS] Search completed:', {
                         query: q,
@@ -2586,34 +2587,34 @@ Always prioritize the user's document content over generic information. If speci
                     } else {
                       // Standard mode: simple status update
                       writer.write({
-                        'type': 'data',
-
-                        'value': [{
+                        type: 'data-status',
+                        id: generateUUID(),
+                        data: {
                           type: 'chat-status',
                           status: 'searching',
                           message: q ? `Searching: ${q}` : 'Searching the web',
-                        }]
+                        }
                       });
                     }
                   } else if (toolCall.toolName === 'getCalendarEvents') {
                     writer.write({
-                      'type': 'data',
-
-                      'value': [{
+                      type: 'data-status',
+                      id: generateUUID(),
+                      data: {
                         type: 'chat-status',
                         status: 'calendar',
                         message: 'Checking calendar',
-                      }]
+                      }
                     });
                   } else if (toolCall.toolName === 'createDocument') {
                     writer.write({
-                      'type': 'data',
-
-                      'value': [{
+                      type: 'data-status',
+                      id: generateUUID(),
+                      data: {
                         type: 'chat-status',
                         status: 'creating',
                         message: 'Creating document',
-                      }]
+                      }
                     });
                   }
                 }
@@ -2653,14 +2654,14 @@ Always prioritize the user's document content over generic information. If speci
                     );
                     // Send warning to client
                     writer.write({
-                      'type': 'data',
-
-                      'value': [{
+                      type: 'data-status',
+                      id: generateUUID(),
+                      data: {
                         type: 'token-limit-warning',
                         message: 'Response may be truncated due to length limits',
                         tokensUsed: outputTokens,
                         tokenLimit: nexusTokenLimit,
-                      }]
+                      }
                     });
                   }
                 }
@@ -2983,12 +2984,8 @@ Always prioritize the user's document content over generic information. If speci
               if (responseTimeout) clearTimeout(responseTimeout);
               // Propagate error to user via dataStream
               writer.write({
-                'type': 'data',
-
-                'value': [{
-                  type: 'error',
-                  error: 'Stream processing error occurred',
-                }]
+                type: 'error',
+                error: 'Stream processing error occurred',
               });
             } finally {
               // Ensure timeout is always cleared
@@ -2999,12 +2996,8 @@ Always prioritize the user's document content over generic information. If speci
             if (responseTimeout) clearTimeout(responseTimeout);
             // Notify user of error via dataStream
             writer.write({
-              'type': 'data',
-
-              'value': [{
-                type: 'error',
-                error: 'Fatal error in chat processing',
-              }]
+              type: 'error',
+              error: 'Fatal error in chat processing',
             });
           }
       },
