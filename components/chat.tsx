@@ -1,6 +1,7 @@
 'use client';
 
 import type { UIMessage } from 'ai';
+import { DefaultChatTransport } from 'ai';
 
 // Attachment type removed in AI SDK 5 - using file parts instead
 type Attachment = {
@@ -229,27 +230,10 @@ export function Chat({
 
   const [input, setInput] = useState('');
 
-  // Set up chat
-  const {
-    messages,
-    setMessages,
-    handleSubmit,
-    append,
-    status,
-    stop,
-    reload,
-    experimental_resume,
-    data
-  } = useChat({
-    id,
-    initialMessages,
-
-    // No throttling for better performance
-    experimental_throttle: 0,
-
-    generateId: generateUUID,
-
-    experimental_prepareRequestBody: (body) => {
+  // Create transport for useChat (AI SDK 5)
+  const chatTransport = new DefaultChatTransport({
+    api: '/api/chat',
+    prepareSendMessagesRequest: ({ messages: chatMessages }) => {
       // Reset performance tracking for new requests
       responseStartTimeRef.current = performance.now();
       responseSizeRef.current = 0;
@@ -279,7 +263,7 @@ export function Chat({
 
       const requestBody = {
         id,
-        message: body.messages.at(-1),
+        message: chatMessages.at(-1),
         selectedChatModel: activeModel,
         selectedProvider: activeProvider, // Use the current active provider
         selectedVisibilityType: visibilityType,
@@ -320,10 +304,25 @@ export function Chat({
         profileIncluded: !!requestBody.selectedProfileId,
       });
 
-      return requestBody;
+      return { body: requestBody };
     },
+  });
 
-    onFinish: (message) => {
+  // Set up chat
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    stop,
+    regenerate,
+  } = useChat({
+    id,
+    messages: initialMessages,
+    transport: chatTransport,
+    generateId: generateUUID,
+
+    onFinish: ({ message }) => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
       // Dispatch event to refresh sidebar history
       console.log('[Chat] Message finished, dispatching newMessageSent event', {
@@ -345,9 +344,14 @@ export function Chat({
         );
 
         // Store estimated token count for the message
-        if (message.id && message.content) {
+        // In AI SDK 5, use parts instead of content
+        const messageText = message.parts
+          ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+          .map((p) => p.text)
+          .join('') || '';
+        if (message.id && messageText) {
           messageTokenCountRef.current[message.id] = Math.floor(
-            message.content.length / 4,
+            messageText.length / 4,
           );
         }
 
@@ -453,9 +457,9 @@ export function Chat({
               {
                 id: generateUUID(),
                 role: 'system',
-                content: `Provider error detected. Using OpenAI. Please try again.`,
+                parts: [{ type: 'text', text: `Provider error detected. Using OpenAI. Please try again.` }],
                 createdAt: new Date(),
-              },
+              } as UIMessage,
             ]);
           }, 1000);
 
@@ -1378,10 +1382,11 @@ export function Chat({
   }, [initialPersonaId, hasInitialMessages, session?.user?.email]);
 
   // Create an adapter function for the multimodal input component with improved error handling
+  // AI SDK 5: handleSubmit replaced with sendMessage
   const handleSubmitAdapter = useCallback(
     (
       event?: { preventDefault?: () => void } | undefined,
-      chatRequestOptions?: any,
+      _chatRequestOptions?: any,
     ) => {
       try {
         if (event?.preventDefault) {
@@ -1407,55 +1412,78 @@ export function Chat({
           responseTimeoutRef.current = null;
         }
 
-        // Call our custom handler if the event exists
-        if (event) {
-          // Safely determine message length with fallbacks
-          const messageLength = (input || '').length;
+        // Only submit if there's input text
+        if (!input?.trim()) {
+          return;
+        }
 
-          // Longer timeout for complex requests (with safety checks)
-          const timeoutDuration = Math.min(
-            35000, // Maximum 35 seconds
-            Math.max(
-              15000, // Minimum 15 seconds
-              messageLength * 40, // 40ms per character as a rough estimate
-            ),
-          );
+        // Safely determine message length with fallbacks
+        const messageLength = (input || '').length;
 
-          try {
-            handleSubmit(event, chatRequestOptions);
-          } catch (submitError) {
-            console.log('Error during submit:', submitError);
-            return; // Don't continue if submit failed
-          }
+        // Longer timeout for complex requests (with safety checks)
+        const timeoutDuration = Math.min(
+          35000, // Maximum 35 seconds
+          Math.max(
+            15000, // Minimum 15 seconds
+            messageLength * 40, // 40ms per character as a rough estimate
+          ),
+        );
 
-          // Set the timeout with intelligent duration and error handling
-          try {
-            responseTimeoutRef.current = setTimeout(() => {
-              try {
-                // Log warning instead of error to avoid error reporting
-                console.log('Response timeout detected on client side');
+        try {
+          // AI SDK 5: Use sendMessage instead of handleSubmit
+          sendMessage({ text: input });
+          setInput(''); // Clear input after sending
+        } catch (submitError) {
+          console.log('Error during submit:', submitError);
+          return; // Don't continue if submit failed
+        }
 
-                // Only show toast if we're still in streaming state
-                if (status === 'streaming') {
-                  toast.error(
-                    'The response is taking too long. Please stop and try again.',
-                  );
-                }
-              } catch (timeoutError) {
-                // Prevent any errors in the timeout callback from bubbling up
-                console.log('Error in timeout handler:', timeoutError);
+        // Set the timeout with intelligent duration and error handling
+        try {
+          responseTimeoutRef.current = setTimeout(() => {
+            try {
+              // Log warning instead of error to avoid error reporting
+              console.log('Response timeout detected on client side');
+
+              // Only show toast if we're still in streaming state
+              if (status === 'streaming') {
+                toast.error(
+                  'The response is taking too long. Please stop and try again.',
+                );
               }
-            }, timeoutDuration);
-          } catch (timeoutError) {
-            console.log('Error setting timeout:', timeoutError);
-          }
+            } catch (timeoutError) {
+              // Prevent any errors in the timeout callback from bubbling up
+              console.log('Error in timeout handler:', timeoutError);
+            }
+          }, timeoutDuration);
+        } catch (timeoutError) {
+          console.log('Error setting timeout:', timeoutError);
         }
       } catch (error) {
         // Global error handler to prevent uncaught exceptions
         console.log('Error in submit adapter:', error);
       }
     },
-    [handleSubmit, status, providerTransitioning, input],
+    [sendMessage, status, providerTransitioning, input, setInput],
+  );
+
+  // AI SDK 5: Create append adapter using sendMessage
+  const appendAdapter = useCallback(
+    (message: { role: string; content?: string; parts?: any[] }) => {
+      const text = message.content || message.parts?.find((p: any) => p.type === 'text')?.text || '';
+      if (text) {
+        sendMessage({ text });
+      }
+    },
+    [sendMessage],
+  );
+
+  // AI SDK 5: reload renamed to regenerate - create a wrapper for backward compatibility
+  const reloadAdapter = useCallback(
+    (options?: { messageId?: string }) => {
+      regenerate(options);
+    },
+    [regenerate],
   );
 
   // Handle document context auto-submission
@@ -1913,7 +1941,7 @@ export function Chat({
                 setAttachments={setAttachments}
                 messages={messages}
                 setMessages={setMessages}
-                append={append}
+                append={appendAdapter}
                 selectedVisibilityType={visibilityType}
                 selectedModelId={activeModel}
                 selectedProviderId={activeProvider}
@@ -1940,15 +1968,15 @@ export function Chat({
         chatId={id}
         input={input}
         setInput={setInput}
-        handleSubmit={handleSubmit}
+        handleSubmit={handleSubmitAdapter}
         status={status}
         stop={stop}
         attachments={attachments}
         setAttachments={setAttachments}
-        append={append}
+        append={appendAdapter}
         messages={messages}
         setMessages={setMessages}
-        reload={reload}
+        reload={reloadAdapter}
         votes={votes}
         isReadonly={isReadonly}
         selectedVisibilityType={visibilityType}
