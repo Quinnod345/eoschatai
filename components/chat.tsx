@@ -787,9 +787,9 @@ export function Chat({
           {
             id: generateUUID(),
             role: 'system',
-            content: `Provider switched to OpenAI. Your next message will use the new provider.`,
+            parts: [{ type: 'text', text: `Provider switched to OpenAI. Your next message will use the new provider.` }],
             createdAt: new Date(),
-          },
+          } as UIMessage,
         ]);
       }
 
@@ -813,9 +813,9 @@ export function Chat({
             {
               id: generateUUID(),
               role: 'system',
-              content: `WARNING: Switching AI providers in the middle of a long conversation may cause unexpected errors or inconsistent responses. For the best experience, please start a new chat when changing providers.`,
+              parts: [{ type: 'text', text: `WARNING: Switching AI providers in the middle of a long conversation may cause unexpected errors or inconsistent responses. For the best experience, please start a new chat when changing providers.` }],
               createdAt: new Date(),
-            },
+            } as UIMessage,
           ]);
         }
       }
@@ -850,9 +850,9 @@ export function Chat({
           {
             id: generateUUID(),
             role: 'system',
-            content: `Model switched to ${activeModel}. Your next message will use the new model.`,
+            parts: [{ type: 'text', text: `Model switched to ${activeModel}. Your next message will use the new model.` }],
             createdAt: new Date(),
-          },
+          } as UIMessage,
         ]);
       }
     }
@@ -860,8 +860,10 @@ export function Chat({
 
   useEffect(() => {
     // Don't auto-resume if we're navigating to scroll to a message or if there are no messages
+    // AI SDK 5: experimental_resume is removed - resume handled differently
     if (autoResume && !scrollToMessageId && messages.length > 0) {
-      experimental_resume();
+      // Resume functionality removed in AI SDK 5
+      console.log('[Chat] Auto-resume requested but not available in AI SDK 5');
     }
 
     // note: this hook has no dependencies since it only needs to run once
@@ -877,7 +879,7 @@ export function Chat({
 
   useEffect(() => {
     if (query && !hasAppendedQuery) {
-      append({
+      appendAdapter({
         role: 'user',
         content: query,
       });
@@ -966,14 +968,18 @@ export function Chat({
     );
     setMessages(newMessages);
 
-    // Resubmit the last user message
-    await append({
+    // Resubmit the last user message - extract text from parts (AI SDK 5)
+    const messageText = lastUserMessage.parts
+      ?.filter((p: any) => p.type === 'text')
+      .map((p: any) => p.text)
+      .join('') || '';
+    await appendAdapter({
       id: generateUUID(),
       role: 'user',
-      content: lastUserMessage.content,
+      content: messageText,
       createdAt: new Date(),
     });
-  }, [messages, setMessages, append]);
+  }, [messages, setMessages, appendAdapter]);
 
   const handleScrollToMessage = (messageId: string) => {
     const messageElement = document.querySelector(
@@ -1486,6 +1492,11 @@ export function Chat({
     [regenerate],
   );
 
+  // AI SDK 5: data stream is no longer returned from useChat
+  // Custom data is now handled through message parts
+  // Create empty placeholder for backward compatibility
+  const data: any[] = [];
+
   // Handle document context auto-submission
   useEffect(() => {
     if (documentContext && messages.length === 0 && status !== 'streaming') {
@@ -1506,7 +1517,7 @@ export function Chat({
               : { userDocumentId: documentContext.id }),
           };
 
-          await append(messageToSend);
+          await appendAdapter(messageToSend);
         } catch (error) {
           console.error('Error auto-submitting document context:', error);
         }
@@ -1706,7 +1717,7 @@ export function Chat({
       // Use append to send the message and get AI response
       const sendMessage = async () => {
         try {
-          await append({
+          await appendAdapter({
             role: 'user',
             content: pendingMessage,
           });
