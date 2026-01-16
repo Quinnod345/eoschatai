@@ -1,6 +1,5 @@
-import type { ModelMessage } from 'ai';
-
-export const TEST_PROMPTS: Record<string, ModelMessage> = {
+// AI SDK 5: Tool result output structure changed, use any for test data
+export const TEST_PROMPTS: Record<string, any> = {
   USER_SKY: {
     role: 'user',
     content: [{ type: 'text', text: 'Why is the sky blue?' }],
