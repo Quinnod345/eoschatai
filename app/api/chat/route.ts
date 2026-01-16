@@ -2668,25 +2668,33 @@ Always prioritize the user's document content over generic information. If speci
 
                 if (session.user?.id) {
                   try {
-                    // AI SDK 5: Cast messages for type compatibility
-                    const assistantId = getTrailingMessageId({
-                      messages: response.messages.filter(
-                        (message) => message.role === 'assistant',
-                      ) as any,
-                    });
-
-                    if (!assistantId) {
-                      throw new Error('No assistant message found!');
+                    // AI SDK 5: response.messages contains ModelMessages, not UIMessages with IDs
+                    // Generate a new ID for the assistant message
+                    const assistantId = generateUUID();
+                    
+                    // Get the assistant's response text from response.messages
+                    const assistantMessages = response.messages.filter(
+                      (message) => message.role === 'assistant'
+                    );
+                    
+                    // Extract text content from the assistant messages
+                    let responseText = '';
+                    for (const msg of assistantMessages) {
+                      if (typeof msg.content === 'string') {
+                        responseText += msg.content;
+                      } else if (Array.isArray(msg.content)) {
+                        for (const part of msg.content) {
+                          if (part.type === 'text') {
+                            responseText += part.text;
+                          }
+                        }
+                      }
                     }
-
-                    // Get assistant message directly from response (appendResponseMessages was removed in AI SDK 5)
-                    const assistantMessage = response.messages.find(
-                      (m) => m.role === 'assistant'
-                    ) || response.messages[response.messages.length - 1];
-
-                    // Add citations to the message parts if in Nexus mode
-                    // AI SDK 5: Cast to access parts (ModelMessage doesn't have parts type exposed)
-                    const messageParts = [...((assistantMessage as any).parts || [])];
+                    
+                    // Create message parts from the response text
+                    const messageParts: any[] = responseText 
+                      ? [{ type: 'text', text: responseText }]
+                      : [];
 
                     // Get citations from Redis if available (better than globalThis)
                     if (selectedResearchMode === 'nexus') {
@@ -2789,7 +2797,7 @@ Always prioritize the user's document content over generic information. If speci
                         {
                           id: assistantId,
                           chatId: id,
-                          role: assistantMessage.role,
+                          role: 'assistant',
                           parts: messageParts,
                           attachments: [], // Attachments now part of file parts
                           createdAt: new Date(),
