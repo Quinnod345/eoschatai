@@ -492,6 +492,26 @@ export function Chat({
   // Create empty placeholder for backward compatibility
   const data: any[] = [];
 
+  // AI SDK 5: Create append adapter using sendMessage
+  // MUST be defined before any useEffect that uses it
+  const appendAdapter = useCallback(
+    (message: { role: string; content?: string; parts?: any[] }) => {
+      const text = message.content || message.parts?.find((p: any) => p.type === 'text')?.text || '';
+      if (text) {
+        sendMessage({ text });
+      }
+    },
+    [sendMessage],
+  );
+
+  // AI SDK 5: reload renamed to regenerate - create a wrapper for backward compatibility
+  const reloadAdapter = useCallback(
+    (options?: { messageId?: string }) => {
+      regenerate(options);
+    },
+    [regenerate],
+  );
+
   // Track current Nexus stream ID for recovery
   const [nexusStreamId, setNexusStreamId] = useState<string | null>(null);
   const [isResumingStream, setIsResumingStream] = useState(false);
@@ -1476,25 +1496,6 @@ export function Chat({
       }
     },
     [sendMessage, status, providerTransitioning, input, setInput],
-  );
-
-  // AI SDK 5: Create append adapter using sendMessage
-  const appendAdapter = useCallback(
-    (message: { role: string; content?: string; parts?: any[] }) => {
-      const text = message.content || message.parts?.find((p: any) => p.type === 'text')?.text || '';
-      if (text) {
-        sendMessage({ text });
-      }
-    },
-    [sendMessage],
-  );
-
-  // AI SDK 5: reload renamed to regenerate - create a wrapper for backward compatibility
-  const reloadAdapter = useCallback(
-    (options?: { messageId?: string }) => {
-      regenerate(options);
-    },
-    [regenerate],
   );
 
   // Handle document context auto-submission
