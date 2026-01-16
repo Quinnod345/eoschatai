@@ -98,9 +98,8 @@ export function MessageEditor({
               if (index !== -1) {
                 const updatedMessage = {
                   ...message,
-                  content: draftContent,
-                  parts: [{ type: 'text', text: draftContent }],
-                };
+                  parts: [{ type: 'text' as const, text: draftContent }],
+                } as UIMessage;
 
                 return [...messages.slice(0, index), updatedMessage];
               }

@@ -1,6 +1,12 @@
 import 'server-only';
-import { generateId } from 'ai';
+import { randomBytes } from 'crypto';
 import { genSaltSync, hashSync, compareSync } from 'bcrypt-ts';
+
+// AI SDK 5: generateId no longer takes length argument
+// Use crypto for generating random passwords
+function generateRandomString(length: number): string {
+  return randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+}
 
 export function generateHashedPassword(password: string) {
   try {
@@ -26,7 +32,7 @@ export function verifyPassword(
 }
 
 export function generateDummyPassword() {
-  const password = generateId(12);
+  const password = generateRandomString(12);
   const hashedPassword = generateHashedPassword(password);
 
   return hashedPassword;

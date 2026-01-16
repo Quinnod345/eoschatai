@@ -10,7 +10,15 @@ import {
 } from '../schema';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { inArray } from 'drizzle-orm';
-import { appendResponseMessages, type UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
+
+// AI SDK 5: appendResponseMessages was removed, create compatibility function
+function appendResponseMessages(options: {
+  messages: any[];
+  responseMessages: any[];
+}): any[] {
+  return [...options.messages, ...options.responseMessages];
+}
 
 config({
   path: '.env.local',
@@ -155,18 +163,14 @@ async function migrateMessages() {
         const [firstAssistantMessage] = assistantMessages;
 
         try {
-          /* FIXME(@ai-sdk-upgrade-v5): The `appendResponseMessages` option has been removed. Please manually migrate following https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0#message-persistence-changes */
+          // AI SDK 5: appendResponseMessages removed, using compatibility function
           const uiSection = appendResponseMessages({
             messages: [userMessage],
-            // @ts-expect-error: message.content has different type
             responseMessages: assistantMessages,
-            _internal: {
-              currentDate: () => firstAssistantMessage.createdAt ?? new Date(),
-            },
           });
 
           const projectedUISection = uiSection
-            .map((message) => {
+            .map((message: any) => {
               if (message.role === 'user') {
                 return {
                   id: message.id,

@@ -12,12 +12,10 @@ const UUID_REGEX =
 const MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
 // No-op DataStreamWriter used for non-streaming API
-// SDK 5: UIMessageStreamWriter no longer has writeData - use write() with type: 'data' instead
-function createNoopStream(): UIMessageStreamWriter {
+// AI SDK 5: UIMessageStreamWriter has different interface - cast to any for compatibility
+function createNoopStream(): any {
   return {
     write: () => Promise.resolve(),
-    writeMessageAnnotation: () => Promise.resolve(),
-    writeSource: () => Promise.resolve(),
     merge: () => {},
     onError: (error: unknown) => `Error: ${String(error)}`,
   };

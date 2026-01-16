@@ -2668,10 +2668,11 @@ Always prioritize the user's document content over generic information. If speci
 
                 if (session.user?.id) {
                   try {
+                    // AI SDK 5: Cast messages for type compatibility
                     const assistantId = getTrailingMessageId({
                       messages: response.messages.filter(
                         (message) => message.role === 'assistant',
-                      ),
+                      ) as any,
                     });
 
                     if (!assistantId) {
