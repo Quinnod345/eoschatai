@@ -115,17 +115,33 @@ When you generate this migration checklist, you must IMMEDIATELY:
 ## Phase 3: Run Automated Codemods
 
 ### 3.1 Run Codemods
-- [ ] **ACTION**: Run codemod: `npx @ai-sdk/codemod@latest v5`
-- [ ] **ACTION**: Review changes with `git diff`
-- [ ] **ACTION**: Commit codemod changes: `git add -A && git commit -m "Apply AI SDK 5 codemods"`
+- [x] **ACTION**: Run codemod: `npx @ai-sdk/codemod@latest v5`
+- [x] **ACTION**: Review changes with `git diff`
+- [x] **ACTION**: Commit codemod changes: `git add -A && git commit -m "Apply AI SDK 5 codemods"`
 
 **Note:** Codemods fix ~80% of breaking changes automatically.
 
+**Codemod Results:**
+- 61 files changed
+- 2 files had parser errors (duplicate setInput declarations): `app/calendar-test/page.tsx`, `components/chat.tsx`
+
 ### 3.2 Find All FIXME Comments
-- [ ] **ACTION**: Search entire codebase: `grep -r "FIXME" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" .`
-- [ ] **ACTION**: List ALL FIXME locations with file paths and line numbers
-- [ ] **INFO**: Total FIXME comments found: ___
-- [ ] **ACTION**: Create a plan for addressing each FIXME in Phase 4
+- [x] **ACTION**: Search entire codebase: `grep -r "FIXME" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" .`
+- [x] **ACTION**: List ALL FIXME locations with file paths and line numbers
+- [x] **INFO**: Total FIXME comments found: **12**
+- [x] **ACTION**: Create a plan for addressing each FIXME in Phase 4
+
+**FIXME Comments Found:**
+1. `app/chat/[id]/page.tsx:60` - experimental_attachments → parts array
+2. `app/api/chat/route.ts:492` - experimental_attachments → parts array
+3. `app/api/chat/route.ts:500` - appendClientMessage removed
+4. `app/api/chat/route.ts:1049` - experimental_attachments → parts array
+5. `app/api/chat/route.ts:2684` - appendResponseMessages removed
+6. `app/api/chat/route.ts:2788` - experimental_attachments → parts array
+7. `app/(chat)/api/chat/schema.ts:9` - experimental_attachments → parts array
+8. `components/message.tsx:492` - experimental_attachments → parts array
+9. `lib/db/helpers/01-core-to-parts.ts:158` - appendResponseMessages removed
+10. `components/multimodal-input.tsx:2125,2155,2165` - experimental_attachments → parts array (3 occurrences)
 
 **After completing Phase 3, update this file to mark items as [x], then proceed to Phase 4.**
 

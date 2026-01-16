@@ -227,7 +227,6 @@ export function Chat({
     messages,
     setMessages,
     handleSubmit,
-    setInput,
     append,
     status,
     stop,

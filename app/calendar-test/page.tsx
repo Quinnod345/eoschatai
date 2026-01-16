@@ -8,10 +8,10 @@ export default function CalendarTestPage() {
   const [input, setInput] = useState('');
   const {
     messages,
-    handleSubmit,
-    setInput,
-    isLoading
+    status
   } = useChat();
+  
+  const isLoading = status === 'streaming' || status === 'submitted';
 
   const askAboutCalendar = () => {
     setInput('What events do I have scheduled for tomorrow?');
