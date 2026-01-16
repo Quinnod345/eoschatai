@@ -1,10 +1,20 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { useEffect, useRef, useCallback } from 'react';
-import { composerDefinitions, type ComposerKind } from './composer';
-import type { Suggestion } from '@/lib/db/schema';
-import { initialComposerData, useComposer } from '@/hooks/use-composer';
+// TODO: SDK 5 Migration - The 'data' property was removed from useChat in AI SDK 5.
+// Data streaming is now handled differently. This component is temporarily disabled
+// until the data streaming approach is migrated to SDK 5's new patterns.
+// See: https://sdk.vercel.ai/docs/ai-sdk-ui/chatbot-with-tool-calling for SDK 5 patterns
+
+// These imports are needed when the component is re-enabled after SDK 5 migration
+// import { useEffect, useRef, useCallback } from 'react';
+// import { composerDefinitions, type ComposerKind } from './composer';
+// import { initialComposerData, useComposer } from '@/hooks/use-composer';
+// import type { ComposerKind } from './composer';
+// import type { Suggestion } from '@/lib/db/schema';
+
+// Type stubs for the disabled code below - remove when re-enabling
+type ComposerKind = string;
+type Suggestion = unknown;
 
 export type DataStreamDelta = {
   type:
@@ -54,9 +64,23 @@ const CONTENT_DELTA_TYPES = new Set([
  */
 const METADATA_DELTA_TYPES = new Set(['id', 'title', 'kind', 'clear', 'finish']);
 
-export function DataStreamHandler({ id }: { id: string }) {
-  const { data: dataStream } = useChat({ id });
-  const { composer, setComposer, setMetadata } = useComposer();
+export function DataStreamHandler({ id: _id }: { id: string }) {
+  // TODO: SDK 5 removed 'data' property from useChat - data streaming is handled differently now
+  // This component is temporarily disabled until SDK 5 data streaming is implemented
+  // The data property no longer exists on UseChatHelpers in SDK 5
+  // 
+  // Original implementation used: const { data: dataStream } = useChat({ id });
+  // In SDK 5, data streaming needs to be migrated to the new approach using
+  // message annotations or custom stream parts.
+  //
+  // For now, return null to disable this component.
+  // When re-enabling, restore the useChat hook and remove this early return.
+  
+  // Temporarily disabled - return early until SDK 5 data streaming is implemented
+  return null;
+  
+  /* SDK 5 Migration TODO: Re-enable this when data streaming is implemented
+  const dataStream: DataStreamDelta[] | null = null;
   const lastProcessedIndex = useRef(-1);
   // Buffer for content deltas received before kind is set
   const bufferedDeltasRef = useRef<DataStreamDelta[]>([]);
@@ -110,7 +134,8 @@ export function DataStreamHandler({ id }: { id: string }) {
   );
 
   useEffect(() => {
-    if (!dataStream?.length) return;
+    // SDK 5: dataStream is disabled until migration is complete
+    if (!dataStream || !dataStream.length) return;
 
     const newDeltas = dataStream.slice(lastProcessedIndex.current + 1);
     lastProcessedIndex.current = dataStream.length - 1;
@@ -230,4 +255,5 @@ export function DataStreamHandler({ id }: { id: string }) {
   }, [id]);
 
   return null;
+  End of SDK 5 Migration TODO */
 }

@@ -999,10 +999,8 @@ export function Chat({
       .map((p: any) => p.text)
       .join('') || '';
     await appendAdapter({
-      id: generateUUID(),
       role: 'user',
       content: messageText,
-      createdAt: new Date(),
     });
   }, [messages, setMessages, appendAdapter]);
 
