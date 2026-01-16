@@ -1,6 +1,13 @@
 'use client';
 
-import type { Attachment, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
+
+// Attachment type removed in AI SDK 5 - using file parts instead
+type Attachment = {
+  name?: string;
+  contentType?: string;
+  url: string;
+};
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import useSWR, { useSWRConfig } from 'swr';

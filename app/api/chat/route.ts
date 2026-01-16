@@ -1864,7 +1864,7 @@ Always prioritize the user's document content over generic information. If speci
             const result = streamText({
               model: provider.languageModel(finalChatModel),
               system: `${finalSystemPrompt}${preCreatedComposerNote}`,
-              messages: convertToModelMessages(modifiedMessages),
+              messages: await convertToModelMessages(modifiedMessages),
               stopWhen: stepCountIs(isNexusMode ? 30 : 20), // Increased: Nexus needs more steps for comprehensive research
               experimental_activeTools: [
                 'searchWeb', // FIRST for priority - web search
@@ -2985,7 +2985,7 @@ Always prioritize the user's document content over generic information. If speci
               // Propagate error to user via dataStream
               writer.write({
                 type: 'error',
-                error: 'Stream processing error occurred',
+                errorText: 'Stream processing error occurred',
               });
             } finally {
               // Ensure timeout is always cleared
@@ -2997,7 +2997,7 @@ Always prioritize the user's document content over generic information. If speci
             // Notify user of error via dataStream
             writer.write({
               type: 'error',
-              error: 'Fatal error in chat processing',
+              errorText: 'Fatal error in chat processing',
             });
           }
       },
