@@ -1607,16 +1607,16 @@ Always prioritize the user's document content over generic information. If speci
 
     // Create response stream
     const responseStream = createUIMessageStream({
-      execute: async (dataStream) => {
+      execute: async ({ writer }) => {
         // Send initial status
-        dataStream.write({
-          'type': 'data',
-
-          'value': [{
+        writer.write({
+          type: 'data-status',
+          id: generateUUID(),
+          data: {
             type: 'chat-status',
             status: 'processing',
             message: 'Processing your request',
-          }]
+          }
         });
 
         console.log('[NEXUS MODE] Before condition check:', {
@@ -1678,14 +1678,14 @@ Always prioritize the user's document content over generic information. If speci
           toolResponseInstructions;
 
         // Run preflight for all modes, but with different parameters for Nexus
-        dataStream.write({
-          'type': 'data',
-
-          'value': [{
+        writer.write({
+          type: 'data-status',
+          id: generateUUID(),
+          data: {
             type: 'chat-status',
             status: 'preflight',
             message: 'Analyzing request',
-          }]
+          }
         });
 
         try {
@@ -1798,7 +1798,7 @@ Always prioritize the user's document content over generic information. If speci
           preCreatedComposerNote = `\n\nCRITICAL: The user is asking to create an Accountability Chart (they may have misspelled it). You MUST use the createDocument tool with kind="accountability" and title="${suggestedTitle}". DO NOT just say you created it - actually call the createDocument tool to open the composer panel.`;
         }
 
-        dataStream.write({
+        writer.write({
           'type': 'data',
 
           'value': [{
@@ -1817,7 +1817,7 @@ Always prioritize the user's document content over generic information. If speci
           console.log('[NEXUS MODE] Agentic research mode enabled');
           
           // Signal that we're in Nexus mode
-          dataStream.write({
+          writer.write({
             'type': 'data',
 
             'value': [{
@@ -2569,7 +2569,7 @@ Always prioritize the user's document content over generic information. If speci
                       const searchResult = toolResults?.find(
                         (tr: any) => tr.toolCallId === toolCall.toolCallId
                       );
-                      dataStream.write({
+                      writer.write({
                         'type': 'data',
 
                         'value': [{
@@ -2585,7 +2585,7 @@ Always prioritize the user's document content over generic information. If speci
                       });
                     } else {
                       // Standard mode: simple status update
-                      dataStream.write({
+                      writer.write({
                         'type': 'data',
 
                         'value': [{
@@ -2596,7 +2596,7 @@ Always prioritize the user's document content over generic information. If speci
                       });
                     }
                   } else if (toolCall.toolName === 'getCalendarEvents') {
-                    dataStream.write({
+                    writer.write({
                       'type': 'data',
 
                       'value': [{
@@ -2606,7 +2606,7 @@ Always prioritize the user's document content over generic information. If speci
                       }]
                     });
                   } else if (toolCall.toolName === 'createDocument') {
-                    dataStream.write({
+                    writer.write({
                       'type': 'data',
 
                       'value': [{
@@ -2652,7 +2652,7 @@ Always prioritize the user's document content over generic information. If speci
                       },
                     );
                     // Send warning to client
-                    dataStream.write({
+                    writer.write({
                       'type': 'data',
 
                       'value': [{
@@ -2976,13 +2976,13 @@ Always prioritize the user's document content over generic information. If speci
 
               // Important: Don't consume the stream before merging if we've pre-created content
               // The consumeStream() call was preventing pre-created data from reaching the client
-              result.mergeIntoUIMessageStream(dataStream);
+              writer.merge(result.toUIMessageStream());
             } catch (streamError) {
               console.error('RAG ERROR: Error processing stream:', streamError);
               // Clear timeout on stream error
               if (responseTimeout) clearTimeout(responseTimeout);
               // Propagate error to user via dataStream
-              dataStream.write({
+              writer.write({
                 'type': 'data',
 
                 'value': [{
@@ -2998,7 +2998,7 @@ Always prioritize the user's document content over generic information. If speci
             console.error('Fatal error in stream processing:', error);
             if (responseTimeout) clearTimeout(responseTimeout);
             // Notify user of error via dataStream
-            dataStream.write({
+            writer.write({
               'type': 'data',
 
               'value': [{
