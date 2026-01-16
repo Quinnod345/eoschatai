@@ -71,8 +71,8 @@ function getMessageAttachments(message: ExtendedUIMessage): Array<{ name?: strin
   if (message.experimental_attachments) return message.experimental_attachments;
   if (!message.parts) return [];
   return message.parts
-    .filter((p): p is { type: 'file'; url: string; mimeType?: string; name?: string } => p.type === 'file')
-    .map((p) => ({ name: p.name, contentType: p.mimeType, url: p.url }));
+    .filter((p: any) => p.type === 'file' && p.url)
+    .map((p: any) => ({ name: p.name, contentType: p.mimeType, url: p.url }));
 }
 
 interface PDFContent {

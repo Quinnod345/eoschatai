@@ -1,4 +1,9 @@
-import type { CoreAssistantMessage, CoreToolMessage, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
+
+// AI SDK 5: CoreAssistantMessage and CoreToolMessage renamed to ModelMessage types
+// Define compatible types for backward compatibility
+type CoreAssistantMessage = { role: 'assistant'; content: any };
+type CoreToolMessage = { role: 'tool'; content: any };
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { Document } from '@/lib/db/schema';

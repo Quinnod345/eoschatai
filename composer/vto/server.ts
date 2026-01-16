@@ -81,12 +81,12 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
 
     for await (const delta of fullStream) {
       if (delta.type === 'text-delta') {
-        const { textDelta } = delta;
-        draft += textDelta;
+        const { text } = delta;
+        draft += text;
         dataStream.write({
           type: 'data-composer',
           id: generateId(),
-          data: { type: 'text-delta', content: textDelta },
+          data: { type: 'text-delta', content: text },
         });
       }
     }
@@ -123,7 +123,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     let responseContent = '';
     for await (const delta of fullStream) {
       if (delta.type === 'text-delta') {
-        responseContent += delta.textDelta;
+        responseContent += delta.text;
       }
     }
 

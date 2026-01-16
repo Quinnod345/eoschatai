@@ -149,14 +149,14 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
 
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          const { textDelta } = delta;
-          draft += textDelta;
+          const { text } = delta;
+          draft += text;
           dataStream.write({
             type: 'data-composer',
             id: generateId(),
             data: {
               type: 'text-delta',
-              content: textDelta,
+              content: text,
             },
           });
         }
@@ -195,7 +195,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       let responseContent = '';
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          responseContent += delta.textDelta;
+          responseContent += delta.text;
         }
       }
 
