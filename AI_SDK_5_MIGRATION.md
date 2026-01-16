@@ -76,32 +76,34 @@ When you generate this migration checklist, you must IMMEDIATELY:
 ## Phase 2: Update Dependencies
 
 ### 2.1 Update Core Package
-- [ ] **ACTION**: Run `pnpm add ai@latest`
-- [ ] **ACTION**: Verify version in package.json shows ^5.0.0 or higher
-- [ ] **INFO**: New version installed: ___
+- [x] **ACTION**: Run `pnpm add ai@latest`
+- [x] **ACTION**: Verify version in package.json shows ^5.0.0 or higher
+- [x] **INFO**: New version installed: **^6.0.37**
 
 ### 2.2 Update Provider & UI Packages (if used)
-- [ ] **ACTION**: Check package.json for these packages and update if present:
-  - `pnpm add @ai-sdk/openai@latest @ai-sdk/anthropic@latest @ai-sdk/google@latest` (providers)
-  - `pnpm add @ai-sdk/react@latest @ai-sdk/rsc@latest` (UI packages)
+- [x] **ACTION**: Check package.json for these packages and update if present:
+  - @ai-sdk/openai: 1.3.24 → **3.0.11**
+  - @ai-sdk/anthropic: 2.0.38 → **3.0.14**
+  - @ai-sdk/react: 1.2.11 → **3.0.39**
 
 ### 2.3 Update Other Dependencies
-- [ ] **ACTION**: Update zod: `pnpm add zod@latest` (required 4.1.8+ for TypeScript performance)
-- [ ] **ACTION**: Run `pnpm install` to ensure lock file is updated
+- [x] **ACTION**: Update zod: `pnpm add zod@latest` (required 4.1.8+ for TypeScript performance)
+- [x] **INFO**: zod updated to **4.3.5**
+- [x] **ACTION**: Run `pnpm install` to ensure lock file is updated
 
 ### 2.4 Add Legacy AI SDK Alias (Required for Phase 5)
 **💡 Required for type-safe message transformations in Phase 5.**
 
-- [ ] **ACTION**: Add AI SDK v4 as alias in package.json:
+- [x] **ACTION**: Add AI SDK v4 as alias in package.json:
 ```json
 {
   "dependencies": {
-    "ai": "^5.0.0",
-    "ai-legacy": "npm:ai@^4.3.2"
+    "ai": "^6.0.37",
+    "ai-legacy": "npm:ai@^4.3.19"
   }
 }
 ```
-- [ ] **ACTION**: Run `pnpm install`
+- [x] **ACTION**: Run `pnpm install`
 
 ### 2.5 Commit Changes
 - [ ] **ACTION**: Commit package updates: `git add package.json pnpm-lock.yaml && git commit -m "Update to AI SDK 5"`
