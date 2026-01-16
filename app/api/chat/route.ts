@@ -1639,10 +1639,11 @@ Always prioritize the user's document content over generic information. If speci
       originalMessages: normalizedPreviousMessages,
       generateId: generateUUID,
       execute: async ({ writer }) => {
-        // Send initial status
+        // Send initial status (transient - not added to message history)
         writer.write({
           type: 'data-custom',
           id: generateUUID(),
+          transient: true,
           data: {
             type: 'chat-status',
             status: 'processing',
@@ -1712,6 +1713,7 @@ Always prioritize the user's document content over generic information. If speci
         writer.write({
           type: 'data-custom',
           id: generateUUID(),
+          transient: true,
           data: {
             type: 'chat-status',
             status: 'preflight',
@@ -1832,6 +1834,7 @@ Always prioritize the user's document content over generic information. If speci
         writer.write({
           type: 'data-custom',
           id: generateUUID(),
+          transient: true,
           data: {
             type: 'chat-status',
             status: 'generating',
@@ -1847,10 +1850,11 @@ Always prioritize the user's document content over generic information. If speci
         if (selectedResearchMode === 'nexus' && queryText) {
           console.log('[NEXUS MODE] Agentic research mode enabled');
           
-          // Signal that we're in Nexus mode
+          // Signal that we're in Nexus mode (transient)
           writer.write({
             type: 'data-custom',
             id: generateUUID(),
+            transient: true,
             data: {
               type: 'nexus-mode-active',
               message: 'Nexus Research Mode activated',
@@ -2610,6 +2614,7 @@ Always prioritize the user's document content over generic information. If speci
                       writer.write({
                         type: 'data-custom',
                         id: generateUUID(),
+                        transient: true,
                         data: {
                           type: 'nexus-search-progress',
                           query: q || 'Searching...',
@@ -2626,6 +2631,7 @@ Always prioritize the user's document content over generic information. If speci
                       writer.write({
                         type: 'data-custom',
                         id: generateUUID(),
+                        transient: true,
                         data: {
                           type: 'chat-status',
                           status: 'searching',
@@ -2637,6 +2643,7 @@ Always prioritize the user's document content over generic information. If speci
                     writer.write({
                       type: 'data-custom',
                       id: generateUUID(),
+                      transient: true,
                       data: {
                         type: 'chat-status',
                         status: 'calendar',
@@ -2647,6 +2654,7 @@ Always prioritize the user's document content over generic information. If speci
                     writer.write({
                       type: 'data-custom',
                       id: generateUUID(),
+                      transient: true,
                       data: {
                         type: 'chat-status',
                         status: 'creating',
@@ -2689,10 +2697,11 @@ Always prioritize the user's document content over generic information. If speci
                         model: finalChatModel,
                       },
                     );
-                    // Send warning to client
+                    // Send warning to client (transient)
                     writer.write({
                       type: 'data-custom',
                       id: generateUUID(),
+                      transient: true,
                       data: {
                         type: 'token-limit-warning',
                         message: 'Response may be truncated due to length limits',
