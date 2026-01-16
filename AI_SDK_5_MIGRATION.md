@@ -170,7 +170,7 @@ This provides full type safety for messages, metadata, data parts, and tools.
 
 **Update all code that accesses `message.content` to use `message.parts` array.**
 
-- [ ] **ACTION**: Find all `message.content` usage (from Phase 1.2)
+- [x] **ACTION**: Find all `message.content` usage (from Phase 1.2) - **10 files identified**
 - [ ] **ACTION**: Update UI components that display messages
 - [ ] **ACTION**: Update API routes that process messages
 - [ ] **ACTION**: Update any logic that checks or manipulates message content
@@ -196,6 +196,39 @@ Key changes:
 - [ ] **INFO**: Files updated: ___
 
 **📖 SEARCH**: `search-guide "tool invocation"` for detailed patterns
+
+### 4.4 Completed Fixes (Partial Progress)
+
+The following fixes have been applied:
+
+- [x] Removed deprecated imports (`appendClientMessage`, `appendResponseMessages`)
+- [x] Added `stepCountIs` for `maxSteps` → `stopWhen` migration
+- [x] Added `convertToModelMessages` for UIMessage → ModelMessage conversion
+- [x] Fixed stream writer pattern (`dataStream` → `writer`)
+- [x] Fixed `writer.write` with `type: 'data-status'` format
+- [x] Fixed error types to use `errorText` instead of `error`
+- [x] Fixed `Attachment` type import (removed from 'ai', defined locally)
+- [x] Fixed `dataStream: writer` parameter passing to tools
+
+### 4.5 Remaining TypeScript Errors (Manual Fix Required)
+
+**Files requiring significant manual work:**
+
+1. **`components/chat.tsx`** - useChat hook API completely changed:
+   - `handleSubmit` → use `sendMessage`
+   - `append` → use `sendMessage` with different signature
+   - `reload` → `regenerate`
+   - `initialMessages` → `messages`
+   - `experimental_resume`, `data` → removed/changed
+
+2. **`app/calendar-test/page.tsx`** - Same useChat changes + `message.content` → `message.parts`
+
+3. **`app/api/chat/route.ts`** - Stream type issues with resumable-stream library:
+   - `ReadableStream<UIMessageChunk>` not compatible with `ReadableStream<string>`
+
+4. **Composer files** - `type: 'data'` → `type: 'data-status'` pattern needed
+
+5. **Tool files** - `type: 'data'` → `type: 'data-status'` pattern needed
 
 **After completing Phase 4, proceed to Phase 5.**
 
