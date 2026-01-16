@@ -2779,7 +2779,7 @@ Always prioritize the user's document content over generic information. If speci
                         type: `tool-${tc.toolName}`,
                         toolCallId: tc.toolCallId,
                         toolName: tc.toolName,
-                        input: tc.args,
+                        input: tc.input, // SDK 5 uses 'input' not 'args'
                         state: matchingResult ? 'output-available' : 'input-available',
                         output: mr?.output,
                       });
