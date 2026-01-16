@@ -222,22 +222,42 @@ export function PersonaWizard({
   }, [org, user]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    // Use AbortController for fetch cleanup
+    const abortController = new AbortController();
+    let isMounted = true;
+
+    const loadData = async () => {
+      // These fetch functions should ideally accept a signal parameter
+      // For now, we'll use a mounted check
       fetchDocuments();
       fetchComposerDocs();
       fetchComposerSettings();
+      
       if (persona) {
         fetchPersonaDetails();
       } else if (!isNavigatingToSettings) {
-        resetForm();
+        if (isMounted) resetForm();
       }
-      if (!isNavigatingToSettings) {
+      
+      if (!isNavigatingToSettings && isMounted) {
         setErrors({});
         setCurrentStep(0);
         setCompletedSteps(new Set());
       }
-      setIsNavigatingToSettings(false);
-    }
+      
+      if (isMounted) {
+        setIsNavigatingToSettings(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
   }, [isOpen, persona, isNavigatingToSettings]);
 
   // Fetch composer documents by kind for picker tabs - initial and on-demand

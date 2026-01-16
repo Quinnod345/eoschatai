@@ -138,13 +138,14 @@ export function PremiumFeaturesModal({
 
   useEffect(() => {
     if (open) {
-      // TODO: Add premium_modal_opened to analytics types
-      // trackClientEvent({
-      //   event: 'premium_modal_opened',
-      //   properties: {
-      //     current_plan: currentPlan,
-      //   },
-      // }).catch(() => {});
+      trackClientEvent({
+        event: 'premium_modal_opened',
+        properties: {
+          plan: currentPlan,
+          source: 'premium_modal',
+          feature: undefined,
+        },
+      }).catch(() => {});
     }
   }, [open, currentPlan]);
 
@@ -172,15 +173,14 @@ export function PremiumFeaturesModal({
     // For Pro plan, proceed directly to checkout
     setLoading(true);
     try {
-      // TODO: Add premium_checkout_started to analytics types
-      // trackClientEvent({
-      //   event: 'premium_checkout_started',
-      //   properties: {
-      //     plan: selectedPlan,
-      //     current_plan: currentPlan,
-      //     has_org: !!org,
-      //   },
-      // }).catch(() => {});
+      trackClientEvent({
+        event: 'premium_checkout_initiated',
+        properties: {
+          plan: selectedPlan,
+          billing_cycle: 'monthly',
+          source: 'premium_modal',
+        },
+      }).catch(() => {});
 
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',

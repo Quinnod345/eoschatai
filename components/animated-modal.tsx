@@ -56,74 +56,40 @@ export function AnimatedModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 z-[200]"
-            style={{
-              backdropFilter: 'none',
-              WebkitBackdropFilter: 'none',
-            }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-[8px] z-modal-overlay"
             onClick={onClose}
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 flex items-center justify-center p-4 z-[210]">
+          <div className="fixed inset-0 flex items-center justify-center p-4 z-modal-content">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{
                 type: 'spring',
-                duration: 0.3,
-                bounce: 0.3,
+                stiffness: 400,
+                damping: 30,
               }}
-              className={`rounded-2xl shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border-2 border-gray-200 dark:border-gray-700 isolate`}
-              style={{
-                backgroundColor: document.documentElement.classList.contains(
-                  'dark',
-                )
-                  ? 'rgb(17, 24, 39)'
-                  : '#ffffff',
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
-              }}
+              className={`rounded-2xl shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border border-white/25 dark:border-zinc-700/40 bg-background/90 backdrop-blur-[12px] isolate`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div
-                className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700"
-                style={{
-                  backgroundColor: document.documentElement.classList.contains(
-                    'dark',
-                  )
-                    ? 'rgb(31, 41, 55)'
-                    : '#f9fafb',
-                  borderBottomWidth: '2px',
-                }}
-              >
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/50">
+                <h2 className="text-xl font-semibold text-foreground">
                   {title}
                 </h2>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-2 hover:bg-accent rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
 
               {/* Content */}
-              <div
-                className="flex-1 overflow-y-auto px-6 py-4 rounded-b-2xl"
-                style={{
-                  backgroundColor: document.documentElement.classList.contains(
-                    'dark',
-                  )
-                    ? 'rgb(17, 24, 39)'
-                    : '#ffffff',
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
-                }}
-              >
+              <div className="flex-1 overflow-y-auto px-6 py-4 rounded-b-2xl">
                 {children}
               </div>
             </motion.div>

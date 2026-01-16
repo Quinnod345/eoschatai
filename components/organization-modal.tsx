@@ -48,29 +48,60 @@ export function OrganizationModal({
 
   // Check if user already has an organization when modal opens
   useEffect(() => {
-    if (open) {
-      checkExistingOrganization();
-      // Try to pre-populate organization name from user settings
-      fetchUserSettings();
-    }
-  }, [open]);
+    if (!open) return;
+    
+    const abortController = new AbortController();
+    const signal = abortController.signal;
 
-  const fetchUserSettings = async () => {
-    try {
-      const response = await fetch('/api/user-settings');
-      if (response.ok) {
-        const data = await response.json();
-        // If no org name set yet and user has a company name, use it
-        if (!organizationName && data.companyName) {
-          setOrganizationName(data.companyName);
+    const fetchUserSettings = async () => {
+      try {
+        const response = await fetch('/api/user-settings', { signal });
+        if (response.ok && !signal.aborted) {
+          const data = await response.json();
+          // If no org name set yet and user has a company name, use it
+          if (!organizationName && data.companyName) {
+            setOrganizationName(data.companyName);
+          }
+        }
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Failed to fetch user settings:', error);
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch user settings:', error);
-    }
-  };
+    };
 
-  const checkExistingOrganization = async () => {
+    const checkExistingOrganization = async () => {
+      setCheckingExisting(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/organizations', { signal });
+        if (response.ok && !signal.aborted) {
+          const data = await response.json();
+          if (data.organization) {
+            setExistingOrg(data.organization);
+          }
+        }
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Failed to check existing organization:', error);
+        }
+      } finally {
+        if (!signal.aborted) {
+          setCheckingExisting(false);
+        }
+      }
+    };
+
+    checkExistingOrganization();
+    fetchUserSettings();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [open, organizationName]);
+
+  const checkExistingOrganizationAction = async () => {
     setCheckingExisting(true);
     setError(null);
 
@@ -245,7 +276,7 @@ export function OrganizationModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl" nested>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Building2 className="w-6 h-6" />

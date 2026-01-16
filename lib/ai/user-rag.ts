@@ -478,26 +478,21 @@ export const debugUserNamespace = async (
   try {
     console.log(`User RAG Debug: Checking vectors for user ${userId}`);
 
-    // WORKAROUND: Query without namespace and filter by userId
-    const allVectors = await getUserRagClient().query({
-      vector: new Array(1536).fill(0), // Dummy vector to get all results
-      topK: 100, // Get more vectors since we'll filter
+    // Use namespace to get vectors for this user
+    const namespaceClient = getUserRagClient().namespace(userId);
+    
+    // Use range to list vectors in the namespace
+    const rangeResult = await namespaceClient.range({
+      cursor: '',
+      limit: 100,
       includeMetadata: true,
       includeVectors: false,
-      // NO namespace parameter
     });
 
-    console.log(
-      `User RAG Debug: Found ${allVectors?.length || 0} total vectors in database`,
-    );
-
-    // Filter by userId
-    const userVectors = (allVectors || []).filter(
-      (v: any) => v.metadata?.userId === userId,
-    );
+    const userVectors = rangeResult.vectors || [];
 
     console.log(
-      `User RAG Debug: Found ${userVectors.length} vectors for user ${userId}`,
+      `User RAG Debug: Found ${userVectors.length} vectors in namespace ${userId}`,
     );
 
     // Log sample vectors with their metadata

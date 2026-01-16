@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import DOMPurify from 'isomorphic-dompurify';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -468,16 +469,27 @@ export function AdvancedSearch() {
   const highlightMatches = (text: string, matches?: string[]) => {
     if (!matches || matches.length === 0) return text;
 
-    let highlighted = text;
+    // Escape HTML entities in the original text to prevent XSS
+    const escapeHtml = (str: string) =>
+      str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    let highlighted = escapeHtml(text);
     matches.forEach((match) => {
-      const regex = new RegExp(`(${match})`, 'gi');
+      // Escape regex special characters in match
+      const escapedMatch = match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escapedMatch})`, 'gi');
       highlighted = highlighted.replace(
         regex,
         '<mark class="bg-eos-orange/20 text-eos-orange">$1</mark>',
       );
     });
 
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+    return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlighted) }} />;
   };
 
   const formatDuration = (seconds: number) => {

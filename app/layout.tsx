@@ -62,7 +62,7 @@ const robotoCondensed = Roboto_Condensed({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-roboto-condensed',
-  weight: ['300', '400', '700'],
+  weight: ['300', '400', '500', '700'], // Light, Regular, Medium, Bold
 });
 
 const LIGHT_THEME_COLOR = 'hsl(210deg 48% 97%)';
@@ -94,7 +94,9 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geist.variable} ${geistMono.variable} ${montserrat.variable} ${robotoCondensed.variable}`}
+      className={`${montserrat.variable} ${robotoCondensed.variable} ${geistMono.variable} ${geist.variable}`}
+      data-glass-effects="disabled"
+      data-eos-gradients="disabled"
     >
       <head>
         {(process.env.NODE_ENV === 'development' ||

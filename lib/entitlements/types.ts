@@ -54,6 +54,7 @@ export type FeatureEntitlements = {
   chats_per_day: number;
   context_uploads_total: number;
   concurrent_sessions: number;
+  storage_quota_mb: number; // Storage quota in megabytes
   api_access: boolean;
   priority_support: boolean;
 };
@@ -73,6 +74,7 @@ export type UsageCounters = {
   personas_created: number;
   memories_stored: number;
   concurrent_sessions_active: number;
+  storage_used_mb: number; // Storage used in megabytes
 };
 
 export type UsageCounterKey = keyof UsageCounters;

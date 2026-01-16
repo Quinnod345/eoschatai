@@ -3,6 +3,19 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { userMemory } from '@/lib/db/schema';
+import { z } from 'zod';
+
+// Validation schema for creating a memory
+const createMemorySchema = z.object({
+  summary: z.string().min(1, 'Summary is required').max(500, 'Summary must be 500 characters or less'),
+  content: z.string().max(10000, 'Content must be 10000 characters or less').optional(),
+  topic: z.string().max(100, 'Topic must be 100 characters or less').optional(),
+  memoryType: z.enum(['fact', 'preference', 'context', 'insight']).optional(),
+  confidence: z.number().min(0).max(100).optional().default(60),
+  status: z.enum(['active', 'archived']).optional().default('active'),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  sourceMessageId: z.string().uuid().optional(),
+});
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -108,22 +121,25 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    
+    // Validate input with Zod
+    const parseResult = createMemorySchema.safeParse(body);
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+      return NextResponse.json(
+        { error: 'Validation failed', details: errors },
+        { status: 400 },
+      );
+    }
+
     const {
       summary,
       content,
       topic,
       memoryType,
-      confidence = 60,
-      status = 'active',
-      tags,
+      confidence,
       sourceMessageId,
-    } = body || {};
-    if (!summary || typeof summary !== 'string') {
-      return NextResponse.json(
-        { error: 'summary is required' },
-        { status: 400 },
-      );
-    }
+    } = parseResult.data;
 
     // Use the saveUserMemory function which creates embeddings automatically
     const { saveUserMemory } = await import('@/lib/ai/memory');

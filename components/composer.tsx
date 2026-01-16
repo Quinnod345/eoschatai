@@ -33,6 +33,19 @@ import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { VisibilityType } from './visibility-selector';
+import {
+  type ComposerLifecycleState,
+  type VersionIndexState,
+  isLatestVersion,
+  resolveVersionIndex,
+  shouldBlockRemoteFetch,
+  shouldBlockSave,
+  type ComposerStateRefs,
+  createInitialStateRefs,
+  resetStateRefsForNewDocument,
+} from '@/lib/composer/state-machine';
+import { isValidVtoContent } from '@/lib/composer/content-parsers';
+import { ComposerErrorBoundary } from './composer-error-boundary';
 
 export const composerDefinitions = [
   textComposer,
@@ -108,19 +121,16 @@ function PureComposer({
 
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
-  // Initialize to a large number so it defaults to latest when documents load
-  // This will be corrected to actual latest (documents.length - 1) in useEffect
-  const [currentVersionIndex, setCurrentVersionIndex] = useState(9999);
-  // Track the latest content we intentionally saved to avoid stale overwrites
-  const lastLocallySavedContentRef = useRef<string | null>(null);
-  // Track when a streaming session is active to avoid remote clobbering
-  const isStreamingRef = useRef<boolean>(false);
-  // Track last remote version timestamp that we applied to composer.content
-  const lastRemoteAppliedAtRef = useRef<number>(0);
+  // Version index: null means "use latest", number means specific version
+  const [currentVersionIndex, setCurrentVersionIndex] =
+    useState<VersionIndexState>(null);
+  // Explicit lifecycle state for managing async operations
+  const [lifecycleState, setLifecycleState] =
+    useState<ComposerLifecycleState>('idle');
+  // Consolidated state refs for use in closures (avoids stale closure issues)
+  const stateRefsRef = useRef<ComposerStateRefs>(createInitialStateRefs());
   // Track previous documents array to detect when new versions are added
   const documentsRef = useRef<Array<Document> | undefined>(undefined);
-  // Track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef<boolean>(true);
   // Abort controller for fetch requests
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -129,96 +139,82 @@ function PureComposer({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
 
-  // Validate VTO content to avoid saving/overriding with invalid or empty data
-  const isValidVtoContent = useCallback(
-    (maybeContent: string | null | undefined) => {
-      if (!maybeContent) return false;
-      const content = String(maybeContent);
-      try {
-        const hasBegin = content.includes('VTO_DATA_BEGIN');
-        const hasEnd = content.includes('VTO_DATA_END');
-        let jsonStr = content;
-        if (hasBegin && hasEnd) {
-          const start =
-            content.indexOf('VTO_DATA_BEGIN') + 'VTO_DATA_BEGIN'.length;
-          const end = content.indexOf('VTO_DATA_END');
-          jsonStr = content.substring(start, end).trim();
-        }
-        const parsed: any = JSON.parse(jsonStr);
-        return Boolean(parsed?.coreValues && parsed?.coreFocus);
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
-
+  // Sync lifecycle state with composer.status
   useEffect(() => {
-    // Keep a fast flag in sync for streaming state checks in closures
-    isStreamingRef.current = composer.status === 'streaming';
+    const newLifecycleState: ComposerLifecycleState =
+      composer.status === 'streaming' ? 'streaming' : 'idle';
+    setLifecycleState((prev) => {
+      // Don't override 'saving' state unless streaming starts
+      if (prev === 'saving' && newLifecycleState !== 'streaming') {
+        return prev;
+      }
+      return newLifecycleState;
+    });
+    // Keep ref in sync for closures
+    stateRefsRef.current.lifecycleState = newLifecycleState;
   }, [composer.status]);
 
   useEffect(() => {
     if (documents && documents.length > 0) {
       const mostRecentDocument = documents.at(-1);
+      const stateRefs = stateRefsRef.current;
 
-      if (mostRecentDocument && isMountedRef.current) {
+      if (mostRecentDocument && stateRefs.isMounted) {
         const remoteCreatedAt = new Date(
           mostRecentDocument.createdAt,
         ).getTime();
         setDocument(mostRecentDocument);
 
-        // CRITICAL FIX: Always keep currentVersionIndex pointing to latest
-        // Update when:
-        // 1. Initial load (9999 or -1)
-        // 2. Index is out of bounds
-        // 3. User is on latest and new version was created (index is last but array grew)
-        const isOnLatest = currentVersionIndex === (documentsRef.current?.length ?? 0) - 1;
-        const didArrayGrow = (documentsRef.current?.length || 0) < documents.length;
-        
-        if (
-          currentVersionIndex === 9999 ||
-          currentVersionIndex === -1 ||
-          currentVersionIndex >= documents.length ||
-          (isOnLatest && didArrayGrow) // ✅ Keep following latest when new versions are created
-        ) {
-          console.log(
-            '[Composer] Updating version index to latest:',
-            documents.length - 1,
-            { wasOnLatest: isOnLatest, didArrayGrow }
-          );
-          setCurrentVersionIndex(documents.length - 1);
+        // Update version index if user is following latest or on initial load
+        const wasOnLatest = isLatestVersion(
+          currentVersionIndex,
+          documentsRef.current?.length ?? 0,
+        );
+        const didArrayGrow =
+          (documentsRef.current?.length || 0) < documents.length;
+
+        // Keep following latest when new versions are created
+        if (currentVersionIndex === null || (wasOnLatest && didArrayGrow)) {
+          console.log('[Composer] Following latest version:', {
+            wasOnLatest,
+            didArrayGrow,
+            newLength: documents.length,
+          });
+          // Keep null to indicate "latest" rather than setting specific index
+          setCurrentVersionIndex(null);
         }
-        
+
         // Update the ref for next comparison
         documentsRef.current = documents;
 
+        // Block remote fetch if in streaming or saving state
+        if (shouldBlockRemoteFetch(stateRefs.lifecycleState)) {
+          console.log('[Composer] Blocking remote fetch during:', stateRefs.lifecycleState);
+          return;
+        }
+
         setComposer((currentComposer) => {
-          if (!isMountedRef.current) return currentComposer;
-          // Avoid clobbering in-flight or freshly streamed content with an empty/older fetch
+          if (!stateRefs.isMounted) return currentComposer;
+
           const remoteContent = mostRecentDocument.content ?? '';
           const localContent = currentComposer.content ?? '';
-          const isStreaming =
-            currentComposer.status === 'streaming' || isStreamingRef.current;
 
-          // CRITICAL FIX: On initial load (localContent is empty), ALWAYS load remote content
-          // This fixes the "blank document after reload" bug
+          // Check if initial load (empty local content)
           const isInitialLoad =
             !localContent || localContent.trim().length === 0;
 
-          // Heuristic: only adopt remote content if it's newer/different and we are not streaming
-          // and we didn't just save this exact content locally.
+          // Check if we just saved this exact content
           const isSameAsLastSaved =
-            lastLocallySavedContentRef.current !== null &&
-            lastLocallySavedContentRef.current === remoteContent;
+            stateRefs.lastSavedContent !== null &&
+            stateRefs.lastSavedContent === remoteContent;
 
+          // Determine if we should override local content with remote
           const shouldOverrideContent =
-            !isStreaming &&
             remoteContent !== undefined &&
-            (isInitialLoad || // ✅ Always load on initial open
+            (isInitialLoad || // Always load on initial open
               (remoteContent !== localContent &&
                 !isSameAsLastSaved &&
-                remoteCreatedAt > (lastRemoteAppliedAtRef.current || 0))) &&
+                remoteCreatedAt > (stateRefs.lastRemoteAppliedAt || 0))) &&
             // For VTO, only override if the fetched content is valid VTO
             (currentComposer.kind !== 'vto' ||
               !remoteContent ||
@@ -229,29 +225,18 @@ function PureComposer({
               documentId: mostRecentDocument.id,
               contentLength: remoteContent.length,
               isInitialLoad,
-              currentVersionIndex,
-              documentsLength: documents?.length || 0,
+              documentsLength: documents.length,
             });
-            // Record last applied remote version timestamp to prevent older clobbers
-            lastRemoteAppliedAtRef.current = remoteCreatedAt;
+            // Record last applied remote version timestamp
+            stateRefs.lastRemoteAppliedAt = remoteCreatedAt;
             return { ...currentComposer, content: remoteContent };
           }
-
-          console.log('[Composer] Not overriding content - check logs:', {
-            isStreaming,
-            remoteContentDefined: remoteContent !== undefined,
-            isInitialLoad,
-            isSameAsLastSaved,
-            localContentLength: localContent.length,
-            remoteContentLength: remoteContent.length,
-            currentVersionIndex,
-          });
 
           return currentComposer;
         });
       }
     }
-  }, [documents, setComposer, isValidVtoContent]);
+  }, [documents, setComposer, currentVersionIndex, lifecycleState]);
 
   useEffect(() => {
     mutateDocuments();
@@ -262,13 +247,14 @@ function PureComposer({
 
   const handleContentChange = useCallback(
     async (updatedContent: string) => {
+      const stateRefs = stateRefsRef.current;
       if (!composer || !composer.documentId) return;
 
-      // CRITICAL: Don't save while content is still streaming from server
-      // This prevents overwriting server-saved content with partial client state
-      if (composer.status === 'streaming') {
+      // Use state machine to check if save should be blocked
+      if (shouldBlockSave(stateRefs.lifecycleState)) {
         console.log(
-          '[Composer] Skipping save during streaming to prevent race condition',
+          '[Composer] Skipping save - blocked by state:',
+          stateRefs.lifecycleState,
         );
         return;
       }
@@ -292,7 +278,7 @@ function PureComposer({
       }
 
       // Mark as last locally saved to avoid immediate remote clobber
-      lastLocallySavedContentRef.current = updatedContent;
+      stateRefs.lastSavedContent = updatedContent;
 
       // Cancel previous save if in flight
       if (abortControllerRef.current) {
@@ -301,7 +287,11 @@ function PureComposer({
 
       abortControllerRef.current = new AbortController();
 
-      // Always POST the latest content to persist
+      // Transition to saving state
+      setLifecycleState('saving');
+      stateRefs.lifecycleState = 'saving';
+
+      // POST the latest content to persist
       try {
         await fetch(`/api/document?id=${composer.documentId}`, {
           method: 'POST',
@@ -322,8 +312,11 @@ function PureComposer({
         }
         console.error('Failed to save document content', err);
       } finally {
-        if (isMountedRef.current) {
+        if (stateRefs.isMounted) {
           setIsContentDirty(false);
+          // Return to idle state after save completes
+          setLifecycleState('idle');
+          stateRefs.lifecycleState = 'idle';
         }
       }
 
@@ -362,11 +355,12 @@ function PureComposer({
 
   // Cleanup on unmount
   useEffect(() => {
-    isMountedRef.current = true;
+    const stateRefs = stateRefsRef.current;
+    stateRefs.isMounted = true;
 
     return () => {
       console.log('[Composer] Unmounting, cleaning up...');
-      isMountedRef.current = false;
+      stateRefs.isMounted = false;
       debouncedHandleContentChange.cancel();
 
       if (abortControllerRef.current) {
@@ -390,24 +384,23 @@ function PureComposer({
     [document?.content, debouncedHandleContentChange, handleContentChange],
   );
 
-  function getDocumentContentById(index: number) {
-    if (!documents) return '';
-    // If index is invalid (initial state or out of range), return latest document content
-    if (index === -1 || index === 9999 || index >= documents.length) {
-      return documents[documents.length - 1]?.content ?? '';
-    }
-    if (!documents[index]) return '';
-    return documents[index].content ?? '';
+  function getDocumentContentById(index: number | null) {
+    if (!documents || documents.length === 0) return '';
+    // Use resolveVersionIndex to get actual array index
+    const actualIndex = resolveVersionIndex(index, documents.length);
+    return documents[actualIndex]?.content ?? '';
   }
 
   const handleVersionChange = (type: 'next' | 'prev' | 'toggle' | 'latest') => {
-    if (!documents) return;
+    if (!documents || documents.length === 0) return;
+    const stateRefs = stateRefsRef.current;
 
     if (type === 'latest') {
-      setCurrentVersionIndex(documents.length - 1);
+      // Set to null to indicate "follow latest"
+      setCurrentVersionIndex(null);
       setMode('edit');
 
-      // CRITICAL FIX: Force load the latest content when clicking "latest"
+      // Force load the latest content when clicking "latest"
       const latestDoc = documents[documents.length - 1];
       if (latestDoc?.content) {
         console.log('[Composer] Forcing load of latest version content:', {
@@ -419,40 +412,43 @@ function PureComposer({
           content: latestDoc.content ?? '',
         }));
         // Clear the saved content ref so it doesn't block future loads
-        lastLocallySavedContentRef.current = null;
+        stateRefs.lastSavedContent = null;
       }
     }
 
     if (type === 'toggle') {
-      setMode((mode) => (mode === 'edit' ? 'diff' : 'edit'));
+      setMode((m) => (m === 'edit' ? 'diff' : 'edit'));
     }
 
     if (type === 'prev') {
-      if (currentVersionIndex > 0) {
-        setCurrentVersionIndex((index) => index - 1);
+      const currentIndex = resolveVersionIndex(
+        currentVersionIndex,
+        documents.length,
+      );
+      if (currentIndex > 0) {
+        setCurrentVersionIndex(currentIndex - 1);
       }
     } else if (type === 'next') {
-      if (currentVersionIndex < documents.length - 1) {
-        setCurrentVersionIndex((index) => index + 1);
+      const currentIndex = resolveVersionIndex(
+        currentVersionIndex,
+        documents.length,
+      );
+      if (currentIndex < documents.length - 1) {
+        setCurrentVersionIndex(currentIndex + 1);
+      } else {
+        // At latest, switch to following mode
+        setCurrentVersionIndex(null);
       }
     }
   };
 
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
 
-  /*
-   * NOTE: if there are no documents, or if
-   * the documents are being fetched, then
-   * we mark it as the current version.
-   */
-
+  // Determine if viewing the current/latest version
   const isCurrentVersion =
-    documents && documents.length > 0
-      ? currentVersionIndex === documents.length - 1 ||
-        currentVersionIndex === -1 ||
-        currentVersionIndex === 9999 ||
-        currentVersionIndex >= documents.length // ✅ Treat special values as "latest"
-      : true;
+    !documents || documents.length === 0
+      ? true
+      : isLatestVersion(currentVersionIndex, documents.length);
 
   const { width: windowWidth, height: windowHeight } = useWindowSize();
   const isMobile = windowWidth ? windowWidth < 768 : false;
@@ -467,14 +463,18 @@ function PureComposer({
 
   useEffect(() => {
     if (composer.documentId !== 'init') {
-      // CRITICAL FIX: Reset refs when opening a new document
-      // This prevents stale "lastLocallySavedContentRef" from blocking content load
+      const stateRefs = stateRefsRef.current;
+      // Reset refs when opening a new document
+      // This prevents stale saved content ref from blocking content load
       console.log('[Composer] Document ID changed, resetting refs:', {
         newDocumentId: composer.documentId,
-        clearingLastSavedRef: lastLocallySavedContentRef.current !== null,
+        clearingLastSavedRef: stateRefs.lastSavedContent !== null,
       });
-      lastLocallySavedContentRef.current = null;
-      lastRemoteAppliedAtRef.current = 0;
+      resetStateRefsForNewDocument(stateRefs, composer.documentId);
+      // Reset version index to follow latest
+      setCurrentVersionIndex(null);
+      // Reset documents ref
+      documentsRef.current = undefined;
 
       if (composerDefinition.initialize) {
         composerDefinition.initialize({
@@ -490,7 +490,7 @@ function PureComposer({
       {composer.isVisible && (
         <motion.div
           data-testid="composer"
-          className="flex flex-row h-dvh w-dvw fixed top-0 left-0 z-50 bg-transparent"
+          className="flex flex-row h-dvh w-dvw fixed top-0 left-0 z-[100] bg-background"
           initial={{ opacity: 1 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { delay: 0.4 } }}
@@ -661,11 +661,12 @@ function PureComposer({
                           const newTitle =
                             (draftTitle || '').trim() || 'Untitled';
                           const oldTitle = composer.title;
+                          const stateRefs = stateRefsRef.current;
 
                           // Optimistic update
                           setComposer((a) => ({ ...a, title: newTitle }));
 
-                          if (composer.documentId && isMountedRef.current) {
+                          if (composer.documentId && stateRefs.isMounted) {
                             try {
                               const response = await fetch(
                                 `/api/document?id=${composer.documentId}`,
@@ -678,13 +679,13 @@ function PureComposer({
                                 },
                               );
 
-                              if (!response.ok && isMountedRef.current) {
+                              if (!response.ok && stateRefs.isMounted) {
                                 // Rollback on error
                                 setComposer((a) => ({ ...a, title: oldTitle }));
                               }
                             } catch {
                               // Rollback on network error
-                              if (isMountedRef.current) {
+                              if (stateRefs.isMounted) {
                                 setComposer((a) => ({ ...a, title: oldTitle }));
                               }
                             }
@@ -728,7 +729,10 @@ function PureComposer({
 
               <ComposerHeaderActions
                 composer={composer}
-                currentVersionIndex={currentVersionIndex}
+                currentVersionIndex={resolveVersionIndex(
+                  currentVersionIndex,
+                  documents?.length ?? 0,
+                )}
                 handleVersionChange={handleVersionChange}
                 isCurrentVersion={isCurrentVersion}
                 mode={mode}
@@ -738,28 +742,40 @@ function PureComposer({
             </div>
 
             <div className="dark:bg-muted bg-background h-full overflow-y-scroll !max-w-full items-center">
-              <composerDefinition.content
-                title={composer.title}
-                content={
-                  isCurrentVersion
-                    ? composer.content ||
-                      (documents && documents.length > 0
-                        ? (documents[documents.length - 1]?.content ?? '')
-                        : '')
-                    : getDocumentContentById(currentVersionIndex)
+              <ComposerErrorBoundary
+                fallbackTitle={composer.title || 'Composer'}
+                onClose={() =>
+                  setComposer((prev) => ({ ...prev, isVisible: false }))
                 }
-                mode={mode}
-                status={composer.status}
-                currentVersionIndex={currentVersionIndex}
-                suggestions={[]}
-                onSaveContent={saveContent}
-                isInline={false}
-                isCurrentVersion={isCurrentVersion}
-                getDocumentContentById={getDocumentContentById}
-                isLoading={isDocumentsFetching && !composer.content}
-                metadata={metadata}
-                setMetadata={setMetadata}
-              />
+              >
+                <composerDefinition.content
+                  title={composer.title}
+                  content={
+                    isCurrentVersion
+                      ? composer.content ||
+                        (documents && documents.length > 0
+                          ? (documents[documents.length - 1]?.content ?? '')
+                          : '')
+                      : getDocumentContentById(currentVersionIndex)
+                  }
+                  mode={mode}
+                  status={composer.status}
+                  currentVersionIndex={resolveVersionIndex(
+                    currentVersionIndex,
+                    documents?.length ?? 0,
+                  )}
+                  suggestions={[]}
+                  onSaveContent={saveContent}
+                  isInline={false}
+                  isCurrentVersion={isCurrentVersion}
+                  getDocumentContentById={(idx: number) =>
+                    getDocumentContentById(idx)
+                  }
+                  isLoading={isDocumentsFetching && !composer.content}
+                  metadata={metadata}
+                  setMetadata={setMetadata}
+                />
+              </ComposerErrorBoundary>
 
               <AnimatePresence>
                 {isCurrentVersion && (
@@ -779,7 +795,10 @@ function PureComposer({
             <AnimatePresence>
               {!isCurrentVersion && (
                 <VersionFooter
-                  currentVersionIndex={currentVersionIndex}
+                  currentVersionIndex={resolveVersionIndex(
+                    currentVersionIndex,
+                    documents?.length ?? 0,
+                  )}
                   documents={documents}
                   handleVersionChange={handleVersionChange}
                 />

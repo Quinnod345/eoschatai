@@ -109,11 +109,11 @@ export function CustomTooltip({
           <div
             ref={tooltipRef}
             className={cn(
-              'fixed z-[9999] px-3 py-1.5 text-sm',
+              'fixed z-tooltip px-3 py-1.5 text-sm',
               'rounded-md overflow-hidden',
               'text-popover-foreground',
               // Glass effect - renders immediately with CSS
-              'bg-white/90 dark:bg-zinc-900/90',
+              'bg-popover/90',
               'backdrop-blur-xl backdrop-saturate-[1.8]',
               'border border-white/40 dark:border-white/10',
               'shadow-lg shadow-black/10',

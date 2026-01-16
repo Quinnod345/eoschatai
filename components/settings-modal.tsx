@@ -236,8 +236,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     notificationsEnabled: true,
     autocompleteEnabled: true,
     googleCalendarConnected: false,
-    disableGlassEffects: false,
-    disableEosGradient: false,
+    disableGlassEffects: true,
+    disableEosGradient: true,
   });
 
   // UI state
@@ -334,8 +334,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         fontSize: globalUserSettings.fontSize || 'medium',
         notificationsEnabled: globalUserSettings.notificationsEnabled ?? true,
         autocompleteEnabled: globalUserSettings.autocompleteEnabled ?? true,
-        disableGlassEffects: globalUserSettings.disableGlassEffects ?? false,
-        disableEosGradient: globalUserSettings.disableEosGradient ?? false,
+        disableGlassEffects: globalUserSettings.disableGlassEffects ?? true,
+        disableEosGradient: globalUserSettings.disableEosGradient ?? true,
       }));
     }
   }, [globalUserSettings, isOpen]);
@@ -376,8 +376,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         // new toggle
         autocompleteEnabled: settingsData.autocompleteEnabled ?? true,
         googleCalendarConnected: calendarData.connected ?? false,
-        disableGlassEffects: settingsData.disableGlassEffects ?? false,
-        disableEosGradient: settingsData.disableEosGradient ?? false,
+        disableGlassEffects: settingsData.disableGlassEffects ?? true,
+        disableEosGradient: settingsData.disableEosGradient ?? true,
       });
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -1002,7 +1002,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             <button
                               className="inline-flex items-center px-3 py-2 rounded-md border hover:bg-accent text-sm"
                               onClick={async () => {
-                                const currentValue = globalUserSettings?.disableGlassEffects ?? false;
+                                const currentValue = globalUserSettings?.disableGlassEffects ?? true;
                                 const newValue = !currentValue;
                                 console.log('[Glass Toggle] Current:', currentValue, 'New:', newValue);
                                 try {
@@ -1017,7 +1017,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               }}
                               type="button"
                             >
-                              {!(globalUserSettings?.disableGlassEffects ?? false) ? 'On' : 'Off'}
+                              {!(globalUserSettings?.disableGlassEffects ?? true) ? 'On' : 'Off'}
                             </button>
                           </div>
                         </div>
@@ -1036,7 +1036,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             <button
                               className="inline-flex items-center px-3 py-2 rounded-md border hover:bg-accent text-sm"
                               onClick={async () => {
-                                const currentValue = globalUserSettings?.disableEosGradient ?? false;
+                                const currentValue = globalUserSettings?.disableEosGradient ?? true;
                                 const newValue = !currentValue;
                                 console.log('[Gradient Toggle] Current:', currentValue, 'New:', newValue);
                                 try {
@@ -1051,7 +1051,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               }}
                               type="button"
                             >
-                              {!(globalUserSettings?.disableEosGradient ?? false) ? 'On' : 'Off'}
+                              {!(globalUserSettings?.disableEosGradient ?? true) ? 'On' : 'Off'}
                             </button>
                           </div>
                         </div>

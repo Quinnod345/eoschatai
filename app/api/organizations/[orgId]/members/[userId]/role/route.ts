@@ -71,6 +71,23 @@ export async function PATCH(
       );
     }
 
+    // Invalidate and recompute entitlements for the target user
+    // This ensures any role-based feature access is updated
+    try {
+      const {
+        invalidateUserEntitlementsCache,
+        broadcastEntitlementsUpdated,
+        getUserEntitlements,
+      } = await import('@/lib/entitlements');
+
+      await invalidateUserEntitlementsCache(targetUserId);
+      await getUserEntitlements(targetUserId);
+      await broadcastEntitlementsUpdated(targetUserId);
+    } catch (error) {
+      console.warn('[org:members:role] Failed to update entitlements:', error);
+      // Don't fail the role change if entitlements update fails
+    }
+
     return NextResponse.json({ success: true, role });
   } catch (error) {
     console.error('[org:members:role] Error changing member role:', error);

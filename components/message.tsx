@@ -18,6 +18,7 @@ import { ReplyContext } from './reply-context';
 import GlassSurface from './GlassSurface';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { TranslationUI } from './translation-ui';
+import { SmoothMarkdown } from './smooth-markdown';
 import {
   Calendar,
   FileText,
@@ -27,6 +28,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
+import { ErrorBoundary } from './error-boundary';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import type { EmbeddedContent } from '@/types/upload-content';
@@ -604,6 +606,7 @@ const PurePreviewMessage = ({
                             size="sm"
                             className="opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => setMode('edit')}
+                            aria-label="Edit message"
                           >
                             <PencilEditIcon />
                           </Button>
@@ -640,6 +643,7 @@ const PurePreviewMessage = ({
                           size="sm"
                           className="opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => setMode('edit')}
+                          aria-label="Edit message"
                         >
                           <PencilEditIcon />
                         </Button>
@@ -675,10 +679,18 @@ const PurePreviewMessage = ({
                           </div>
                         ) : (
                           // Regular markdown rendering for text without mentions
-                          <Markdown citations={citations}>
+                          <SmoothMarkdown
+                            citations={citations}
+                            isStreaming={
+                              isLoading &&
+                              message.role === 'assistant' &&
+                              index === parts.length - 1
+                            }
+                          >
                             {sanitizeText(part.text)}
-                          </Markdown>
+                          </SmoothMarkdown>
                         )}
+
                       </div>
                     </div>
                   );
@@ -840,7 +852,7 @@ const PurePreviewMessage = ({
   );
 };
 
-export const PreviewMessage = memo(
+const MemoizedPreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
     if (prevProps.isLoading !== nextProps.isLoading) return false;
@@ -854,6 +866,27 @@ export const PreviewMessage = memo(
 
     return true;
   },
+);
+
+// Wrap PreviewMessage with error boundary to prevent a single message from crashing the chat
+export const PreviewMessage: React.FC<Parameters<typeof PurePreviewMessage>[0]> = (props) => (
+  <ErrorBoundary 
+    context="Message"
+    fallback={(error, reset) => (
+      <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5 my-2">
+        <p className="text-sm text-muted-foreground">Failed to render message.</p>
+        <button 
+          type="button"
+          onClick={reset} 
+          className="text-xs text-primary hover:underline mt-2"
+        >
+          Try again
+        </button>
+      </div>
+    )}
+  >
+    <MemoizedPreviewMessage {...props} />
+  </ErrorBoundary>
 );
 
 export const ThinkingMessage = ({

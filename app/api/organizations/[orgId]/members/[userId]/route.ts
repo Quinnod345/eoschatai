@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { user as userTable, org as orgTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  user as userTable,
+  org as orgTable,
+  orgMemberRole,
+} from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import {
   canManageUser,
   checkOrgPermission,
@@ -103,6 +107,16 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         plan: newPlan,
       })
       .where(eq(userTable.id, targetUserId));
+
+    // Delete the OrgMemberRole record
+    await db
+      .delete(orgMemberRole)
+      .where(
+        and(
+          eq(orgMemberRole.userId, targetUserId),
+          eq(orgMemberRole.orgId, orgId),
+        ),
+      );
 
     // Clear and recompute entitlements for the removed user
     try {

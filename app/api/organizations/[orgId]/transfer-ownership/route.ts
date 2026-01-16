@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { org as orgTable, user as userTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  org as orgTable,
+  user as userTable,
+  orgMemberRole,
+} from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 interface RouteParams {
   params: Promise<{
@@ -79,11 +83,38 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Transfer ownership
-    await db
-      .update(orgTable)
-      .set({ ownerId: newOwnerId })
-      .where(eq(orgTable.id, orgId));
+    // Transfer ownership using transaction to ensure consistency
+    await db.transaction(async (tx) => {
+      // Update org owner
+      await tx
+        .update(orgTable)
+        .set({ ownerId: newOwnerId })
+        .where(eq(orgTable.id, orgId));
+
+      // Update old owner's role to 'member'
+      await tx
+        .update(orgMemberRole)
+        .set({ role: 'member', updatedAt: new Date() })
+        .where(
+          and(
+            eq(orgMemberRole.userId, session.user.id),
+            eq(orgMemberRole.orgId, orgId),
+          ),
+        );
+
+      // Update new owner's role to 'owner' (upsert to handle legacy data)
+      await tx
+        .insert(orgMemberRole)
+        .values({
+          userId: newOwnerId,
+          orgId,
+          role: 'owner',
+        })
+        .onConflictDoUpdate({
+          target: [orgMemberRole.userId, orgMemberRole.orgId],
+          set: { role: 'owner', updatedAt: new Date() },
+        });
+    });
 
     console.log(
       `[transfer-ownership] Transferred ownership of org ${orgId} from ${session.user.id} to ${newOwnerId}`,

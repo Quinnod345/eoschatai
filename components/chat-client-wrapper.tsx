@@ -65,7 +65,7 @@ export function ChatClientWrapper({
   useEffect(() => {
     // Clear any loading state immediately
     setLoading(false);
-    
+
     // Also clear it after a short delay to ensure it's gone
     const timer = setTimeout(() => {
       setLoading(false);
@@ -80,8 +80,8 @@ export function ChatClientWrapper({
 
     // Only show success if explicitly activated (not on normal page load)
     if (
-      courseActivationParams.courseActivated && 
-      courseActivationParams.courseName && 
+      courseActivationParams.courseActivated &&
+      courseActivationParams.courseName &&
       !courseActivationParams.error
     ) {
       toast.success('Course Assistant Activated!', {
@@ -101,7 +101,9 @@ export function ChatClientWrapper({
     // Show error toast for activation failure
     if (courseActivationParams.error === 'activation_failed') {
       toast.error('Activation Failed', {
-        description: courseActivationParams.errorMessage || 'There was an error activating the course assistant. Please try again.',
+        description:
+          courseActivationParams.errorMessage ||
+          'There was an error activating the course assistant. Please try again.',
         duration: 6000,
       });
     }

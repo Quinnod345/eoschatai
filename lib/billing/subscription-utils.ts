@@ -2,6 +2,7 @@ import 'server-only';
 
 import type Stripe from 'stripe';
 import { STRIPE_CONFIG } from '@/lib/server-constants';
+import { notifyDoubleBilling } from './notifications';
 
 /**
  * Check if a user has an active individual subscription
@@ -300,9 +301,27 @@ export async function warnMultipleSubscriptions(
       individualSubscriptions.map((s) => `${s.plan} (${s.id})`).join(', '),
     );
     console.warn(
-      '[subscription-utils] User may be experiencing double billing. Consider notifying them.',
+      '[subscription-utils] User may be experiencing double billing. Sending notification.',
     );
-    // TODO: Create in-app notification for user
+
+    // Send notification to user about double billing
+    try {
+      await notifyDoubleBilling(
+        userId,
+        individualSubscriptions.map((s) => ({
+          plan: s.plan,
+          amount: s.plan === 'business' ? 99 : 29, // Approximate amounts
+        })),
+      );
+      console.log(
+        `[subscription-utils] Sent double billing notification to user ${userId}`,
+      );
+    } catch (notifyError) {
+      console.error(
+        '[subscription-utils] Failed to send double billing notification:',
+        notifyError,
+      );
+    }
   }
 }
 

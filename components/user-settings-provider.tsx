@@ -47,8 +47,8 @@ export function UserSettingsProvider({
     notificationsEnabled: true,
     language: 'english',
     fontSize: 'medium',
-    disableGlassEffects: false,
-    disableEosGradient: false,
+    disableGlassEffects: true,
+    disableEosGradient: true,
   });
   const [loading, setLoading] = useState(true);
 

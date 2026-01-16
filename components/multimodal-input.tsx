@@ -6,6 +6,7 @@ import type React from 'react';
 import {
   useRef,
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   type Dispatch,
@@ -17,6 +18,7 @@ import { createPortal } from 'react-dom';
 import { toast } from '@/lib/toast-system';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 import GlassSurface from '@/components/GlassSurface';
+import { ErrorBoundary } from './error-boundary';
 
 import {
   ArrowUp,
@@ -37,12 +39,20 @@ import {
   Sparkles,
   ChevronRight,
   Mic,
+  Telescope,
+  Check,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { SuggestedActions } from './suggested-actions';
-import { LoaderIcon, XIcon } from './icons';
+import {
+  LoaderIcon,
+  XIcon,
+  PlusIcon,
+  GlobeIcon,
+  LockIcon,
+  UserIcon,
+} from './icons';
 import equal from 'fast-deep-equal';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -50,21 +60,33 @@ import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import { UsageLimitIndicator } from './usage-limit-indicator';
 import type { VisibilityType } from './visibility-selector';
-import { VisibilitySelector } from './visibility-selector';
 import type { Session } from 'next-auth';
 import VoiceFAB from './voice-fab';
 import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
-import {
-  NexusResearchSelector,
-  type ResearchMode,
-} from './nexus-research-selector';
+import type { ResearchMode } from './nexus-research-selector';
 import { createEmbeddedContentString } from '@/types/upload-content';
+import type { Persona, PersonaProfile } from '@/lib/db/schema';
+import { PersonaSubmenu } from '@/components/persona-submenu';
+import Image from 'next/image';
+import { getProfileTheme } from '@/lib/constants/profile-themes';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 import type { UpgradeFeature } from '@/types/upgrade';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu';
+import { useChatVisibility } from '@/hooks/use-chat-visibility';
 
 // Interface for @ mention resources - Enhanced version
 interface MentionResource {
@@ -355,6 +377,12 @@ function PureMultimodalInput({
   selectedResearchMode,
   onResearchModeChange,
   isChanging,
+  onPersonaSelect,
+  onCreatePersona,
+  onEditPersona,
+  onProfileSelect,
+  onCreateProfile,
+  onEditProfile,
 }: {
   chatId: string;
   input: UseChatHelpers['input'];
@@ -378,6 +406,12 @@ function PureMultimodalInput({
   selectedResearchMode?: ResearchMode;
   onResearchModeChange?: (mode: ResearchMode) => void;
   isChanging?: boolean;
+  onPersonaSelect?: (personaId: string | null) => void;
+  onCreatePersona?: () => void;
+  onEditPersona?: (persona: Persona) => void;
+  onProfileSelect?: (profileId: string | null) => void;
+  onCreateProfile?: () => void;
+  onEditProfile?: (profile: PersonaProfile) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -407,6 +441,74 @@ function PureMultimodalInput({
   // Predictive suggestions
   const [predictions, setPredictions] = useState<string[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
+
+  // Plus dropdown state (for persona submenu coordination)
+  const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
+
+  // Selected persona details for indicator
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<PersonaProfile | null>(
+    null,
+  );
+
+  // Fetch selected persona details when selectedPersonaId changes
+  useEffect(() => {
+    if (!selectedPersonaId) {
+      setSelectedPersona(null);
+      return;
+    }
+
+    // Fetch persona details
+    const fetchPersona = async () => {
+      try {
+        const response = await fetch('/api/personas');
+        if (response.ok) {
+          const data = await response.json();
+          const allPersonas = [
+            ...(data.systemPersonas || []),
+            ...(data.userPersonas || []),
+            ...(data.sharedPersonas || []),
+          ];
+          const persona = allPersonas.find(
+            (p: Persona) => p.id === selectedPersonaId,
+          );
+          setSelectedPersona(persona || null);
+        }
+      } catch (error) {
+        console.error('Error fetching persona:', error);
+      }
+    };
+
+    fetchPersona();
+  }, [selectedPersonaId]);
+
+  // Fetch selected profile details when selectedProfileId changes
+  useEffect(() => {
+    if (!selectedProfileId || !selectedPersonaId) {
+      setSelectedProfile(null);
+      return;
+    }
+
+    // Fetch profile details
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch(
+          `/api/personas/${selectedPersonaId}/profiles`,
+        );
+        if (response.ok) {
+          const profiles = await response.json();
+          const profile = profiles.find(
+            (p: PersonaProfile) => p.id === selectedProfileId,
+          );
+          setSelectedProfile(profile || null);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+
+    fetchProfile();
+  }, [selectedProfileId, selectedPersonaId]);
   const { settings: userSettings } = useUserSettings();
   const autocompleteEnabled = userSettings.autocompleteEnabled ?? true;
   const debouncedInput = useDebounce(input, 120);
@@ -429,15 +531,6 @@ function PureMultimodalInput({
   const chatLimit = entitlements?.features.chats_per_day ?? null;
   const chatsUsed = usageCounters?.chats_today ?? 0;
 
-  console.log('[MultimodalInput] Entitlements state:', {
-    entitlements,
-    usageCounters,
-    uploadLimit,
-    uploadsUsed,
-    chatLimit,
-    chatsUsed,
-  });
-
   // Hide predictions when messages change (chat is no longer new)
   useEffect(() => {
     if (messages.length > 0) {
@@ -445,6 +538,60 @@ function PureMultimodalInput({
       setPredictions([]);
     }
   }, [messages.length]);
+
+  // Track previous research mode to detect changes to nexus
+  const prevResearchModeRef = useRef(selectedResearchMode);
+  useEffect(() => {
+    // Trigger purple animation when switching TO nexus mode
+    if (
+      selectedResearchMode === 'nexus' &&
+      prevResearchModeRef.current !== 'nexus'
+    ) {
+      const element = document.getElementById(`textarea-motion-${chatId}`);
+      if (element) {
+        // Elastic shrink animation
+        element.animate(
+          [
+            { transform: 'scale(1)' },
+            { transform: 'scale(0.97)' },
+            { transform: 'scale(1)' },
+          ],
+          {
+            duration: 300,
+            easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          },
+        );
+
+        // Purple shadow explosion (additional glow that fades, base border persists via CSS)
+        element.animate(
+          [
+            {
+              filter: 'drop-shadow(0 0 0px rgba(147, 51, 234, 0))',
+              offset: 0,
+            },
+            {
+              filter: 'drop-shadow(0 0 30px rgba(147, 51, 234, 0.8))',
+              offset: 0.15,
+            },
+            {
+              filter: 'drop-shadow(0 0 60px rgba(147, 51, 234, 0.4))',
+              offset: 0.4,
+            },
+            {
+              filter: 'drop-shadow(0 0 0px rgba(147, 51, 234, 0))',
+              offset: 1,
+            },
+          ],
+          {
+            duration: 800,
+            delay: 50,
+            easing: 'ease-out',
+          },
+        );
+      }
+    }
+    prevResearchModeRef.current = selectedResearchMode;
+  }, [selectedResearchMode, chatId]);
 
   // Add regex to detect mentions in the input
   // Track if we've already shown the upgrade modal for this session
@@ -679,6 +826,152 @@ function PureMultimodalInput({
     };
   }, [showMentions, mentionFilter]);
 
+  // Add state to track multi-line status
+  const [isMultiLine, setIsMultiLine] = useState(false);
+
+  // Add flag to prevent height adjustment during submission
+  const isSubmittingRef = useRef(false);
+  // Disable textarea height/padding transitions during submit to prevent visible jump
+  const [disableInputTransitions, setDisableInputTransitions] = useState(false);
+  // Store locked height during submission
+  const lockedHeightRef = useRef<number | null>(null);
+  // Store the input value at submission time to prevent value prop changes during submission
+  const inputValueAtSubmitRef = useRef<string | null>(null);
+
+  // Maintain height lock when input changes during submission
+  // Use useLayoutEffect to apply lock SYNCHRONOUSLY before browser paint
+  useLayoutEffect(() => {
+    if (
+      isSubmittingRef.current &&
+      lockedHeightRef.current !== null &&
+      textareaRef.current
+    ) {
+      // Re-apply height lock SYNCHRONOUSLY before paint to prevent visual jump
+      textareaRef.current.style.height = `${lockedHeightRef.current}px`;
+      textareaRef.current.style.minHeight = `${lockedHeightRef.current}px`;
+      textareaRef.current.style.maxHeight = `${lockedHeightRef.current}px`;
+      textareaRef.current.style.transition = 'none';
+    }
+  }, [input]);
+
+  const adjustHeight = useCallback(() => {
+    // Skip height adjustment if we're in the middle of form submission
+    if (isSubmittingRef.current || !textareaRef.current) {
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    const computedStyle = window.getComputedStyle(textarea);
+
+    // Use a clone to measure height without affecting layout/animation
+    const clone = textarea.cloneNode() as HTMLTextAreaElement;
+
+    // Copy all relevant styles from the actual textarea
+    clone.style.fontSize = computedStyle.fontSize;
+    clone.style.fontFamily = computedStyle.fontFamily;
+    clone.style.fontWeight = computedStyle.fontWeight;
+    clone.style.letterSpacing = computedStyle.letterSpacing;
+    clone.style.lineHeight = computedStyle.lineHeight;
+    clone.style.whiteSpace = 'pre-wrap';
+    clone.style.wordWrap = 'break-word';
+    clone.style.boxSizing = computedStyle.boxSizing;
+    clone.style.border = computedStyle.border;
+
+    // Critical: Match width exactly using offsetWidth to account for borders/box-sizing
+    clone.style.width = `${textarea.offsetWidth}px`;
+
+    // Apply Single Line Styles to the clone for initial measurement
+    clone.style.height = 'auto';
+    clone.style.paddingTop = '8px'; // py-2 = 8px
+    clone.style.paddingBottom = '8px';
+
+    // In grid layout, checking for single line fit:
+    // If currently in multi-line (full width), we need to simulate the reduced width constraint
+    // by adding padding to the clone (simulating button space).
+    // If currently in single-line (reduced width), the offsetWidth is already correct.
+    if (isMultiLine) {
+      clone.style.paddingLeft = '48px'; // Simulate left button space
+      clone.style.paddingRight = '128px'; // Simulate right button space
+    } else {
+      clone.style.paddingLeft = '12px'; // pl-3
+      clone.style.paddingRight = '12px'; // pr-3
+    }
+
+    // Important: Hide the clone but keep it in the DOM for measurement
+    clone.style.position = 'absolute';
+    clone.style.visibility = 'hidden';
+    clone.style.overflow = 'hidden';
+    clone.style.top = '-9999px';
+    clone.style.left = '-9999px';
+
+    // Set value and ensure we measure accurately
+    clone.value = textarea.value;
+
+    // Append to body to ensure we can measure it
+    document.body.appendChild(clone);
+
+    // Force a reflow to ensure accurate measurement
+    void clone.offsetHeight;
+
+    // Measure content height in single-line configuration
+    const singleLineContentHeight = clone.scrollHeight;
+
+    // Determine if content exceeds single line threshold
+    // A single line with 8px vertical padding is 24px line-height + 16px padding = 40px
+    // Use a more conservative threshold (52px) to prevent premature switching
+    // This ensures we only switch when text is definitely wrapping
+    const isMulti = singleLineContentHeight > 52;
+    setIsMultiLine(isMulti);
+
+    // Now measure actual required height based on the target mode
+    if (isMulti) {
+      // Update clone to Multi Line styles for accurate height measurement
+      // px-4 = 16px, pt-3 = 12px, pb-3 = 12px (no longer need 48px for buttons)
+      clone.style.paddingLeft = '16px';
+      clone.style.paddingRight = '16px';
+      clone.style.paddingBottom = '12px';
+      clone.style.paddingTop = '12px';
+
+      // Force re-measurement with new padding
+      void clone.offsetHeight;
+    }
+
+    const targetContentHeight = clone.scrollHeight;
+
+    // Determine final height
+    let finalHeight = targetContentHeight;
+
+    if (isMulti) {
+      // Enforce minimum height for multi-line mode
+      // Just ensure it's enough for the text. Buttons are separate now.
+      finalHeight = Math.max(targetContentHeight, 52);
+    } else {
+      // Force compact height for single line
+      finalHeight = 40;
+    }
+
+    // Clean up clone
+    if (clone.parentElement) {
+      clone.parentElement.removeChild(clone);
+    }
+
+    // Get the computed max height
+    const maxHeightValue = computedStyle.maxHeight;
+    const maxHeight =
+      maxHeightValue && maxHeightValue !== 'none'
+        ? Number.parseFloat(maxHeightValue)
+        : Number.POSITIVE_INFINITY;
+
+    // Set height to content height or max height
+    if (finalHeight > maxHeight) {
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = 'auto';
+    } else {
+      textarea.style.height = `${finalHeight}px`;
+      textarea.style.overflowY = 'hidden';
+    }
+  }, []);
+
   // Handle @ mention detection
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -709,9 +1002,19 @@ function PureMultimodalInput({
         setShowMentions(false);
       }
 
-      adjustHeight();
+      // Call adjustHeight immediately for responsive UI
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        adjustHeight();
+      });
     },
-    [setInput, calculateCursorPosition],
+    [
+      setInput,
+      calculateCursorPosition,
+      autocompleteEnabled,
+      isNewChat,
+      adjustHeight,
+    ],
   );
 
   // Handle selecting a mention - enhanced with better UX feedback
@@ -845,43 +1148,14 @@ function PureMultimodalInput({
     if (textareaRef.current) {
       adjustHeight();
     }
-  }, []);
+  }, [adjustHeight]);
 
-  const adjustHeight = () => {
-    // Skip height adjustment if we're in the middle of form submission
-    if (isSubmittingRef.current || !textareaRef.current) {
+  const resetHeight = () => {
+    // Don't reset height if we're submitting - let submitForm handle it
+    if (isSubmittingRef.current) {
       return;
     }
 
-    const textarea = textareaRef.current;
-
-    // Reset height to measure content
-    textarea.style.height = 'auto';
-
-    // Get the computed max height (this resolves calc() and dvh values)
-    const computedStyle = window.getComputedStyle(textarea);
-    const maxHeightValue = computedStyle.maxHeight;
-    const maxHeight =
-      maxHeightValue && maxHeightValue !== 'none'
-        ? Number.parseFloat(maxHeightValue)
-        : Number.POSITIVE_INFINITY;
-
-    // Get the content height
-    const contentHeight = textarea.scrollHeight + 2;
-
-    // Set height to content height or max height, whichever is smaller
-    if (contentHeight > maxHeight) {
-      // Content exceeds viewport capacity - enable scrolling
-      textarea.style.height = `${maxHeight}px`;
-      textarea.style.overflowY = 'auto';
-    } else {
-      // Content fits - grow naturally without scrollbar
-      textarea.style.height = `${contentHeight}px`;
-      textarea.style.overflowY = 'hidden';
-    }
-  };
-
-  const resetHeight = () => {
     if (textareaRef.current) {
       const textarea = textareaRef.current;
       // Smoothly transition to minimum height
@@ -902,9 +1176,6 @@ function PureMultimodalInput({
       }, 200);
     }
   };
-
-  // Add flag to prevent height adjustment during submission
-  const isSubmittingRef = useRef(false);
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage(
     'input',
@@ -1006,6 +1277,11 @@ function PureMultimodalInput({
     isNewChat,
     autocompleteEnabled,
   ]);
+
+  const { visibilityType, setVisibilityType } = useChatVisibility({
+    chatId,
+    initialVisibilityType: selectedVisibilityType,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
@@ -1418,7 +1694,6 @@ function PureMultimodalInput({
             contentType = typeMap[ext || ''] || 'image/jpeg';
           }
 
-          console.log(`Image uploaded successfully: ${file.name}`);
           toast.success(`Image uploaded: ${file.name}`);
 
           // Return attachment - AI model will analyze directly
@@ -1641,12 +1916,40 @@ function PureMultimodalInput({
   );
 
   const submitForm = useCallback(() => {
-    // Set flag to prevent height adjustments during submission
+    // Set flag to prevent height adjustments during submission FIRST
     isSubmittingRef.current = true;
+
+    // Lock current height SYNCHRONOUSLY before any state updates
+    // This prevents the visual jump when input is cleared
+    if (textareaRef.current) {
+      const currentHeight = textareaRef.current.offsetHeight;
+      // Store locked height in ref so useEffect can maintain it
+      lockedHeightRef.current = currentHeight;
+      // Store current input value to prevent value prop changes during submission
+      inputValueAtSubmitRef.current = input;
+      // Lock both height and ensure it stays fixed
+      textareaRef.current.style.height = `${currentHeight}px`;
+      textareaRef.current.style.minHeight = `${currentHeight}px`;
+      textareaRef.current.style.maxHeight = `${currentHeight}px`;
+      // Prevent any transitions
+      textareaRef.current.style.transition = 'none';
+    }
+    setDisableInputTransitions(true);
 
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
-    let finalInputContent = input; // Start with current text input
+    // Use requestAnimationFrame to ensure height lock is applied before React processes state updates
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const currentHeight = textareaRef.current.offsetHeight;
+        textareaRef.current.style.height = `${currentHeight}px`;
+        textareaRef.current.style.minHeight = `${currentHeight}px`;
+        textareaRef.current.style.maxHeight = `${currentHeight}px`;
+      }
+    });
+
+    // Trim the input to remove any trailing/leading whitespace or newlines
+    let finalInputContent = input.trim(); // Start with trimmed text input
 
     // Mentions: Structured metadata only (no visible tags/context)
     let mentionMetadata: any[] = [];
@@ -1772,6 +2075,14 @@ function PureMultimodalInput({
     if (processingAudio.length > 0) {
       toast.error('Please wait for audio transcription to complete!');
       isSubmittingRef.current = false;
+      lockedHeightRef.current = null;
+      inputValueAtSubmitRef.current = null;
+      setDisableInputTransitions(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.minHeight = '';
+        textareaRef.current.style.maxHeight = '';
+        textareaRef.current.style.transition = '';
+      }
       return;
     }
 
@@ -1782,6 +2093,14 @@ function PureMultimodalInput({
         `Cannot send message with failed audio attachments. Please remove the failed audio files (${errorAudio.map((a) => a.name).join(', ')}) or try uploading in a supported format.`,
       );
       isSubmittingRef.current = false;
+      lockedHeightRef.current = null;
+      inputValueAtSubmitRef.current = null;
+      setDisableInputTransitions(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.minHeight = '';
+        textareaRef.current.style.maxHeight = '';
+        textareaRef.current.style.transition = '';
+      }
       return;
     }
 
@@ -1789,6 +2108,14 @@ function PureMultimodalInput({
     if (status !== 'ready') {
       toast.error('Please wait for the model to finish its response!');
       isSubmittingRef.current = false;
+      lockedHeightRef.current = null;
+      inputValueAtSubmitRef.current = null;
+      setDisableInputTransitions(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.minHeight = '';
+        textareaRef.current.style.maxHeight = '';
+        textareaRef.current.style.transition = '';
+      }
       return;
     }
 
@@ -1805,7 +2132,7 @@ function PureMultimodalInput({
               attachments.length > 0 ? attachments : undefined,
           },
         );
-        setInput(''); // Clear the input field as append doesn't do it automatically.
+        // Don't clear input state yet - will be cleared after height reset
       } else {
         // No processed content, use standard handleSubmit
         if (
@@ -1844,10 +2171,17 @@ function PureMultimodalInput({
               },
             );
           }
-          setInput('');
+          // Don't clear input state yet - will be cleared after height reset
         } else {
           // Nothing to send
           isSubmittingRef.current = false;
+          lockedHeightRef.current = null;
+          setDisableInputTransitions(false);
+          if (textareaRef.current) {
+            textareaRef.current.style.minHeight = '';
+            textareaRef.current.style.maxHeight = '';
+            textareaRef.current.style.transition = '';
+          }
           return;
         }
       }
@@ -1860,7 +2194,33 @@ function PureMultimodalInput({
       setSelectedMentions([]); // Clear mentions
       setShowPredictions(false); // Hide predictions after submit
       setPredictions([]); // Clear predictions
-      resetHeight();
+      // Delay shrinking input to avoid visible jump at submit moment
+      setTimeout(() => {
+        if (textareaRef.current) {
+          // First, manually reset height to minimum single-line height (40px)
+          // This avoids the 'auto' recalculation that resetHeight does
+          textareaRef.current.style.height = '40px';
+          textareaRef.current.style.minHeight = '';
+          textareaRef.current.style.maxHeight = '';
+          textareaRef.current.style.transition = 'height 0.2s ease';
+          textareaRef.current.style.overflowY = 'hidden';
+
+          // Clear locked height ref
+          lockedHeightRef.current = null;
+
+          // Re-enable transitions
+          setDisableInputTransitions(false);
+
+          // Now clear the ref and input state together
+          // Use double RAF to ensure height is set before value prop changes
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              inputValueAtSubmitRef.current = null;
+              setInput('');
+            });
+          });
+        }
+      }, 200);
 
       // Reset the submission flag after cleanup
       setTimeout(() => {
@@ -1873,6 +2233,14 @@ function PureMultimodalInput({
     } catch (error) {
       // Reset flag on error too
       isSubmittingRef.current = false;
+      lockedHeightRef.current = null;
+      inputValueAtSubmitRef.current = null;
+      if (textareaRef.current) {
+        textareaRef.current.style.minHeight = '';
+        textareaRef.current.style.maxHeight = '';
+        textareaRef.current.style.transition = '';
+      }
+      setDisableInputTransitions(false);
       toast.error('Failed to send message. Please try again.');
     }
   }, [
@@ -2157,7 +2525,16 @@ function PureMultimodalInput({
         (item) => item.type.indexOf('image') !== -1,
       );
 
-      if (imageItems.length === 0) return; // No image items found
+      if (imageItems.length === 0) {
+        // No image items found - might be text paste
+        // Call adjustHeight after paste is processed to handle the pasted content
+        setTimeout(() => {
+          requestAnimationFrame(() => {
+            adjustHeight();
+          });
+        }, 10);
+        return;
+      }
 
       // Prevent default paste behavior for images
       e.preventDefault();
@@ -2213,7 +2590,7 @@ function PureMultimodalInput({
           setUploadQueue([]);
         });
     },
-    [status, uploadFile, setAttachments],
+    [status, uploadFile, setAttachments, adjustHeight],
   );
 
   return (
@@ -2284,7 +2661,7 @@ function PureMultimodalInput({
         createPortal(
           <div
             ref={mentionsRef}
-            className="mention-dropdown bg-white dark:bg-zinc-900 shadow-xl rounded-lg border border-zinc-200 dark:border-zinc-700 w-96 max-h-96 overflow-y-auto"
+            className="mention-dropdown bg-popover shadow-xl rounded-lg border border-border w-96 max-h-96 overflow-y-auto"
             style={{
               position: 'fixed', // Fixed positioning relative to viewport
               top: `${cursorPosition.top}px`,
@@ -2292,10 +2669,10 @@ function PureMultimodalInput({
               transform: 'translateY(-100%)', // Move up by its own height
               boxShadow:
                 '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
-              zIndex: 999999, // Very high z-index since it's in document body
+              zIndex: 'var(--z-toast)', // High z-index since it's in document body
             }}
           >
-            <div className="p-3 text-sm font-medium border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-t-lg">
+            <div className="p-3 text-sm font-medium border-b border-border bg-muted rounded-t-lg">
               <div className="flex items-center justify-between">
                 <div>
                   Searching:{' '}
@@ -2445,18 +2822,18 @@ function PureMultimodalInput({
                 </button>
               ))}
 
-            <div className="p-2 text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 rounded-b-lg">
+            <div className="p-2 text-xs text-muted-foreground border-t border-border bg-muted rounded-b-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mr-1">
+                  <kbd className="px-2 py-1 bg-background rounded border border-border mr-1">
                     ↑↓
                   </kbd>
                   Navigate
-                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
+                  <kbd className="px-2 py-1 bg-background rounded border border-border mx-1">
                     Enter
                   </kbd>
                   Select
-                  <kbd className="px-2 py-1 bg-white dark:bg-zinc-700 rounded border border-zinc-300 dark:border-zinc-600 mx-1">
+                  <kbd className="px-2 py-1 bg-background rounded border border-border mx-1">
                     Esc
                   </kbd>
                   Close
@@ -2538,21 +2915,6 @@ function PureMultimodalInput({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Hide big greeting/suggestions when embedded in the composer side panel */}
-      {!className?.includes('composer-embedded') &&
-        messages.length === 0 &&
-        attachments.length === 0 &&
-        uploadQueue.length === 0 &&
-        pdfContents.length === 0 &&
-        documentContents.length === 0 &&
-        audioContents.length === 0 && (
-          <SuggestedActions
-            append={append}
-            chatId={chatId}
-            selectedVisibilityType={selectedVisibilityType}
-          />
-        )}
 
       <input
         type="file"
@@ -2952,72 +3314,82 @@ function PureMultimodalInput({
 
         {/* Predictive suggestions list - positioned ABOVE the textarea */}
         {showPredictions && predictions.length > 0 && !showMentions && (
-          <div className="mb-2">
-            <div className="flex flex-col gap-1.5">
-              {predictions.slice(0, 3).map((p) => (
-                <motion.div
-                  key={p}
-                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                  transition={{
-                    duration: 0.18,
-                    ease: 'easeOut',
-                  }}
-                >
-                  <GlassSurface
-                    width="100%"
-                    height="auto"
-                    borderRadius={10}
-                    displace={2}
-                    backgroundOpacity={0.2}
-                    blur={10}
-                    insetShadowIntensity={0.2}
-                    className="cursor-pointer hover:scale-[1.02] transition-transform"
-                  >
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        // Insert remainder completion (API returns remainder strings)
-                        const current = input || '';
-                        const remainder = p;
-                        const joiner =
-                          current.endsWith(' ') || remainder.startsWith(' ')
-                            ? ''
-                            : ' ';
-                        setInput(current + joiner + remainder);
-                        setShowPredictions(false);
-                        setPredictions([]);
-                        // Focus back on textarea
-                        textareaRef.current?.focus();
-                        try {
-                          await fetch('/api/predictions/rank', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phrase: p }),
-                          });
-                        } catch {}
-                      }}
-                      className="text-left px-3 py-2 bg-transparent border-0 shadow-none w-full text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <span className="text-zinc-400 dark:text-zinc-500">
-                          →
-                        </span>
-                        <span>{p}</span>
-                      </span>
-                    </button>
-                  </GlassSurface>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+          <div className="hidden">{/* Hidden here, moved below input */}</div>
         )}
 
         <motion.div
           key={`textarea-${chatId}`}
           initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+          animate={
+            isNewChat && input.length === 0 && attachments.length === 0
+              ? { opacity: 1, scale: 1 }
+              : { opacity: 1, scale: 1 }
+          }
+          onClick={(e) => {
+            // Don't trigger animation if clicking on dropdown menus or buttons
+            const target = e.target as HTMLElement;
+            if (
+              target.closest('[role="menu"]') ||
+              target.closest('[data-radix-popper-content-wrapper]') ||
+              target.closest('button') ||
+              target.closest('[role="menuitem"]') ||
+              isPlusDropdownOpen
+            ) {
+              return;
+            }
+
+            if (isNewChat && input.length === 0 && attachments.length === 0) {
+              const element = document.getElementById(
+                `textarea-motion-${chatId}`,
+              );
+              if (element) {
+                // Elastic shrink animation (faster)
+                element.animate(
+                  [
+                    { transform: 'scale(1)' },
+                    { transform: 'scale(0.97)' }, // Slightly more shrink for elastic feel
+                    { transform: 'scale(1)' },
+                  ],
+                  {
+                    duration: 300, // Faster duration for the physical movement
+                    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)', // Elastic bounce
+                  },
+                );
+
+                // Shadow explosion (starts slightly later, lasts longer)
+                element.animate(
+                  [
+                    {
+                      filter: 'drop-shadow(0 0 0px rgba(255, 118, 0, 0))',
+                      offset: 0,
+                    },
+                    {
+                      filter: 'drop-shadow(0 0 20px rgba(255, 118, 0, 0.6))',
+                      offset: 0.2,
+                    },
+                    {
+                      filter: 'drop-shadow(0 0 60px rgba(255, 118, 0, 0))',
+                      offset: 1,
+                    },
+                  ],
+                  {
+                    duration: 800, // Slower expansion
+                    delay: 50, // Slight delay to sync with the "hit"
+                    easing: 'ease-out',
+                  },
+                );
+              }
+            }
+          }}
+          id={`textarea-motion-${chatId}`}
+          style={{
+            borderRadius: 24,
+          }}
+          className={cn(
+            'transition-all duration-300',
+            selectedResearchMode === 'nexus' &&
+              'ring-1 ring-purple-500/40 shadow-[0_0_15px_2px_rgba(147,51,234,0.12),0_0_30px_4px_rgba(147,51,234,0.06)]',
+          )}
           transition={{
             duration: 0.3,
             delay: 0.05,
@@ -3027,83 +3399,496 @@ function PureMultimodalInput({
           <GlassSurface
             width="100%"
             height="auto"
-            borderRadius={16}
+            borderRadius={24}
             displace={6}
             backgroundOpacity={0.25}
             blur={11}
             insetShadowIntensity={0.3}
-            className="w-full"
+            className="w-full relative overflow-hidden"
           >
-            <Textarea
-              data-testid="multimodal-input"
-              ref={textareaRef}
-              placeholder={
-                selectedMentions.length > 0
-                  ? 'Continue your message...'
-                  : 'Ask Anything...'
-              }
-              value={input}
-              onChange={handleInputChange}
-              onPaste={handlePaste}
-              onDragOver={handleTextareaDragOver}
-              onKeyDown={(event) => {
-                // Handle @ mention dropdown navigation
-                if (showMentions) {
-                  handleMentionKeyDown(event);
-                  return;
-                }
-
-                // Normal enter key handling
-                if (
-                  event.key === 'Enter' &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault();
-
-                  if (status !== 'ready') {
-                    toast.error(
-                      'Please wait for the model to finish its response!',
-                    );
-                  } else {
-                    // Submit the form manually
-                    submitForm();
-                  }
-                }
-              }}
+            <div
               className={cx(
-                'min-h-[24px] resize-none rounded-2xl !text-base',
-                'bg-transparent border-0 shadow-none',
-                'transition-all duration-200 ease-in-out',
-                'custom-scrollbar',
-                isDragging && 'pointer-events-none',
-                className,
+                'grid w-full transition-all duration-200 ease-in-out',
+                // Expand layout when multiline OR when persona/profile is selected (to show indicator)
+                isMultiLine || selectedPersona || selectedProfile
+                  ? "grid-cols-[auto_1fr_auto] grid-rows-[auto_auto] [grid-template-areas:'primary_primary_primary'_'leading_footer_trailing'] gap-y-2 p-2"
+                  : "grid-cols-[auto_1fr_auto] [grid-template-areas:'leading_primary_trailing'] items-center",
               )}
-              style={{
-                maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
-                overflowY: 'hidden', // Will be dynamically set by adjustHeight
-              }}
-              rows={2}
-              autoFocus
-            />
+            >
+              <div
+                style={{ gridArea: 'primary' }}
+                className="relative w-full min-w-0"
+              >
+                <Textarea
+                  data-testid="multimodal-input"
+                  ref={textareaRef}
+                  placeholder={
+                    selectedMentions.length > 0
+                      ? 'Continue your message...'
+                      : 'Ask Anything...'
+                  }
+                  value={
+                    inputValueAtSubmitRef.current !== null
+                      ? inputValueAtSubmitRef.current
+                      : input
+                  }
+                  onChange={handleInputChange}
+                  onPaste={handlePaste}
+                  onDragOver={handleTextareaDragOver}
+                  onKeyDown={(event) => {
+                    // Handle @ mention dropdown navigation
+                    if (showMentions) {
+                      handleMentionKeyDown(event);
+                      return;
+                    }
+
+                    // Normal enter key handling
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault();
+
+                      if (status !== 'ready') {
+                        toast.error(
+                          'Please wait for the model to finish its response!',
+                        );
+                      } else {
+                        // Submit the form manually
+                        submitForm();
+                      }
+                    }
+                  }}
+                  className={cx(
+                    'min-h-[40px] resize-none rounded-2xl !text-base',
+                    'bg-transparent border-0 shadow-none',
+                    disableInputTransitions
+                      ? 'transition-none'
+                      : 'transition-[height,padding] duration-200 ease-in-out',
+                    'custom-scrollbar',
+                    'px-3 py-2',
+                    isDragging && 'pointer-events-none',
+                    className,
+                  )}
+                  style={{
+                    maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
+                    overflowY: 'hidden',
+                  }}
+                  rows={1}
+                  autoFocus
+                />
+              </div>
+
+              {/* Leading Area: Attach Button + Settings Menu */}
+              <div
+                style={{ gridArea: 'leading' }}
+                className={cx(
+                  'flex items-center gap-1.5 pl-2 z-20',
+                  isMultiLine || selectedPersona || selectedProfile
+                    ? 'pb-1'
+                    : '',
+                )}
+              >
+                {/* Attach Dropdown */}
+                <DropdownMenu
+                  open={isPlusDropdownOpen}
+                  onOpenChange={setIsPlusDropdownOpen}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'rounded-xl p-2 h-9 w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200',
+                        selectedPersonaId &&
+                          'ring-2 ring-eos-orange/30 bg-eos-orange/5',
+                      )}
+                    >
+                      <PlusIcon size={18} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="top"
+                    className="w-56 z-[200]"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                    onPointerDownOutside={(e) => {
+                      // Prevent clicks inside submenus from triggering focus changes
+                      const target = e.target as HTMLElement;
+                      if (
+                        target.closest('[role="menu"]') ||
+                        target.closest('[data-radix-popper-content-wrapper]')
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <Paperclip className="mr-2 size-4" />
+                      <span>Upload File</span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Research Mode Submenu */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        {selectedResearchMode === 'nexus' ? (
+                          <Telescope className="mr-2 size-4 text-purple-500" />
+                        ) : (
+                          <Search className="mr-2 size-4" />
+                        )}
+                        <span>Research Mode</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              onResearchModeChange?.('off');
+                            }}
+                            className="gap-2"
+                          >
+                            <Search className="size-4" />
+                            <span>Standard</span>
+                            {selectedResearchMode === 'off' && (
+                              <Check className="ml-auto size-4" />
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              onResearchModeChange?.('nexus');
+                            }}
+                            className="gap-2"
+                          >
+                            <Telescope className="size-4 text-purple-500" />
+                            <span>Nexus Research</span>
+                            {selectedResearchMode === 'nexus' && (
+                              <Check className="ml-auto size-4" />
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+
+                    {/* AI Persona Submenu */}
+                    {onPersonaSelect && onCreatePersona && onEditPersona && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <PersonaSubmenu
+                          selectedPersonaId={selectedPersonaId}
+                          selectedProfileId={selectedProfileId}
+                          onPersonaSelect={onPersonaSelect}
+                          onCreatePersona={onCreatePersona}
+                          onEditPersona={onEditPersona}
+                          onProfileSelect={onProfileSelect}
+                          onCreateProfile={onCreateProfile}
+                          onEditProfile={onEditProfile}
+                          messages={messages}
+                          onCloseDropdown={() => setIsPlusDropdownOpen(false)}
+                        />
+                      </>
+                    )}
+
+                    {/* Visibility Submenu */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        {selectedVisibilityType === 'public' ? (
+                          <GlobeIcon size={16} />
+                        ) : (
+                          <LockIcon size={16} />
+                        )}
+                        <span className="ml-2">Visibility</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setVisibilityType('private');
+                            }}
+                            className="gap-2"
+                          >
+                            <LockIcon size={16} />
+                            <span>Private</span>
+                            {selectedVisibilityType === 'private' && (
+                              <Check className="ml-auto size-4" />
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setVisibilityType('public');
+                            }}
+                            className="gap-2"
+                          >
+                            <GlobeIcon size={16} />
+                            <span>Public</span>
+                            {selectedVisibilityType === 'public' && (
+                              <Check className="ml-auto size-4" />
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Footer Area: Shows selected persona/profile indicators and other context */}
+              {(isMultiLine || selectedPersona || selectedProfile) && (
+                <div
+                  style={{ gridArea: 'footer' }}
+                  className="min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none ml-2"
+                >
+                  {/* Selected Persona Indicator */}
+                  <AnimatePresence mode="popLayout">
+                    {selectedPersona && (
+                      <motion.div
+                        key={`persona-${selectedPersona.id}`}
+                        initial={{ opacity: 0, scale: 0.9, x: -8 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, x: -8 }}
+                        transition={{
+                          type: 'spring',
+                          stiffness: 400,
+                          damping: 25,
+                        }}
+                        whileHover={{ scale: 1.02 }}
+                        className="flex-shrink-0"
+                      >
+                        <div className="group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full bg-gradient-to-r from-eos-orange/15 to-eos-orange/5 dark:from-eos-orange/25 dark:to-eos-orange/10 text-eos-orange dark:text-eos-orangeLight text-[13px] font-medium border border-eos-orange/25 dark:border-eos-orange/35 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-eos-orange/40 transition-all duration-200">
+                          <span className="flex items-center gap-1.5">
+                            {selectedPersona.iconUrl ? (
+                              <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-eos-orange/20">
+                                <Image
+                                  src={selectedPersona.iconUrl}
+                                  alt=""
+                                  width={20}
+                                  height={20}
+                                  className="object-cover w-full h-full"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-eos-orange to-eos-orangeLight flex items-center justify-center flex-shrink-0 shadow-sm text-white">
+                                <UserIcon size={10} />
+                              </div>
+                            )}
+                            <span className="font-medium max-w-[140px] truncate">
+                              {selectedPersona.name}
+                            </span>
+                          </span>
+                          {onPersonaSelect && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPersonaSelect(null);
+                              }}
+                              className="ml-0.5 text-eos-orange/50 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
+                              aria-label="Clear persona selection"
+                              title="Use Default EOS AI"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Selected Profile Indicator */}
+                    {selectedProfile &&
+                      (() => {
+                        const theme = getProfileTheme(selectedProfile.id);
+                        const textColorClass = theme.gradient.from.replace(
+                          'from-',
+                          'text-',
+                        );
+                        return (
+                          <motion.div
+                            key={`profile-${selectedProfile.id}`}
+                            initial={{ opacity: 0, scale: 0.9, x: -8 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, x: -8 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 400,
+                              damping: 25,
+                              delay: 0.05,
+                            }}
+                            whileHover={{ scale: 1.02 }}
+                            className="flex-shrink-0"
+                          >
+                            <div
+                              className={cn(
+                                'group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full text-[13px] font-medium border backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-200',
+                                theme.borderColor,
+                                textColorClass,
+                                'bg-gradient-to-r from-white/80 to-white/40 dark:from-zinc-800/80 dark:to-zinc-800/40',
+                                'hover:border-opacity-60',
+                              )}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <div
+                                  className={cn(
+                                    'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 shadow-sm',
+                                    theme.iconBg,
+                                  )}
+                                >
+                                  {selectedProfile.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="font-medium max-w-[140px] truncate">
+                                  {selectedProfile.name}
+                                </span>
+                              </span>
+                              {onProfileSelect && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onProfileSelect(null);
+                                  }}
+                                  className="ml-0.5 opacity-50 hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
+                                  aria-label="Clear profile selection"
+                                  title="Remove Profile"
+                                >
+                                  <X className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })()}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Trailing Area: Voice, Stop, Send */}
+              <div
+                style={{ gridArea: 'trailing' }}
+                className={cx(
+                  'flex items-center gap-1.5 pr-2 z-20',
+                  isMultiLine || selectedPersona || selectedProfile
+                    ? 'pb-1'
+                    : '',
+                )}
+              >
+                {status === 'submitted' ? (
+                  <motion.div
+                    key={`stop-${chatId}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                  >
+                    <StopButton
+                      stop={stop}
+                      setMessages={setMessages}
+                      chatId={chatId}
+                    />
+                  </motion.div>
+                ) : (
+                  <>
+                    {session?.user && (
+                      <motion.div
+                        key={`voice-${chatId}`}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                      >
+                        <VoiceFAB
+                          variant="inline"
+                          size="sm"
+                          selectedModelId={selectedModelId}
+                          selectedProviderId={selectedProviderId}
+                          selectedPersonaId={selectedPersonaId || undefined}
+                          selectedProfileId={selectedProfileId || undefined}
+                          chatId={chatId}
+                          onAppendMessage={append}
+                          onUpdateMessages={setMessages}
+                        />
+                      </motion.div>
+                    )}
+                    <motion.div
+                      key={`send-${chatId}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                    >
+                      <SendButton
+                        input={input}
+                        submitForm={submitForm}
+                        uploadQueue={uploadQueue}
+                        attachmentsCount={attachmentsCount}
+                        pdfCount={pdfCount}
+                        docCount={docCount}
+                        audioCount={audioCount}
+                        audioProcessing={audioProcessing}
+                        handleSubmit={handleSubmit}
+                        attachments={attachments}
+                      />
+                    </motion.div>
+                  </>
+                )}
+              </div>
+            </div>
           </GlassSurface>
         </motion.div>
 
-        {/* Bottom toolbar (flow layout, responsive) */}
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        {/* Predictive suggestions list - positioned BELOW the textarea */}
+        {showPredictions && predictions.length > 0 && !showMentions && (
+          <div className="absolute top-full left-0 right-0 mt-2 z-10">
+            <div className="flex flex-wrap gap-2 justify-start px-2">
+              {predictions.slice(0, 3).map((p) => (
+                <motion.button
+                  key={p}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    // Insert remainder completion
+                    const current = input || '';
+                    const remainder = p;
+                    const joiner =
+                      current.endsWith(' ') || remainder.startsWith(' ')
+                        ? ''
+                        : ' ';
+                    setInput(current + joiner + remainder);
+                    setShowPredictions(false);
+                    setPredictions([]);
+                    textareaRef.current?.focus();
+                    try {
+                      await fetch('/api/predictions/rank', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phrase: p }),
+                      });
+                    } catch {}
+                  }}
+                  className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 bg-white/50 dark:bg-zinc-800/50 hover:bg-white/80 dark:hover:bg-zinc-800/80 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-700/50 rounded-full transition-all shadow-sm"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{p}</span>
+                    <span className="text-zinc-400 dark:text-zinc-500 text-xs">
+                      →
+                    </span>
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom toolbar (Secondary controls only) */}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
-            <motion.div
-              key={`attach-${chatId}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{
-                duration: 0.25,
-                delay: 0.15,
-                ease: [0.19, 1, 0.22, 1],
-              }}
-            >
-              <AttachmentsButton fileInputRef={fileInputRef} status={status} />
-            </motion.div>
             {/* Only show usage chips for free plan users */}
             {user?.plan === 'free' && (
               <UsageChip
@@ -3113,121 +3898,11 @@ function PureMultimodalInput({
                 title="Context uploads used"
               />
             )}
-
-            {!isReadonly && !isEmbedded && (
-              <motion.div
-                key={`visibility-${chatId}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  duration: 0.25,
-                  delay: 0.18,
-                  ease: [0.19, 1, 0.22, 1],
-                }}
-              >
-                <VisibilitySelector
-                  chatId={chatId}
-                  selectedVisibilityType={selectedVisibilityType}
-                  className="h-[30px] text-xs"
-                />
-              </motion.div>
-            )}
-
-            {!isReadonly &&
-              !isEmbedded &&
-              selectedResearchMode !== undefined &&
-              onResearchModeChange && (
-                <motion.div
-                  key={`nexus-${chatId}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: 0.21,
-                    ease: [0.19, 1, 0.22, 1],
-                  }}
-                >
-                  <NexusResearchSelector
-                    chatId={chatId}
-                    selectedResearchMode={selectedResearchMode}
-                    onResearchModeChange={onResearchModeChange}
-                    className="h-[30px] text-xs"
-                  />
-                </motion.div>
-              )}
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
             {/* Only show usage chips for free plan users */}
             <UsageLimitIndicator />
-            {status === 'submitted' ? (
-              <motion.div
-                key={`stop-${chatId}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  duration: 0.25,
-                  delay: 0.27,
-                  ease: [0.19, 1, 0.22, 1],
-                }}
-              >
-                <StopButton
-                  stop={stop}
-                  setMessages={setMessages}
-                  chatId={chatId}
-                />
-              </motion.div>
-            ) : (
-              <>
-                {session?.user && (
-                  <motion.div
-                    key={`voice-${chatId}`}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{
-                      duration: 0.25,
-                      delay: 0.27,
-                      ease: [0.19, 1, 0.22, 1],
-                    }}
-                  >
-                    <VoiceFAB
-                      variant="inline"
-                      size="sm"
-                      selectedModelId={selectedModelId}
-                      selectedProviderId={selectedProviderId}
-                      selectedPersonaId={selectedPersonaId || undefined}
-                      selectedProfileId={selectedProfileId || undefined}
-                      chatId={chatId}
-                      onAppendMessage={append}
-                      onUpdateMessages={setMessages}
-                    />
-                  </motion.div>
-                )}
-                <motion.div
-                  key={`send-${chatId}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: 0.3,
-                    ease: [0.19, 1, 0.22, 1],
-                  }}
-                >
-                  <SendButton
-                    input={input}
-                    submitForm={submitForm}
-                    uploadQueue={uploadQueue}
-                    attachmentsCount={attachmentsCount}
-                    pdfCount={pdfCount}
-                    docCount={docCount}
-                    audioCount={audioCount}
-                    audioProcessing={audioProcessing}
-                    handleSubmit={handleSubmit}
-                    attachments={attachments}
-                  />
-                </motion.div>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -3235,7 +3910,7 @@ function PureMultimodalInput({
   );
 }
 
-export const MultimodalInput = memo(
+const MemoizedMultimodalInput = memo(
   PureMultimodalInput,
   (prevProps, nextProps) => {
     if (prevProps.input !== nextProps.input) return false;
@@ -3257,6 +3932,31 @@ export const MultimodalInput = memo(
   },
 );
 
+// Wrap MultimodalInput with error boundary to prevent input errors from crashing the chat
+export const MultimodalInput: React.FC<
+  Parameters<typeof PureMultimodalInput>[0]
+> = (props) => (
+  <ErrorBoundary
+    context="Chat Input"
+    fallback={(error, reset) => (
+      <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5 mx-4 mb-4">
+        <p className="text-sm text-muted-foreground">
+          Input component error. Please refresh the page.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-xs text-primary hover:underline mt-2"
+        >
+          Refresh
+        </button>
+      </div>
+    )}
+  >
+    <MemoizedMultimodalInput {...props} />
+  </ErrorBoundary>
+);
+
 function PureAttachmentsButton({
   fileInputRef,
   status,
@@ -3267,7 +3967,7 @@ function PureAttachmentsButton({
   return (
     <Button
       data-testid="attachments-button"
-      className="rounded-md rounded-bl-lg p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200"
+      className="rounded-xl p-2 h-9 w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200"
       onClick={(event) => {
         event.preventDefault();
         fileInputRef.current?.click();
@@ -3275,7 +3975,7 @@ function PureAttachmentsButton({
       disabled={status !== 'ready'}
       variant="ghost"
     >
-      <Paperclip className="size-3.5" />
+      <Paperclip className="size-4 text-muted-foreground" />
     </Button>
   );
 }
@@ -3293,7 +3993,6 @@ function UsageChip({
   limit: number | null;
   title?: string;
 }) {
-  console.log(`[UsageChip] ${label}:`, { used, limit });
   if (!limit || limit <= 0) return null;
 
   const isExceeded = used >= limit;
@@ -3355,7 +4054,6 @@ function PureStopButton({
         console.error('Failed to stop stream on server:', response.statusText);
       } else {
         const data = await response.json();
-        console.log('Stream stopped successfully:', data);
       }
 
       // Force a re-render to ensure UI updates
@@ -3372,17 +4070,17 @@ function PureStopButton({
   return (
     <Button
       data-testid="stop-button"
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600 transition-all"
+      className="rounded-full p-2 h-9 w-9 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 bg-background shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200"
       onClick={handleStop}
       disabled={isStopping}
       title="Stop generation"
     >
       {isStopping ? (
-        <div className="size-4 animate-spin">
+        <div className="size-4 animate-spin text-zinc-500">
           <LoaderIcon size={16} />
         </div>
       ) : (
-        <Square className="size-4" />
+        <Square className="size-4 text-zinc-500 fill-zinc-500" />
       )}
     </Button>
   );
@@ -3426,7 +4124,12 @@ function PureSendButton({
   return (
     <Button
       data-testid="send-button"
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+      className={cx(
+        'rounded-full p-2 h-9 w-9 flex items-center justify-center transition-all duration-200 shadow-sm',
+        isDisabled
+          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 cursor-not-allowed'
+          : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md hover:scale-105 active:scale-95',
+      )}
       onClick={(event) => {
         event.preventDefault();
         if (!isDisabled) {
@@ -3444,7 +4147,7 @@ function PureSendButton({
               : 'Send message'
       }
     >
-      <ArrowUp className="size-4" />
+      <ArrowUp className="size-5" />
     </Button>
   );
 }

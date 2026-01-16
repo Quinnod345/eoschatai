@@ -29,6 +29,7 @@ import type { BillingInterval } from '@/lib/stripe/pricing';
 import { getStripeClient } from '@/lib/stripe/client';
 import { trackSubscriptionActivated } from '@/lib/analytics';
 import { updateOrgSeatCount } from '@/lib/organizations/seat-enforcement';
+import { notifyPaymentRequiresAction } from './notifications';
 
 export type CheckoutRequestPayload = {
   plan: 'pro' | 'business';
@@ -399,7 +400,9 @@ const applyBusinessSubscription = async (
       await updateUserPlan(resolvedUserId, 'business', customerId);
       await recomputeUserEntitlements(resolvedUserId);
       // Reset daily usage counters when upgrading to premium
-      const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
+      const { resetUserDailyUsageCounters } = await import(
+        '@/lib/entitlements'
+      );
       await resetUserDailyUsageCounters(resolvedUserId);
       await trackSubscriptionActivated({
         plan: 'business',
@@ -430,13 +433,13 @@ const applyBusinessSubscription = async (
   }
 
   await recomputeEntitlementsForUsers(memberIds);
-  
+
   // Reset daily usage counters for all org members when upgrading to premium
   const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
   for (const memberId of memberIds) {
     await resetUserDailyUsageCounters(memberId);
   }
-  
+
   await trackSubscriptionActivated({
     plan: 'business',
     org_id: orgId,
@@ -841,7 +844,28 @@ export const handleStripeWebhook = async (event: Stripe.Event) => {
       console.log(
         `[stripe] Payment ${paymentIntent.id} requires action (3D Secure). User must complete authentication.`,
       );
-      // TODO: Send notification to user
+
+      // Send notification to user if we can identify them
+      try {
+        if (paymentIntent.customer) {
+          const customerId =
+            typeof paymentIntent.customer === 'string'
+              ? paymentIntent.customer
+              : paymentIntent.customer.id;
+          const userRecord = await findUserByStripeCustomerId(customerId);
+          if (userRecord) {
+            await notifyPaymentRequiresAction(userRecord.id, paymentIntent.id);
+            console.log(
+              `[stripe] Sent 3D Secure notification to user ${userRecord.id}`,
+            );
+          }
+        }
+      } catch (notifyError) {
+        console.error(
+          '[stripe] Failed to send 3D Secure notification:',
+          notifyError,
+        );
+      }
       break;
     }
     case 'payment_intent.succeeded': {

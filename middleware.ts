@@ -2,6 +2,75 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { guestRegex, isDevelopmentEnvironment } from './lib/constants';
 
+/**
+ * Validates that the request originates from the same origin (CSRF protection)
+ * Returns true if valid, false if the request should be rejected
+ */
+function validateOrigin(request: NextRequest): boolean {
+  const method = request.method.toUpperCase();
+  
+  // Only validate state-changing methods
+  if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    return true;
+  }
+
+  // Skip CSRF validation for auth endpoints (they have their own protection)
+  if (request.nextUrl.pathname.startsWith('/api/auth')) {
+    return true;
+  }
+
+  // Skip for webhook endpoints that need to receive external requests
+  if (
+    request.nextUrl.pathname.startsWith('/api/webhooks') ||
+    request.nextUrl.pathname.startsWith('/api/stripe/webhook')
+  ) {
+    return true;
+  }
+
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  
+  // Get the host from the request
+  const host = request.headers.get('host');
+  const expectedOrigins = [
+    `https://${host}`,
+    `http://${host}`,
+  ];
+
+  // In development, also allow localhost variations
+  if (isDevelopmentEnvironment) {
+    expectedOrigins.push(
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    );
+  }
+
+  // Check origin header first (most reliable)
+  if (origin) {
+    return expectedOrigins.some(expected => origin === expected);
+  }
+
+  // Fall back to referer header
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer);
+      const refererOrigin = refererUrl.origin;
+      return expectedOrigins.some(expected => refererOrigin === expected);
+    } catch {
+      return false;
+    }
+  }
+
+  // If neither header is present, reject the request for API routes
+  // (Some older browsers may not send origin, but they should send referer)
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return false;
+  }
+
+  // For non-API routes, allow (could be server-side navigation)
+  return true;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -28,6 +97,17 @@ export async function middleware(request: NextRequest) {
     // Skip auth checks and allow access to all routes
     // Meticulous will automatically stub network responses
     return NextResponse.next();
+  }
+
+  // CSRF protection: validate origin for state-changing requests
+  if (!validateOrigin(request)) {
+    return new NextResponse(
+      JSON.stringify({ error: 'CSRF validation failed' }),
+      { 
+        status: 403, 
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }
 
   // Public routes that are always accessible without authentication

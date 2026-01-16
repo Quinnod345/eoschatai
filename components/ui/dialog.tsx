@@ -15,14 +15,20 @@ const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
 
+interface DialogOverlayProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> {
+  nested?: boolean;
+}
+
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+  DialogOverlayProps
+>(({ className, nested, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-[100] bg-black/20 backdrop-blur-[8px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'fixed inset-0 bg-black/20 backdrop-blur-[8px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      nested ? 'z-nested-modal-overlay' : 'z-modal-overlay',
       className,
     )}
     {...props}
@@ -33,17 +39,21 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   hideCloseButton?: boolean;
+  nested?: boolean;
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideCloseButton = false, ...props }, ref) => (
+>(({ className, children, hideCloseButton = false, nested = false, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay nested={nested} />
     <DialogPrimitive.Content
       ref={ref}
-      className="fixed inset-0 z-[110] grid place-items-center p-4"
+      className={cn(
+        'fixed inset-0 grid place-items-center p-4',
+        nested ? 'z-nested-modal-content' : 'z-modal-content',
+      )}
       {...props}
     >
       <motion.div
@@ -52,7 +62,7 @@ const DialogContent = React.forwardRef<
         exit={{ opacity: 0, scale: 0.96, y: 10 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         className={cn(
-          'relative w-full max-w-lg gap-4 bg-background/95 p-6 shadow-2xl backdrop-blur-[12px] border border-white/20 dark:border-zinc-700/50 sm:rounded-2xl pointer-events-auto',
+          'relative w-full max-w-lg gap-4 bg-background/90 p-6 shadow-2xl backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 sm:rounded-2xl pointer-events-auto',
           '[&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-words [&_code]:whitespace-pre-wrap',
           className,
         )}

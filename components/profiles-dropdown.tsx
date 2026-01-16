@@ -93,6 +93,24 @@ export function ProfilesDropdown({
       if (response.ok) {
         const data = await response.json();
         setPersona(data);
+      } else if (response.status === 404) {
+        // Persona no longer exists - clear it from user settings
+        console.warn('Persona not found (404), clearing from user settings:', selectedPersonaId);
+        setPersona(null);
+        
+        // Clear the invalid persona selection
+        try {
+          await fetch('/api/user-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              selectedPersonaId: null,
+              selectedProfileId: null 
+            }),
+          });
+        } catch (settingsError) {
+          console.error('Failed to clear invalid persona from settings:', settingsError);
+        }
       } else {
         console.error('Failed to fetch persona:', response.status);
         setPersona(null);
@@ -120,6 +138,10 @@ export function ProfilesDropdown({
         if (response.ok) {
           const data = await response.json();
           setProfiles(data);
+        } else if (response.status === 404) {
+          // Persona no longer exists - profiles will be empty
+          console.warn('Persona profiles not found (404)');
+          setProfiles([]);
         } else {
           console.error(
             'Failed to fetch EOS implementer profiles:',
@@ -137,6 +159,10 @@ export function ProfilesDropdown({
       if (response.ok) {
         const data = await response.json();
         setProfiles(data);
+      } else if (response.status === 404) {
+        // Persona no longer exists - profiles will be empty
+        console.warn('Persona profiles not found (404)');
+        setProfiles([]);
       } else {
         console.error('Failed to fetch profiles:', response.status);
         setProfiles([]);

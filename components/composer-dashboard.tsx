@@ -4,12 +4,8 @@ import useSWR from 'swr';
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLoading } from '@/hooks/use-loading';
-import { SidebarToggle } from '@/components/sidebar-toggle';
-import { useSidebar } from '@/components/ui/sidebar';
-import { AdvancedSearch } from '@/components/advanced-search';
-import { SidebarUserNav } from '@/components/sidebar-user-nav';
-import { useWindowSize } from 'usehooks-ts';
 import { useSession } from 'next-auth/react';
+import DOMPurify from 'isomorphic-dompurify';
 import type { ComposerKind } from '@/components/composer';
 import { Button } from '@/components/ui/button';
 import { fetcher } from '@/lib/utils';
@@ -27,12 +23,6 @@ import { MoreHorizontal, Users, Mic, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ChartPreview } from '@/components/chart-preview';
 import { ComposerCountPill } from '@/components/composer-count-pill';
-import { PlusIcon } from '@/components/icons';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 // Extend settings shape for primary IDs
 type UserSettings = {
@@ -49,10 +39,7 @@ export function ComposerDashboard() {
   const router = useRouter();
   const kind = (params.get('dashboard') || 'text') as ComposerKind;
   const { setLoading } = useLoading();
-  const { open } = useSidebar();
-  const { width: windowWidth } = useWindowSize();
   const { data: session } = useSession();
-  const [mounted, setMounted] = useState(false);
   const [userPlan, setUserPlan] = useState<'free' | 'pro' | 'business'>('free');
   const { openModal } = useUpgradeStore();
   const accountEntitlements = useAccountStore((state) => state.entitlements);
@@ -156,11 +143,6 @@ export function ComposerDashboard() {
     fetcher,
   );
 
-  // Set mounted state to prevent hydration mismatches
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Close global loading overlay once initial list is available or after a short safety timeout
   useEffect(() => {
     if (!isInitialLoading && !recordingsLoading) {
@@ -194,10 +176,12 @@ export function ComposerDashboard() {
         try {
           const chatRes = await fetch(`/api/chats/by-document?id=${doc.id}`);
           const { chatId } = await chatRes.json();
-          
+
           if (chatId) {
             // Navigate to the existing chat and open the composer
-            router.push(`/chat/${chatId}?documentId=${doc.id}&documentTitle=${encodeURIComponent(doc.title || 'Untitled')}&composerKind=${doc.kind}`);
+            router.push(
+              `/chat/${chatId}?documentId=${doc.id}&documentTitle=${encodeURIComponent(doc.title || 'Untitled')}&composerKind=${doc.kind}`,
+            );
           } else {
             // No existing chat, open in new chat
             const url = new URL(window.location.href);
@@ -345,60 +329,22 @@ export function ComposerDashboard() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
     >
-      {/* Top bar mirroring chat header */}
+      {/* Top bar with composer count pill */}
       <motion.header
         className="absolute top-1 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override"
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 26 }}
       >
-        <div className="flex items-center gap-1 md:gap-2 w-full">
-          {/* Left: sidebar toggle */}
+        <div className="flex items-center gap-1 md:gap-2 w-full justify-end">
+          {/* Right: composer count pill */}
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
-            <SidebarToggle />
-          </div>
-
-          {/* Center: search + new chat when sidebar is closed or on mobile */}
-          {mounted && (!open || (windowWidth ?? 0) < 768) && (
-            <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
-              <AdvancedSearch />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 px-2 md:px-3 backdrop-filter backdrop-blur-[16px] bg-white/70 dark:bg-zinc-900/70 border border-white/30 dark:border-zinc-700/30 hover:bg-white/80 dark:hover:bg-zinc-900/80"
-                    onClick={() => {
-                      router.push('/chat');
-                      router.refresh();
-                    }}
-                    style={{
-                      WebkitBackdropFilter: 'blur(16px)',
-                      boxShadow:
-                        'inset 0px 0px 6px rgba(0, 0, 0, 0.05), 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.12)',
-                    }}
-                  >
-                    <PlusIcon size={16} />
-                    <span className="hidden md:inline ml-1">New Chat</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>New Chat</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-
-          {/* Right: composer count pill + user avatar */}
-          <div className="flex items-center gap-1 md:gap-2 ml-auto pointer-events-auto">
             {session?.user && userPlan === 'business' && (
               <ComposerCountPill
                 userId={session.user.id}
                 userPlan={userPlan}
                 className="pointer-events-auto"
               />
-            )}
-            {session?.user && (
-              <SidebarUserNav user={session.user} className="header-user-nav" />
             )}
           </div>
         </div>
@@ -797,7 +743,7 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
         {markdownHtml ? (
           <div
             className="prose prose-sm dark:prose-invert max-h-full overflow-hidden"
-            dangerouslySetInnerHTML={{ __html: markdownHtml }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownHtml) }}
           />
         ) : (
           <pre className="whitespace-pre-wrap break-words opacity-80 text-muted-foreground">

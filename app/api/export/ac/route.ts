@@ -5,6 +5,40 @@ import { trackBlockedAction } from '@/lib/analytics';
 import { db } from '@/lib/db';
 import { document } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import {
+  createPDF,
+  addHeader,
+  addSectionHeading,
+  addBodyText,
+  addBulletList,
+  addBox,
+  addFooter,
+  pdfToBuffer,
+} from '@/lib/export/pdf-generator';
+import {
+  createTitle,
+  createHeading,
+  createBodyText,
+  createBulletList,
+  createHierarchyItem,
+  generateDocx,
+} from '@/lib/export/docx-generator';
+import type { Paragraph, Table } from 'docx';
+
+// Accountability Chart node structure
+interface ACNode {
+  id: string;
+  name: string;
+  role: string;
+  responsibilities?: string[];
+  children?: ACNode[];
+}
+
+interface ACData {
+  nodes?: ACNode[];
+  root?: ACNode;
+  companyName?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -117,21 +151,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // For PDF/DOCX export, we'll need to implement the conversion logic
+    // Generate PDF export
     if (format === 'pdf') {
-      // TODO: Implement PDF generation for accountability charts
-      // This would involve creating a visual representation of the org chart
-      return NextResponse.json({
-        message: 'PDF export for accountability charts is being implemented',
-        data: acData,
+      const pdfBuffer = generateACPdf(
+        acData,
+        acDoc.title || 'Accountability Chart',
+      );
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${acDoc.title || 'Accountability-Chart'}.pdf"`,
+        },
       });
     }
 
+    // Generate DOCX export
     if (format === 'docx') {
-      // TODO: Implement DOCX generation for accountability charts
-      return NextResponse.json({
-        message: 'DOCX export for accountability charts is being implemented',
-        data: acData,
+      const docxBuffer = await generateACDocx(
+        acData,
+        acDoc.title || 'Accountability Chart',
+      );
+      return new NextResponse(new Uint8Array(docxBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type':
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Disposition': `attachment; filename="${acDoc.title || 'Accountability-Chart'}.docx"`,
+        },
       });
     }
 
@@ -145,3 +192,138 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Recursively render org chart nodes as boxes in PDF
+ */
+function renderACNodesPdf(
+  doc: ReturnType<typeof createPDF>,
+  nodes: ACNode[],
+  startX: number,
+  startY: number,
+  level: number = 0,
+): number {
+  const boxWidth = 50;
+  const boxHeight = 15;
+  const horizontalGap = 10;
+  const verticalGap = 20;
+
+  let currentY = startY;
+  const indent = level * 60;
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const x = startX + indent;
+
+    // Check for page break
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 30;
+    }
+
+    // Draw the box
+    addBox(doc, x, currentY, boxWidth, boxHeight, node.name, node.role);
+    currentY += boxHeight + 5;
+
+    // Render responsibilities if present
+    if (node.responsibilities?.length) {
+      doc.setFontSize(8);
+      doc.setTextColor('#666666');
+      for (const resp of node.responsibilities.slice(0, 3)) {
+        if (currentY > 270) {
+          doc.addPage();
+          currentY = 30;
+        }
+        doc.text(`• ${resp}`, x + 5, currentY);
+        currentY += 4;
+      }
+      currentY += 3;
+    }
+
+    // Recursively render children
+    if (node.children?.length) {
+      currentY = renderACNodesPdf(
+        doc,
+        node.children,
+        startX,
+        currentY + 5,
+        level + 1,
+      );
+    }
+
+    currentY += verticalGap;
+  }
+
+  return currentY;
+}
+
+/**
+ * Generate PDF for Accountability Chart
+ */
+function generateACPdf(acData: ACData, title: string): Buffer {
+  const doc = createPDF(title);
+  let y = addHeader(doc, 'Accountability Chart™', acData.companyName || title);
+
+  // Get root node or nodes array
+  const nodes = acData.root ? [acData.root] : acData.nodes || [];
+
+  if (nodes.length === 0) {
+    y = addBodyText(doc, 'No organizational structure defined.', y);
+  } else {
+    y = addSectionHeading(doc, 'Organizational Structure', y);
+    y = renderACNodesPdf(doc, nodes, 20, y, 0);
+  }
+
+  addFooter(doc, 'EOS AI - Accountability Chart');
+  return pdfToBuffer(doc);
+}
+
+/**
+ * Recursively render org chart nodes as hierarchy items in DOCX
+ */
+function renderACNodesDocx(nodes: ACNode[], level: number = 0): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+
+  for (const node of nodes) {
+    // Add the person/role
+    paragraphs.push(createHierarchyItem(node.name, node.role, level));
+
+    // Add responsibilities as bullet points
+    if (node.responsibilities?.length) {
+      const respParagraphs = createBulletList(
+        node.responsibilities.map((r) => `[${node.role}] ${r}`),
+      );
+      paragraphs.push(...respParagraphs);
+    }
+
+    // Recursively add children
+    if (node.children?.length) {
+      paragraphs.push(...renderACNodesDocx(node.children, level + 1));
+    }
+  }
+
+  return paragraphs;
+}
+
+/**
+ * Generate DOCX for Accountability Chart
+ */
+async function generateACDocx(acData: ACData, title: string): Promise<Buffer> {
+  const children: (Paragraph | Table)[] = [];
+
+  if (acData.companyName) {
+    children.push(createBodyText(`Company: ${acData.companyName}`));
+  }
+
+  children.push(createHeading('Organizational Structure'));
+
+  // Get root node or nodes array
+  const nodes = acData.root ? [acData.root] : acData.nodes || [];
+
+  if (nodes.length === 0) {
+    children.push(createBodyText('No organizational structure defined.'));
+  } else {
+    children.push(...renderACNodesDocx(nodes));
+  }
+
+  return generateDocx(title, children);
+}

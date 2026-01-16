@@ -36,9 +36,12 @@ export const user = pgTable(
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId'),
+    storageUsed: integer('storageUsed').notNull().default(0),
+    storageQuota: integer('storageQuota').notNull().default(104857600), // 100MB
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
+    storageIdx: index('user_storage_idx').on(table.storageUsed),
   }),
 );
 
@@ -75,12 +78,16 @@ export const chat = pgTable('Chat', {
   title: text('title').notNull(),
   userId: uuid('userId')
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: 'cascade' }),
   visibility: varchar('visibility', { enum: ['public', 'private'] })
     .notNull()
     .default('private'),
-  personaId: uuid('personaId').references(() => persona.id),
-  profileId: uuid('profileId').references(() => personaProfile.id),
+  personaId: uuid('personaId').references(() => persona.id, {
+    onDelete: 'set null',
+  }),
+  profileId: uuid('profileId').references(() => personaProfile.id, {
+    onDelete: 'set null',
+  }),
   metadata: json('metadata').$type<{ isVoiceChat?: boolean }>(),
   conversationSummary: text('conversationSummary'),
   lastSummarizedAt: timestamp('lastSummarizedAt'),
@@ -95,7 +102,7 @@ export const messageDeprecated = pgTable('Message', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   chatId: uuid('chatId')
     .notNull()
-    .references(() => chat.id),
+    .references(() => chat.id, { onDelete: 'cascade' }),
   role: varchar('role').notNull(),
   content: json('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
@@ -107,7 +114,7 @@ export const message = pgTable('Message_v2', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   chatId: uuid('chatId')
     .notNull()
-    .references(() => chat.id),
+    .references(() => chat.id, { onDelete: 'cascade' }),
   role: varchar('role').notNull(),
   parts: json('parts').notNull(),
   attachments: json('attachments').notNull(),
@@ -129,7 +136,7 @@ export const messageEditHistory = pgTable(
     newContent: json('newContent').notNull(), // Store the new parts array
     editedBy: uuid('editedBy')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'set null' }),
     editedAt: timestamp('editedAt').notNull().defaultNow(),
     editReason: text('editReason'), // Optional reason for the edit
   },
@@ -151,10 +158,10 @@ export const voteDeprecated = pgTable(
   {
     chatId: uuid('chatId')
       .notNull()
-      .references(() => chat.id),
+      .references(() => chat.id, { onDelete: 'cascade' }),
     messageId: uuid('messageId')
       .notNull()
-      .references(() => messageDeprecated.id),
+      .references(() => messageDeprecated.id, { onDelete: 'cascade' }),
     isUpvoted: boolean('isUpvoted').notNull(),
   },
   (table) => {
@@ -171,10 +178,10 @@ export const vote = pgTable(
   {
     chatId: uuid('chatId')
       .notNull()
-      .references(() => chat.id),
+      .references(() => chat.id, { onDelete: 'cascade' }),
     messageId: uuid('messageId')
       .notNull()
-      .references(() => message.id),
+      .references(() => message.id, { onDelete: 'cascade' }),
     isUpvoted: boolean('isUpvoted').notNull(),
   },
   (table) => {
@@ -193,13 +200,13 @@ export const feedback = pgTable(
     id: uuid('id').primaryKey().notNull().defaultRandom(),
     chatId: uuid('chatId')
       .notNull()
-      .references(() => chat.id),
+      .references(() => chat.id, { onDelete: 'cascade' }),
     messageId: uuid('messageId')
       .notNull()
-      .references(() => message.id),
+      .references(() => message.id, { onDelete: 'cascade' }),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'cascade' }),
     isPositive: boolean('isPositive').notNull(), // true for thumbs up, false for thumbs down
     category: varchar('category', {
       enum: ['accuracy', 'helpfulness', 'tone', 'length', 'clarity', 'other'],
@@ -226,13 +233,13 @@ export const pinnedMessage = pgTable(
     id: uuid('id').primaryKey().notNull().defaultRandom(),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'cascade' }),
     messageId: uuid('messageId')
       .notNull()
-      .references(() => message.id),
+      .references(() => message.id, { onDelete: 'cascade' }),
     chatId: uuid('chatId')
       .notNull()
-      .references(() => chat.id),
+      .references(() => chat.id, { onDelete: 'cascade' }),
     pinnedAt: timestamp('pinnedAt').notNull().defaultNow(),
   },
   (table) => {
@@ -252,10 +259,10 @@ export const bookmarkedChat = pgTable(
     id: uuid('id').primaryKey().notNull().defaultRandom(),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'cascade' }),
     chatId: uuid('chatId')
       .notNull()
-      .references(() => chat.id),
+      .references(() => chat.id, { onDelete: 'cascade' }),
     bookmarkedAt: timestamp('bookmarkedAt').notNull().defaultNow(),
     note: text('note'),
   },
@@ -319,7 +326,7 @@ export const document = pgTable('Document', {
     .default('text'),
   userId: uuid('userId')
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: 'cascade' }),
   isContext: boolean('isContext').default(false), // Controls whether embeddings exist for this composer document
   isShared: boolean('isShared').default(false), // Whether this document is shared
   shareSettings: json('shareSettings'), // Sharing settings for the document
@@ -406,7 +413,7 @@ export const suggestion = pgTable('Suggestion', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   documentId: uuid('documentId')
     .notNull()
-    .references(() => document.id),
+    .references(() => document.id, { onDelete: 'cascade' }),
   documentCreatedAt: timestamp('documentCreatedAt').notNull(),
   originalText: text('originalText').notNull(),
   suggestedText: text('suggestedText').notNull(),
@@ -414,7 +421,7 @@ export const suggestion = pgTable('Suggestion', {
   isResolved: boolean('isResolved').notNull().default(false),
   userId: uuid('userId')
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('createdAt').notNull(),
 });
 
@@ -425,7 +432,7 @@ export const stream = pgTable('Stream', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
   chatId: uuid('chatId')
     .notNull()
-    .references(() => chat.id),
+    .references(() => chat.id, { onDelete: 'cascade' }),
   createdAt: timestamp('createdAt').notNull(),
 });
 
@@ -525,8 +532,8 @@ export const userSettings = pgTable('UserSettings', {
   autocompleteEnabled: boolean('autocompleteEnabled').default(true),
   personaContextDocumentIds: jsonb('personaContextDocumentIds'),
   // UI preferences
-  disableGlassEffects: boolean('disableGlassEffects').default(false),
-  disableEosGradient: boolean('disableEosGradient').default(false),
+  disableGlassEffects: boolean('disableGlassEffects').default(true),
+  disableEosGradient: boolean('disableEosGradient').default(true),
 });
 
 export const bundleDocument = pgTable(
@@ -551,25 +558,173 @@ export const bundleDocument = pgTable(
   }),
 );
 
-export const userDocuments = pgTable('UserDocuments', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  userId: uuid('userId')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  fileName: varchar('fileName', { length: 255 }).notNull(),
-  fileUrl: text('fileUrl').notNull(),
-  fileSize: integer('fileSize').notNull(),
-  fileType: varchar('fileType', { length: 255 }).notNull(),
-  category: varchar('category', {
-    enum: ['Scorecard', 'VTO', 'Rocks', 'A/C', 'Core Process', 'Persona Document', 'Other'],
-  }).notNull(),
-  content: text('content').notNull(),
-  isContext: boolean('isContext').default(true), // Controls whether embeddings exist for this document
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-});
+export const userDocuments = pgTable(
+  'UserDocuments',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    fileName: varchar('fileName', { length: 255 }).notNull(),
+    fileUrl: text('fileUrl').notNull(),
+    fileSize: integer('fileSize').notNull(),
+    fileType: varchar('fileType', { length: 255 }).notNull(),
+    category: varchar('category', {
+      enum: [
+        'Scorecard',
+        'VTO',
+        'Rocks',
+        'A/C',
+        'Core Process',
+        'Persona Document',
+        'Other',
+      ],
+    }).notNull(),
+    content: text('content').notNull(),
+    isContext: boolean('isContext').default(true), // Controls whether embeddings exist for this document
+    contentHash: varchar('contentHash', { length: 64 }),
+    processingStatus: varchar('processingStatus', {
+      enum: ['pending', 'processing', 'ready', 'failed'],
+    })
+      .notNull()
+      .default('ready'),
+    processingError: text('processingError'),
+    version: integer('version').notNull().default(1),
+    parentDocumentId: uuid('parentDocumentId'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    contentHashIdx: index('user_documents_content_hash_idx').on(
+      table.contentHash,
+    ),
+    processingStatusIdx: index('user_documents_processing_status_idx').on(
+      table.processingStatus,
+    ),
+    parentIdIdx: index('user_documents_parent_id_idx').on(
+      table.parentDocumentId,
+    ),
+  }),
+);
 
 export type UserDocument = InferSelectModel<typeof userDocuments>;
+
+// User Document Versions
+export const userDocumentVersion = pgTable(
+  'UserDocumentVersion',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    versionNumber: integer('versionNumber').notNull(),
+    fileName: varchar('fileName', { length: 255 }).notNull(),
+    fileUrl: text('fileUrl').notNull(),
+    fileSize: integer('fileSize').notNull(),
+    content: text('content'),
+    contentHash: varchar('contentHash', { length: 64 }),
+    uploadedAt: timestamp('uploadedAt').notNull().defaultNow(),
+    uploadedBy: uuid('uploadedBy')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    isActive: boolean('isActive').notNull().default(false),
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    documentIdx: index('user_document_version_document_idx').on(
+      table.documentId,
+    ),
+    versionNumberIdx: index('user_document_version_number_idx').on(
+      table.documentId,
+      table.versionNumber,
+    ),
+    activeIdx: index('user_document_version_active_idx').on(
+      table.documentId,
+      table.isActive,
+    ),
+    uniqueVersionIdx: uniqueIndex('user_document_version_unique_idx').on(
+      table.documentId,
+      table.versionNumber,
+    ),
+  }),
+);
+
+export type UserDocumentVersion = InferSelectModel<typeof userDocumentVersion>;
+
+// Document Sharing - User Level
+export const documentShareUser = pgTable(
+  'DocumentShareUser',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    sharedById: uuid('sharedById')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sharedWithId: uuid('sharedWithId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    permission: varchar('permission', {
+      enum: ['view', 'edit', 'comment'],
+    })
+      .notNull()
+      .default('view'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt'),
+  },
+  (table) => ({
+    documentIdx: index('document_share_user_document_idx').on(table.documentId),
+    sharedWithIdx: index('document_share_user_shared_with_idx').on(
+      table.sharedWithId,
+    ),
+    sharedByIdx: index('document_share_user_shared_by_idx').on(
+      table.sharedById,
+    ),
+    uniqueShareIdx: unique('document_share_user_unique').on(
+      table.documentId,
+      table.sharedWithId,
+    ),
+  }),
+);
+
+export type DocumentShareUser = InferSelectModel<typeof documentShareUser>;
+
+// Document Sharing - Organization Level
+export const documentShareOrg = pgTable(
+  'DocumentShareOrg',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    orgId: uuid('orgId')
+      .notNull()
+      .references(() => org.id, { onDelete: 'cascade' }),
+    sharedById: uuid('sharedById')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    permission: varchar('permission', {
+      enum: ['view', 'edit', 'comment'],
+    })
+      .notNull()
+      .default('view'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    documentIdx: index('document_share_org_document_idx').on(table.documentId),
+    orgIdx: index('document_share_org_org_idx').on(table.orgId),
+    sharedByIdx: index('document_share_org_shared_by_idx').on(
+      table.sharedById,
+    ),
+    uniqueOrgShareIdx: unique('document_share_org_unique').on(
+      table.documentId,
+      table.orgId,
+    ),
+  }),
+);
+
+export type DocumentShareOrg = InferSelectModel<typeof documentShareOrg>;
 
 // User Memories tables
 export const userMemory = pgTable('UserMemory', {
@@ -921,7 +1076,9 @@ export const l10AgendaItem = pgTable('L10AgendaItem', {
   actualDuration: integer('actualDuration'), // Actual duration in seconds
   completed: boolean('completed').notNull().default(false),
   notes: text('notes'),
-  recordingId: uuid('recordingId').references(() => voiceRecording.id),
+  recordingId: uuid('recordingId').references(() => voiceRecording.id, {
+    onDelete: 'set null',
+  }),
   startTime: timestamp('startTime'),
   endTime: timestamp('endTime'),
   orderIndex: integer('orderIndex').notNull(),
@@ -946,7 +1103,9 @@ export const l10Issue = pgTable('L10Issue', {
     .notNull()
     .default('identified'),
   owner: varchar('owner', { length: 255 }), // Seat ID
-  recordingId: uuid('recordingId').references(() => voiceRecording.id),
+  recordingId: uuid('recordingId').references(() => voiceRecording.id, {
+    onDelete: 'set null',
+  }),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   resolvedAt: timestamp('resolvedAt'),
 });
@@ -1100,7 +1259,7 @@ export const documentHistory = pgTable(
       .references(() => document.id, { onDelete: 'cascade' }),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'set null' }),
     operation: varchar('operation', {
       enum: ['create', 'update', 'delete', 'restore'],
     }).notNull(),
@@ -1165,7 +1324,7 @@ export const documentEditSession = pgTable(
       .references(() => document.id, { onDelete: 'cascade' }),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'set null' }),
     startedAt: timestamp('startedAt').notNull().defaultNow(),
     endedAt: timestamp('endedAt'),
     isActive: boolean('isActive').notNull().default(true),
@@ -1192,7 +1351,7 @@ export const documentUndoStack = pgTable(
       .references(() => document.id, { onDelete: 'cascade' }),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'cascade' }),
     currentVersionId: uuid('currentVersionId')
       .notNull()
       .references(() => documentVersion.id),

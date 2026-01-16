@@ -69,8 +69,9 @@ const DropdownMenuSubTrigger = React.forwardRef<
       ref={ref}
       className={cn(
         'flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-all duration-200 ease-out',
-        'hover:bg-accent hover:pl-3 hover:shadow-sm',
-        'focus:bg-accent data-[state=open]:bg-accent data-[state=open]:pl-3 data-[state=open]:shadow-sm',
+        'text-foreground',
+        'hover:bg-zinc-900/10 dark:hover:bg-white/10 hover:text-foreground hover:pl-3 hover:shadow-sm',
+        'focus:bg-zinc-900/10 dark:focus:bg-white/10 data-[state=open]:bg-zinc-900/10 dark:data-[state=open]:bg-white/10 data-[state=open]:pl-3 data-[state=open]:shadow-sm',
         '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
         inset && 'pl-8',
         className,
@@ -97,30 +98,32 @@ const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
 >(({ className, children, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
-    ref={ref}
-    className={cn(
-      'relative z-50 min-w-[8rem] overflow-hidden rounded-md text-popover-foreground p-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
-      className,
-    )}
-    style={{
-      boxShadow:
-        '0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2)',
-    }}
-    {...props}
-  >
-    <GlassSurface
-      width="100%"
-      height="100%"
-      borderRadius={6}
-      displace={2}
-      backgroundOpacity={0.2}
-      blur={10}
-      insetShadowIntensity={0.4}
-      isBackdrop={true}
-    />
-    <div className="relative z-10">{children}</div>
-  </DropdownMenuPrimitive.SubContent>
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.SubContent
+      ref={ref}
+      className={cn(
+        'relative z-dropdown min-w-[8rem] overflow-hidden rounded-md text-popover-foreground p-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        className,
+      )}
+      style={{
+        boxShadow:
+          '0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.2)',
+      }}
+      {...props}
+    >
+      <GlassSurface
+        width="100%"
+        height="100%"
+        borderRadius={6}
+        displace={2}
+        backgroundOpacity={0.2}
+        blur={10}
+        insetShadowIntensity={0.4}
+        isBackdrop={true}
+      />
+      <div className="relative z-10">{children}</div>
+    </DropdownMenuPrimitive.SubContent>
+  </DropdownMenuPrimitive.Portal>
 ));
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName;
@@ -135,7 +138,7 @@ const DropdownMenuContent = React.forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          'relative z-[150] min-w-[8rem] max-h-[400px] overflow-y-auto rounded-lg text-popover-foreground p-1',
+          'relative z-dropdown min-w-[8rem] max-h-[400px] overflow-y-auto rounded-lg text-popover-foreground p-1',
           className,
         )}
         style={{
@@ -184,8 +187,9 @@ const DropdownMenuItem = React.forwardRef<
         className={cn(
           'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none',
           'transition-all duration-200 ease-out',
-          'hover:bg-accent hover:text-accent-foreground hover:pl-3 hover:shadow-sm hover:scale-[1.01]',
-          'focus:bg-accent focus:text-accent-foreground focus:pl-3 focus:shadow-sm',
+          'text-foreground',
+          'hover:bg-zinc-900/10 dark:hover:bg-white/10 hover:text-foreground hover:pl-3 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-zinc-900/10 dark:focus:bg-white/10 focus:text-foreground focus:pl-3 focus:shadow-sm',
           'active:scale-[0.98]',
           'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
           '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:transition-transform [&_svg]:duration-200',
@@ -215,8 +219,9 @@ const DropdownMenuCheckboxItem = React.forwardRef<
         className={cn(
           'relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none',
           'transition-all duration-200 ease-out',
-          'hover:bg-accent hover:text-accent-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
-          'focus:bg-accent focus:text-accent-foreground focus:pl-9 focus:shadow-sm',
+          'text-foreground',
+          'hover:bg-zinc-900/10 dark:hover:bg-white/10 hover:text-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-zinc-900/10 dark:focus:bg-white/10 focus:text-foreground focus:pl-9 focus:shadow-sm',
           'active:scale-[0.98]',
           'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
           className,
@@ -262,8 +267,9 @@ const DropdownMenuRadioItem = React.forwardRef<
         className={cn(
           'relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none',
           'transition-all duration-200 ease-out',
-          'hover:bg-accent hover:text-accent-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
-          'focus:bg-accent focus:text-accent-foreground focus:pl-9 focus:shadow-sm',
+          'text-foreground',
+          'hover:bg-zinc-900/10 dark:hover:bg-white/10 hover:text-foreground hover:pl-9 hover:shadow-sm hover:scale-[1.01]',
+          'focus:bg-zinc-900/10 dark:focus:bg-white/10 focus:text-foreground focus:pl-9 focus:shadow-sm',
           'active:scale-[0.98]',
           'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
           className,

@@ -9,6 +9,7 @@ import { Mic, MicOff, Volume2, VolumeX, PhoneOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
+import { createLogger } from '@/lib/utils/secure-logger';
 
 interface VoiceModeProps {
   isOpen: boolean;
@@ -61,8 +62,10 @@ export default function VoiceModeWebRTC({
     setConnectionStatus('connecting');
 
     try {
+      const voiceLogger = createLogger('VoiceWebRTC');
+
       // Step 1: Create ephemeral session
-      console.log('Creating ephemeral voice session...');
+      voiceLogger.debug('Creating ephemeral voice session');
       const sessionResponse = await fetch('/api/voice/session', {
         method: 'POST',
         headers: {
@@ -77,7 +80,10 @@ export default function VoiceModeWebRTC({
 
       const session = await sessionResponse.json();
       sessionRef.current = session;
-      console.log('Ephemeral session created:', session);
+      voiceLogger.info('Ephemeral session created', {
+        sessionId: session.id,
+        hasClientSecret: !!session.client_secret,
+      });
 
       // Step 2: Get user media
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -191,10 +197,11 @@ export default function VoiceModeWebRTC({
 
   // Handle real-time events
   const handleRealtimeEvent = useCallback((event: any) => {
+    const voiceLogger = createLogger('VoiceWebRTC');
     switch (event.type) {
       case 'session.created':
       case 'session.updated':
-        console.log('Session event:', event.type);
+        voiceLogger.debug('Session event', { type: event.type });
         break;
 
       case 'input_audio_buffer.speech_started':

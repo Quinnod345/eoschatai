@@ -221,10 +221,10 @@ export function AuthFormEnhanced({
             style={{ animationDelay: '460ms' }}
           >
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-zinc-700" />
+              <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 text-gray-500 bg-background dark:text-zinc-400">
+              <span className="px-2 text-muted-foreground bg-background">
                 or continue with email
               </span>
             </div>
@@ -238,7 +238,7 @@ export function AuthFormEnhanced({
       >
         <Label
           htmlFor="email"
-          className="text-zinc-600 font-normal dark:text-zinc-400"
+          className="text-muted-foreground font-normal"
         >
           Email Address
         </Label>
@@ -270,7 +270,7 @@ export function AuthFormEnhanced({
       >
         <Label
           htmlFor="password"
-          className="text-zinc-600 font-normal dark:text-zinc-400"
+          className="text-muted-foreground font-normal"
         >
           Password
         </Label>
@@ -291,8 +291,9 @@ export function AuthFormEnhanced({
           />
           <button
             type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
@@ -314,7 +315,7 @@ export function AuthFormEnhanced({
           >
             <Label
               htmlFor="confirmPassword"
-              className="text-zinc-600 font-normal dark:text-zinc-400"
+              className="text-muted-foreground font-normal"
             >
               Confirm Password
             </Label>
@@ -335,7 +336,7 @@ export function AuthFormEnhanced({
               />
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               >
                 {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -362,7 +363,7 @@ export function AuthFormEnhanced({
             />
             <Label
               htmlFor="terms"
-              className="text-sm text-zinc-600 dark:text-zinc-400 cursor-pointer"
+              className="text-sm text-muted-foreground cursor-pointer"
             >
               I agree to the{' '}
               <a

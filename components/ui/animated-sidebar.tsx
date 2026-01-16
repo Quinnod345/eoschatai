@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './sidebar';
 
@@ -8,121 +7,62 @@ type AnimatedSidebarWrapperProps = {
   className?: string;
 };
 
-// Spring animation configuration
-const springTransition = {
-  type: 'spring',
-  damping: 22,
-  stiffness: 250,
-  mass: 0.8,
-};
+// SIMPLIFIED: Use CSS-only animations to avoid fighting with sidebar CSS transitions
+// The sidebar width transition handles everything - these just need to show/hide content
 
-// This component adds spring animations to the sidebar transitions
 export function AnimatedSidebarWrapper({
   children,
   className,
 }: AnimatedSidebarWrapperProps) {
   const { state } = useSidebar();
-
-  // Animation variants based on sidebar state
-  const variants = {
-    expanded: {
-      x: 0,
-      opacity: 1,
-      transition: springTransition,
-    },
-    collapsed: {
-      x: -40,
-      opacity: 0,
-      transition: springTransition,
-    },
-  };
+  const isCollapsed = state === 'collapsed';
 
   return (
-    <motion.div
+    <div
       className={cn(className)}
-      initial={state === 'expanded' ? 'expanded' : 'collapsed'}
-      animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-      variants={variants}
+      style={{
+        opacity: isCollapsed ? 0 : 1,
+        transition: 'opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+        pointerEvents: isCollapsed ? 'none' : 'auto',
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
-// For animating individual items in the sidebar with staggered animations
 interface AnimatedSidebarItemProps {
   children: React.ReactNode;
   index?: number;
   className?: string;
 }
 
+// SIMPLIFIED: No more staggered Framer Motion animations - just render children
 export function AnimatedSidebarItem({
   children,
-  index = 0,
   className,
 }: AnimatedSidebarItemProps) {
-  const { state } = useSidebar();
-
-  const itemVariants = {
-    expanded: {
-      x: 0,
-      opacity: 1,
-      transition: {
-        ...springTransition,
-        delay: index * 0.03,
-      },
-    },
-    collapsed: {
-      x: -20,
-      opacity: 0,
-      transition: springTransition,
-    },
-  };
-
-  return (
-    <motion.div
-      className={cn(className)}
-      initial={state === 'expanded' ? 'expanded' : 'collapsed'}
-      animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-      variants={itemVariants}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={cn(className)}>{children}</div>;
 }
 
-// For animating groups in the sidebar
+// SIMPLIFIED: Just a wrapper div
 export function AnimatedSidebarGroup({
   children,
   className,
 }: AnimatedSidebarWrapperProps) {
   const { state } = useSidebar();
-
-  const groupVariants = {
-    expanded: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        ...springTransition,
-        staggerChildren: 0.05,
-      },
-    },
-    collapsed: {
-      y: 10,
-      opacity: 0,
-      transition: springTransition,
-    },
-  };
+  const isCollapsed = state === 'collapsed';
 
   return (
-    <motion.div
+    <div
       className={cn(className)}
-      initial={state === 'expanded' ? 'expanded' : 'collapsed'}
-      animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-      variants={groupVariants}
+      style={{
+        opacity: isCollapsed ? 0 : 1,
+        transition: 'opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+      }}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 

@@ -5,6 +5,7 @@ import {
   org as orgTable,
   user as userTable,
   orgInvitation,
+  type PlanType,
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -61,7 +62,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       `[delete-org] Deleting organization ${orgId} with ${members.length} members`,
     );
 
-    // Cancel organization's Stripe subscription
+    // Cancel organization's Stripe subscription (outside transaction - external API)
     if (organization.stripeSubscriptionId) {
       try {
         const { getStripeClient } = await import('@/lib/stripe/client');
@@ -96,16 +97,15 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       }
     }
 
-    // Get Stripe client for checking individual subscriptions
+    // Build map of member -> newPlan by checking Stripe (outside transaction - external API)
     const { getStripeClient } = await import('@/lib/stripe/client');
     const stripe = getStripeClient();
     const { getUserIndividualSubscriptionPlan } = await import(
       '@/lib/billing/subscription-utils'
     );
 
-    // Process each member
+    const memberPlanMap = new Map<string, PlanType>();
     for (const member of members) {
-      // Check if member has individual Pro subscription
       const individualPlan = stripe
         ? await getUserIndividualSubscriptionPlan(
             member.stripeCustomerId,
@@ -113,22 +113,63 @@ export async function DELETE(request: Request, { params }: RouteParams) {
             member.id,
           )
         : null;
-
-      const newPlan = individualPlan || 'free';
-
-      // Remove member from organization and reset plan
-      await db
-        .update(userTable)
-        .set({
-          orgId: null,
-          plan: newPlan,
-        })
-        .where(eq(userTable.id, member.id));
-
-      console.log(`[delete-org] Reset member ${member.id} to plan: ${newPlan}`);
+      memberPlanMap.set(member.id, (individualPlan as PlanType) || 'free');
     }
 
-    // Recompute entitlements for all members and broadcast updates
+    // Get invite codes before deletion (for Redis cleanup after transaction)
+    const invites = await db
+      .select({ inviteCode: orgInvitation.inviteCode })
+      .from(orgInvitation)
+      .where(eq(orgInvitation.orgId, orgId));
+
+    // Use transaction to ensure atomic deletion of all database records
+    await db.transaction(async (tx) => {
+      // Update all members' orgId and plan
+      for (const member of members) {
+        const newPlan: PlanType = memberPlanMap.get(member.id) || 'free';
+        await tx
+          .update(userTable)
+          .set({
+            orgId: null,
+            plan: newPlan,
+          })
+          .where(eq(userTable.id, member.id));
+
+        console.log(
+          `[delete-org] Reset member ${member.id} to plan: ${newPlan}`,
+        );
+      }
+
+      // Delete all pending invitations
+      await tx.delete(orgInvitation).where(eq(orgInvitation.orgId, orgId));
+      console.log(`[delete-org] Deleted ${invites.length} pending invitations`);
+
+      // Delete the organization (cascade will clean up OrgMemberRole records)
+      await tx.delete(orgTable).where(eq(orgTable.id, orgId));
+      console.log(`[delete-org] Deleted organization ${orgId}`);
+    });
+
+    // Invalidate Redis caches (outside transaction)
+    try {
+      const { getRedisClient } = await import('@/lib/redis/client');
+      const redis = getRedisClient();
+      if (redis) {
+        for (const invite of invites) {
+          try {
+            await redis.del(`invite:${invite.inviteCode}`);
+          } catch (error) {
+            console.warn(
+              `[delete-org] Failed to invalidate invite code ${invite.inviteCode}:`,
+              error,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[delete-org] Failed to invalidate invite codes:', error);
+    }
+
+    // Recompute entitlements for all members and broadcast updates (outside transaction)
     try {
       const {
         getUserEntitlements,
@@ -145,42 +186,6 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     } catch (error) {
       console.warn('[delete-org] Failed to update member entitlements:', error);
     }
-
-    // Delete all pending invitations
-    try {
-      // Get invite codes before deletion to invalidate in Redis
-      const invites = await db
-        .select({ inviteCode: orgInvitation.inviteCode })
-        .from(orgInvitation)
-        .where(eq(orgInvitation.orgId, orgId));
-
-      // Delete from database
-      await db.delete(orgInvitation).where(eq(orgInvitation.orgId, orgId));
-
-      // Invalidate invite codes in Redis
-      const { getRedisClient } = await import('@/lib/redis/client');
-      const redis = getRedisClient();
-      if (redis) {
-        for (const invite of invites) {
-          try {
-            await redis.del(`invite:${invite.inviteCode}`);
-          } catch (error) {
-            console.warn(
-              `[delete-org] Failed to invalidate invite code ${invite.inviteCode}:`,
-              error,
-            );
-          }
-        }
-      }
-
-      console.log(`[delete-org] Deleted ${invites.length} pending invitations`);
-    } catch (error) {
-      console.error('[delete-org] Failed to delete invitations:', error);
-      // Continue with org deletion even if invitation cleanup fails
-    }
-
-    // Finally, delete the organization
-    await db.delete(orgTable).where(eq(orgTable.id, orgId));
 
     console.log(`[delete-org] Successfully deleted organization ${orgId}`);
 

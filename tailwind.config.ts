@@ -10,10 +10,10 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-geist)'],
+        sans: ['var(--font-montserrat)', 'sans-serif'], // EOS Primary Font
         mono: ['var(--font-geist-mono)'],
         montserrat: ['var(--font-montserrat)', 'sans-serif'],
-        'roboto-condensed': ['var(--font-roboto-condensed)', 'sans-serif'],
+        'roboto-condensed': ['var(--font-roboto-condensed)', 'sans-serif'], // EOS Secondary Font
       },
       screens: {
         'toast-mobile': '600px',
@@ -82,6 +82,25 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+      },
+      zIndex: {
+        base: 'var(--z-base)',
+        elevated: 'var(--z-elevated)',
+        sticky: 'var(--z-sticky)',
+        fixed: 'var(--z-fixed)',
+        sidebar: 'var(--z-sidebar)',
+        dropdown: 'var(--z-dropdown)',
+        popover: 'var(--z-popover)',
+        select: 'var(--z-select)',
+        tooltip: 'var(--z-tooltip)',
+        'modal-overlay': 'var(--z-modal-overlay)',
+        'modal-content': 'var(--z-modal-content)',
+        'nested-modal-overlay': 'var(--z-nested-modal-overlay)',
+        'nested-modal-content': 'var(--z-nested-modal-content)',
+        'alert-overlay': 'var(--z-alert-overlay)',
+        'alert-content': 'var(--z-alert-content)',
+        toast: 'var(--z-toast)',
+        notification: 'var(--z-notification)',
       },
     },
   },

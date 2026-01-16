@@ -284,7 +284,7 @@ export const TooltipContent = React.forwardRef<
           else if (ref) (ref as any).current = node;
         }}
         className={cn(
-          'fixed z-[9999] text-sm',
+          'fixed z-tooltip text-sm',
           'rounded-md overflow-visible',
           'text-popover-foreground whitespace-nowrap',
           !isPositioned && 'invisible',

@@ -2,11 +2,10 @@
 
 import type { User } from 'next-auth';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { mutate as swrMutate } from 'swr';
@@ -19,11 +18,9 @@ import {
   CodeIcon,
   TargetIcon,
 } from '@/components/icons';
-import { FileSpreadsheet } from 'lucide-react';
-import { Users2 } from 'lucide-react';
-import { Mic } from 'lucide-react';
-// Removed: Zap icon was only used for dev test links
+import { FileSpreadsheet, Users2, Mic } from 'lucide-react';
 import { SidebarHistory } from '@/components/sidebar-history';
+import { SidebarToggle } from './sidebar-toggle';
 import { Button } from '@/components/ui/button';
 import {
   Sidebar,
@@ -31,26 +28,61 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { AdvancedSearch } from '@/components/advanced-search';
-// import { useLoading } from '@/hooks/use-loading';
+import { SidebarUserNav } from './sidebar-user-nav';
 
-// Spring transition settings
-const springTransition = {
-  type: 'spring',
-  stiffness: 260,
-  damping: 20,
-  mass: 1,
-};
+// Composer menu items
+const composerItems = [
+  {
+    kind: 'text',
+    label: 'Documents',
+    icon: FileTextIcon,
+    tooltip: 'Create documents',
+  },
+  {
+    kind: 'sheet',
+    label: 'Spreadsheets',
+    icon: FileSpreadsheet,
+    tooltip: 'Create spreadsheets',
+  },
+  {
+    kind: 'image',
+    label: 'Images',
+    icon: ImageIcon,
+    tooltip: 'Generate images',
+  },
+  {
+    kind: 'code',
+    label: 'Code',
+    icon: CodeIcon,
+    tooltip: 'Write and run code',
+  },
+  {
+    kind: 'vto',
+    label: "VTO's",
+    icon: TargetIcon,
+    tooltip: 'Vision/Traction Organizer',
+  },
+  {
+    kind: 'accountability',
+    label: 'A/C',
+    icon: Users2,
+    tooltip: 'Accountability Charts',
+  },
+  {
+    kind: 'recordings',
+    label: 'Recordings',
+    icon: Mic,
+    tooltip: 'Manage voice recordings',
+  },
+] as const;
 
 export function AppSidebar({ user }: { user: User | undefined }) {
   const router = useRouter();
   const { setOpenMobile, state } = useSidebar();
   const { theme, resolvedTheme } = useTheme();
-  // Ensure we react immediately to theme changes even before mount flags settle
   const isDarkTheme = (resolvedTheme ?? theme) === 'dark';
   const [mounted, setMounted] = useState(false);
   const [selectedComposerKind, setSelectedComposerKind] = useState<
@@ -59,25 +91,22 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Once mounted on client, we can safely show the UI without hydration mismatch
+  const isCollapsed = state === 'collapsed';
+
+  // Hydration safety
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Determine which logo to use based on theme
-  // Keep composer selection in sync with URL (?dashboard=...)
+  // Sync selected composer with URL
   useEffect(() => {
     const dash = searchParams?.get('dashboard');
-    if (dash) {
-      setSelectedComposerKind(
-        ['text', 'sheet', 'image', 'code', 'vto', 'accountability'].includes(
-          dash,
-        )
-          ? (dash as any)
-          : null,
-      );
+    if (
+      dash &&
+      ['text', 'sheet', 'image', 'code', 'vto', 'accountability'].includes(dash)
+    ) {
+      setSelectedComposerKind(dash as any);
     } else {
-      // When navigating to chats (no dashboard param), clear selection
       setSelectedComposerKind(null);
     }
   }, [pathname, searchParams]);
@@ -87,286 +116,256 @@ export function AppSidebar({ user }: { user: User | undefined }) {
       ? '/images/eos-logo-dark-mode.png'
       : '/images/eos-logo.png';
 
-  // Animation variants
-  const headerVariants = {
-    expanded: {
-      y: 0,
-      opacity: 1,
-      transition: springTransition,
-    },
-    collapsed: {
-      y: -10,
-      opacity: 0,
-      transition: springTransition,
-    },
+  // Handle composer item click
+  const handleComposerClick = (kind: string, label: string) => {
+    setOpenMobile(false);
+    if (
+      ['text', 'sheet', 'image', 'code', 'vto', 'accountability'].includes(kind)
+    ) {
+      setSelectedComposerKind(kind as any);
+    } else {
+      setSelectedComposerKind(null);
+    }
+
+    const { setLoading } = useLoading.getState();
+    setLoading(true, `Loading ${label.toLowerCase()}…`, 'default');
+
+    if (kind === 'recordings') {
+      const key = `/api/voice/recordings`;
+      void swrMutate(
+        key,
+        fetch(key).then((r) => r.json()),
+        { revalidate: false, populateCache: true },
+      );
+      router.push(`/chat?dashboard=recordings`);
+    } else {
+      const key = `/api/documents?composerKind=${kind}`;
+      void swrMutate(
+        key,
+        fetch(key).then((r) => r.json()),
+        { revalidate: false, populateCache: true },
+      );
+      router.push(`/chat?dashboard=${kind}`);
+    }
   };
 
-  const contentVariants = {
-    expanded: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        ...springTransition,
-        delay: 0.05,
-      },
-    },
-    collapsed: {
-      opacity: 0,
-      scale: 0.98,
-      transition: springTransition,
-    },
-  };
+  // ============================================================
+  // SPRING ANIMATION - Smooth, satisfying feel
+  // ============================================================
+  // Custom spring curve: fast start, gentle settle
+  const springCurve = 'cubic-bezier(0.4, 0.0, 0.2, 1)';
+  const fastEasing = springCurve;
 
-  const footerVariants = {
-    expanded: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        ...springTransition,
-        delay: 0.1,
-      },
-    },
-    collapsed: {
-      y: 10,
-      opacity: 0,
-      transition: springTransition,
-    },
-  };
+  // Section headers (Composer, Chats) - consistent fade for both states
+  const getHeaderFadeStyle = () => ({
+    opacity: isCollapsed ? 0 : 1,
+    transition: `opacity 180ms ${springCurve}`,
+  });
 
   return (
-    <>
-      <Sidebar className="group-data-[side=left]:border-r-0">
-        <motion.div
-          initial={false}
-          animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-          variants={headerVariants}
-        >
-          <SidebarHeader className="py-2.5">
-            <SidebarMenu>
-              <div className="flex flex-row justify-between items-center px-2">
-                <Link
-                  href="/chat"
-                  onClick={() => {
-                    setOpenMobile(false);
-                    setSelectedComposerKind(null);
-                  }}
-                  className="flex flex-row gap-3 items-center"
-                >
-                  <motion.div
-                    className="px-3 py-1 rounded-md cursor-pointer"
-                    whileHover={{
-                      y: -1,
-                      transition: { duration: 0.2, ease: 'easeOut' },
+    <Sidebar className="group-data-[side=left]:border-r-0">
+      {/* HEADER - FIXED 60px HEIGHT in BOTH states - NO layout shifts */}
+      <SidebarHeader
+        className="overflow-visible relative"
+        style={{
+          height: '60px',
+          minHeight: '60px',
+          maxHeight: '60px',
+        }}
+      >
+        <SidebarMenu className="h-full">
+          {/* COLLAPSED STATE - Toggle centered */}
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{
+              opacity: isCollapsed ? 1 : 0,
+              pointerEvents: isCollapsed ? 'auto' : 'none',
+              transition: `opacity 150ms ${fastEasing}`,
+            }}
+          >
+            <SidebarToggle />
+          </div>
+
+          {/* EXPANDED STATE - Logo, buttons, toggle in row */}
+          <div
+            className="absolute inset-0 flex flex-row items-center pl-2 pr-5 gap-0"
+            style={{
+              opacity: isCollapsed ? 0 : 1,
+              pointerEvents: isCollapsed ? 'none' : 'auto',
+              transition: `opacity 150ms ${fastEasing}`,
+            }}
+          >
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              <Link
+                href="/chat"
+                onClick={() => {
+                  setOpenMobile(false);
+                  setSelectedComposerKind(null);
+                }}
+                className="flex items-center"
+              >
+                <div className="px-0 py-1 rounded-md cursor-pointer hover:opacity-80 transition-opacity">
+                  <Image
+                    key={isDarkTheme ? 'logo-dark' : 'logo-light'}
+                    src={logoSrc}
+                    alt="EOS Logo"
+                    width={96}
+                    height={40}
+                    className="w-24 h-auto object-contain"
+                    style={{ display: mounted ? 'block' : 'none' }}
+                    priority
+                  />
+                </div>
+              </Link>
+            </div>
+
+            {/* Spacer - reduced to bring buttons closer */}
+            <div className="flex-1 min-w-0 max-w-[8px]" />
+
+            {/* Action buttons - tighter spacing */}
+            <div className="flex gap-0 items-center flex-shrink-0 -ml-1">
+              <AdvancedSearch />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    className="p-2 h-8 w-8 rounded-lg hover:bg-sidebar-accent/60"
+                    onClick={() => {
+                      setOpenMobile(false);
+                      setSelectedComposerKind(null);
+                      router.replace('/chat');
                     }}
                   >
-                    <Image
-                      key={isDarkTheme ? 'logo-dark' : 'logo-light'}
-                      src={logoSrc}
-                      alt="EOS Logo"
-                      width={96}
-                      height={40}
-                      className="w-24 h-auto"
-                      style={{
-                        display: mounted ? 'block' : 'none', // Prevent flash of wrong theme logo
-                        objectFit: 'contain',
-                      }}
-                    />
-                  </motion.div>
-                </Link>
-                <div className="flex gap-1 items-center">
-                  {/* Advanced Search Component */}
-                  <AdvancedSearch />
+                    <PlusIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Chat</TooltipContent>
+              </Tooltip>
+              <SidebarToggle />
+            </div>
+          </div>
+        </SidebarMenu>
+      </SidebarHeader>
 
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <motion.div
-                        whileHover={{ scale: 1.05, y: -1 }}
-                        whileTap={{ scale: 0.96 }}
-                      >
-                        <Button
-                          variant="ghost"
-                          type="button"
-                          className="p-2 h-fit"
-                          onClick={() => {
-                            setOpenMobile(false);
-                            setSelectedComposerKind(null);
-                            // Don't show loading for new chat - it should be instant
-                            // Force a clean navigation to /chat without any search parameters
-                            const url = new URL(
-                              '/chat',
-                              window.location.origin,
-                            );
-                            router.replace(url.pathname);
-                          }}
-                        >
-                          <PlusIcon />
-                        </Button>
-                      </motion.div>
-                    </TooltipTrigger>
-                    <TooltipContent>New Chat</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            </SidebarMenu>
-          </SidebarHeader>
-        </motion.div>
+      {/* COLLAPSED ACTION BUTTONS - Below header, only when collapsed */}
+      {/* Uses max-height for smooth animation (height: auto can't be animated) */}
+      <div
+        className="px-2 overflow-hidden"
+        style={{
+          maxHeight: isCollapsed ? '100px' : '0px',
+          opacity: isCollapsed ? 1 : 0,
+          transition: `max-height 150ms ${fastEasing}, opacity 150ms ${fastEasing}`,
+          pointerEvents: isCollapsed ? 'auto' : 'none',
+        }}
+      >
+        <div className="flex flex-col items-center gap-1.5 pb-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                type="button"
+                className="p-2 h-9 w-9 rounded-lg hover:bg-sidebar-accent/60"
+                onClick={() => {
+                  setOpenMobile(false);
+                  setSelectedComposerKind(null);
+                  router.replace('/chat');
+                }}
+              >
+                <PlusIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">New Chat</TooltipContent>
+          </Tooltip>
+          <AdvancedSearch />
+        </div>
+      </div>
 
-        <SidebarContent className="pt-2 flex-1">
-          <motion.div
-            initial={false}
-            animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-            variants={contentVariants}
-            className="h-full"
+      {/* CONTENT */}
+      <SidebarContent className="pt-2 flex-1">
+        <div className="flex flex-col h-full">
+          {/* Composer Section Header - Fades out */}
+          <div
+            className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90"
+            style={getHeaderFadeStyle()}
           >
-            <div className="flex flex-col h-full">
-              {/* Composer Section */}
-              <div className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90">
-                Composer
-              </div>
-              <div className="px-1 pb-2">
-                <SidebarMenu className="gap-1.5">
-                  {[
-                    {
-                      kind: 'text',
-                      label: 'Documents',
-                      icon: FileTextIcon,
-                      tooltip: 'Create documents',
-                    },
-                    {
-                      kind: 'sheet',
-                      label: 'Spreadsheets',
-                      icon: FileSpreadsheet,
-                      tooltip: 'Create spreadsheets',
-                    },
-                    {
-                      kind: 'image',
-                      label: 'Images',
-                      icon: ImageIcon,
-                      tooltip: 'Generate images',
-                    },
-                    {
-                      kind: 'code',
-                      label: 'Code',
-                      icon: CodeIcon,
-                      tooltip: 'Write and run code',
-                    },
-                    {
-                      kind: 'vto',
-                      label: "VTO's",
-                      icon: TargetIcon,
-                      tooltip: 'Vision/Traction Organizer',
-                    },
-                    {
-                      kind: 'accountability',
-                      label: 'A/C',
-                      icon: Users2,
-                      tooltip: 'Accountability Charts',
-                    },
-                    {
-                      kind: 'recordings',
-                      label: 'Recordings',
-                      icon: Mic,
-                      tooltip: 'Manage voice recordings',
-                    },
-                  ].map((item) => (
-                    <SidebarMenuItem
-                      key={item.kind}
-                      className="py-1 px-1 group/item relative"
+            Composer
+          </div>
+
+          {/* Composer Menu Items - Using plain buttons to avoid SidebarMenuButton's collapsible padding changes */}
+          <div className="px-2 pb-2 flex flex-col gap-1.5">
+            {composerItems.map((item) => {
+              const isActive = selectedComposerKind === item.kind;
+
+              // IMPORTANT: Always render Tooltip wrapper to prevent remount on collapse
+              // The tooltip only shows when collapsed (controlled by `open` logic inside Tooltip)
+              return (
+                <Tooltip key={item.kind}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => handleComposerClick(item.kind, item.label)}
+                      className={cn(
+                        // Base styles - FIXED padding that NEVER changes
+                        'h-11 w-full rounded-lg text-[14px] leading-6 font-normal text-sidebar-foreground',
+                        'px-3 py-3', // CONSTANT padding
+                        'text-left relative', // Relative for absolute text positioning
+                        'transition-colors duration-200',
+                        // Active/hover states
+                        isActive
+                          ? 'active-glass-button'
+                          : 'hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
+                      )}
                     >
-                      <motion.div
-                        className="w-full rounded-md"
-                        whileHover={{ y: -1 }}
-                        transition={{
-                          type: 'spring',
-                          stiffness: 350,
-                          damping: 26,
+                      {/* Icon - Fixed position, never moves */}
+                      <div className="w-4 h-4 flex items-center justify-center">
+                        <item.icon size={16} className="w-4 h-4" />
+                      </div>
+                      {/* Text - Fast fade */}
+                      <span
+                        className="absolute left-[calc(12px+16px+8px)] top-1/2 -translate-y-1/2 font-normal whitespace-nowrap pointer-events-none"
+                        style={{
+                          opacity: isCollapsed ? 0 : 1,
+                          transition: `opacity 150ms ${fastEasing}`,
                         }}
                       >
-                        <SidebarMenuButton
-                          size="lg"
-                          className={cn(
-                            'rounded-lg !h-11 py-3 px-3 text-[14px] leading-6 font-normal transition-all duration-200 mr-0 justify-start text-sidebar-foreground',
-                            selectedComposerKind === item.kind
-                              ? 'active-glass-button'
-                              : 'hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
-                          )}
-                          tooltip={item.tooltip}
-                          onClick={() => {
-                            setOpenMobile(false);
-                            if (
-                              item.kind === 'text' ||
-                              item.kind === 'sheet' ||
-                              item.kind === 'image' ||
-                              item.kind === 'code' ||
-                              item.kind === 'vto' ||
-                              item.kind === 'accountability'
-                            ) {
-                              setSelectedComposerKind(item.kind as any);
-                            } else {
-                              setSelectedComposerKind(null);
-                            }
-                            // Show global loading overlay for better perceived speed
-                            const { setLoading } = useLoading.getState();
-                            setLoading(
-                              true,
-                              `Loading ${item.label.toLowerCase()}…`,
-                              'default',
-                            );
-                            if (item.kind === 'recordings') {
-                              const key = `/api/voice/recordings`;
-                              void swrMutate(
-                                key,
-                                fetch(key).then((r) => r.json()),
-                                { revalidate: false, populateCache: true },
-                              );
-                              router.push(`/chat?dashboard=recordings`);
-                            } else {
-                              const key = `/api/documents?composerKind=${item.kind}`;
-                              void swrMutate(
-                                key,
-                                fetch(key).then((r) => r.json()),
-                                { revalidate: false, populateCache: true },
-                              );
-                              router.push(`/chat?dashboard=${item.kind}`);
-                            }
-                          }}
-                        >
-                          <div className="relative flex items-center w-full">
-                            <item.icon size={16} className="mr-2" />
-                            <span className="truncate block min-w-0 text-[14px] font-normal">
-                              {item.label}
-                            </span>
-                          </div>
-                        </SidebarMenuButton>
-                      </motion.div>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </div>
+                        {item.label}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  {/* Only show tooltip content when sidebar is collapsed */}
+                  <TooltipContent side="right" hidden={!isCollapsed}>
+                    {item.tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
 
-              <div className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90">
-                Chats
-              </div>
-
-              {/* Removed dev-only test links for premium and nexus selector */}
-
-              <div className="flex-1 min-h-0">
-                <SidebarHistory user={user} />
-              </div>
-            </div>
-          </motion.div>
-        </SidebarContent>
-
-        {user && (
-          <motion.div
-            initial={false}
-            animate={state === 'expanded' ? 'expanded' : 'collapsed'}
-            variants={footerVariants}
+          {/* Chats Section Header - Fades out */}
+          <div
+            className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90"
+            style={getHeaderFadeStyle()}
           >
-            <SidebarFooter />
-          </motion.div>
-        )}
-      </Sidebar>
-    </>
+            Chats
+          </div>
+
+          {/* Chat History */}
+          <div className="flex-1 min-h-0">
+            <SidebarHistory user={user} />
+          </div>
+        </div>
+      </SidebarContent>
+
+      {/* FOOTER */}
+      {user && (
+        <SidebarFooter>
+          <div className="flex items-center justify-center w-full">
+            <SidebarUserNav user={user} />
+          </div>
+        </SidebarFooter>
+      )}
+    </Sidebar>
   );
 }

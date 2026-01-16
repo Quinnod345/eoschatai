@@ -25,7 +25,7 @@ export function SettingsEffectsManager() {
       const html = document.documentElement;
       
       // Manage glass effects attribute
-      if (settings?.disableGlassEffects) {
+      if (settings?.disableGlassEffects ?? true) {
         console.log('[SettingsEffectsManager] Setting data-glass-effects=disabled');
         html.setAttribute('data-glass-effects', 'disabled');
       } else {
@@ -34,7 +34,7 @@ export function SettingsEffectsManager() {
       }
 
       // Manage gradient effects attribute
-      if (settings?.disableEosGradient) {
+      if (settings?.disableEosGradient ?? true) {
         console.log('[SettingsEffectsManager] Setting data-eos-gradients=disabled');
         html.setAttribute('data-eos-gradients', 'disabled');
       } else {

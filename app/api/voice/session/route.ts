@@ -6,6 +6,9 @@ import { getPersonaProfileById } from '@/lib/db/queries';
 import { db } from '@/lib/db';
 import { persona } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/utils/secure-logger';
+
+const logger = createLogger('VoiceSessionAPI');
 
 // This endpoint creates ephemeral tokens for browser-based Realtime API connections
 export async function POST(request: NextRequest) {
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
       chatId = body.chatId;
     } catch (error) {
       // If no body or invalid JSON, use defaults
-      console.log('No request body provided, using defaults');
+      logger.debug('No request body provided, using defaults');
     }
 
     // Create ephemeral token for browser WebRTC connection
@@ -70,10 +73,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('OpenAI session response:', JSON.stringify(data, null, 2));
-    console.log('Session ID:', data.id);
-    console.log('Client secret object:', data.client_secret);
-    console.log('Client secret value:', data.client_secret?.value);
+
+    // Log session creation (sanitized - no secrets)
+    logger.info('OpenAI session created', {
+      sessionId: data.id,
+      hasClientSecret: !!(data.client_secret?.value || data.client_secret),
+      expiresAt: data.client_secret?.expires_at || data.expires_at,
+    });
 
     // Extract the client_secret value from the object
     const clientSecretValue = data.client_secret?.value || data.client_secret;

@@ -30,6 +30,7 @@ vi.mock('@/lib/db', () => {
     personas_created: 0,
     memories_stored: 0,
     concurrent_sessions_active: 0,
+    storage_used_mb: 0,
   });
 
   const state = {
@@ -41,7 +42,10 @@ vi.mock('@/lib/db', () => {
   const makeWhere = () => vi.fn(async () => undefined);
 
   const updateImpl = vi.fn(() => ({
-    set: (values: { usageCounters?: UsageCounters; entitlements?: unknown }) => {
+    set: (values: {
+      usageCounters?: UsageCounters;
+      entitlements?: unknown;
+    }) => {
       if (values.usageCounters) {
         state.usageCounters = { ...values.usageCounters };
       }

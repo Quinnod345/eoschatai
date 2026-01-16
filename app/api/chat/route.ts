@@ -2,18 +2,17 @@ import {
   appendClientMessage,
   appendResponseMessages,
   createDataStream,
-  smoothStream,
   streamText,
   tool,
   generateText,
 } from 'ai';
 import { auth } from '@/app/(auth)/auth';
-import { type RequestHints, systemPrompt } from '@/lib/ai/prompts';
+import { isAdminEmail } from '@/lib/auth/admin';
+import { type RequestHints, systemPrompt, nexusResearcherPrompt } from '@/lib/ai/prompts';
 import {
   createStreamId,
   deleteChatById,
   getChatById,
-  getMessagesByChatId,
   getRecentMessagesByChatId,
   getStreamIdsByChatId,
   saveChat,
@@ -49,14 +48,12 @@ import {
   getCalendarEventsTool,
   createCalendarEventTool,
 } from '@/lib/ai/tools';
+import { triggerBackgroundSummary } from '@/lib/ai/background-summary';
 import { searchWeb } from '@/lib/ai/tools/search-web';
 import { z } from 'zod';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
-import {
-  extractCitationsFromResults,
-  type Citation,
-} from '@/lib/ai/citation-formatter';
+// Citation formatting - citations now handled inline by the AI through searchWeb tool
 // import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 export const maxDuration = 60;
@@ -74,15 +71,27 @@ function getStreamContext() {
         redisUrlPrefix: redisUrl?.substring(0, 10) || 'none',
       });
 
-      if (!redisUrl) {
+      if (!redisUrl || typeof redisUrl !== 'string' || redisUrl.trim() === '') {
         console.log(
-          ' > Resumable streams are disabled due to missing REDIS_URL',
+          ' > Resumable streams are disabled due to missing or invalid REDIS_URL',
         );
         return null;
       }
 
       // Clean the URL by removing any quotes that might be causing issues
-      const cleanRedisUrl = redisUrl.replace(/^["'](.*)["']$/, '$1');
+      const cleanRedisUrl = redisUrl.trim().replace(/^["'](.*)["']$/, '$1');
+
+      // Validate URL format
+      if (
+        !cleanRedisUrl.startsWith('redis://') &&
+        !cleanRedisUrl.startsWith('rediss://')
+      ) {
+        console.warn(
+          `[Chat Route] Invalid REDIS_URL format (expected redis:// or rediss://): ${cleanRedisUrl.substring(0, 20)}...`,
+        );
+        return null;
+      }
+
       console.log(
         'Creating resumable stream context with Redis URL:',
         `${cleanRedisUrl.substring(0, 20)}...`,
@@ -472,10 +481,11 @@ export async function POST(request: Request) {
           `Message History: Using existing summary (${conversationSummaryText.length} chars)`,
         );
       } else {
-        // TODO: Generate summary asynchronously in background
+        // Trigger background summary generation
         console.log(
-          'Message History: No summary available yet, will generate in background',
+          'Message History: No summary available yet, triggering background generation',
         );
+        triggerBackgroundSummary(id);
       }
     }
 
@@ -640,15 +650,28 @@ export async function POST(request: Request) {
     console.log('RAG: Starting parallel RAG operations...');
     const ragStartTime = Date.now();
 
+    // Store document IDs for context tracking
+    let userDocumentIds: string[] = [];
+    let userDocumentNames: string[] = [];
+
+    // Skip RAG for very short or generic queries (<= 12 chars)
+    // These queries like "hi", "ok", "yes", "mary antin" are too generic and match everything
+    const shouldSkipRAG = !queryText || queryText.trim().length <= 12;
+    if (shouldSkipRAG) {
+      console.log(
+        `RAG: Skipping RAG for short/generic query (${queryText?.length || 0} chars)`,
+      );
+    }
+
     const [
       relevantContent,
-      userRagContext,
+      userRagResult,
       personaRagContext,
       systemRagContext,
       memoryContext,
     ] = await Promise.all([
       // General RAG (Knowledge Base) - Company RAG
-      queryText
+      queryText && !shouldSkipRAG
         ? (() => {
             const generalRagStart = Date.now();
             return findRelevantContent(ragQueryText, 5)
@@ -677,27 +700,34 @@ export async function POST(request: Request) {
           })()
         : Promise.resolve([]),
 
-      // User RAG (User Documents)
-      session.user.id && queryText
+      // User RAG (User Documents) - Enhanced to return document IDs
+      session.user.id && queryText && !shouldSkipRAG
         ? (() => {
             const userRagStart = Date.now();
-            return import('@/lib/ai/prompts')
-              .then(({ userRagContextPrompt }) =>
-                userRagContextPrompt(session.user.id, ragQueryText),
+            return import('@/lib/ai/user-rag-context')
+              .then(({ getUserRagContextWithMetadata }) =>
+                getUserRagContextWithMetadata(session.user.id, ragQueryText),
               )
-              .then((context) => {
+              .then((result) => {
                 const userRagTime = Date.now() - userRagStart;
                 console.log(
-                  `User RAG: Generated context with ${context.length} characters in ${userRagTime}ms`,
+                  `User RAG: Generated context with ${result.context.length} characters from ${result.documentIds.length} documents in ${userRagTime}ms`,
                 );
 
-                // Debug: Log first 200 characters of user RAG context
-                if (context.length > 0) {
+                // Store document IDs for context tracking
+                userDocumentIds = result.documentIds;
+                userDocumentNames = result.documentNames;
+
+                // Debug: Log first 200 characters and document info
+                if (result.context.length > 0) {
                   console.log(
-                    `User RAG: Context preview: ${context.substring(0, 200)}...`,
+                    `User RAG: Context preview: ${result.context.substring(0, 200)}...`,
+                  );
+                  console.log(
+                    `User RAG: Documents used: ${result.documentNames.join(', ')}`,
                   );
                 }
-                return context;
+                return result;
               })
               .catch((error) => {
                 const userRagTime = Date.now() - userRagStart;
@@ -705,13 +735,13 @@ export async function POST(request: Request) {
                   `User RAG: Error getting user RAG context after ${userRagTime}ms:`,
                   error,
                 );
-                return '';
+                return { context: '', documentIds: [], documentNames: [] };
               });
           })()
-        : Promise.resolve(''),
+        : Promise.resolve({ context: '', documentIds: [], documentNames: [] }),
 
       // Persona RAG (Persona Documents) - Only if persona is selected
-      selectedPersonaId && queryText
+      selectedPersonaId && queryText && !shouldSkipRAG
         ? (() => {
             const personaRagStart = Date.now();
             console.log(
@@ -752,7 +782,7 @@ export async function POST(request: Request) {
         : Promise.resolve(''),
 
       // System RAG (System Persona Documents) - Only if system persona is selected
-      selectedPersonaId && queryText
+      selectedPersonaId && queryText && !shouldSkipRAG
         ? (() => {
             const systemRagStart = Date.now();
             console.log(
@@ -856,7 +886,7 @@ export async function POST(request: Request) {
         : Promise.resolve(''),
 
       // Memory RAG (User Memories)
-      session.user.id && queryText
+      session.user.id && queryText && !shouldSkipRAG
         ? (() => {
             const memoryRagStart = Date.now();
             console.log(
@@ -869,7 +899,7 @@ export async function POST(request: Request) {
                   session.user.id,
                   ragQueryText,
                   10,
-                  0.5,
+                  0.75, // Raised from 0.5 to 0.75 - only include highly relevant memories
                 ).then((memories) => {
                   const memoryRagTime = Date.now() - memoryRagStart;
                   console.log(
@@ -906,14 +936,17 @@ export async function POST(request: Request) {
         : Promise.resolve(''),
     ]);
 
+    // Extract user RAG context string
+    const userRagContext =
+      typeof userRagResult === 'string' ? userRagResult : userRagResult.context;
+
     const ragEndTime = Date.now();
     console.log(
       `RAG: All parallel operations completed in ${ragEndTime - ragStartTime}ms`,
     );
 
-    // Nexus Research (Nexus Mode) - Will be performed in the data stream with progress updates
-    let nexusResearchContext = '';
-    const nexusResults: any[] = [];
+    // Nexus Research Mode context - now handled by agentic researcher prompt
+    const nexusResearchContext = '';
 
     // Log results summary
     if (!queryText) {
@@ -924,7 +957,7 @@ export async function POST(request: Request) {
       console.log(
         `RAG Summary:`,
         `\n  - Company knowledge base: ${relevantContent.length} chunks`,
-        `\n  - User documents: ${userRagContext.length} characters`,
+        `\n  - User documents: ${userRagContext.length} characters (${userDocumentIds.length} docs: ${userDocumentNames.join(', ')})`,
         `\n  - Persona documents: ${personaRagContext.length} characters`,
         `\n  - System knowledge: ${systemRagContext.length} characters`,
         `\n  - User memories: ${memoryContext.length} characters`,
@@ -1632,9 +1665,12 @@ Always prioritize the user's document content over generic information. If speci
             : '';
 
         // Combine the enhanced system prompt with nexus research context and URL instruction
+        // In Nexus mode, append the agentic researcher prompt for autonomous research
+        const nexusPromptAddition = isNexusMode ? `\n\n${nexusResearcherPrompt}` : '';
         const finalSystemPrompt =
           enhancedSystemPrompt +
           nexusResearchContext +
+          nexusPromptAddition +
           urlFetchInstruction +
           toolResponseInstructions;
 
@@ -1761,301 +1797,32 @@ Always prioritize the user's document content over generic information. If speci
           message: 'Generating response',
         });
 
-        if (
-          selectedResearchMode === 'nexus' &&
-          queryText &&
-          !nexusResearchContext
-        ) {
-          console.log('[NEXUS MODE] Starting AI-powered research');
-
-          try {
-            // Import the Nexus research orchestrator
-            const { runNexusResearch } = await import(
-              '@/lib/ai/firesearch-orchestrator'
-            );
-
-            // Run the complete Nexus research flow
-            const nexusResearchResult = await runNexusResearch(
-              queryText,
-              dataStream,
-            );
-
-            // Set the research context for the chat model
-            nexusResearchContext = nexusResearchResult.researchContext;
-
-            // Store citations for later use
-            (globalThis as any).__nexusCitations =
-              nexusResearchResult.citations;
-
-            // Add Nexus-specific synthesis instructions
-            nexusResearchContext += `
-
-## NEXUS SYNTHESIS INSTRUCTIONS
-
-You are now synthesizing deep research conducted through multiple phases. Follow these guidelines:
-
-1. **Comprehensive Integration**: Integrate ALL research findings into a cohesive, authoritative response
-2. **Citation Usage (MANDATORY)**: Use inline bracketed citations like [1], [2] immediately after any factual claim, figure, or quote. Ensure every paragraph contains at least one citation.
-3. **Progressive Depth**: Start with overview, then dive deeper into specifics from the research
-4. **Key Insights**: Highlight the most important discoveries and patterns found across sources
-5. **Practical Application**: Focus on actionable insights and practical implementation guidance
-6. **Authoritative Tone**: Write with confidence based on the comprehensive research conducted
-7. **Structured Response**: Use clear headings and subheadings to organize the information
-8. **Complete Coverage**: Ensure all aspects of the user's query are thoroughly addressed
-
-FORMAT REQUIREMENTS:
-- Provide a short Executive Summary first.
-- Use rich markdown (headings, lists, tables where helpful).
-- End with a "References" section listing each source in order [1]..[N] with title and URL from the citations provided.
-
-Remember: You have conducted extensive research. Present the findings as a comprehensive expert analysis.
-`;
-
-            console.log(
-              '[NEXUS MODE] Research complete, context prepared for synthesis',
-            );
-          } catch (error) {
-            console.error('[NEXUS MODE] Research error:', error);
-            dataStream.writeData({
-              type: 'nexus-error',
-              error: error instanceof Error ? error.message : 'Research failed',
-            });
-            // Fall back to normal chat mode
-            nexusResearchContext = '';
-          }
-        }
-
-        // Skip the old nexus results processing - we're using simplified search now
-        const skipOldNexusProcessing = false;
-        if (skipOldNexusProcessing) {
-          console.log(
-            `[NEXUS MODE] Building research context with ${nexusResults.length} results`,
-          );
-
-          // Extract proper citations from results
-          const citations = extractCitationsFromResults(nexusResults);
-
-          nexusResearchContext = `
-
-## 🔬 NEXUS MODE - ADVANCED DEEP RESEARCH RESULTS
-
-I've conducted comprehensive multi-phase research across ${citations.length} authoritative sources for: "${queryText}"
-
-### 📚 PRIMARY RESEARCH SOURCES AND CITATIONS
-${citations
-  .slice(0, 30)
-  .map(
-    (citation: Citation) => `
-**[${citation.number}] ${citation.title}**
-- 🔗 URL: ${citation.url}
-- 📝 Summary: ${citation.snippet || 'No summary available'}
-${
-  citation.content
-    ? `- 📖 Full Content Available: ${Math.round((citation.content.length || 0) / 1000)}k characters of detailed information
-- 💡 Key Insights: ${citation.content.substring(0, 1500)}...`
-    : '- 📌 Reference source for verification'
-}
-- ✅ Source Type: ${citation.content ? `Primary source with comprehensive analysis (${Math.round((citation.content.length || 0) / 1000)}k chars)` : 'Secondary reference for cross-validation'}
-- 🎯 Relevance: High-quality source for ${queryText}
-`,
-  )
-  .join('\n')}
-
-### 🎯 NEXUS MODE ULTRA-COMPREHENSIVE RESPONSE REQUIREMENTS
-
-**⚠️ CRITICAL INSTRUCTIONS - MAXIMUM TOKEN GENERATION MODE ACTIVATED:**
-
-You are now in NEXUS DEEP RESEARCH MODE with MAXIMUM OUTPUT enabled. Your response MUST be:
-- **MINIMUM 8,000 words** (target 10,000-15,000 words)
-- **MAXIMUM DETAIL** with exhaustive coverage
-- **CITATION DENSE** with references every 2-3 sentences
-- **COMPREHENSIVE** covering every possible angle and perspective
-
-**🔥 MANDATORY CITATION PROTOCOL:**
-1. **EVERY CLAIM MUST BE CITED**: Use [1], [2], [3] format after EVERY statement of fact
-2. **CITATION FREQUENCY**: Minimum 1 citation per paragraph, optimal 2-3 citations per paragraph
-3. **MULTI-SOURCE SYNTHESIS**: Combine multiple sources like "Research shows [1][2][3] that..."
-4. **DIRECT QUOTES**: Include direct quotes from sources using > blockquotes with citations
-5. **CITATION EXAMPLES**:
-   - "According to comprehensive analysis [1], the market has grown by 45% [2] with experts predicting further expansion [3][4]."
-   - "Multiple studies [5][6][7] confirm this trend, with one researcher noting: 'This represents a paradigm shift' [8]."
-
-**📊 ULTRA-DETAILED RESPONSE STRUCTURE (MINIMUM WORD COUNTS):**
-
-## 1. 🎯 COMPREHENSIVE EXECUTIVE SUMMARY (1,500+ words)
-- Complete overview with 15+ citations minimum
-- Key findings from ALL sources
-- Statistical summary with data points
-- Market/topic landscape overview
-- Critical insights and discoveries
-- Methodology and research approach used
-
-## 2. 🔍 IN-DEPTH FOUNDATIONAL ANALYSIS (2,500+ words)
-### 2.1 Core Concepts and Definitions (800+ words)
-- Technical definitions with citations
-- Historical context and evolution
-- Theoretical frameworks
-- Academic perspectives
-
-### 2.2 Current State Analysis (900+ words)
-- Market conditions/current situation
-- Key players and stakeholders
-- Competitive landscape
-- Recent developments with dates
-
-### 2.3 Technical Deep Dive (800+ words)
-- Mechanisms and processes
-- Technical specifications
-- Implementation details
-- Architecture/structure analysis
-
-## 3. 💡 COMPREHENSIVE INSIGHTS & FINDINGS (2,000+ words)
-### 3.1 Data Analysis and Statistics (700+ words)
-- Quantitative findings with citations
-- Trend analysis with graphs descriptions
-- Comparative metrics
-- Performance indicators
-
-### 3.2 Qualitative Analysis (700+ words)
-- Expert opinions from sources
-- Case study insights
-- Industry perspectives
-- Stakeholder viewpoints
-
-### 3.3 Cross-Source Synthesis (600+ words)
-- Patterns across multiple sources
-- Conflicting viewpoints analysis
-- Consensus findings
-- Unique insights from research
-
-## 4. 🚀 PRACTICAL IMPLEMENTATION GUIDE (1,800+ words)
-### 4.1 Step-by-Step Instructions (600+ words)
-- Detailed process walkthrough
-- Prerequisites and requirements
-- Tools and resources needed
-- Timeline expectations
-
-### 4.2 Best Practices & Strategies (600+ words)
-- Industry best practices with citations
-- Optimization strategies
-- Efficiency improvements
-- Success metrics
-
-### 4.3 Real-World Applications (600+ words)
-- Case studies with citations
-- Success stories
-- Implementation examples
-- Lessons learned
-
-## 5. ⚡ ADVANCED TOPICS & EDGE CASES (1,500+ words)
-### 5.1 Advanced Techniques (500+ words)
-- Expert-level strategies
-- Cutting-edge approaches
-- Innovation opportunities
-- Future technologies
-
-### 5.2 Risk Analysis & Mitigation (500+ words)
-- Comprehensive risk assessment
-- Mitigation strategies with citations
-- Contingency planning
-- Security considerations
-
-### 5.3 Edge Cases & Special Scenarios (500+ words)
-- Unusual situations
-- Exception handling
-- Special circumstances
-- Regulatory considerations
-
-## 6. 🔮 FUTURE OUTLOOK & TRENDS (1,000+ words)
-- Emerging trends with citations
-- Future predictions from experts
-- Technology roadmap
-- Market projections
-- Disruption potential
-- Long-term implications
-
-## 7. 📋 ACTIONABLE RECOMMENDATIONS (800+ words)
-- Immediate action items
-- Short-term strategies (0-3 months)
-- Medium-term plans (3-12 months)
-- Long-term vision (1+ years)
-- Resource requirements
-- Success metrics and KPIs
-
-## 8. 📚 COMPREHENSIVE RESOURCE GUIDE (500+ words)
-- Additional reading with citations
-- Tool recommendations
-- Professional resources
-- Communities and forums
-- Training and certification
-- Vendor comparisons
-
-## 9. 🎓 FINAL SYNTHESIS & CONCLUSIONS (600+ words)
-- Key takeaways with citations
-- Critical success factors
-- Final recommendations
-- Call to action
-- Next steps
-
-**🎨 ENHANCED FORMATTING REQUIREMENTS:**
-- Use ALL markdown features: # ## ### #### headers
-- Create detailed tables with | syntax |
-- Use **bold**, *italic*, ***bold italic***, ~~strikethrough~~
-- Include > blockquotes for important quotes
-- Add - and 1. for lists with sub-items using proper indentation
-- Use \`code\` for technical terms and \`\`\`language blocks for code
-- Add --- horizontal rules between major sections
-- Include 🎯 📊 💡 ⚡ 🔥 emojis for visual emphasis
-- Create comparison matrices and decision trees in text format
-
-**📈 CONTENT QUALITY MANDATES:**
-1. **DEPTH**: Go 5-7 levels deep on every topic, not just surface level
-2. **BREADTH**: Cover every possible angle, perspective, and consideration
-3. **CLARITY**: Explain complex concepts in multiple ways with examples
-4. **EVIDENCE**: Support EVERYTHING with citations and data
-5. **SYNTHESIS**: Connect ideas across sources to create new insights
-6. **ACTIONABILITY**: Provide specific, implementable recommendations
-7. **COMPLETENESS**: Leave no question unanswered, no angle unexplored
-
-**🔬 RESEARCH SYNTHESIS REQUIREMENTS:**
-- Compare and contrast findings from different sources
-- Identify patterns and trends across multiple citations
-- Highlight agreements and disagreements in the literature
-- Provide meta-analysis of the collective findings
-- Generate unique insights from the synthesis
-- Create frameworks based on the research
-
-**💎 CITATION DENSITY EXAMPLES:**
-"The comprehensive analysis [1] reveals that implementation success rates reach 87% [2] when following established protocols [3]. Industry experts [4][5] emphasize that 'proper planning reduces failure risk by 65%' [6], with recent studies [7][8][9] confirming these findings across multiple sectors [10]. Furthermore, longitudinal research [11] demonstrates sustained improvements [12], particularly when combined with continuous monitoring [13][14] and iterative refinement [15]."
-
-**⚠️ FINAL CRITICAL REMINDERS:**
-- This is MAXIMUM OUTPUT mode - generate the LONGEST, MOST DETAILED response possible
-- Target 10,000+ words minimum with 100+ citations
-- Every paragraph needs 2-3 citations minimum
-- Include direct quotes with proper citation
-- Create comprehensive tables and lists
-- Provide exhaustive coverage leaving nothing unexplored
-- Synthesize information to create unique value beyond individual sources
-- Format beautifully with rich markdown
-- Be the ULTIMATE authoritative resource on this topic
-
-Remember: You are in NEXUS DEEP RESEARCH MODE - provide the most comprehensive, detailed, citation-rich, and valuable response ever generated. This should be a masterpiece of research synthesis that serves as the definitive guide on "${queryText}".
-
-BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
-`;
-
-          console.log(
-            `[NEXUS MODE] Research context built, length: ${nexusResearchContext.length} characters`,
-          );
-          console.log(`[NEXUS MODE] Context built for comprehensive response`);
+        // NEXUS AGENTIC RESEARCH MODE
+        // The AI handles planning and research autonomously through the nexusResearcherPrompt
+        // Phase 1: AI creates plan, may ask clarifying questions if needed
+        // Phase 2: AI searches autonomously using searchWeb tool
+        // No complex orchestration needed - AI SDK maxSteps handles multi-turn tool calling
+        if (selectedResearchMode === 'nexus' && queryText) {
+          console.log('[NEXUS MODE] Agentic research mode enabled');
+          
+          // Signal that we're in Nexus mode
+          dataStream.writeData({
+            type: 'nexus-mode-active',
+            message: 'Nexus Research Mode activated',
+          });
+          
+          // The nexusResearcherPrompt is appended to the system prompt below
+          // The AI will autonomously:
+          // 1. Create a brief research plan
+          // 2. Ask clarifying questions if needed (as regular text output)
+          // 3. Begin autonomous research using searchWeb tool
+          // 4. Synthesize findings with citations
         }
 
         // Set up a timeout variable
         let responseTimeout: NodeJS.Timeout | undefined;
 
-        // Only proceed with actual chat generation if we're not in plan-pending mode
-        if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL') {
-          // Set up a timeout to prevent hanging responses
+        // Set up a timeout to prevent hanging responses
           responseTimeout = setTimeout(() => {
             console.error(
               'Response generation timeout reached - terminating stream',
@@ -2101,7 +1868,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                 'parseNaturalLanguageEvent',
                 'findSmartAvailability',
               ],
-              experimental_transform: smoothStream({ chunking: 'word' }), // Use smooth streaming for all modes
+              // Removed smoothStream transform - frontend handles smoothing with useSmoothStream hook
+              // This allows immediate character-by-character streaming without word buffering
               experimental_generateMessageId: generateUUID,
               // Dynamic settings based on Nexus mode
               temperature: temperature, // Use the variable we defined
@@ -2773,18 +2541,37 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                   },
                 }),
               },
-              onStepFinish: async ({ toolCalls }) => {
+              onStepFinish: async ({ toolCalls, toolResults }) => {
                 // Send status updates for tool calls with concrete details
                 if (!toolCalls || toolCalls.length === 0) return;
 
                 for (const toolCall of toolCalls) {
                   if (toolCall.toolName === 'searchWeb') {
                     const q = (toolCall as any)?.args?.query;
-                    dataStream.writeData({
-                      type: 'chat-status',
-                      status: 'searching',
-                      message: q ? `Searching: ${q}` : 'Searching the web',
-                    });
+                    
+                    // In Nexus mode, send detailed progress events
+                    if (isNexusMode) {
+                      const searchResult = toolResults?.find(
+                        (tr: any) => tr.toolCallId === toolCall.toolCallId
+                      );
+                      dataStream.writeData({
+                        type: 'nexus-search-progress',
+                        query: q || 'Searching...',
+                        resultsFound: (searchResult as any)?.result?.resultCount || 0,
+                        phase: 'researching',
+                      });
+                      console.log('[NEXUS] Search completed:', {
+                        query: q,
+                        resultsFound: (searchResult as any)?.result?.resultCount || 0,
+                      });
+                    } else {
+                      // Standard mode: simple status update
+                      dataStream.writeData({
+                        type: 'chat-status',
+                        status: 'searching',
+                        message: q ? `Searching: ${q}` : 'Searching the web',
+                      });
+                    }
                   } else if (toolCall.toolName === 'getCalendarEvents') {
                     dataStream.writeData({
                       type: 'chat-status',
@@ -3012,6 +2799,8 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
                           personaId: selectedPersonaId,
                           profileId: selectedProfileId,
                           researchMode: selectedResearchMode,
+                          userDocumentIds, // Track which documents were used
+                          userDocumentNames, // Track document names for display
                         },
                       });
 
@@ -3174,7 +2963,6 @@ BEGIN YOUR ULTRA-COMPREHENSIVE RESPONSE NOW:
               error: 'Fatal error in chat processing',
             });
           }
-        } // End of if (nexusResearchContext !== 'PLAN_PENDING_APPROVAL')
       },
       onError: (error) => {
         console.error('Error in data stream:', error);
@@ -3503,17 +3291,35 @@ ${
         });
 
         // Create a timeout promise with longer duration for nexus searches
+        let timeoutId: NodeJS.Timeout | null = null;
         const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(new Error('Nexus resumable stream creation timed out'));
           }, 20000); // 20 second timeout for nexus mode
         });
 
         // Race the stream creation against the timeout
         const resumableStream = await Promise.race([
-          streamPromise,
-          timeoutPromise,
+          streamPromise.finally(() => {
+            // Clean up timeout if stream resolves first
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          }),
+          timeoutPromise.finally(() => {
+            // Clean up timeout if timeout resolves first
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          }),
         ]).catch((error) => {
+          // Ensure timeout is cleared on error
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
           console.error(
             `[NEXUS MODE] Resumable stream error or timeout: ${error}`,
           );
@@ -3555,18 +3361,36 @@ ${
 
         console.log('Stream promise created, waiting for resolution...');
 
-        // Create a timeout promise
+        // Create a timeout promise with cleanup
+        let timeoutId: NodeJS.Timeout | null = null;
         const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(new Error('Resumable stream creation timed out'));
           }, 10000); // 10 second timeout for stream creation
         });
 
         // Race the stream creation against the timeout
         const resumableStream = await Promise.race([
-          streamPromise,
-          timeoutPromise,
+          streamPromise.finally(() => {
+            // Clean up timeout if stream resolves first
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          }),
+          timeoutPromise.finally(() => {
+            // Clean up timeout if timeout resolves first
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+          }),
         ]).catch((error) => {
+          // Ensure timeout is cleared on error
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
           console.error(`Resumable stream error or timeout: ${error}`);
           console.log('Falling back to direct response stream');
           return responseStream;
@@ -3650,7 +3474,14 @@ export async function GET(request: Request) {
     return new Response('Not found', { status: 404 });
   }
 
-  if (chat.visibility === 'private' && chat.userId !== session.user.id) {
+  // Allow admin users to access any chat
+  const isAdminUser = isAdminEmail(session.user.email);
+
+  if (
+    chat.visibility === 'private' &&
+    chat.userId !== session.user.id &&
+    !isAdminUser
+  ) {
     return new Response('Forbidden', { status: 403 });
   }
 

@@ -340,7 +340,7 @@ export function Dropdown({
                   filteredPinned.map((pinned) => (
                     <div
                       key={pinned?.id}
-                      className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                      className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors duration-200"
                       role="button"
                       tabIndex={0}
                       onClick={() => {
@@ -477,7 +477,7 @@ export function Dropdown({
                     {filteredBookmarks.map((chat) => (
                       <div
                         key={chat.id}
-                        className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                        className="group p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors duration-200"
                         role="button"
                         tabIndex={0}
                         onClick={() => handleNavigateToChat(chat.chatId)}

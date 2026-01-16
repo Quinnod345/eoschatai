@@ -20,18 +20,17 @@ import type { Session } from 'next-auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
-import { UsageLimitIndicator } from './usage-limit-indicator';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
 import { ReplyIndicator } from './reply-indicator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
-import { NexusResearchPlan } from './nexus-research-plan';
 import { ComposerContextIndicator } from './composer-context-indicator';
 import { NexusFollowUpQuestions } from './nexus-followup-questions';
-import { NexusResearchDisplay } from './nexus-research-display';
-import GradualBlur from './GradualBlur';
+import { Telescope } from 'lucide-react';
+import { ChatOverview } from './chat-overview';
+import { ErrorBoundary } from './error-boundary';
 
 export function Chat({
   id,
@@ -98,11 +97,10 @@ export function Chat({
   // Add loading state for research mode changes
   const [researchModeChanging, setResearchModeChanging] = useState(false);
 
-  // Add state for Nexus search progress
-  const [nexusSearchData, setNexusSearchData] = useState<any>(null);
-  const [nexusResearchPlan, setNexusResearchPlan] = useState<any>(null);
+  // Simplified Nexus state - just track if we're researching and the current query
+  const [isNexusResearching, setIsNexusResearching] = useState(false);
+  const [currentNexusQuery, setCurrentNexusQuery] = useState<string | null>(null);
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
-  const [nexusSearchEvents, setNexusSearchEvents] = useState<any[]>([]);
   const [nexusCitations, setNexusCitations] = useState<
     Array<{
       number: number;
@@ -246,10 +244,9 @@ export function Chat({
       responseStartTimeRef.current = performance.now();
       responseSizeRef.current = 0;
 
-      // Clear Nexus search events for new message
-      setNexusSearchEvents([]);
-      setNexusSearchData(null);
-      setNexusResearchPlan(null);
+      // Clear Nexus search state for new message
+      setIsNexusResearching(false);
+      setCurrentNexusQuery(null);
 
       console.log('PERSONA_CLIENT: Preparing request body', {
         chatId: id,
@@ -476,116 +473,121 @@ export function Chat({
 
   // Track current Nexus stream ID for recovery
   const [nexusStreamId, setNexusStreamId] = useState<string | null>(null);
+  const [isResumingStream, setIsResumingStream] = useState(false);
 
-  // TODO: Re-implement resumable streams later
-  // Check for interrupted Nexus searches on mount (disabled for now)
+  // Check for interrupted Nexus searches on mount
   useEffect(() => {
-    // Clear any old stream IDs to prevent errors
-    const storedStreamId = sessionStorage.getItem(`nexus-stream-${id}`);
-    if (storedStreamId) {
-      sessionStorage.removeItem(`nexus-stream-${id}`);
-    }
-  }, [id]);
+    if (!autoResume) return;
+
+    const checkForInterruptedStream = async () => {
+      const storedStreamId = sessionStorage.getItem(`nexus-stream-${id}`);
+      if (!storedStreamId) return;
+
+      try {
+        setIsResumingStream(true);
+        console.log(
+          `[Chat] Checking for interrupted stream: ${storedStreamId}`,
+        );
+
+        // Try to load the stream state from the server
+        const response = await fetch(`/api/nexus/stream/${storedStreamId}`);
+
+        if (response.ok) {
+          const streamState = await response.json();
+
+          // If stream is incomplete, attempt to resume
+          if (
+            streamState &&
+            streamState.phase !== 'complete' &&
+            streamState.phase !== 'error'
+          ) {
+            console.log(
+              `[Chat] Found incomplete stream in phase: ${streamState.phase}`,
+            );
+            setNexusStreamId(storedStreamId);
+
+            // Show notification to user
+            toast.info('Resuming previous research session...');
+            setIsNexusResearching(true);
+
+            // Trigger stream resumption
+            const resumeResponse = await fetch(
+              `/api/nexus/resume/${storedStreamId}`,
+              {
+                method: 'POST',
+              },
+            );
+
+            if (!resumeResponse.ok) {
+              console.warn(
+                '[Chat] Failed to resume stream, clearing stored ID',
+              );
+              sessionStorage.removeItem(`nexus-stream-${id}`);
+            }
+          } else {
+            // Stream is complete or errored, clean up
+            sessionStorage.removeItem(`nexus-stream-${id}`);
+          }
+        } else {
+          // Stream not found, clean up
+          sessionStorage.removeItem(`nexus-stream-${id}`);
+        }
+      } catch (error) {
+        console.error('[Chat] Error checking for interrupted stream:', error);
+        sessionStorage.removeItem(`nexus-stream-${id}`);
+      } finally {
+        setIsResumingStream(false);
+      }
+    };
+
+    checkForInterruptedStream();
+  }, [id, autoResume]);
 
   // Track processed Nexus events to avoid duplicates
   const processedEventsRef = useRef<Set<string>>(new Set());
 
-  // Handle Nexus search events from data stream
+  // Handle Nexus search progress events from data stream
   useEffect(() => {
     if (!data || data.length === 0) return;
 
-    // Process only new events that haven't been processed yet
-    const newEvents = data.filter((item: any) => {
-      if (
-        item &&
-        typeof item === 'object' &&
-        'type' in item &&
-        item.type.startsWith('nexus-')
-      ) {
-        // Create a unique key for this event
-        const eventKey = `${item.type}-${JSON.stringify(item)}-${data.indexOf(item)}`;
-        if (!processedEventsRef.current.has(eventKey)) {
-          processedEventsRef.current.add(eventKey);
-          return true;
-        }
-      }
-      return false;
-    });
+    // Process only new Nexus events
+    data.forEach((item: any) => {
+      if (!item || typeof item !== 'object' || !('type' in item)) return;
+      
+      // Create a unique key for this event
+      const eventKey = `${item.type}-${data.indexOf(item)}`;
+      if (processedEventsRef.current.has(eventKey)) return;
+      processedEventsRef.current.add(eventKey);
 
-    // Process each new event
-    newEvents.forEach((eventData: any) => {
-      const eventType = eventData.type as string;
-      console.log('[Chat] Nexus event received:', eventType, eventData);
+      const eventType = item.type as string;
 
-      // Add all events to the events array for NexusResearchDisplay
-      setNexusSearchEvents((prev) => [...prev, eventData]);
-
-      // Handle different Nexus events
+      // Handle simplified Nexus events
       switch (eventType) {
-        case 'nexus-progress':
-          setNexusSearchData(eventData);
+        case 'nexus-mode-active':
+          console.log('[Chat] Nexus mode activated');
+          setIsNexusResearching(true);
           break;
-        case 'nexus-plan-complete':
-          setNexusResearchPlan(eventData.plan);
-          setNexusSearchData({ ...eventData, type: 'nexus-progress' });
-          break;
-        case 'nexus-search-update':
-          setNexusSearchData((prev: any) => ({
-            ...prev,
-            currentStep: eventData.currentStep,
-            questionsSearched: eventData.questionsSearched,
-            message: eventData.message,
-          }));
-          break;
-        case 'nexus-search-complete':
-          setNexusSearchData((prev: any) => ({
-            ...prev,
-            totalResults: eventData.totalResults,
-          }));
-          // Extract citations from complete event
-          if (eventData.citations) {
-            setNexusCitations(eventData.citations);
-          }
-          // Extract follow-up questions
-          if (eventData.followUpQuestions) {
-            setFollowUpQuestions(eventData.followUpQuestions);
-          }
-          break;
-        case 'nexus-analysis-update':
-          setNexusSearchData((prev: any) => ({
-            ...prev,
-            currentAnalysisStep: eventData.stepNumber,
-          }));
-          break;
-        case 'nexus-synthesis-complete':
-          // Store citations for display
-          if (eventData.citations && Array.isArray(eventData.citations)) {
-            setNexusCitations(
-              eventData.citations as Array<{
-                number: number;
-                title: string;
-                url: string;
-              }>,
-            );
-          }
-          // Auto-dismiss the progress UI after a short delay
-          setTimeout(() => {
-            setNexusSearchData(null);
-            setNexusResearchPlan(null);
-          }, 2000);
+        case 'nexus-search-progress':
+          // Update the current search query for the progress indicator
+          setIsNexusResearching(true);
+          setCurrentNexusQuery(item.query || 'Searching...');
+          console.log('[Chat] Nexus search progress:', item.query);
           break;
         case 'nexus-followup-questions':
-          console.log(
-            '[Chat] Follow-up questions received:',
-            eventData.questions,
-          );
-          setFollowUpQuestions(eventData.questions || []);
+          console.log('[Chat] Follow-up questions received:', item.questions);
+          setFollowUpQuestions(item.questions || []);
           break;
-        default:
-          setNexusSearchData(eventData);
       }
     });
-  }, [data, id]);
+  }, [data]);
+
+  // Clear Nexus research state when streaming completes
+  useEffect(() => {
+    if (status === 'ready' || status === 'error') {
+      setIsNexusResearching(false);
+      setCurrentNexusQuery(null);
+    }
+  }, [status]);
 
   // Process data stream for web search events
   useEffect(() => {
@@ -1283,6 +1285,44 @@ export function Chat({
     [id, initialProfileId, selectedProfileId, hasInitialMessages],
   );
 
+  // Handlers for creating/editing personas - dispatch events to chat-header
+  const handleCreatePersona = useCallback(() => {
+    // Dispatch event for chat-header to open persona wizard
+    window.dispatchEvent(
+      new CustomEvent('openPersonaWizard', {
+        detail: { mode: 'create' },
+      }),
+    );
+  }, []);
+
+  const handleEditPersona = useCallback((persona: any) => {
+    // Dispatch event for chat-header to open persona wizard in edit mode
+    window.dispatchEvent(
+      new CustomEvent('openPersonaWizard', {
+        detail: { mode: 'edit', persona },
+      }),
+    );
+  }, []);
+
+  // Handlers for creating/editing profiles - dispatch events to chat-header
+  const handleCreateProfile = useCallback(() => {
+    // Dispatch event for chat-header to open profile modal
+    window.dispatchEvent(
+      new CustomEvent('openProfileModal', {
+        detail: { mode: 'create' },
+      }),
+    );
+  }, []);
+
+  const handleEditProfile = useCallback((profile: any) => {
+    // Dispatch event for chat-header to open profile modal in edit mode
+    window.dispatchEvent(
+      new CustomEvent('openProfileModal', {
+        detail: { mode: 'edit', profile },
+      }),
+    );
+  }, []);
+
   // Initialize persona for new chats - always default to Default EOS AI
   useEffect(() => {
     console.log(
@@ -1663,8 +1703,30 @@ export function Chat({
     }
   }, [status, isReplying, clearReply]);
 
+  // Track if chat was initialized as a new chat (no messages)
+  // This determines if we should animate the input position
+  const isNewChatRef = useRef(initialMessages.length === 0);
+  const hasAnimatedRef = useRef(false);
+
+  const isInputCentered =
+    messages.length === 0 &&
+    attachments.length === 0 &&
+    !isReplying;
+
+  // Compute if we should animate: only for new chats that haven't animated yet
+  // and are transitioning from centered to bottom
+  const shouldAnimatePosition =
+    isNewChatRef.current && !hasAnimatedRef.current && !isInputCentered;
+
+  // Mark as animated after the first transition (in an effect to avoid render-time mutation)
+  useEffect(() => {
+    if (shouldAnimatePosition) {
+      hasAnimatedRef.current = true;
+    }
+  }, [shouldAnimatePosition]);
+
   return (
-    <>
+    <ErrorBoundary context="Chat">
       <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
         <ChatHeader
           chatId={id}
@@ -1681,18 +1743,26 @@ export function Chat({
           onScrollToMessage={handleScrollToMessage}
         />
 
-        {/* Gradient blur to blend content below header */}
-        <GradualBlur
-          position="top"
-          height="6rem"
-          strength={1}
-          divCount={3}
-          curve="bezier"
-          exponential={false}
-          opacity={1}
-          zIndex={30}
-          target="parent"
+        {/* Simple gradient fade - no expensive backdrop-filter */}
+        <div
+          className="absolute top-0 left-0 right-0 h-24 z-30 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to bottom, var(--background) 0%, var(--background) 20%, transparent 100%)',
+          }}
         />
+
+        {/* Chat Overview - Greeting & Suggestions */}
+        {isInputCentered && (
+          <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none">
+            <div className="w-full pointer-events-auto">
+              <ChatOverview
+                isVisible={isInputCentered}
+                userName={session?.user?.name || 'Implementer'}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Show composer context indicator when composer is open */}
         <AnimatePresence>
@@ -1756,129 +1826,45 @@ export function Chat({
           </div>
         )}
 
-        {/* Show Nexus search progress if active */}
-        {nexusResearchPlan?.plan && (
-          <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
-            <NexusResearchPlan
-              plan={nexusResearchPlan.plan}
-              maxLookupsAllowed={nexusResearchPlan.maxLookupsAllowed}
-              onStartResearch={async ({ maxLookups }) => {
-                // Start the actual research
-                console.log('[Chat] Starting approved research');
-                setNexusResearchPlan(null);
-                setNexusSearchData({
-                  type: 'nexus-search-start',
-                  message: 'Starting research...',
-                });
+        {/* Simple Nexus research progress indicator */}
+        <AnimatePresence>
+          {isNexusResearching && currentNexusQuery && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20"
+            >
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                <Telescope className="w-4 h-4 animate-pulse" />
+                <span className="text-sm font-medium">Researching: {currentNexusQuery}</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                try {
-                  const response = await fetch('/api/nexus-execute', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      plan: nexusResearchPlan.plan,
-                      chatId: id,
-                      maxLookups,
-                    }),
-                  });
-
-                  if (!response.ok) {
-                    throw new Error('Failed to start research');
-                  }
-
-                  // Process the stream
-                  const reader = response.body?.getReader();
-                  if (reader) {
-                    const decoder = new TextDecoder();
-                    while (true) {
-                      const { done, value } = await reader.read();
-                      if (done) break;
-
-                      const chunk = decoder.decode(value, { stream: true });
-                      const lines = chunk.split('\n');
-
-                      for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                          try {
-                            const data = JSON.parse(line.slice(6));
-                            setNexusSearchData(data);
-
-                            // If research is complete, append the results to the conversation
-                            if (
-                              data.type === 'nexus-search-complete' &&
-                              data.results
-                            ) {
-                              // The results will be handled by the existing nexus logic
-                              processDataStreamMessage(data);
-                            }
-                          } catch (e) {
-                            console.error('Failed to parse stream data:', e);
-                          }
-                        }
-                      }
-                    }
-                  }
-                } catch (error) {
-                  console.error('[Chat] Error executing research:', error);
-                  toast.error('Failed to execute research plan');
+        <motion.form
+          initial={
+            initialMessages.length > 0
+              ? { bottom: '0%', y: '0%' }
+              : { bottom: '50%', y: '50%' }
+          }
+          animate={{
+            bottom: isInputCentered ? '50%' : '0%',
+            y: isInputCentered ? '50%' : '0%',
+          }}
+          transition={
+            shouldAnimatePosition
+              ? {
+                  type: 'spring',
+                  stiffness: 400,
+                  damping: 25,
+                  mass: 0.8,
                 }
-              }}
-              onRegenerate={async (feedback) => {
-                // Regenerate the plan with feedback
-                console.log(
-                  '[Chat] Regenerating plan with feedback:',
-                  feedback,
-                );
-                setNexusResearchPlan(null);
-                setNexusSearchData({
-                  type: 'nexus-plan-generating',
-                  message: 'Regenerating plan...',
-                });
-
-                try {
-                  const response = await fetch('/api/nexus-plan', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      query: messages[messages.length - 1].content,
-                      model: activeModel,
-                      regenerate: true,
-                      feedback,
-                    }),
-                  });
-
-                  const planData = await response.json();
-                  if (planData.success) {
-                    setNexusResearchPlan({
-                      plan: planData.plan,
-                      totalSearches: planData.totalSearches,
-                      phases: planData.phases,
-                      requiresApproval: true,
-                      maxLookupsAllowed: planData.maxLookupsAllowed,
-                    });
-                    setNexusSearchData(null);
-                  } else {
-                    throw new Error(
-                      planData.error || 'Failed to regenerate plan',
-                    );
-                  }
-                } catch (error) {
-                  console.error('[Chat] Error regenerating plan:', error);
-                  toast.error('Failed to regenerate research plan');
-                  setNexusSearchData(null);
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {selectedResearchMode === 'nexus' && nexusSearchEvents.length > 0 && (
-          <div className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20">
-            <NexusResearchDisplay events={nexusSearchEvents} />
-          </div>
-        )}
-
-        <form className="absolute bottom-0 left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10">
+              : { duration: 0 }
+          }
+          className="absolute left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10"
+        >
           {/* Reply Indicator */}
           <AnimatePresence initial={false}>
             {isReplying && (
@@ -1926,10 +1912,16 @@ export function Chat({
                 selectedResearchMode={selectedResearchMode}
                 onResearchModeChange={handleResearchModeChange}
                 isChanging={researchModeChanging}
+                onPersonaSelect={handlePersonaChange}
+                onCreatePersona={handleCreatePersona}
+                onEditPersona={handleEditPersona}
+                onProfileSelect={handleProfileChange}
+                onCreateProfile={handleCreateProfile}
+                onEditProfile={handleEditProfile}
               />
             </motion.div>
           )}
-        </form>
+        </motion.form>
       </div>
 
       <Composer
@@ -1949,6 +1941,6 @@ export function Chat({
         isReadonly={isReadonly}
         selectedVisibilityType={visibilityType}
       />
-    </>
+    </ErrorBoundary>
   );
 }

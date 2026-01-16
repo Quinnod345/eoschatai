@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { ChartRenderer } from './chart-renderer';
 import { CitationButton } from './citation-button';
 import type { ChartData } from '@/composer/chart/client';
+import { motion } from 'framer-motion';
 
 interface CitationReference {
   number: number;
@@ -12,6 +13,49 @@ interface CitationReference {
   url: string;
   snippet?: string;
 }
+
+// Cursor component for streaming text
+const Cursor = () => (
+  <span className="inline-block w-[3px] h-[1.1em] bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-pulse align-text-bottom ml-0.5 rounded-full opacity-90" />
+);
+
+// Helper to replace cursor token with Cursor component in a string
+const renderStringWithCursor = (text: string) => {
+  if (!text.includes('$$CURSOR$$')) return text;
+  const parts = text.split('$$CURSOR$$');
+  return (
+    <>
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {part}
+          {i < parts.length - 1 && <Cursor />}
+        </React.Fragment>
+      ))}
+    </>
+  );
+};
+
+// Helper to process React children and replace cursor token in text nodes
+const replaceCursorInChildren = (
+  children: React.ReactNode,
+): React.ReactNode => {
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      return renderStringWithCursor(child);
+    }
+    // We generally don't need to recurse deep because the cursor is appended
+    // to the raw markdown string, so it usually appears as a direct text node
+    // or at the end of the last text node.
+    // However, ReactMarkdown might nest it (e.g. inside <strong>).
+    // A shallow recursive check for simple elements might be good if needed,
+    // but for now top-level check + string check covers 99% of streaming cases.
+
+    // If it's a React element with children, we could potentially clone and recurse,
+    // but ReactMarkdown elements are often specific components.
+    // Let's rely on the fact that text nodes are passed as children to parents.
+    return child;
+  });
+};
 
 // Mask URLs inside citation markup to prevent autolinking before we replace them
 function maskUrlsInCitations(text: string): string {
@@ -26,8 +70,9 @@ function maskUrlsInCitations(text: string): string {
 // Function to detect and parse chart data from content
 function detectChartData(content: string): ChartData | null {
   try {
-    // Remove common markdown formatting
+    // Remove common markdown formatting and cursor token
     const cleanContent = content
+      .replace(/\$\$CURSOR\$\$/g, '')
       .trim()
       .replace(/^```[a-zA-Z]*\n?/, '') // Remove opening code fence
       .replace(/\n?```$/, '') // Remove closing code fence
@@ -91,33 +136,54 @@ function EnhancedCodeBlock({
 
     if (chartData) {
       return (
-        <div className="my-4 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="my-4 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden"
+        >
           <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-xs text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700">
             Interactive Chart
           </div>
           <div className="p-4">
             <ChartRenderer chartData={chartData} />
           </div>
-        </div>
+        </motion.div>
       );
     }
 
     // Fallback to regular code block
     return (
-      <pre
-        {...props}
-        className="text-sm w-full overflow-x-auto dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl dark:text-zinc-50 text-zinc-900"
+      <motion.div
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        <code className="whitespace-pre-wrap break-words">{children}</code>
-      </pre>
+        <pre
+          {...props}
+          className="text-sm w-full overflow-x-auto dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl dark:text-zinc-50 text-zinc-900"
+        >
+          <code className="whitespace-pre-wrap break-words">
+            {renderStringWithCursor(content)}
+          </code>
+        </pre>
+      </motion.div>
     );
   } else {
+    // Inline code
+    const content =
+      typeof children === 'string'
+        ? children
+        : Array.isArray(children)
+          ? children.join('')
+          : String(children);
+
     return (
       <code
         className={`${className} text-sm bg-zinc-100 dark:bg-zinc-800 py-0.5 px-1 rounded-md`}
         {...props}
       >
-        {children}
+        {renderStringWithCursor(content)}
       </code>
     );
   }
@@ -164,7 +230,11 @@ function EnhancedTable({ children, ...props }: any) {
   };
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <div className="my-6 overflow-hidden">
         <div className="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg">
           {/* Copy button */}
@@ -253,27 +323,23 @@ function EnhancedTable({ children, ...props }: any) {
       {/* Lightbox Modal */}
       {isLightboxOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/0 backdrop-blur-[6px]"
+          className="fixed inset-0 z-modal-overlay flex items-center justify-center p-4 bg-black/20 backdrop-blur-[8px]"
           onClick={() => setIsLightboxOpen(false)}
         >
           <div
-            className="relative w-full h-full max-w-7xl max-h-[90vh] bg-white dark:bg-zinc-900 rounded-xl shadow-2xl overflow-hidden transform transition-all duration-300 ease-out opacity-0 scale-95"
+            className="relative w-full h-full max-w-7xl max-h-[90vh] bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-2xl shadow-2xl overflow-hidden z-modal-content"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              opacity: 1,
-              transform: 'scale(1)',
-            }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
+              <h3 className="text-lg font-semibold text-foreground">
                 Full Table View
               </h3>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={copyTableToClipboard}
-                  className="p-2 rounded-md bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors duration-200"
+                  className="p-2 rounded-md bg-muted hover:bg-accent transition-colors duration-200"
                   title="Copy table to clipboard"
                 >
                   {copied ? (
@@ -292,7 +358,7 @@ function EnhancedTable({ children, ...props }: any) {
                     </svg>
                   ) : (
                     <svg
-                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                      className="w-4 h-4 text-muted-foreground"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -309,11 +375,11 @@ function EnhancedTable({ children, ...props }: any) {
                 <button
                   type="button"
                   onClick={() => setIsLightboxOpen(false)}
-                  className="p-2 rounded-md bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors duration-200"
+                  className="p-2 rounded-md bg-muted hover:bg-accent transition-colors duration-200"
                   title="Close"
                 >
                   <svg
-                    className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                    className="w-4 h-4 text-muted-foreground"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -336,7 +402,7 @@ function EnhancedTable({ children, ...props }: any) {
           </div>
         </div>
       )}
-    </>
+    </motion.div>
   );
 }
 
@@ -437,64 +503,8 @@ const components: Partial<Components> = {
   tr: EnhancedTableRow,
   th: EnhancedTableHeader,
   td: EnhancedTableCell,
-  p: ({ children }) => {
-    // Check if children contains any block elements or components that render divs
-    const hasBlockChild = React.Children.toArray(children).some((child) => {
-      if (React.isValidElement(child)) {
-        // Check for HTML block elements
-        if (
-          child.type === 'pre' ||
-          child.type === 'div' ||
-          child.type === 'ol' ||
-          child.type === 'ul' ||
-          child.type === 'table' ||
-          child.type === 'form' ||
-          child.type === 'section' ||
-          child.type === 'article' ||
-          child.type === 'aside' ||
-          child.type === 'header' ||
-          child.type === 'footer' ||
-          child.type === 'nav' ||
-          child.type === 'main'
-        ) {
-          return true;
-        }
-
-        // Check for React components that might render block elements
-        if (typeof child.type === 'function') {
-          const componentType = child.type as React.ComponentType<any>;
-          const componentName =
-            componentType.displayName ?? componentType.name ?? '';
-          // Common patterns for components that render block elements
-          if (
-            componentName.includes('Block') ||
-            componentName.includes('Table') ||
-            componentName.includes('Chart') ||
-            componentName.includes('Tooltip') ||
-            componentName.includes('Modal') ||
-            componentName.includes('Dialog') ||
-            componentName.includes('Citation')
-          ) {
-            return true;
-          }
-        }
-
-        // Check if the child has props that suggest it renders a div/block element
-        if (child.props?.className) {
-          return true; // Most React components with className render divs
-        }
-      }
-      return false;
-    });
-
-    // If it has any block children, render without wrapping in a paragraph
-    if (hasBlockChild) {
-      return <>{children}</>;
-    }
-
-    // Otherwise render as normal paragraph
-    return <p>{children}</p>;
-  },
+  // Default paragraph renderer to start - will be overridden in the memoized component
+  p: ({ children }) => <p>{children}</p>,
   ol: ({ children, ...props }) => {
     return (
       <ol className="list-decimal list-outside ml-4" {...props}>
@@ -590,6 +600,7 @@ interface MarkdownProps {
 const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
   // Pre-process to avoid autolinking inside citation markup
   const maskedChildren = maskUrlsInCitations(children);
+
   // Debug logging
   if (citations.length > 0) {
     console.log(
@@ -609,147 +620,168 @@ const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
   }
 
   // Create enhanced components that support citations
-  const enhancedComponents: Partial<Components> = {
-    ...components,
-    // Handle text nodes that might contain citations
-    text: ({ children, value }: any) => {
-      const textValue = value || children;
-      if (typeof textValue === 'string' && textValue.includes('§')) {
-        console.log(
-          '[Markdown] Text node with masked URL:',
-          textValue.substring(0, 200),
-        );
-      }
-      return <>{textValue}</>;
-    },
-    p: ({ children }) => {
-      // Check if children contains a pre, div, or other block element
-      const hasBlockChild = React.Children.toArray(children).some(
-        (child) =>
-          React.isValidElement(child) &&
-          (child.type === 'pre' ||
-            child.type === 'div' ||
-            child.type === 'ol' ||
-            child.type === 'ul' ||
-            (typeof child.type === 'function' &&
-              child.type.name === 'CodeBlock')),
-      );
-
-      // If it has any block children, render without wrapping in a paragraph
-      if (hasBlockChild) {
-        return <>{children}</>;
-      }
-
-      // Convert children to string more robustly
-      const childrenArray = React.Children.toArray(children);
-      const textContent = childrenArray
-        .map((child) => {
-          if (typeof child === 'string') {
-            return child;
-          } else if (React.isValidElement(child) && child.props.children) {
-            // Recursively extract text from nested elements
-            return React.Children.toArray(child.props.children)
-              .map((nestedChild) =>
-                typeof nestedChild === 'string' ? nestedChild : '',
-              )
-              .join('');
-          }
-          return '';
-        })
-        .join('');
-
-      // Check for inline citation format: CITE:num:url:title or num:url:title variants
-      // Also matches masked URLs (with § instead of : in https§//)
-      const inlineCitationPattern =
-        /\[(?:CITE:)?(\d+):([^\]]+?)(?::([^\]]+))?\]/g;
-      const hasInlineCitations = inlineCitationPattern.test(textContent);
-      inlineCitationPattern.lastIndex = 0; // Reset regex
-
-      // Debug logging - check for both regular and masked citations
-      if (
-        textContent.includes('[') &&
-        (textContent.includes('§') || textContent.match(/\[\d+:/))
-      ) {
-        console.log('[Markdown] Potential citation text:', {
-          textSnippet: textContent.substring(0, 300),
-          fullText: textContent,
-          hasInlineCitations,
-          hasMaskedUrls: textContent.includes('§'),
-          matches: textContent.match(
-            /\[(?:CITE:)?(\d+):([^\]]+?)(?::([^\]]+))?\]/g,
-          ),
-        });
-      }
-
-      if (hasInlineCitations) {
-        console.log(
-          '[Markdown] ✅ Found inline citations, rendering with buttons',
+  const enhancedComponents: Partial<Components> = React.useMemo(
+    () => ({
+      ...components,
+      p: ({ children }) => {
+        // Check if children contains a pre, div, or other block element
+        const hasBlockChild = React.Children.toArray(children).some(
+          (child) =>
+            React.isValidElement(child) &&
+            (child.type === 'pre' ||
+              child.type === 'div' ||
+              child.type === 'ol' ||
+              child.type === 'ul' ||
+              (typeof child.type === 'function' &&
+                child.type.name === 'CodeBlock')),
         );
 
-        // Parse and render inline citations
-        const parts: (string | React.ReactElement)[] = [];
-        let lastIndex = 0;
-        let keyIndex = 0;
+        // If it has any block children, render without wrapping in a paragraph
+        if (hasBlockChild) {
+          return <>{replaceCursorInChildren(children)}</>;
+        }
 
-        let match = inlineCitationPattern.exec(textContent);
-        while (match !== null) {
-          console.log('[Markdown] Processing citation:', {
-            fullMatch: match[0],
-            number: match[1],
-            url: match[2],
-            title: match[3],
-          });
-
-          // Add text before citation
-          if (match.index > lastIndex) {
-            parts.push(textContent.substring(lastIndex, match.index));
-          }
-
-          const number = Number.parseInt(match[1], 10);
-          // Unmask any masked colons in URL (§ back to :)
-          const url = match[2]?.replace(/§/g, ':');
-          let title = match[3]?.replace(/§/g, ':'); // Also unmask title if needed
-
-          // Fallback title generation with error handling
-          if (!title) {
-            try {
-              const formattedUrl = url.startsWith('http')
-                ? url
-                : `https://${url}`;
-              title = new URL(formattedUrl).hostname;
-            } catch (e) {
-              console.error('[Markdown] Error parsing URL for title:', url, e);
-              title = `Source ${number}`;
+        // Convert children to string more robustly
+        const childrenArray = React.Children.toArray(children);
+        const textContent = childrenArray
+          .map((child) => {
+            if (typeof child === 'string') {
+              return child;
+            } else if (React.isValidElement(child) && child.props.children) {
+              // Recursively extract text from nested elements
+              return React.Children.toArray(child.props.children)
+                .map((nestedChild) =>
+                  typeof nestedChild === 'string' ? nestedChild : '',
+                )
+                .join('');
             }
+            return '';
+          })
+          .join('');
+
+        // Check for inline citation format
+        const inlineCitationPattern =
+          /\[(?:CITE:)?(\d+):([^\]]+?)(?::([^\]]+))?\]/g;
+        const hasInlineCitations = inlineCitationPattern.test(textContent);
+        inlineCitationPattern.lastIndex = 0; // Reset regex
+
+        if (hasInlineCitations) {
+          // Parse and render inline citations
+          const parts: (string | React.ReactElement)[] = [];
+          let lastIndex = 0;
+          let keyIndex = 0;
+
+          let match = inlineCitationPattern.exec(textContent);
+          while (match !== null) {
+            // Add text before citation
+            if (match.index > lastIndex) {
+              const textPart = textContent.substring(lastIndex, match.index);
+              parts.push(renderStringWithCursor(textPart));
+            }
+
+            const number = Number.parseInt(match[1], 10);
+            const url = match[2]?.replace(/§/g, ':');
+            let title = match[3]?.replace(/§/g, ':');
+
+            if (!title) {
+              try {
+                const formattedUrl = url.startsWith('http')
+                  ? url
+                  : `https://${url}`;
+                title = new URL(formattedUrl).hostname;
+              } catch (e) {
+                title = `Source ${number}`;
+              }
+            }
+
+            parts.push(
+              <CitationButton
+                key={`inline-cite-${keyIndex++}`}
+                number={number}
+                title={title}
+                url={url}
+                inline={true}
+              />,
+            );
+
+            lastIndex = match.index + match[0].length;
+            match = inlineCitationPattern.exec(textContent);
           }
 
-          // Add citation button
-          parts.push(
-            <CitationButton
-              key={`inline-cite-${keyIndex++}`}
-              number={number}
-              title={title}
-              url={url}
-              inline={true}
-            />,
+          // Add remaining text
+          if (lastIndex < textContent.length) {
+            parts.push(
+              renderStringWithCursor(textContent.substring(lastIndex)),
+            );
+          }
+
+          return (
+            <motion.p
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {parts}
+            </motion.p>
           );
-
-          lastIndex = match.index + match[0].length;
-          match = inlineCitationPattern.exec(textContent);
         }
 
-        // Add remaining text
-        if (lastIndex < textContent.length) {
-          parts.push(textContent.substring(lastIndex));
-        }
-
-        return <p>{parts}</p>;
-      }
-
-      // Otherwise render as normal paragraph
-      return <p>{children}</p>;
-    },
-  };
+        // Otherwise render as normal paragraph with cursor replacement
+        return (
+          <motion.p
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {replaceCursorInChildren(children)}
+          </motion.p>
+        );
+      },
+      li: ({ children }) => {
+        return (
+          <motion.li
+            className="py-1"
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {replaceCursorInChildren(children)}
+          </motion.li>
+        );
+      },
+      h1: ({ children, ...props }) => (
+        <h1 className="text-3xl font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h1>
+      ),
+      h2: ({ children, ...props }) => (
+        <h2 className="text-2xl font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h2>
+      ),
+      h3: ({ children, ...props }) => (
+        <h3 className="text-xl font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h3>
+      ),
+      h4: ({ children, ...props }) => (
+        <h4 className="text-lg font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h4>
+      ),
+      h5: ({ children, ...props }) => (
+        <h5 className="text-base font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h5>
+      ),
+      h6: ({ children, ...props }) => (
+        <h6 className="text-sm font-semibold mt-6 mb-2" {...props}>
+          {replaceCursorInChildren(children)}
+        </h6>
+      ),
+    }),
+    [],
+  );
 
   return (
     <ReactMarkdown

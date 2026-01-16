@@ -93,15 +93,16 @@ export function FeedbackModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-50"
+            className="fixed inset-0 bg-black/20 backdrop-blur-[8px] z-modal-overlay"
           />
 
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-background rounded-lg shadow-lg z-50"
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-2xl shadow-2xl z-modal-content"
           >
             <div className="p-6">
               {/* Header */}

@@ -11,6 +11,7 @@ import { toast as customToast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { createLogger } from '@/lib/utils/secure-logger';
 interface VoiceModeProps {
   isOpen: boolean;
   onClose: () => void;
@@ -90,11 +91,13 @@ export default function VoiceModeIntegrated({
     setConnectionStatus('connecting');
 
     try {
+      const voiceLogger = createLogger('VoiceIntegrated');
+
       // Step 1: Get ephemeral token from server
-      console.log('Getting ephemeral token...', {
-        selectedPersonaId,
-        selectedProfileId,
-        chatId: currentChatId,
+      voiceLogger.debug('Getting ephemeral token', {
+        hasPersona: !!selectedPersonaId,
+        hasProfile: !!selectedProfileId,
+        hasChatId: !!currentChatId,
       });
       const tokenResponse = await fetch('/api/voice/session', {
         method: 'POST',
@@ -119,7 +122,11 @@ export default function VoiceModeIntegrated({
         personaName: tokenData.personaName,
         profileName: tokenData.profileName,
       });
-      console.log('Got ephemeral token and instructions');
+      voiceLogger.info('Got ephemeral token', {
+        hasToken: !!ephemeralKey,
+        hasInstructions: !!tokenData.instructions,
+        personaName: tokenData.personaName,
+      });
 
       // Step 2: Create peer connection
       const pc = new RTCPeerConnection({

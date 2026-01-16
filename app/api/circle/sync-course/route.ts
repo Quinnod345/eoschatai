@@ -14,12 +14,30 @@ import { processPersonaDocuments } from '@/lib/ai/persona-rag';
  * Sync Course API Endpoint
  * Background job to sync Circle.so course content into persona RAG
  * POST /api/circle/sync-course
+ * 
+ * Requires either:
+ * - Valid user session
+ * - Internal API key (X-Internal-Key header) for background jobs
  */
 export async function POST(request: NextRequest) {
   try {
-    // For background jobs, we might want to use an API key instead of session auth
-    // For now, we'll allow unauthenticated access since it's triggered by the activate endpoint
-    // In production, consider adding API key authentication or job queue system
+    // Validate authentication - either session or internal API key
+    const internalKey = request.headers.get('X-Internal-Key');
+    const expectedKey = process.env.INTERNAL_API_KEY;
+    
+    // Check for internal API key first (for background jobs)
+    const isInternalRequest = expectedKey && internalKey === expectedKey;
+    
+    if (!isInternalRequest) {
+      // Fall back to session authentication
+      const session = await auth();
+      if (!session?.user?.id) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Provide valid session or internal API key.' },
+          { status: 401 },
+        );
+      }
+    }
 
     const body = await request.json();
     let { courseId, spaceId, personaId } = body;
@@ -229,17 +247,24 @@ export async function POST(request: NextRequest) {
       `[Circle Sync] Triggering serverless embedding worker for ${documentIds.length} documents`,
     );
 
-    // Call the serverless embedding processor
+    // Call the serverless embedding processor with internal API key
     const embeddingUrl = new URL(
       '/api/circle/process-embeddings',
       request.url,
     );
     
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Pass internal API key for background job authentication
+    if (process.env.INTERNAL_API_KEY) {
+      headers['X-Internal-Key'] = process.env.INTERNAL_API_KEY;
+    }
+    
     fetch(embeddingUrl.toString(), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         courseId,
         personaId,

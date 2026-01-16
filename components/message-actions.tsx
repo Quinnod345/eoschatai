@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 import { copyRichText, processMessageParts } from '@/lib/utils/copy-utils';
 import { FeedbackModal } from './feedback-modal';
 import { SourcesDialog } from './sources-dialog';
+import { ContextSourcesDialog } from './context-sources-dialog';
+import { ContextIndicatorBadge } from './context-indicator-badge';
 
 interface CitationReference {
   number: number;
@@ -57,6 +59,7 @@ export function PureMessageActions({
   const [_, copyToClipboard] = useCopyToClipboard();
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
+  const [contextSourcesDialogOpen, setContextSourcesDialogOpen] = useState(false);
   const [pendingVoteType, setPendingVoteType] = useState<'up' | 'down' | null>(
     null,
   );
@@ -331,82 +334,96 @@ export function PureMessageActions({
 
             {/* Voting and retry actions for assistant messages only */}
             {message.role === 'assistant' && (
-              <div className="flex items-center opacity-0 group-hover/message:opacity-100 transition-opacity duration-200">
-                <div className="w-px h-6 bg-border mx-1" />
+              <>
+                {/* Context indicator badge - always visible */}
+                <motion.div
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <ContextIndicatorBadge
+                    messageId={message.id}
+                    variant="subtle"
+                    onClick={() => setContextSourcesDialogOpen(true)}
+                  />
+                </motion.div>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.div
-                      whileHover={{ scale: 1.03, y: -1 }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <Button
-                        data-testid="message-upvote"
-                        className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
-                        disabled={vote?.isUpvoted}
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setPendingVoteType('up');
-                          setFeedbackModalOpen(true);
-                        }}
+                {/* Separator line and voting buttons - only visible on hover */}
+                <div className="flex items-center opacity-0 group-hover/message:opacity-100 transition-opacity duration-200">
+                  <div className="w-px h-6 bg-border mx-1" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <motion.div
+                        whileHover={{ scale: 1.03, y: -1 }}
+                        whileTap={{ scale: 0.97 }}
                       >
-                        <ThumbUpIcon />
-                      </Button>
-                    </motion.div>
-                  </TooltipTrigger>
-                  <TooltipContent>Upvote Response</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.div
-                      whileHover={{ scale: 1.03, y: -1 }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <Button
-                        data-testid="message-downvote"
-                        className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
-                        variant="ghost"
-                        size="sm"
-                        disabled={vote && !vote.isUpvoted}
-                        onClick={() => {
-                          setPendingVoteType('down');
-                          setFeedbackModalOpen(true);
-                        }}
-                      >
-                        <ThumbDownIcon />
-                      </Button>
-                    </motion.div>
-                  </TooltipTrigger>
-                  <TooltipContent>Downvote Response</TooltipContent>
-                </Tooltip>
-
-                {/* Retry action for assistant messages */}
-                {onRetry && (
-                  <>
-                    <div className="w-px h-6 bg-border mx-1" />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div
-                          whileHover={{ scale: 1.03, y: -1 }}
-                          whileTap={{ scale: 0.97 }}
+                        <Button
+                          data-testid="message-upvote"
+                          className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400"
+                          disabled={vote?.isUpvoted}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPendingVoteType('up');
+                            setFeedbackModalOpen(true);
+                          }}
                         >
-                          <Button
-                            className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onRetry}
+                          <ThumbUpIcon />
+                        </Button>
+                      </motion.div>
+                    </TooltipTrigger>
+                    <TooltipContent>Upvote Response</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <motion.div
+                        whileHover={{ scale: 1.03, y: -1 }}
+                        whileTap={{ scale: 0.97 }}
+                      >
+                        <Button
+                          data-testid="message-downvote"
+                          className="py-1 px-2 h-fit text-muted-foreground !pointer-events-auto hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
+                          variant="ghost"
+                          size="sm"
+                          disabled={vote && !vote.isUpvoted}
+                          onClick={() => {
+                            setPendingVoteType('down');
+                            setFeedbackModalOpen(true);
+                          }}
+                        >
+                          <ThumbDownIcon />
+                        </Button>
+                      </motion.div>
+                    </TooltipTrigger>
+                    <TooltipContent>Downvote Response</TooltipContent>
+                  </Tooltip>
+
+                  {/* Retry action for assistant messages */}
+                  {onRetry && (
+                    <>
+                      <div className="w-px h-6 bg-border mx-1" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <motion.div
+                            whileHover={{ scale: 1.03, y: -1 }}
+                            whileTap={{ scale: 0.97 }}
                           >
-                            <RefreshCw className="h-3 w-3" />
-                          </Button>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent>Retry generation</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-              </div>
+                            <Button
+                              className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                              variant="ghost"
+                              size="sm"
+                              onClick={onRetry}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                            </Button>
+                          </motion.div>
+                        </TooltipTrigger>
+                        <TooltipContent>Retry generation</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -432,6 +449,15 @@ export function PureMessageActions({
           open={sourcesDialogOpen}
           onOpenChange={setSourcesDialogOpen}
           citations={citations}
+        />
+      )}
+
+      {/* Context Sources dialog */}
+      {message.role === 'assistant' && (
+        <ContextSourcesDialog
+          messageId={message.id}
+          open={contextSourcesDialogOpen}
+          onOpenChange={setContextSourcesDialogOpen}
         />
       )}
     </>

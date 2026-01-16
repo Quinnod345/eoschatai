@@ -9,6 +9,7 @@ import { Mic, MicOff, Volume2, VolumeX, PhoneOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
+import { createLogger } from '@/lib/utils/secure-logger';
 
 interface VoiceModeProps {
   isOpen: boolean;
@@ -95,14 +96,12 @@ export default function VoiceMode({
 
       const session = await sessionResponse.json();
       sessionRef.current = session;
-      console.log('Ephemeral session created:', session);
-      console.log('Client secret type:', typeof session.client_secret);
-      console.log('Client secret value:', session.client_secret);
 
-      // Ephemeral tokens are only for Realtime API, not regular API calls
-      console.log(
-        'Note: Ephemeral tokens are specific to Realtime API connections',
-      );
+      const voiceLogger = createLogger('VoiceMode');
+      voiceLogger.info('Ephemeral session created', {
+        sessionId: session.id,
+        hasClientSecret: !!session.client_secret,
+      });
 
       // Step 2: Connect to OpenAI using client_secret as auth token
       const clientSecret = session.client_secret;
@@ -111,8 +110,7 @@ export default function VoiceMode({
       }
 
       // Connect using the ephemeral key
-      // First, let's check what connection methods are available
-      console.log('Attempting WebSocket connection with ephemeral key');
+      voiceLogger.debug('Attempting WebSocket connection');
 
       // Connect to OpenAI Realtime API with ephemeral key
       // Try the exact format from VOICE-MODE-FIXES.md

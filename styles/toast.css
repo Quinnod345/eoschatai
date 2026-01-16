@@ -1,8 +1,8 @@
 /* EOS Toast System - top drop with blur, offset, and soft glow */
 
-/* Ensure toaster overlays entire UI */
+/* Ensure toaster overlays entire UI - use toast z-index from CSS variables */
 [data-sonner-toaster] {
-  z-index: 2147483647 !important; /* ensure on top */
+  z-index: var(--z-toast, 400) !important;
 }
 
 /* Each toast - Liquid Glass Effect */
@@ -11,7 +11,7 @@
   background: rgba(255, 255, 255, 0.1) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
-  color: #0f172a !important;
+  color: hsl(var(--foreground)) !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   border-radius: 20px !important;
   padding: 16px 20px !important;
@@ -55,7 +55,7 @@
 [data-theme="dark"] [data-sonner-toast],
 .dark [data-sonner-toast] {
   background: rgba(255, 255, 255, 0.05) !important;
-  color: #f1f5f9 !important;
+  color: hsl(var(--foreground)) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -126,7 +126,7 @@
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  color: #374151 !important;
+  color: hsl(var(--muted-foreground)) !important;
   opacity: 0.8 !important;
   transition: all 0.2s ease !important;
   display: flex !important;
@@ -166,7 +166,7 @@
 .dark [data-sonner-toast] button[aria-label*="Close"] {
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.15) !important;
-  color: #e5e7eb !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 [data-theme="dark"] [data-sonner-toast] button[data-close-button="true"]:hover,

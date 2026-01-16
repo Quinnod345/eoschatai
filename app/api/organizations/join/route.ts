@@ -2,10 +2,13 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { org as orgTable, user as userTable } from '@/lib/db/schema';
+import {
+  org as orgTable,
+  user as userTable,
+  orgMemberRole,
+} from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { validateInviteCode } from '@/lib/organizations/invite-codes';
-import { canAddUserToOrg } from '@/lib/organizations/seat-enforcement';
 
 export async function POST(request: NextRequest) {
   try {
@@ -133,6 +136,13 @@ export async function POST(request: NextRequest) {
           plan: org.plan, // Sync user plan to match org plan
         })
         .where(eq(userTable.id, session.user.id));
+
+      // Create OrgMemberRole record for the new member
+      await tx.insert(orgMemberRole).values({
+        userId: session.user.id,
+        orgId: org.id,
+        role: 'member',
+      });
     });
 
     // Force recomputation and broadcast of entitlements with new org plan

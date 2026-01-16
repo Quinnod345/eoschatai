@@ -3,20 +3,15 @@ import { useRouter } from 'next/navigation';
 import { useWindowSize } from 'usehooks-ts';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
-import { SidebarToggle } from '@/components/sidebar-toggle';
-import { PlusIcon } from './icons';
-import { useSidebar } from './ui/sidebar';
 import { memo } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { VisibilityType } from './visibility-selector';
 import type { Session } from 'next-auth';
-import { SidebarUserNav } from '@/components/sidebar-user-nav';
-import { PersonasDropdown } from '@/components/personas-dropdown';
-import { ProfilesDropdown } from '@/components/profiles-dropdown';
 import { PersonaWizard } from '@/components/persona-wizard';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
-import { AdvancedSearch } from '@/components/advanced-search';
 import { Bookmark, Search } from 'lucide-react';
+import { AdvancedSearch } from '@/components/advanced-search';
+import { PlusIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
 import { Dropdown as SavedContentDropdown } from '@/components/saved-content-dropdown';
@@ -51,7 +46,6 @@ function PureChatHeader({
   onScrollToMessage?: (messageId: string) => void;
 }) {
   const router = useRouter();
-  const { open } = useSidebar();
   const { width: windowWidth } = useWindowSize();
 
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
@@ -107,6 +101,56 @@ function PureChatHeader({
       );
     };
   }, [chatId]);
+
+  // Listen for persona wizard open events from multimodal-input
+  useEffect(() => {
+    const handleOpenPersonaWizard = (event: CustomEvent) => {
+      const { mode, persona } = event.detail;
+      if (mode === 'create') {
+        setEditingPersona(undefined);
+        setIsPersonaModalOpen(true);
+      } else if (mode === 'edit' && persona) {
+        setEditingPersona(persona);
+        setIsPersonaModalOpen(true);
+      }
+    };
+
+    window.addEventListener(
+      'openPersonaWizard',
+      handleOpenPersonaWizard as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        'openPersonaWizard',
+        handleOpenPersonaWizard as EventListener,
+      );
+    };
+  }, []);
+
+  // Listen for profile modal open events from multimodal-input
+  useEffect(() => {
+    const handleOpenProfileModal = (event: CustomEvent) => {
+      const { mode, profile } = event.detail;
+      if (mode === 'create') {
+        setEditingProfile(undefined);
+        setIsProfileModalOpen(true);
+      } else if (mode === 'edit' && profile) {
+        setEditingProfile(profile);
+        setIsProfileModalOpen(true);
+      }
+    };
+
+    window.addEventListener(
+      'openProfileModal',
+      handleOpenProfileModal as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        'openProfileModal',
+        handleOpenProfileModal as EventListener,
+      );
+    };
+  }, []);
 
   const handleBookmarkToggle = useCallback(async () => {
     if (!chatId || !session?.user || isBookmarkLoading) return;
@@ -224,8 +268,8 @@ function PureChatHeader({
 
   // Memoize expensive conditional checks for better performance
   const shouldShowCenterTools = useMemo(
-    () => !open || windowWidth < 768,
-    [open, windowWidth],
+    () => false, // Tools are now permanently in the sidebar
+    [],
   );
   const shouldShowBookmark = useMemo(
     () => Boolean(chatId && session?.user && messages && messages.length > 0),
@@ -240,28 +284,9 @@ function PureChatHeader({
     <>
       <header className="absolute top-0.5 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override">
         <div className="flex items-center gap-1 md:gap-2 w-full">
-          {/* Left Section - Navigation */}
+          {/* Left Section - Empty spacer (Personas and Profiles moved to multimodal input) */}
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
-            <SidebarToggle />
-
-            {/* EOS Personas Dropdown */}
-            <PersonasDropdown
-              selectedPersonaId={selectedPersonaId}
-              onPersonaSelect={handlePersonaSelect}
-              onCreatePersona={handleCreatePersona}
-              onEditPersona={handleEditPersona}
-              messages={messages}
-            />
-
-            {/* EOS Profiles Dropdown - only show when a persona is selected */}
-            <ProfilesDropdown
-              selectedPersonaId={selectedPersonaId || null}
-              selectedProfileId={selectedProfileId || null}
-              onProfileSelect={handleProfileSelect}
-              onCreateProfile={handleCreateProfile}
-              onEditProfile={handleEditProfile}
-              disabled={!selectedPersonaId}
-            />
+            {/* Personas and Profiles dropdowns are now in the multimodal input plus button */}
           </div>
 
           {/* Center Section - Tools (only when sidebar closed or mobile) */}
@@ -280,7 +305,7 @@ function PureChatHeader({
                     insetShadowIntensity={0.2}
                     isButton={true}
                     onClick={() => searchButtonElement?.click()}
-                    className="h-9 w-9 cursor-pointer"
+                    className="h-9 w-9 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
                     <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
                       <Search className="h-4 w-4" />
@@ -321,7 +346,7 @@ function PureChatHeader({
                       router.push('/chat');
                       router.refresh();
                     }}
-                    className="h-9 px-2 md:px-3 cursor-pointer"
+                    className="h-9 px-2 md:px-3 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
                     <PlusIcon size={16} />
                     <span className="hidden md:inline ml-1">New Chat</span>
@@ -377,11 +402,6 @@ function PureChatHeader({
                   {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}
                 </TooltipContent>
               </Tooltip>
-            )}
-
-            {/* User account button */}
-            {isUserAuthenticated && (
-              <SidebarUserNav user={session.user} className="header-user-nav" />
             )}
           </div>
         </div>

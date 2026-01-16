@@ -12,6 +12,7 @@ export function GoogleSignInButton({
       variant="outline"
       className="w-full flex items-center justify-center gap-2 py-5"
       onClick={() => signIn('google', { callbackUrl })}
+      aria-label="Sign in with Google"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -83,10 +84,10 @@ export function AuthForm({
             style={{ animationDelay: '460ms' }}
           >
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-zinc-700" />
+              <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 text-gray-500 bg-background dark:text-zinc-400">
+              <span className="px-2 text-muted-foreground bg-background">
                 or continue with email
               </span>
             </div>
@@ -100,7 +101,7 @@ export function AuthForm({
       >
         <Label
           htmlFor="email"
-          className="text-zinc-600 font-normal dark:text-zinc-400"
+          className="text-muted-foreground font-normal"
         >
           Email Address
         </Label>
@@ -124,7 +125,7 @@ export function AuthForm({
       >
         <Label
           htmlFor="password"
-          className="text-zinc-600 font-normal dark:text-zinc-400"
+          className="text-muted-foreground font-normal"
         >
           Password
         </Label>

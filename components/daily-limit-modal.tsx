@@ -59,17 +59,17 @@ export function DailyLimitModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-modal-overlay bg-black/20 backdrop-blur-[8px]"
           />
 
           {/* Modal */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-modal-content flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-full max-w-sm overflow-hidden rounded-xl bg-background shadow-lg border"
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 shadow-2xl"
             >
               {/* Close button */}
               <button

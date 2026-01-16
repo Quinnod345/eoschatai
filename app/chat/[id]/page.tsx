@@ -1,7 +1,5 @@
-import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { unstable_noStore as noStore } from 'next/cache';
 
 import { auth } from '@/app/(auth)/auth';
 import { ChatClientWrapper } from '@/components/chat-client-wrapper';
@@ -113,7 +111,10 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
       return notFound();
     }
 
-    if (session.user.id !== chat.userId) {
+    // Allow quinn@upaway.dev to access any chat
+    const isAdminUser = session.user.email === 'quinn@upaway.dev';
+
+    if (session.user.id !== chat.userId && !isAdminUser) {
       return notFound();
     }
   }
@@ -149,26 +150,16 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
   const chatModelFromCookie = cookieStore.get('chat-model');
   const providerFromCookie = cookieStore.get('ai-provider');
 
-  // Get user settings to retrieve persona/profile/research mode preferences
-  let initialPersonaId: string | undefined;
-  let initialProfileId: string | undefined;
+  // Get user settings to retrieve research mode preferences only
+  // For existing chats, persona/profile come ONLY from the chat record
   let userResearchMode: ResearchMode = 'off';
   try {
     const userSettings = await getUserSettings({ userId: session.user.id });
     console.log('[ExistingChat] User settings fetched:', {
       userId: session.user.id,
-      selectedPersonaId: userSettings?.selectedPersonaId,
-      selectedProfileId: userSettings?.selectedProfileId,
       selectedResearchMode: userSettings?.selectedResearchMode,
-      allSettings: userSettings,
     });
 
-    if (userSettings?.selectedPersonaId) {
-      initialPersonaId = userSettings.selectedPersonaId;
-    }
-    if (userSettings?.selectedProfileId) {
-      initialProfileId = userSettings.selectedProfileId;
-    }
     if (userSettings?.selectedResearchMode) {
       const rawMode = userSettings.selectedResearchMode;
       // Ensure we only accept valid research modes
@@ -180,22 +171,23 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
     }
   } catch (error) {
     console.error(
-      '[ExistingChat] Error fetching user settings for persona/profile/research:',
+      '[ExistingChat] Error fetching user settings for research mode:',
       error,
     );
   }
 
-  // Check if chat has an existing persona/profile/research mode
-  if (chat.personaId) {
-    console.log('[ExistingChat] Chat has existing persona:', chat.personaId);
-    initialPersonaId = chat.personaId;
-  }
-  if (chat.profileId) {
-    console.log('[ExistingChat] Chat has existing profile:', chat.profileId);
-    initialProfileId = chat.profileId;
-  }
-  // Note: researchMode field doesn't exist in current chat schema
-  // Default to 'off' research mode
+  // For existing chats, ONLY use the chat's persona/profile (not userSettings)
+  // This ensures that when a user clears the persona, it stays cleared
+  const initialPersonaId = chat.personaId || undefined;
+  const initialProfileId = chat.profileId || undefined;
+
+  console.log('[ExistingChat] Persona/profile from chat record:', {
+    chatId: id,
+    chatPersonaId: chat.personaId,
+    chatProfileId: chat.profileId,
+    initialPersonaId,
+    initialProfileId,
+  });
 
   console.log('[ExistingChat] Final persona/profile/research config:', {
     chatId: id,

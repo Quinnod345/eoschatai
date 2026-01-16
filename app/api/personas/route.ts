@@ -334,23 +334,32 @@ export async function POST(request: NextRequest) {
       await db.insert(personaComposerDocument).values(rows);
 
       // Process composer documents into persona namespace
-      try {
-        const { processUserDocument } = await import('@/lib/ai/user-rag');
-        const docs = await db
-          .select()
-          .from(document)
-          .where(inArray(document.id, composerDocumentIds));
-        for (const d of docs) {
-          if (d.content) {
-            await processUserDocument(newPersona.id, d.id, d.content, {
+      // Use Promise.allSettled for resilience - individual failures won't stop other documents
+      const { processUserDocument } = await import('@/lib/ai/user-rag');
+      const docs = await db
+        .select()
+        .from(document)
+        .where(inArray(document.id, composerDocumentIds));
+      
+      const results = await Promise.allSettled(
+        docs
+          .filter((d) => d.content)
+          .map((d) =>
+            processUserDocument(newPersona.id, d.id, d.content!, {
               fileName: d.title || 'Composer Document',
               category: (d.kind || 'text') as any,
               fileType: d.kind,
-            });
-          }
-        }
-      } catch (e) {
-        console.error('PERSONA_API: Error processing composer documents:', e);
+            })
+          )
+      );
+
+      // Log any failures
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.error(
+          `PERSONA_API: ${failures.length}/${results.length} composer doc(s) failed to process:`,
+          failures.map((f) => (f as PromiseRejectedResult).reason)
+        );
       }
     }
 

@@ -2,8 +2,12 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { user as userTable, org as orgTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  user as userTable,
+  org as orgTable,
+  orgMemberRole,
+} from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
@@ -153,6 +157,9 @@ export async function POST(request: NextRequest) {
       : null;
     const newPlan = individualPlan || 'free';
 
+    // Store orgId before clearing (needed for role cleanup)
+    const userOrgId = user.orgId;
+
     // Remove user from organization and reset plan
     await db
       .update(userTable)
@@ -161,6 +168,16 @@ export async function POST(request: NextRequest) {
         plan: newPlan,
       })
       .where(eq(userTable.id, session.user.id));
+
+    // Delete the OrgMemberRole record (may already be deleted by cascade if org was deleted)
+    await db
+      .delete(orgMemberRole)
+      .where(
+        and(
+          eq(orgMemberRole.userId, session.user.id),
+          eq(orgMemberRole.orgId, userOrgId),
+        ),
+      );
 
     // Clear and recompute entitlements
     try {

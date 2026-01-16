@@ -215,30 +215,41 @@ export function OrganizationSettings() {
 
   if (!org) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>No Organization</CardTitle>
-          <CardDescription>
-            You're not part of an organization yet. Join or create one to access
-            Business features.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Button
-              onClick={() => {
-                // Open organization modal
-                const event = new CustomEvent('openOrganizationModal');
-                window.dispatchEvent(event);
-              }}
-              className="w-full"
-            >
-              <Building2 className="w-4 h-4 mr-2" />
-              Create or Join Organization
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle>No Organization</CardTitle>
+            <CardDescription>
+              You're not part of an organization yet. Join or create one to access
+              Business features.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Button
+                onClick={() => setShowOrgModal(true)}
+                className="w-full"
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                Create or Join Organization
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Organization Modal - must be rendered even when no org exists */}
+        <OrganizationModal
+          open={showOrgModal}
+          onClose={() => setShowOrgModal(false)}
+          onContinue={async (orgId) => {
+            setShowOrgModal(false);
+            // Refresh the account data to get the new organization
+            const refreshEvent = new Event('account-refresh');
+            window.dispatchEvent(refreshEvent);
+            toast.success('Organization created successfully!');
+          }}
+        />
+      </>
     );
   }
 

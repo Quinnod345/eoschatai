@@ -31,6 +31,7 @@ const DEFAULT_USAGE_COUNTERS: UsageCounters = {
   personas_created: 0,
   memories_stored: 0,
   concurrent_sessions_active: 0,
+  storage_used_mb: 0,
 };
 
 const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
@@ -57,6 +58,7 @@ const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
     chats_per_day: 20,
     context_uploads_total: 5,
     concurrent_sessions: 1,
+    storage_quota_mb: 100, // 100MB for free tier
     api_access: false,
     priority_support: false,
   },
@@ -94,6 +96,7 @@ const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
     chats_per_day: 200,
     context_uploads_total: 100,
     concurrent_sessions: 3,
+    storage_quota_mb: 1024, // 1GB for pro tier
     api_access: false,
     priority_support: true,
   },
@@ -131,6 +134,7 @@ const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
     chats_per_day: 1000,
     context_uploads_total: 1000,
     concurrent_sessions: 10,
+    storage_quota_mb: 10240, // 10GB for business tier
     api_access: true,
     priority_support: true,
   },

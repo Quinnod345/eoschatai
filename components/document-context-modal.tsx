@@ -221,6 +221,12 @@ export function DocumentContextModal({
             }
             return updated;
           });
+          
+          // Also update composerContext state to keep it in sync
+          setComposerContext((prev) => ({
+            ...prev,
+            [documentId]: newIsContext,
+          }));
         }
 
         toast.success(
@@ -313,6 +319,17 @@ export function DocumentContextModal({
             }),
           );
           setComposerDocs(results as any);
+          
+          // Initialize composerContext from loaded documents' isContext state
+          const contextMap: { [key: string]: boolean } = {};
+          for (const kind in results) {
+            for (const doc of results[kind]) {
+              if (doc.isContext) {
+                contextMap[doc.id] = true;
+              }
+            }
+          }
+          setComposerContext((prev) => ({ ...prev, ...contextMap }));
         }
       } catch (e) {
         console.error('Failed to fetch composer docs', e);

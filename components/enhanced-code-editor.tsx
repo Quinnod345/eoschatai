@@ -335,8 +335,8 @@ function PureEnhancedCodeEditor({
     if (!showAIPrompt) return null;
 
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-[8px] flex items-center justify-center z-modal-overlay">
+        <div className="bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto shadow-2xl z-modal-content">
           <h3 className="text-lg font-semibold mb-4">AI Code Edit</h3>
 
           <div className="mb-4">

@@ -66,6 +66,18 @@ export type PendingRemovalsNotificationSentEvent = {
   timestamp: string;
 };
 
+export type PremiumModalOpenedEvent = {
+  plan: PlanName;
+  source: string;
+  feature?: string;
+};
+
+export type PremiumCheckoutInitiatedEvent = {
+  plan: PlanName;
+  billing_cycle: 'monthly' | 'annual';
+  source: string;
+};
+
 export type AnalyticsEventName =
   | 'gate_impression'
   | 'gate_click_upgrade'
@@ -75,7 +87,9 @@ export type AnalyticsEventName =
   | 'entitlements_updated'
   | 'ownership_transferred'
   | 'member_removed_from_org'
-  | 'pending_removals_notification_sent';
+  | 'pending_removals_notification_sent'
+  | 'premium_modal_opened'
+  | 'premium_checkout_initiated';
 
 export type AnalyticsEventPropertiesMap = {
   gate_impression: GateImpressionEvent;
@@ -87,6 +101,8 @@ export type AnalyticsEventPropertiesMap = {
   ownership_transferred: OwnershipTransferredEvent;
   member_removed_from_org: MemberRemovedFromOrgEvent;
   pending_removals_notification_sent: PendingRemovalsNotificationSentEvent;
+  premium_modal_opened: PremiumModalOpenedEvent;
+  premium_checkout_initiated: PremiumCheckoutInitiatedEvent;
 };
 
 export type AnalyticsEventPayload<

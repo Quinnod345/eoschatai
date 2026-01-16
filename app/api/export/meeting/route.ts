@@ -5,6 +5,59 @@ import { trackBlockedAction } from '@/lib/analytics';
 import { db } from '@/lib/db';
 import { l10Meeting, l10AgendaItem, l10Issue, l10Todo } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import {
+  createPDF,
+  addHeader,
+  addSectionHeading,
+  addBodyText,
+  addBulletList,
+  addTable,
+  addFooter,
+  pdfToBuffer,
+} from '@/lib/export/pdf-generator';
+import {
+  createTitle,
+  createSubtitle,
+  createHeading,
+  createBodyText,
+  createBulletList,
+  createTable,
+  generateDocx,
+} from '@/lib/export/docx-generator';
+import type { Paragraph, Table } from 'docx';
+
+// Meeting data structure (matches database schema)
+interface MeetingData {
+  id: string;
+  title: string;
+  date: Date;
+  status: string;
+  rating: number | null;
+  notes: string | null;
+  agenda: Array<{
+    id: string;
+    type: string;
+    title: string;
+    duration: number;
+    completed: boolean;
+    notes: string | null;
+    orderIndex: number;
+  }>;
+  issues: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string;
+  }>;
+  todos: Array<{
+    id: string;
+    task: string;
+    owner: string;
+    dueDate: Date | null;
+    completed: boolean;
+  }>;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,22 +164,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // For PDF/DOCX export
+    // Generate PDF export
     if (format === 'pdf') {
-      // TODO: Implement PDF generation for L10 meetings
-      // This would create a formatted meeting recap document
-      return NextResponse.json({
-        message: 'PDF export for meetings is being implemented',
-        data: meetingData,
+      const pdfBuffer = generateMeetingPdf(meetingData as MeetingData);
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="L10-Meeting-${formatDate(meeting.date)}.pdf"`,
+        },
       });
     }
 
+    // Generate DOCX export
     if (format === 'docx') {
-      // TODO: Implement DOCX generation for L10 meetings
-      // We could use the docx library like in the text composer
-      return NextResponse.json({
-        message: 'DOCX export for meetings is being implemented',
-        data: meetingData,
+      const docxBuffer = await generateMeetingDocx(meetingData as MeetingData);
+      return new NextResponse(new Uint8Array(docxBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type':
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Disposition': `attachment; filename="L10-Meeting-${formatDate(meeting.date)}.docx"`,
+        },
       });
     }
 
@@ -140,3 +199,167 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Format date for filename
+ */
+function formatDate(date: Date | null): string {
+  if (!date) return 'unknown';
+  return new Date(date).toISOString().split('T')[0];
+}
+
+/**
+ * Format date for display
+ */
+function formatDisplayDate(date: Date | null): string {
+  if (!date) return 'Not specified';
+  return new Date(date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Generate PDF for L10 Meeting
+ */
+function generateMeetingPdf(meeting: MeetingData): Buffer {
+  const doc = createPDF(meeting.title || 'Level 10 Meeting');
+  let y = addHeader(
+    doc,
+    'Level 10 Meeting™ Recap',
+    `${meeting.title || 'Weekly Meeting'} - ${formatDisplayDate(meeting.date)}`,
+  );
+
+  // Meeting Info
+  y = addSectionHeading(doc, 'Meeting Information', y);
+  y = addBodyText(doc, `Status: ${meeting.status || 'Completed'}`, y);
+  if (meeting.rating) {
+    y = addBodyText(doc, `Rating: ${meeting.rating}/10`, y);
+  }
+  if (meeting.notes) {
+    y = addBodyText(doc, `Notes: ${meeting.notes}`, y);
+  }
+  y += 5;
+
+  // Agenda Items
+  if (meeting.agenda.length > 0) {
+    y = addSectionHeading(doc, 'Agenda Items', y);
+    for (const item of meeting.agenda) {
+      const status = item.completed ? '✓' : '○';
+      y = addBodyText(doc, `${status} ${item.title} (${item.type})`, y);
+      if (item.notes) {
+        y = addBodyText(doc, `   Notes: ${item.notes}`, y, { indent: 25 });
+      }
+    }
+    y += 5;
+  }
+
+  // Issues (IDS)
+  if (meeting.issues.length > 0) {
+    y = addSectionHeading(doc, 'IDS™ (Issues)', y);
+    y = addTable(
+      doc,
+      {
+        headers: ['Issue', 'Priority', 'Status'],
+        rows: meeting.issues.map((issue) => ({
+          cells: [issue.title, issue.priority, issue.status],
+        })),
+      },
+      y,
+      { columnWidths: [100, 35, 35] },
+    );
+    y += 5;
+  }
+
+  // To-Dos
+  if (meeting.todos.length > 0) {
+    y = addSectionHeading(doc, 'To-Do List', y);
+    y = addTable(
+      doc,
+      {
+        headers: ['To-Do', 'Owner', 'Due Date', 'Status'],
+        rows: meeting.todos.map((todo) => ({
+          cells: [
+            todo.task,
+            todo.owner,
+            todo.dueDate ? formatDate(todo.dueDate) : 'No date',
+            todo.completed ? 'Done' : 'Pending',
+          ],
+        })),
+      },
+      y,
+      { columnWidths: [70, 40, 35, 25] },
+    );
+    y += 5;
+  }
+
+  addFooter(doc, 'EOS AI - Level 10 Meeting');
+  return pdfToBuffer(doc);
+}
+
+/**
+ * Generate DOCX for L10 Meeting
+ */
+async function generateMeetingDocx(meeting: MeetingData): Promise<Buffer> {
+  const children: (Paragraph | Table)[] = [];
+
+  children.push(
+    createSubtitle(
+      `${meeting.title || 'Weekly Meeting'} - ${formatDisplayDate(meeting.date)}`,
+    ),
+  );
+
+  // Meeting Info
+  children.push(createHeading('Meeting Information'));
+  children.push(createBodyText(`Status: ${meeting.status || 'Completed'}`));
+  if (meeting.rating) {
+    children.push(createBodyText(`Rating: ${meeting.rating}/10`));
+  }
+  if (meeting.notes) {
+    children.push(createBodyText(`Notes: ${meeting.notes}`));
+  }
+
+  // Agenda Items
+  if (meeting.agenda.length > 0) {
+    children.push(createHeading('Agenda Items'));
+    const agendaItems = meeting.agenda.map((item) => {
+      const status = item.completed ? '✓' : '○';
+      return `${status} ${item.title} (${item.type})${item.notes ? ` - ${item.notes}` : ''}`;
+    });
+    children.push(...createBulletList(agendaItems));
+  }
+
+  // Issues (IDS)
+  if (meeting.issues.length > 0) {
+    children.push(createHeading('IDS™ (Issues)'));
+    children.push(
+      createTable({
+        headers: ['Issue', 'Priority', 'Status'],
+        rows: meeting.issues.map((issue) => [
+          issue.title,
+          issue.priority,
+          issue.status,
+        ]),
+      }),
+    );
+  }
+
+  // To-Dos
+  if (meeting.todos.length > 0) {
+    children.push(createHeading('To-Do List'));
+    children.push(
+      createTable({
+        headers: ['To-Do', 'Owner', 'Due Date', 'Status'],
+        rows: meeting.todos.map((todo) => [
+          todo.task,
+          todo.owner,
+          todo.dueDate ? formatDate(todo.dueDate) : 'No date',
+          todo.completed ? 'Done' : 'Pending',
+        ]),
+      }),
+    );
+  }
+
+  return generateDocx(meeting.title || 'Level 10 Meeting Recap', children);
+}

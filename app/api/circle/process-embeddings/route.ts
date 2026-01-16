@@ -1,3 +1,4 @@
+import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { circleCoursePersona, userDocuments } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -12,9 +13,31 @@ export const maxDuration = 300; // 5 minutes max
  * Serverless function to process course embeddings
  * Runs in isolated environment with own memory limit
  * POST /api/circle/process-embeddings
+ * 
+ * Requires either:
+ * - Valid user session
+ * - Internal API key (X-Internal-Key header) for background jobs
  */
 export async function POST(request: NextRequest) {
   try {
+    // Validate authentication - either session or internal API key
+    const internalKey = request.headers.get('X-Internal-Key');
+    const expectedKey = process.env.INTERNAL_API_KEY;
+    
+    // Check for internal API key first (for background jobs)
+    const isInternalRequest = expectedKey && internalKey === expectedKey;
+    
+    if (!isInternalRequest) {
+      // Fall back to session authentication
+      const session = await auth();
+      if (!session?.user?.id) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Provide valid session or internal API key.' },
+          { status: 401 },
+        );
+      }
+    }
+
     const { courseId, personaId, documentIds } = await request.json();
 
     if (!courseId || !personaId || !documentIds) {

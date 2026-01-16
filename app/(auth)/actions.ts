@@ -13,6 +13,7 @@ import PasswordResetEmail from '@/emails/PasswordResetEmail';
 
 import { signIn } from './auth';
 import { buildAppUrl } from '@/lib/utils/app-url';
+import { createLogger } from '@/lib/utils/secure-logger';
 
 const authFormSchema = z.object({
   email: z.string().email(),
@@ -171,12 +172,15 @@ export const forgotPassword = async (
       email: formData.get('email'),
     });
 
-    console.log(`Password reset request for: ${validatedData.email}`);
+    const authLogger = createLogger('PasswordReset');
+    authLogger.info('Password reset request received', {
+      emailDomain: validatedData.email.split('@')[1],
+    });
 
     // Check if user exists
     const users = await getUser(validatedData.email);
     if (users.length === 0) {
-      console.log(`Password reset: User ${validatedData.email} not found`);
+      authLogger.warn('Password reset for non-existent user');
       // Return success to prevent user enumeration
       return { status: 'success' };
     }
@@ -185,7 +189,7 @@ export const forgotPassword = async (
 
     // Check if user has a password (not OAuth only)
     if (!existingUser.password) {
-      console.log(`Password reset: User ${validatedData.email} is OAuth only`);
+      authLogger.warn('Password reset attempted for OAuth-only user');
       // Still send an email explaining they use OAuth
       // For now, just return success
       return { status: 'success' };
@@ -292,6 +296,8 @@ export const resetPassword = async (
         ),
       );
 
+    const authLogger = createLogger('PasswordReset');
+
     if (tokens.length === 0) {
       // Check why token is invalid
       const allTokens = await db
@@ -302,14 +308,14 @@ export const resetPassword = async (
       if (allTokens.length > 0) {
         const token = allTokens[0];
         if (token.usedAt) {
-          console.log('Password reset: Token has already been used');
+          authLogger.warn('Token already used');
           return { status: 'expired_token' };
         } else if (token.expiresAt <= new Date()) {
-          console.log('Password reset: Token has expired');
+          authLogger.warn('Token expired');
           return { status: 'expired_token' };
         }
       } else {
-        console.log('Password reset: Invalid token');
+        authLogger.warn('Invalid token');
       }
 
       return { status: 'invalid_token' };
@@ -332,7 +338,7 @@ export const resetPassword = async (
       .set({ usedAt: new Date() })
       .where(eq(passwordResetToken.id, resetToken.id));
 
-    console.log(`Password reset successful for user ${resetToken.userId}`);
+    authLogger.info('Password reset successful', { userId: resetToken.userId });
     return { status: 'success' };
   } catch (error) {
     console.error('Reset password error:', error);

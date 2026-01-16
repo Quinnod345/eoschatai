@@ -398,25 +398,25 @@ async function fetchPostsFromSpace(
 
     // Paginate through ALL posts (not just first 100)
     while (hasMore) {
-      const response = await fetch(
+    const response = await fetch(
         `https://app.circle.so/api/headless/v1/spaces/${spaceIdNum}/posts?per_page=100&page=${page}`,
-        {
-          headers: {
-            Authorization: `Bearer ${memberToken}`,
-            'Content-Type': 'application/json',
-          },
+      {
+        headers: {
+          Authorization: `Bearer ${memberToken}`,
+          'Content-Type': 'application/json',
         },
-      );
+      },
+    );
 
-      if (!response.ok) {
-        console.error(
+    if (!response.ok) {
+      console.error(
           `[Circle API] Failed to fetch posts page ${page}: ${response.status}`,
-        );
+      );
         break;
-      }
+    }
 
-      const data = await response.json();
-      const postRecords = data.posts || data.records || [];
+    const data = await response.json();
+    const postRecords = data.posts || data.records || [];
 
       if (postRecords.length === 0) {
         hasMore = false;
@@ -424,11 +424,11 @@ async function fetchPostsFromSpace(
       }
 
       totalFetched += postRecords.length;
-      console.log(
+    console.log(
         `[Circle API] Fetched page ${page}: ${postRecords.length} posts (${totalFetched} total)`,
-      );
+    );
 
-      for (const post of postRecords) {
+    for (const post of postRecords) {
         // Extract FULL content from rich_text_body (not truncated fallback!)
         let content = '';
         let isHtml = false;
@@ -459,15 +459,15 @@ async function fetchPostsFromSpace(
           fullContent = `${post.excerpt}\n\n${content}`;
         }
 
-        posts.push({
-          id: post.id.toString(),
-          title: post.name || 'Untitled Post',
+      posts.push({
+        id: post.id.toString(),
+        title: post.name || 'Untitled Post',
           content: fullContent,
-          order: post.is_pinned ? -1 : posts.length,
+        order: post.is_pinned ? -1 : posts.length,
           description: post.slug || post.excerpt || '',
           isHtml, // Flag for HTML conversion
-        });
-      }
+      });
+    }
 
       // Check if there are more pages
       if (postRecords.length < 100) {

@@ -5,17 +5,16 @@ import { motion, LayoutGroup, useScroll, useTransform } from 'motion/react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import GradientBlinds from '@/components/GradientBlinds';
-import GlassSurface from '@/components/GlassSurface';
 import RotatingText from '@/components/RotatingText';
 import ScrollFloat from '@/components/ScrollFloat';
 import CircularText from '@/components/CircularText';
 import MagicBento from '@/components/MagicBento';
-import CardNav from '@/components/CardNav';
 import DotGrid from '@/components/DotGrid';
 import Dither from '@/components/Dither';
 import LazyVideo from '@/components/LazyVideo';
+import LandingNavbar from '@/components/marketing/landing-navbar';
+import LandingFooter from '@/components/marketing/landing-footer';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 
 // Register GSAP plugins
@@ -1196,17 +1195,17 @@ export default function Home() {
         >
           {/* Slide 1: EOS Model & Tools Mastery */}
           <section
-            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto"
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto pt-24 pb-8"
             style={{ transform: 'translateZ(0)' }}
           >
-            <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center max-w-[1400px] mx-auto">
+            <div className="container mx-auto px-6 md:px-12 lg:px-16 relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center max-w-[1200px] mx-auto">
                 {/* Left: Text Content */}
                 <div className="eos-mastery-text">
-                  <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+                  <h2 className="font-montserrat text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
                     EOS Model & Tools Mastery
                   </h2>
-                  <p className="font-montserrat text-lg md:text-xl text-white/90 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                  <p className="font-montserrat text-base md:text-lg lg:text-xl text-white/90 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                     Leverage deep knowledge of the Six Key Components® and
                     official EOS Tools® like V/TO™, Accountability Chart™, and
                     Scorecard.
@@ -1228,17 +1227,17 @@ export default function Home() {
 
           {/* Slide 2: Learn Anew */}
           <section
-            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto"
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto pt-24 pb-8 overflow-y-auto"
             style={{ transform: 'translateZ(0)' }}
           >
-            <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
-              <div className="max-w-[1400px] mx-auto learn-anew-content">
+            <div className="container mx-auto px-6 md:px-12 lg:px-16 relative z-10">
+              <div className="max-w-[1200px] mx-auto learn-anew-content">
                 {/* Header */}
-                <div className="flex flex-col items-center mb-12">
-                  <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 text-center drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+                <div className="flex flex-col items-center mb-8">
+                  <h2 className="font-montserrat text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 text-center drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
                     Unparalleled Intelligence
                   </h2>
-                  <p className="font-montserrat text-xl text-white/80 text-center max-w-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                  <p className="font-montserrat text-base md:text-lg lg:text-xl text-white/80 text-center max-w-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                     Have the peace of mind that the EOS AI is making the right
                     decisions for you
                   </p>
@@ -1330,17 +1329,17 @@ export default function Home() {
 
           {/* Slide 3: Your Assistant for EOS Mastery */}
           <section
-            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto py-12 overflow-y-auto"
+            className="horizontal-section w-screen h-screen relative flex items-center justify-center pointer-events-auto pt-24 pb-8 overflow-y-auto"
             style={{ transform: 'translateZ(0)' }}
           >
-            <div className="container mx-auto px-8 md:px-16 lg:px-20 relative z-10">
-              <div className="max-w-[1400px] mx-auto eos-assistant-content">
+            <div className="container mx-auto px-6 md:px-12 lg:px-16 relative z-10">
+              <div className="max-w-[1200px] mx-auto eos-assistant-content">
                 {/* Badge and Header */}
-                <div className="flex flex-col items-center mb-10">
-                  <div className="backdrop-blur-sm bg-white/10 px-6 py-2 rounded-full border border-white/20 mb-8">
-                    <span className="font-montserrat text-sm font-medium text-white flex items-center gap-2">
+                <div className="flex flex-col items-center mb-6">
+                  <div className="backdrop-blur-sm bg-white/10 px-4 py-1.5 rounded-full border border-white/20 mb-4">
+                    <span className="font-montserrat text-xs font-medium text-white flex items-center gap-2">
                       <svg
-                        className="w-4 h-4"
+                        className="w-3.5 h-3.5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1356,21 +1355,21 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 text-center drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+                  <h2 className="font-montserrat text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 text-center drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
                     Your Assistant for EOS Mastery
                   </h2>
-                  <p className="font-montserrat text-xl text-white/80 text-center max-w-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                  <p className="font-montserrat text-sm md:text-base lg:text-lg text-white/80 text-center max-w-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                     Streamline your EOS journey and achieve Traction® faster.
                   </p>
                 </div>
 
                 {/* Feature Cards Grid - 3 columns, 2 rows */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                   {/* V/TO™ & Scorecard AI */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1383,20 +1382,19 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
                       V/TO™ & Scorecard AI
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      Generate and manage core EOS documents like your V/TO™ and
-                      Scorecard with AI-driven assistance.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      Generate and manage core EOS documents with AI assistance.
                     </p>
                   </div>
 
                   {/* Personalized Learning */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1409,20 +1407,19 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
                       Personalized Learning
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      The AI learns from your V/TO™, Accountability Chart™, and
-                      other documents to provide tailored support.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      AI learns from your documents to provide tailored support.
                     </p>
                   </div>
 
                   {/* AI-Driven Data */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1441,20 +1438,19 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
                       AI-Driven Data
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      Leverage AI to analyze your Scorecard, identify trends,
-                      and gain deeper insights from your EOS data.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      Analyze your Scorecard and gain deeper insights.
                     </p>
                   </div>
 
                   {/* Enhanced Team Clarity */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1467,20 +1463,19 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
                       Enhanced Team Clarity
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      Support your Level 10 Meetings™ and team discussions with
-                      instant access to relevant EOS information and context.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      Support Level 10 Meetings™ with instant EOS context.
                     </p>
                   </div>
 
                   {/* Instant EOS Knowledge */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1493,22 +1488,19 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
                       Instant EOS Knowledge
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      Receive clear, undiluted guidance drawn directly from core
-                      EOS principles. Helps your team accurately identify
-                      trends, solve issues using the proven EOS Process™, and
-                      maintain unwavering focus on your V/TO™ and Rocks.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      Get clear guidance from core EOS principles.
                     </p>
                   </div>
 
                   {/* Continuous EOS Improvement */}
-                  <div className="backdrop-blur-md bg-white/10 rounded-3xl border border-white/20 p-5">
-                    <div className="p-2.5 bg-eos-orange/20 rounded-xl w-fit mb-3">
+                  <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-3">
+                    <div className="p-2 bg-eos-orange/20 rounded-lg w-fit mb-2">
                       <svg
-                        className="w-6 h-6 text-eos-orange"
+                        className="w-5 h-5 text-eos-orange"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -1521,22 +1513,20 @@ export default function Home() {
                         />
                       </svg>
                     </div>
-                    <h3 className="font-montserrat text-lg font-bold text-white mb-2">
-                      Continuous EOS Improvement
+                    <h3 className="font-montserrat text-sm font-bold text-white mb-1">
+                      Continuous Improvement
                     </h3>
-                    <p className="font-montserrat text-sm text-white/70 leading-relaxed">
-                      Evolve your EOS implementation with ongoing AI learning
-                      and support, adapting to your company's growth and
-                      changing needs.
+                    <p className="font-montserrat text-xs text-white/70 leading-relaxed">
+                      Evolve your EOS implementation with ongoing AI support.
                     </p>
                   </div>
                 </div>
 
                 {/* Bottom Features Row */}
-                <div className="flex flex-wrap justify-center gap-8">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap justify-center gap-4">
+                  <div className="flex items-center gap-1.5">
                     <svg
-                      className="w-5 h-5 text-white/60"
+                      className="w-4 h-4 text-white/60"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1548,14 +1538,14 @@ export default function Home() {
                         d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
                       />
                     </svg>
-                    <span className="font-montserrat text-sm text-white/70">
+                    <span className="font-montserrat text-xs text-white/70">
                       EOS Expertise On-Demand
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <svg
-                      className="w-5 h-5 text-white/60"
+                      className="w-4 h-4 text-white/60"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1567,14 +1557,14 @@ export default function Home() {
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                       />
                     </svg>
-                    <span className="font-montserrat text-sm text-white/70">
+                    <span className="font-montserrat text-xs text-white/70">
                       Document-Aware AI
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <svg
-                      className="w-5 h-5 text-white/60"
+                      className="w-4 h-4 text-white/60"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1586,7 +1576,7 @@ export default function Home() {
                         d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
                       />
                     </svg>
-                    <span className="font-montserrat text-sm text-white/70">
+                    <span className="font-montserrat text-xs text-white/70">
                       Scalable EOS Support
                     </span>
                   </div>
@@ -1756,7 +1746,7 @@ export default function Home() {
                   <Link href="/register" className="w-full sm:w-auto">
                     <Button
                       size="lg"
-                      className="font-montserrat bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white text-base px-10 py-6 rounded-full shadow-[0_8px_32px_rgba(255,121,0,0.3)] hover:shadow-[0_8px_48px_rgba(255,121,0,0.4)] transition-all duration-300 w-full sm:w-auto font-semibold"
+                      className="font-montserrat bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white text-base px-10 py-6 rounded-full shadow-[0_8px_32px_rgba(255,121,0,0.4)] hover:shadow-[0_12px_48px_rgba(255,121,0,0.5)] hover:scale-[1.02] transition-all duration-300 w-full sm:w-auto font-semibold"
                     >
                       Get Started
                     </Button>
@@ -1765,7 +1755,7 @@ export default function Home() {
                     <Button
                       size="lg"
                       variant="outline"
-                      className="font-montserrat border-2 border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-base px-10 py-6 rounded-full backdrop-blur-sm bg-white/5 w-full sm:w-auto font-semibold transition-all duration-300"
+                      className="font-montserrat border-2 border-white/50 text-white hover:bg-white/20 hover:border-white/70 text-base px-10 py-6 rounded-full backdrop-blur-md bg-white/10 w-full sm:w-auto font-semibold transition-all duration-300 shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:shadow-[0_8px_24px_rgba(255,255,255,0.15)]"
                     >
                       Sign In
                     </Button>
@@ -1825,274 +1815,10 @@ export default function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="relative z-40 bg-black pointer-events-auto border-t border-white/10">
-          <div className="container mx-auto px-6 py-12">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <Image
-                    src="/images/eos-model-bulb.svg"
-                    alt="EOSAI"
-                    width={32}
-                    height={32}
-                    className="brightness-110"
-                  />
-                  <span className="font-montserrat text-xl font-bold text-white">
-                    EOSAI
-                  </span>
-                </div>
-                <p className="font-montserrat text-sm text-white/60">
-                  Your AI-powered assistant for EOS implementation and business
-                  growth.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-montserrat font-semibold text-white mb-4">
-                  Product
-                </h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link
-                      href="#features"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Features
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="#pricing"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Pricing
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="#docs"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Documentation
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="font-montserrat font-semibold text-white mb-4">
-                  Company
-                </h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link
-                      href="#about"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      About
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="#contact"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Contact
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/privacy-policy"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Privacy Policy
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="font-montserrat font-semibold text-white mb-4">
-                  Connect
-                </h3>
-                <ul className="space-y-2">
-                  <li>
-                    <a
-                      href="https://twitter.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      Twitter
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://linkedin.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      LinkedIn
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://github.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
-                    >
-                      GitHub
-                    </a>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="pt-8 border-t border-white/10">
-              <p className="font-montserrat text-sm text-white/40 text-center">
-                © {new Date().getFullYear()} EOSAI. All rights reserved.
-              </p>
-            </div>
-          </div>
-        </footer>
+        <LandingFooter />
 
         {/* Glassmorphism Pill Navbar */}
-        <header className="fixed top-4 inset-x-0 z-50 px-4 pointer-events-none">
-          <div className="mx-auto w-full max-w-5xl pointer-events-auto relative">
-            {/* Darkening Effect Behind Navbar Glass */}
-            <div
-              className="absolute inset-0 -m-2 rounded-[52px] pointer-events-none"
-              style={{
-                background: `radial-gradient(ellipse at center, rgba(0, 0, 0, ${0.25 * darkeningCoefficient}) 0%, rgba(0, 0, 0, ${0.4 * darkeningCoefficient}) 70%, rgba(0, 0, 0, ${0.5 * darkeningCoefficient}) 100%)`,
-                filter: 'blur(16px)',
-              }}
-            />
-            <GlassSurface
-              width="100%"
-              height="auto"
-              borderRadius={50}
-              blur={10}
-              displace={5}
-              opacity={0.7}
-              backgroundOpacity={0.1}
-              brightness={100}
-              className="w-full min-h-[64px]"
-              insetShadowIntensity={0.1}
-              style={{ overflow: 'visible' }}
-            >
-              <div className="-m-2 w-full h-full">
-                <CardNav
-                  logo={
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src="/images/eos-model-bulb.svg"
-                        alt="EOSAI"
-                        width={36}
-                        height={36}
-                        className="brightness-110"
-                      />
-                      <span className="font-montserrat text-lg font-bold tracking-tight text-white">
-                        EOSAI
-                      </span>
-                    </div>
-                  }
-                  items={[
-                    {
-                      label: 'Features',
-                      bgImage: '/images/gradient-blue-orange.jpg',
-                      textColor: '#fff',
-                      links: [
-                        {
-                          label: 'Document Intelligence',
-                          href: '#features',
-                          ariaLabel: 'Document Intelligence & RAG',
-                        },
-                        {
-                          label: 'AI Personas',
-                          href: '#features',
-                          ariaLabel: 'Custom AI Personas',
-                        },
-                        {
-                          label: 'Voice & Recording',
-                          href: '#features',
-                          ariaLabel: 'Voice Mode & Recordings',
-                        },
-                      ],
-                    },
-                    {
-                      label: 'Solutions',
-                      bgImage: '/images/gradient-orange-blue.jpg',
-                      textColor: '#fff',
-                      links: [
-                        {
-                          label: 'Deep Research',
-                          href: '#features',
-                          ariaLabel: 'Nexus Research Engine',
-                        },
-                        {
-                          label: 'Composer Studio',
-                          href: '#features',
-                          ariaLabel: 'Interactive Composer',
-                        },
-                        {
-                          label: 'Team Collaboration',
-                          href: '#features',
-                          ariaLabel: 'Team Hub',
-                        },
-                      ],
-                    },
-                    {
-                      label: 'Resources',
-                      bgImage: '/images/gradient-blue-red.jpg',
-                      textColor: '#fff',
-                      links: [
-                        {
-                          label: 'Pricing',
-                          href: '#pricing',
-                          ariaLabel: 'View Pricing',
-                        },
-                        {
-                          label: 'About',
-                          href: '#about',
-                          ariaLabel: 'About Us',
-                        },
-                        {
-                          label: 'Documentation',
-                          href: '#docs',
-                          ariaLabel: 'Documentation',
-                        },
-                      ],
-                    },
-                  ]}
-                  ctaButton={
-                    <>
-                      <Link href="/login">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="font-montserrat text-white hover:bg-white/10"
-                        >
-                          Sign In
-                        </Button>
-                      </Link>
-                      <Link href="/register">
-                        <Button
-                          size="sm"
-                          className="font-montserrat bg-eos-orange hover:bg-eos-orange/90"
-                        >
-                          Get Started
-                        </Button>
-                      </Link>
-                    </>
-                  }
-                  className="w-full"
-                />
-              </div>
-            </GlassSurface>
-          </div>
-        </header>
+        <LandingNavbar darkeningCoefficient={darkeningCoefficient} />
       </div>
     </div>
   );

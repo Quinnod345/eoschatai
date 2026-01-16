@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useId, forwardRef } from 'react';
+import React, { useEffect, useRef, useId, forwardRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useUserSettings } from './user-settings-provider';
 
@@ -92,8 +92,10 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
   ) => {
     // Check user settings for glass effects preference
     const { settings, loading } = useUserSettings();
-    // Default to enabled while loading to avoid flash, then respect user setting
-    const isGlassDisabled = loading ? false : (settings?.disableGlassEffects ?? false);
+    // Default to disabled (true) while loading or if undefined, so UI loads clean
+    const isGlassDisabled = loading
+      ? true
+      : (settings?.disableGlassEffects ?? true);
     const uniqueId = useId().replace(/:/g, '-');
     const filterId = `glass-filter-${uniqueId}`;
     const redGradId = `red-grad-${uniqueId}`;
@@ -106,12 +108,18 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     const blueChannelRef = useRef<SVGFEDisplacementMapElement>(null);
     const gaussianBlurRef = useRef<SVGFEGaussianBlurElement>(null);
 
+    // Track mounted state to avoid hydration mismatch
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+
     const { theme, resolvedTheme } = useTheme();
-    // Use resolvedTheme first, fallback to theme, and if neither is available check document
-    const isDarkMode =
-      (resolvedTheme ?? theme) === 'dark' ||
-      (typeof document !== 'undefined' &&
-        document.documentElement.classList.contains('dark'));
+    // Use resolvedTheme first, fallback to theme - only check on client after mount
+    const isDarkMode = mounted
+      ? (resolvedTheme ?? theme) === 'dark' ||
+        document.documentElement.classList.contains('dark')
+      : false; // Default to light mode on server for consistent SSR
 
     const generateDisplacementMap = () => {
       const rect = containerRef.current?.getBoundingClientRect();
@@ -212,10 +220,8 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     }, [useFallback, isGlassDisabled]);
 
     const supportsSVGFilters = () => {
-      // Check if we're in a browser environment
-      if (typeof navigator === 'undefined') {
-        return true; // Assume support on server, will be checked on client
-      }
+      // Return false during SSR/before mount for consistent rendering
+      if (!mounted) return false;
 
       const isWebkit =
         /Safari/.test(navigator.userAgent) &&
@@ -232,7 +238,8 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
     };
 
     const supportsBackdropFilter = () => {
-      if (typeof window === 'undefined') return false;
+      // Return false during SSR/before mount for consistent rendering
+      if (!mounted) return false;
       return CSS.supports('backdrop-filter', 'blur(10px)');
     };
 
@@ -341,14 +348,14 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
               background: `hsl(0 0% 100% / ${backgroundOpacity})`,
               backdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
               WebkitBackdropFilter: `blur(${typeof blur === 'number' ? blur : 12}px)`,
-              border: '1px solid rgba(255, 255, 255, 0.3)',
+              border: '1px solid rgba(0, 0, 0, 0.1)',
               boxShadow: showInsetShadow
-                ? `0 8px 32px 0 rgba(31, 38, 135, 0.2),
-                        0 2px 16px 0 rgba(31, 38, 135, 0.1),
+                ? `0 8px 32px 0 rgba(0, 0, 0, 0.1),
+                        0 2px 16px 0 rgba(0, 0, 0, 0.05),
                         inset 0 1px 0 0 rgba(255, 255, 255, ${lightInsetTopAlt}),
                         inset 0 -1px 0 0 rgba(255, 255, 255, ${lightInsetBottomAlt})`
-                : `0 8px 32px 0 rgba(31, 38, 135, 0.2),
-                        0 2px 16px 0 rgba(31, 38, 135, 0.1)`,
+                : `0 8px 32px 0 rgba(0, 0, 0, 0.1),
+                        0 2px 16px 0 rgba(0, 0, 0, 0.05)`,
             };
           }
         }

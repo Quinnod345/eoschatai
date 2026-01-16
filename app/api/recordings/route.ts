@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import {
@@ -7,7 +8,7 @@ import {
   l10AgendaItem,
 } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { put } from '@vercel/blob';
+import { put, del } from '@vercel/blob';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -131,10 +132,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Delete from blob storage first
+    if (recording.audioUrl) {
+      try {
+        await del(recording.audioUrl);
+        console.log(`Deleted blob for recording ${recordingId}`);
+      } catch (blobError) {
+        // Log but don't fail the deletion if blob removal fails
+        console.error(
+          `Failed to delete blob for recording ${recordingId}:`,
+          blobError,
+        );
+      }
+    }
+
     // Delete from database (cascades to transcript)
     await db.delete(voiceRecording).where(eq(voiceRecording.id, recordingId));
-
-    // TODO: Delete from blob storage
 
     return NextResponse.json({ success: true });
   } catch (error) {

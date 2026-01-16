@@ -3,6 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { getResendClient, getFromAddress } from '@/lib/email/resend';
 
 export type NotificationEvent =
   | 'payment_failed'
@@ -13,7 +14,8 @@ export type NotificationEvent =
   | 'grace_period_warning'
   | 'downgrade_warning'
   | 'double_billing_detected'
-  | 'subscription_renewed';
+  | 'subscription_renewed'
+  | 'payment_requires_action';
 
 export interface NotificationPayload {
   userId: string;
@@ -24,15 +26,14 @@ export interface NotificationPayload {
 
 /**
  * Send a subscription notification to a user
- * This is a centralized notification system that can be extended to support:
+ * This is a centralized notification system that supports:
  * - Email (via Resend)
- * - In-app notifications
- * - Webhooks
- * - SMS (future)
+ * - In-app notifications (TODO: Future implementation)
+ * - Webhooks (TODO: Future implementation)
  */
 export async function sendSubscriptionNotification(
   payload: NotificationPayload,
-): Promise<void> {
+): Promise<{ success: boolean; emailId?: string; error?: string }> {
   console.log(
     `[notifications] Sending ${payload.event} notification to user ${payload.userId}`,
   );
@@ -47,23 +48,101 @@ export async function sendSubscriptionNotification(
     console.warn(
       `[notifications] User ${payload.userId} has no email, skipping notification`,
     );
-    return;
+    return { success: false, error: 'User has no email address' };
   }
 
-  // TODO: Implement email sending via Resend
-  // For now, just log what would be sent
   const emailSubject = getEmailSubject(payload.event);
   const emailBody = getEmailBody(payload.event, payload.data, null);
 
-  console.log(`[notifications] Would send email to ${user.email}:`);
-  console.log(`  Subject: ${emailSubject}`);
-  console.log(`  Body: ${emailBody.substring(0, 200)}...`);
+  // Send email via Resend
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn(
+      `[notifications] Resend client not configured, logging notification instead`,
+    );
+    console.log(`[notifications] Would send email to ${user.email}:`);
+    console.log(`  Subject: ${emailSubject}`);
+    console.log(`  Body: ${emailBody.substring(0, 200)}...`);
+    return { success: false, error: 'Email service not configured' };
+  }
 
-  // TODO: Create in-app notification
-  // await createInAppNotification(payload);
+  try {
+    const from = getFromAddress();
+    const { data, error } = await resend.emails.send({
+      from,
+      to: user.email,
+      subject: emailSubject,
+      text: emailBody,
+      // Add HTML version with basic formatting
+      html: convertTextToHtml(emailBody),
+      tags: [
+        { name: 'event', value: payload.event },
+        { name: 'priority', value: payload.priority },
+        { name: 'userId', value: payload.userId },
+      ],
+    });
 
-  // TODO: Send webhook if user has configured one
-  // await sendWebhook(payload);
+    if (error) {
+      console.error(`[notifications] Failed to send email:`, error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(
+      `[notifications] Email sent successfully to ${user.email}, id: ${data?.id}`,
+    );
+    return { success: true, emailId: data?.id };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[notifications] Error sending email:`, error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Convert plain text email body to simple HTML
+ */
+function convertTextToHtml(text: string): string {
+  // Escape HTML entities
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Convert line breaks to <br> and wrap in basic HTML structure
+  const htmlBody = escaped
+    .split('\n\n')
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    p {
+      margin: 0 0 16px 0;
+    }
+    a {
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  ${htmlBody}
+</body>
+</html>
+  `.trim();
 }
 
 function getEmailSubject(event: NotificationEvent): string {
@@ -77,6 +156,7 @@ function getEmailSubject(event: NotificationEvent): string {
     downgrade_warning: '⚠️ Your Plan Will Be Downgraded',
     double_billing_detected: '💰 Duplicate Subscription Detected',
     subscription_renewed: '🔄 Subscription Renewed',
+    payment_requires_action: '🔐 Additional Verification Required',
   };
 
   return subjects[event] || 'Subscription Update';
@@ -213,6 +293,21 @@ Amount: $${data.amount || 'N/A'}
 Next billing date: ${data.nextBillingDate || 'Unknown'}
 
 Thank you for your continued support!`,
+
+    payment_requires_action: `${greeting}
+
+Your payment requires additional verification (3D Secure).
+
+Your bank requires you to verify this payment before it can be processed. This is a security measure to protect your account.
+
+Please complete the verification:
+1. Check your email or banking app for a verification request
+2. Follow the instructions from your bank to approve the payment
+3. Once verified, your payment will be processed automatically
+
+If you don't complete verification within 24 hours, the payment may fail.
+
+Need help? Reply to this email or contact support.`,
   };
 
   return templates[event] || `${greeting}\n\nYou have a subscription update.`;
@@ -326,6 +421,24 @@ export async function notifyGracePeriod(
     priority: 'critical',
     data: {
       daysRemaining,
+      billingUrl: `${process.env.NEXT_PUBLIC_APP_URL}/billing`,
+    },
+  });
+}
+
+/**
+ * Notify user about payment requiring additional action (3D Secure)
+ */
+export async function notifyPaymentRequiresAction(
+  userId: string,
+  paymentIntentId: string,
+): Promise<void> {
+  await sendSubscriptionNotification({
+    userId,
+    event: 'payment_requires_action',
+    priority: 'high',
+    data: {
+      paymentIntentId,
       billingUrl: `${process.env.NEXT_PUBLIC_APP_URL}/billing`,
     },
   });

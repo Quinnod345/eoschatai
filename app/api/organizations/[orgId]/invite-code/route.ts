@@ -52,10 +52,16 @@ export async function GET(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Only owners can access invite codes
-    if (org.ownerId !== session.user.id) {
+    // Check permission to manage invite codes using role-based permissions
+    const hasPermission = await checkOrgPermission(
+      session.user.id,
+      orgId,
+      'members.invite'
+    );
+
+    if (!hasPermission) {
       return NextResponse.json(
-        { error: 'Only the organization owner can access invite codes' },
+        { error: 'You do not have permission to access invite codes' },
         { status: 403 },
       );
     }

@@ -2,7 +2,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { org as orgTable, user as userTable } from '@/lib/db/schema';
+import {
+  org as orgTable,
+  user as userTable,
+  orgMemberRole,
+} from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getOrCreateInviteCode } from '@/lib/organizations/invite-codes';
 
@@ -105,6 +109,13 @@ export async function POST(request: NextRequest) {
         .update(userTable)
         .set({ orgId: createdOrg.id })
         .where(eq(userTable.id, session.user.id));
+
+      // Create OrgMemberRole record for the owner
+      await tx.insert(orgMemberRole).values({
+        userId: session.user.id,
+        orgId: createdOrg.id,
+        role: 'owner',
+      });
 
       return createdOrg;
     });

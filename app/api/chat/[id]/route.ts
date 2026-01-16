@@ -5,6 +5,7 @@ import { getDisplayTitle } from '@/lib/utils/chat-utils';
 import { eq, and } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { isAdminEmail } from '@/lib/auth/admin';
 
 export async function GET(
   request: NextRequest,
@@ -33,9 +34,13 @@ export async function GET(
     const foundChat = existingChat[0];
 
     // Check if user owns the chat or if it's public
+    // Allow admin users to access any chat
+    const isAdminUser = isAdminEmail(session.user.email);
+    
     if (
       foundChat.userId !== session.user.id &&
-      foundChat.visibility !== 'public'
+      foundChat.visibility !== 'public' &&
+      !isAdminUser
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -66,7 +71,15 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 },
+      );
+    }
     const { personaId, profileId } = body;
 
     console.log('PERSONA_SWITCH: Starting persona/profile update', {
@@ -254,10 +267,11 @@ export async function PATCH(
 
     return NextResponse.json(updatedChat);
   } catch (error) {
+    const { id: chatId } = await params;
     console.error('PERSONA_SWITCH: Error updating chat:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      chatId: (await params).id,
+      chatId,
       userId: session.user.id,
     });
     return NextResponse.json(

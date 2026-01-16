@@ -38,6 +38,58 @@ import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
 import { processDocument } from '../ai/embeddings';
 
+// Type for chat metadata
+export interface ChatMetadata {
+  isVoiceChat?: boolean;
+  isRecording?: boolean;
+}
+
+// Type for feedback categories
+export type FeedbackCategory =
+  | 'accuracy'
+  | 'helpfulness'
+  | 'tone'
+  | 'length'
+  | 'clarity'
+  | 'other';
+
+// Type for user settings update
+export interface UserSettingsUpdate {
+  notificationsEnabled?: boolean;
+  language?: string;
+  fontSize?: string;
+  displayName?: string;
+  companyName?: string;
+  companyType?: string;
+  companyDescription?: string;
+  lastFeaturesVersion?: string;
+  selectedChatModel?: string;
+  selectedProvider?: string;
+  selectedVisibilityType?: string;
+  selectedPersonaId?: string;
+  selectedProfileId?: string;
+  selectedResearchMode?: string;
+  primaryAccountabilityId?: string | null;
+  primaryVtoId?: string | null;
+  primaryScorecardId?: string | null;
+  currentBundleId?: string | null;
+  companyIndustry?: string | null;
+  companySize?: string | null;
+  companyWebsite?: string | null;
+  companyCountry?: string | null;
+  companyState?: string | null;
+  autocompleteEnabled?: boolean;
+  profilePicture?: string;
+  disableGlassEffects?: boolean;
+  disableEosGradient?: boolean;
+  contextDocumentIds?: unknown;
+  contextComposerDocumentIds?: unknown;
+  contextRecordingIds?: unknown;
+  usePrimaryDocsForContext?: boolean;
+  usePrimaryDocsForPersona?: boolean;
+  personaContextDocumentIds?: unknown;
+}
+
 // Get the database URL from either POSTGRES_URL or DATABASE_URL
 const getDatabaseUrl = () => {
   const postgresUrl = process.env.POSTGRES_URL;
@@ -144,7 +196,7 @@ export async function saveChat({
   visibility: VisibilityType;
   personaId?: string;
   profileId?: string;
-  metadata?: any;
+  metadata?: ChatMetadata;
 }) {
   try {
     console.log('[saveChat] Saving chat START:', {
@@ -444,13 +496,7 @@ export async function saveFeedback({
   messageId: string;
   userId: string;
   isPositive: boolean;
-  category?:
-    | 'accuracy'
-    | 'helpfulness'
-    | 'tone'
-    | 'length'
-    | 'clarity'
-    | 'other';
+  category?: FeedbackCategory;
   description?: string;
 }) {
   try {
@@ -459,7 +505,7 @@ export async function saveFeedback({
       messageId,
       userId,
       isPositive,
-      category: category as any,
+      category,
       description,
     });
   } catch (error) {
@@ -519,9 +565,10 @@ export async function saveDocument({
     console.log(
       `[saveDocument] Document saved/updated with ID: ${id}, content length in DB: ${content?.length || 0}`,
     );
+    // Handle different postgres driver response formats
     const documentsResult = Array.isArray(documents)
       ? documents
-      : (documents as any).rows;
+      : (documents as { rows: unknown[] }).rows;
 
     // Process the document for embeddings (only for text kind)
     if (kind === 'text' && content) {
@@ -872,6 +919,8 @@ export async function getUserSettings({ userId }: { userId: string }) {
         usePrimaryDocsForPersona: userSettings.usePrimaryDocsForPersona,
         personaContextDocumentIds: userSettings.personaContextDocumentIds,
         autocompleteEnabled: userSettings.autocompleteEnabled,
+        disableGlassEffects: userSettings.disableGlassEffects,
+        disableEosGradient: userSettings.disableEosGradient,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -922,6 +971,15 @@ export async function updateUserSettings({
     companyState?: string | null;
     autocompleteEnabled?: boolean;
     profilePicture?: string;
+    disableGlassEffects?: boolean;
+    disableEosGradient?: boolean;
+    // context document settings
+    contextDocumentIds?: unknown;
+    contextComposerDocumentIds?: unknown;
+    contextRecordingIds?: unknown;
+    usePrimaryDocsForContext?: boolean;
+    usePrimaryDocsForPersona?: boolean;
+    personaContextDocumentIds?: unknown;
   };
 }) {
   try {
@@ -931,11 +989,14 @@ export async function updateUserSettings({
     );
 
     // Extract lastFeaturesVersion from settings
-    const { lastFeaturesVersion, ...incoming } = settings as any;
+    const { lastFeaturesVersion, ...incoming } = settings;
 
     // Whitelist allowed columns only to avoid SQL errors
-    const allowed: any = {};
-    const allow = (key: string, value: any) => {
+    const allowed: Partial<UserSettingsUpdate> = {};
+    const allow = <K extends keyof UserSettingsUpdate>(
+      key: K,
+      value: UserSettingsUpdate[K] | undefined,
+    ) => {
       if (value !== undefined) {
         // Convert empty strings to null for optional fields
         if (
@@ -944,13 +1005,15 @@ export async function updateUserSettings({
           key !== 'language' &&
           key !== 'fontSize'
         ) {
-          allowed[key] = null;
+          (allowed as Record<string, unknown>)[key] = null;
           console.log(
             `[updateUserSettings] Allowing (empty->null): ${key} = null`,
           );
         } else {
           allowed[key] = value;
-          console.log(`[updateUserSettings] Allowing: ${key} = ${value}`);
+          console.log(
+            `[updateUserSettings] Allowing: ${key} = ${String(value)}`,
+          );
         }
       }
     };
@@ -985,6 +1048,8 @@ export async function updateUserSettings({
     allow('usePrimaryDocsForPersona', incoming.usePrimaryDocsForPersona);
     allow('personaContextDocumentIds', incoming.personaContextDocumentIds);
     allow('autocompleteEnabled', incoming.autocompleteEnabled);
+    allow('disableGlassEffects', incoming.disableGlassEffects);
+    allow('disableEosGradient', incoming.disableEosGradient);
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {
@@ -1015,7 +1080,7 @@ export async function updateUserSettings({
         .insert(userSettings)
         .values({
           userId,
-          ...(allowed as any),
+          ...allowed,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -1035,7 +1100,7 @@ export async function updateUserSettings({
       const [updatedSettings] = await db
         .update(userSettings)
         .set({
-          ...(allowed as any),
+          ...allowed,
           updatedAt: new Date(),
         })
         .where(eq(userSettings.userId, userId))

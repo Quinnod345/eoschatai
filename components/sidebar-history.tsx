@@ -33,6 +33,7 @@ import useSWRInfinite from 'swr/infinite';
 import useSWR from 'swr';
 import { LoaderIcon } from './icons';
 import { useChatKeyboardNavigation } from '@/hooks/use-chat-keyboard-navigation';
+import { MessageSquarePlus } from 'lucide-react';
 
 type GroupedChats = {
   today: Chat[];
@@ -283,15 +284,18 @@ export function SidebarHistory({
   if (isLoading) {
     return (
       <SidebarGroup>
-        <div className="px-2 py-1 text-xs text-sidebar-foreground/50">
-          Today
+        <div className="px-2 py-1 text-xs text-sidebar-foreground/50 font-medium animate-pulse">
+          Loading History...
         </div>
         <SidebarGroupContent>
-          <div className="flex flex-col">
-            {[44, 32, 28, 64, 52].map((item) => (
-              <div
+          <div className="flex flex-col gap-2 mt-2">
+            {[44, 32, 28, 64, 52].map((item, i) => (
+              <motion.div
                 key={item}
-                className="rounded-md h-8 flex gap-2 px-2 items-center"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30 border border-transparent"
               >
                 <div
                   className="h-4 rounded-md flex-1 max-w-[--skeleton-width] bg-sidebar-accent-foreground/10"
@@ -301,7 +305,7 @@ export function SidebarHistory({
                     } as React.CSSProperties
                   }
                 />
-              </div>
+              </motion.div>
             ))}
           </div>
         </SidebarGroupContent>
@@ -313,9 +317,18 @@ export function SidebarHistory({
     return (
       <SidebarGroup>
         <SidebarGroupContent>
-          <div className="px-2 text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2">
-            Your conversations will appear here once you start chatting!
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="px-2 py-8 text-zinc-500 w-full flex flex-col justify-center items-center text-sm gap-3 text-center"
+          >
+            <div className="bg-sidebar-accent/50 p-3 rounded-full ring-1 ring-sidebar-border">
+              <MessageSquarePlus className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <div className="max-w-[180px]">
+              No chats yet. Start a new conversation!
+            </div>
+          </motion.div>
         </SidebarGroupContent>
       </SidebarGroup>
     );

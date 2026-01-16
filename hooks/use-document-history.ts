@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from './use-debounce';
 import { toast } from '@/lib/toast-system';
 
-interface DocumentHistoryState {
+export interface DocumentHistoryState {
   canUndo: boolean;
   canRedo: boolean;
   undoCount: number;
@@ -14,12 +14,22 @@ interface DocumentHistoryState {
   isSaving: boolean;
 }
 
-interface UseDocumentHistoryOptions {
+export interface UseDocumentHistoryOptions {
   documentId: string;
   userId: string;
+  /**
+   * Enable auto-save when content changes via updateContent().
+   * Set to false when using with main composer save flow to avoid conflicts.
+   * @default true
+   */
   autoSave?: boolean;
   autoSaveDelay?: number;
   onHistoryChange?: (state: DocumentHistoryState) => void;
+  /**
+   * Suppress toast notifications for undo/redo operations.
+   * Useful when integrating with custom UI feedback.
+   */
+  suppressToasts?: boolean;
 }
 
 export function useDocumentHistory({
@@ -28,6 +38,7 @@ export function useDocumentHistory({
   autoSave = true,
   autoSaveDelay = 2000,
   onHistoryChange,
+  suppressToasts = false,
 }: UseDocumentHistoryOptions) {
   const [state, setState] = useState<DocumentHistoryState>({
     canUndo: false,
@@ -100,12 +111,14 @@ export function useDocumentHistory({
         }
       } catch (error) {
         console.error('Failed to save document version:', error);
-        toast.error('Failed to save document version');
+        if (!suppressToasts) {
+          toast.error('Failed to save document version');
+        }
       } finally {
         setState((prev) => ({ ...prev, isSaving: false }));
       }
     },
-    [documentId, userId, fetchUndoRedoState],
+    [documentId, userId, fetchUndoRedoState, suppressToasts],
   );
 
   // Handle content changes
@@ -146,19 +159,23 @@ export function useDocumentHistory({
       if (response.ok) {
         const version = await response.json();
         await fetchUndoRedoState();
-        toast.success('Undone to previous version');
+        if (!suppressToasts) {
+          toast.success('Undone to previous version');
+        }
         return version;
       } else {
         throw new Error('Failed to undo');
       }
     } catch (error) {
       console.error('Failed to undo:', error);
-      toast.error('Failed to undo');
+      if (!suppressToasts) {
+        toast.error('Failed to undo');
+      }
       return null;
     } finally {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, [documentId, userId, state.canUndo, fetchUndoRedoState]);
+  }, [documentId, userId, state.canUndo, fetchUndoRedoState, suppressToasts]);
 
   // Redo operation
   const redo = useCallback(async () => {
@@ -179,19 +196,23 @@ export function useDocumentHistory({
       if (response.ok) {
         const version = await response.json();
         await fetchUndoRedoState();
-        toast.success('Redone to next version');
+        if (!suppressToasts) {
+          toast.success('Redone to next version');
+        }
         return version;
       } else {
         throw new Error('Failed to redo');
       }
     } catch (error) {
       console.error('Failed to redo:', error);
-      toast.error('Failed to redo');
+      if (!suppressToasts) {
+        toast.error('Failed to redo');
+      }
       return null;
     } finally {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, [documentId, userId, state.canRedo, fetchUndoRedoState]);
+  }, [documentId, userId, state.canRedo, fetchUndoRedoState, suppressToasts]);
 
   // Get document history
   const getHistory = useCallback(
@@ -205,28 +226,43 @@ export function useDocumentHistory({
         }
       } catch (error) {
         console.error('Failed to fetch history:', error);
-        toast.error('Failed to fetch history');
+        if (!suppressToasts) {
+          toast.error('Failed to fetch history');
+        }
       }
       return [];
     },
-    [documentId],
+    [documentId, suppressToasts],
   );
 
   // Get specific version
-  const getVersion = useCallback(async (versionId: string) => {
-    try {
-      const response = await fetch(
-        `/api/composer-documents/history/version/${versionId}`,
-      );
-      if (response.ok) {
-        return await response.json();
+  const getVersion = useCallback(
+    async (versionId: string) => {
+      try {
+        const response = await fetch(
+          `/api/composer-documents/history/version/${versionId}`,
+        );
+        if (response.ok) {
+          return await response.json();
+        }
+      } catch (error) {
+        console.error('Failed to fetch version:', error);
+        if (!suppressToasts) {
+          toast.error('Failed to fetch version');
+        }
       }
-    } catch (error) {
-      console.error('Failed to fetch version:', error);
-      toast.error('Failed to fetch version');
-    }
-    return null;
-  }, []);
+      return null;
+    },
+    [suppressToasts],
+  );
+
+  /**
+   * Refresh undo/redo state from server.
+   * Call this after external saves (e.g., from main composer flow).
+   */
+  const refresh = useCallback(() => {
+    return fetchUndoRedoState();
+  }, [fetchUndoRedoState]);
 
   // End edit session on unmount
   useEffect(() => {
@@ -255,5 +291,10 @@ export function useDocumentHistory({
     redo,
     getHistory,
     getVersion,
+    /**
+     * Refresh undo/redo state from server.
+     * Call this after external saves (e.g., from main composer flow).
+     */
+    refresh,
   };
 }

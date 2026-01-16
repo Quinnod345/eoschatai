@@ -85,10 +85,10 @@ export default function VoiceFAB({
         );
       case 'inline':
         return cn(
-          'rounded-full p-1.5 h-fit border dark:border-zinc-600',
-          'bg-eos-orange/10 hover:bg-eos-orange/20 text-eos-orange',
-          'hover:border-eos-orange/50 transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-eos-orange/50',
+          'rounded-full p-2 h-9 w-9 flex items-center justify-center border border-transparent',
+          'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
+          'hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200',
+          'focus:outline-none focus:ring-2 focus:ring-ring',
         );
       case 'minimal':
         return cn('rounded-md hover:bg-muted', getSizeClasses());

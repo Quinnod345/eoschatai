@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import * as Sentry from '@sentry/nextjs';
 
 export default function GlobalError({
   error,
@@ -35,8 +36,18 @@ export default function GlobalError({
           digest: error.digest,
         });
 
-        // Log to error tracking service if configured
-        // TODO: Add error tracking service integration (Sentry, etc.)
+        // Log to Sentry error tracking service
+        Sentry.captureException(error, {
+          tags: {
+            errorCategory: classified.category,
+            severity: classified.severity,
+          },
+          extra: {
+            digest: error.digest,
+            userMessage: classified.userMessage,
+            context: 'Application load',
+          },
+        });
       } catch (classifyError) {
         // Fallback if classification fails
         console.error('Global error caught:', error);

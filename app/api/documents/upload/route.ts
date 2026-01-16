@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth } from '@/app/(auth)/auth';
-import { userDocuments } from '@/lib/db/schema';
+import { userDocuments, userDocumentVersion } from '@/lib/db/schema';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import { sql } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import OpenAI from 'openai';
 import { processUserDocument } from '@/lib/ai/user-rag';
@@ -14,17 +14,24 @@ import {
   broadcastEntitlementsUpdated,
 } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
+import { reserveStorageAtomic, releaseStorageReservation } from '@/lib/storage/tracking';
+import { computeStringHash } from '@/lib/utils/file-hash';
 
 const createOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey || apiKey.trim() === '') {
     console.warn(
-      '[documents.upload] OPENAI_API_KEY missing; advanced document analysis disabled.',
+      '[documents.upload] OPENAI_API_KEY missing or empty; advanced document analysis disabled.',
     );
     return null;
   }
 
-  return new OpenAI({ apiKey });
+  try {
+    return new OpenAI({ apiKey });
+  } catch (error) {
+    console.error('[documents.upload] Failed to create OpenAI client:', error);
+    return null;
+  }
 };
 
 const openai = createOpenAIClient();
@@ -467,8 +474,31 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check storage quota and atomically reserve space before upload
+    // This prevents race conditions where concurrent uploads could exceed the quota
+    const quotaCheck = await reserveStorageAtomic(session.user.id, file.size);
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Storage quota exceeded',
+          details: quotaCheck.reason,
+          currentUsed: quotaCheck.currentUsed,
+          quota: quotaCheck.quota,
+          availableSpace: quotaCheck.availableSpace,
+        },
+        { status: 403 },
+      );
+    }
+
+    // Storage is now reserved - we must release it if upload fails
+    let storageReserved = true;
+
+    try {
     // Extract text content from the file
     const textContent = await extractTextFromFile(file, fileType, fileName);
+
+    // Compute content hash for duplicate detection
+    const contentHash = await computeStringHash(textContent);
 
     // Upload file to Vercel Blob
     const { url } = await put(
@@ -498,51 +528,154 @@ export async function POST(request: Request) {
       const isContextStr = formData.get('isContext') as string | null;
       const isContext = isContextStr === null ? true : isContextStr === 'true';
 
-      const newDocument = await db
-        .insert(userDocuments)
-        .values({
-          userId: session.user.id,
-          fileName: fileName.substring(0, 250), // Ensure fileName is not too long
-          fileUrl: url,
-          fileSize: file.size,
-          fileType: trimmedFileType,
-          category: validCategory,
-          content: textContent,
-          isContext: isContext,
-        })
-        .returning();
+      // Use a transaction to check for duplicates and insert/update atomically
+      // This prevents race conditions where two uploads with the same content
+      // could both see "no duplicate" and both insert
+      let newDocument: any[];
+      
+      newDocument = await db.transaction(async (tx) => {
+        // Check for duplicate within the transaction
+        const existingDoc = await tx
+          .select()
+          .from(userDocuments)
+          .where(
+            and(
+              eq(userDocuments.userId, session.user.id),
+              eq(userDocuments.contentHash, contentHash),
+            ),
+          )
+          .for('update')  // Lock the row if found to prevent concurrent modifications
+          .limit(1);
 
-      // Process the document for User RAG only if isContext is true
-      if (isContext) {
-        try {
-          console.log(
-            `Processing document for User RAG (isContext=true): ${fileName}`,
-          );
-          await processUserDocument(
-            session.user.id,
-            newDocument[0].id,
-            textContent,
-            {
-              fileName: fileName,
-              category: validCategory,
+        if (existingDoc.length > 0 && existingDoc[0]) {
+          // Duplicate found - create a new version
+          const doc = existingDoc[0];
+
+          // Save current version to version history
+          await tx.insert(userDocumentVersion).values({
+            documentId: doc.id,
+            versionNumber: doc.version,
+            fileName: doc.fileName,
+            fileUrl: doc.fileUrl,
+            fileSize: doc.fileSize,
+            content: doc.content,
+            contentHash: doc.contentHash,
+            uploadedBy: session.user.id,
+            isActive: false,
+          });
+
+          // Update existing document with new version
+          return await tx
+            .update(userDocuments)
+            .set({
+              fileName: fileName.substring(0, 250),
+              fileUrl: url,
+              fileSize: file.size,
               fileType: trimmedFileType,
-            },
-          );
-          console.log(
-            `Successfully processed document for User RAG: ${fileName}`,
-          );
-        } catch (ragError) {
-          console.error('Error processing document for User RAG:', ragError);
-          // Don't fail the upload if RAG processing fails
+              content: textContent,
+              contentHash,
+              version: doc.version + 1,
+              processingStatus: 'pending',
+              updatedAt: new Date(),
+            })
+            .where(eq(userDocuments.id, doc.id))
+            .returning();
+        } else {
+          // New document - insert within the transaction
+          return await tx
+            .insert(userDocuments)
+            .values({
+              userId: session.user.id,
+              fileName: fileName.substring(0, 250),
+              fileUrl: url,
+              fileSize: file.size,
+              fileType: trimmedFileType,
+              category: validCategory,
+              content: textContent,
+              contentHash,
+              isContext: isContext,
+              processingStatus: 'pending',
+              version: 1,
+            })
+            .returning();
         }
+      });
+
+      // Process the document for User RAG asynchronously
+      if (isContext) {
+        // Mark as processing first (using optimistic locking)
+        await db
+          .update(userDocuments)
+          .set({ processingStatus: 'processing' })
+          .where(
+            and(
+              eq(userDocuments.id, newDocument[0].id),
+              eq(userDocuments.processingStatus, 'pending'),
+            ),
+          );
+
+        // Start processing asynchronously
+        processUserDocument(
+          session.user.id,
+          newDocument[0].id,
+          textContent,
+          {
+            fileName: fileName,
+            category: validCategory,
+            fileType: trimmedFileType,
+          },
+        )
+          .then(async () => {
+            // Update status to ready using optimistic locking
+            // Only update if still in 'processing' state to prevent race conditions
+            const result = await db
+              .update(userDocuments)
+              .set({ processingStatus: 'ready' })
+              .where(
+                and(
+                  eq(userDocuments.id, newDocument[0].id),
+                  eq(userDocuments.processingStatus, 'processing'),
+                ),
+              );
+            console.log(
+              `Successfully processed document for User RAG: ${fileName}`,
+            );
+          })
+          .catch(async (ragError) => {
+            console.error('Error processing document for User RAG:', ragError);
+            // Update status to failed using optimistic locking
+            // Only update if still in 'processing' state
+            await db
+              .update(userDocuments)
+              .set({
+                processingStatus: 'failed',
+                processingError: ragError.message || 'Unknown error',
+              })
+              .where(
+                and(
+                  eq(userDocuments.id, newDocument[0].id),
+                  eq(userDocuments.processingStatus, 'processing'),
+                ),
+              );
+          });
       } else {
-        console.log(
-          `Skipping RAG processing for document (isContext=false): ${fileName}`,
-        );
+        // Not for context - set to ready immediately (using optimistic locking)
+        await db
+          .update(userDocuments)
+          .set({ processingStatus: 'ready' })
+          .where(
+            and(
+              eq(userDocuments.id, newDocument[0].id),
+              eq(userDocuments.processingStatus, 'pending'),
+            ),
+          );
       }
 
       await incrementUsageCounter(session.user.id, 'uploads_total', 1);
       await broadcastEntitlementsUpdated(session.user.id);
+
+      // Storage reservation was used successfully
+      storageReserved = false;
 
       return NextResponse.json({
         message: 'Document uploaded successfully',
@@ -563,13 +696,29 @@ export async function POST(request: Request) {
               RETURNING "id", "fileName", "category"`,
         );
 
-        // Extract result data safely
-        const returnedData = result as unknown as {
-          rows: Array<{ id: string; fileName: string; category: string }>;
+        // Extract result data safely with type guard
+        const isResultWithRows = (
+          r: unknown,
+        ): r is { rows: Array<{ id: string; fileName: string; category: string }> } => {
+          return (
+            typeof r === 'object' &&
+            r !== null &&
+            'rows' in r &&
+            Array.isArray((r as any).rows)
+          );
         };
+
+        if (!isResultWithRows(result)) {
+          throw new Error('Unexpected database result structure');
+        }
+
+        const returnedData = result;
 
         await incrementUsageCounter(session.user.id, 'uploads_total', 1);
         await broadcastEntitlementsUpdated(session.user.id);
+
+        // Storage reservation was used successfully
+        storageReserved = false;
 
         return NextResponse.json({
           message: 'Document uploaded successfully (fallback method)',
@@ -581,11 +730,26 @@ export async function POST(request: Request) {
         });
       } catch (fallbackError) {
         console.error('Fallback insertion also failed:', fallbackError);
+        // Release reserved storage since upload failed completely
+        if (storageReserved) {
+          await releaseStorageReservation(session.user.id, file.size).catch(
+            (e) => console.error('Failed to release storage reservation:', e)
+          );
+        }
         return NextResponse.json(
           { error: 'Failed to upload document to database' },
           { status: 500 },
         );
       }
+    }
+    } catch (uploadError) {
+      // Release reserved storage if the upload process failed
+      if (storageReserved) {
+        await releaseStorageReservation(session.user.id, file.size).catch(
+          (e) => console.error('Failed to release storage reservation:', e)
+        );
+      }
+      throw uploadError;
     }
   } catch (error) {
     console.error('Error uploading document:', error);
