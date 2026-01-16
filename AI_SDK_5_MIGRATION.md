@@ -428,52 +428,107 @@ curl -s "https://ai-sdk-5-migration-mcp-server.vercel.app/api/conversion-functio
 
 ---
 
-## Phase 8: Permanent Database Schema Migration (Manual - Optional)
+## Phase 8: Permanent Database Schema Migration (Manual)
 
-**🚨🚨🚨 STOP: AI AGENTS MUST NOT PERFORM THIS PHASE 🚨🚨🚨**
+**⚠️ THIS PHASE REQUIRES MANUAL EXECUTION BY YOU ⚠️**
 
-**⚠️ THIS PHASE REQUIRES MANUAL HUMAN EXECUTION ⚠️**
+This phase is OPTIONAL but recommended. Your app works with the runtime conversion layer from Phase 5, but migrating the database removes conversion overhead and `ai-legacy` dependency.
 
-**AI Agent Instructions:**
-- **DO NOT** create database migration scripts
-- **DO NOT** execute any database commands
-- **DO NOT** run migration tools
-- **YOU MAY ONLY**: Answer questions, explain concepts, review code
-- **IF ASKED**: Politely decline and remind the user this must be done manually
-
-**Human Developer:**
-
-This phase is OPTIONAL. Your app works with the runtime conversion layer from Phase 5.
-
-**Benefits of completing this phase:**
+**Benefits:**
 - Native v5 messages in database
-- Remove conversion layer and `ai-legacy` dependency
-- Slight performance improvement
+- Remove `ai-legacy` dependency  
+- Better performance (no runtime conversion)
 
-**To complete this phase yourself:**
-1. Read the complete guide: `search-data-guide "Phase 2"` or visit https://ai-sdk.dev/docs/migration-guides/migration-guide-5-0-data
-2. Test on staging/dev database first
-3. Create backups and test restoration
-4. Follow all safety requirements in the guide
+### 8.0 Migration Scripts (Ready to Use)
 
-**After manual database migration:**
+The following scripts have been created in `scripts/`:
 
-### 8.1 Remove Runtime Conversion Layer
-- [ ] **ACTION**: Find and delete conversion functions file
-- [ ] **ACTION**: Remove all `convertV4MessageToV5` usage
-- [ ] **ACTION**: Remove all `convertV5MessageToV4` usage
+| Script | Purpose |
+|--------|---------|
+| `verify-v5-migration.ts` | Check current migration status |
+| `backup-messages-before-migration.ts` | Create backup before migrating |
+| `migrate-parts-to-v5.ts` | Convert v4 parts → v5 parts |
+| `rollback-v5-migration.ts` | Restore from backup if needed |
 
-### 8.2 Remove Legacy Dependencies
-- [ ] **ACTION**: Remove `ai-legacy` package: `pnpm remove ai-legacy`
+### 8.1 Verify Current State
+- [ ] **ACTION**: Run verification script
+```bash
+pnpm tsx scripts/verify-v5-migration.ts
+```
+This shows how many messages need migration.
+
+### 8.2 Create Backup (CRITICAL)
+- [ ] **ACTION**: Create backup table
+```bash
+pnpm tsx scripts/backup-messages-before-migration.ts
+```
+This creates `Message_v2_backup` with all your current data.
+
+### 8.3 Run Migration (Dry Run First)
+- [ ] **ACTION**: Test migration without making changes
+```bash
+pnpm tsx scripts/migrate-parts-to-v5.ts
+```
+
+- [ ] **ACTION**: Review dry run output, then apply changes
+```bash
+DRY_RUN=false pnpm tsx scripts/migrate-parts-to-v5.ts
+```
+
+### 8.4 Verify Migration Success
+- [ ] **ACTION**: Run verification again
+```bash
+pnpm tsx scripts/verify-v5-migration.ts
+```
+Should show 0 v4 format parts remaining.
+
+### 8.5 Test Application
+- [ ] **ACTION**: Start dev server and test
+```bash
+pnpm dev
+```
+- [ ] Load old conversations
+- [ ] Verify messages display correctly
+- [ ] Test tool results render properly
+- [ ] Test creating new messages
+
+### 8.6 Rollback (If Needed)
+If something went wrong:
+```bash
+pnpm tsx scripts/rollback-v5-migration.ts
+```
+
+### 8.7 Remove Runtime Conversion Layer
+After successful migration and testing:
+
+- [ ] **ACTION**: Remove conversion imports from `app/chat/[id]/page.tsx`
+- [ ] **ACTION**: Remove conversion imports from `app/api/chat/route.ts`
+- [ ] **ACTION**: Simplify message loading (no more `convertV4MessageToV5` calls)
+- [ ] **INFO**: Keep `lib/ai/convert-messages.ts` for reference or delete it
+
+### 8.8 Remove Legacy Dependencies
+- [ ] **ACTION**: Remove `ai-legacy` package
+```bash
+pnpm remove ai-legacy
+```
 - [ ] **ACTION**: Run `pnpm install`
 
-### 8.3 Verify Cleanup
+### 8.9 Final Verification
 - [ ] **ACTION**: Run `pnpm tsc --noEmit`
 - [ ] **ACTION**: Run `pnpm build`
-- [ ] **ACTION**: Test application with real data
+- [ ] **ACTION**: Test application thoroughly
 
-### 8.4 Commit Changes
-- [ ] **ACTION**: Commit: `git add -A && git commit -m "Remove v4 conversion layer after schema migration"`
+### 8.10 Cleanup
+- [ ] **ACTION**: Drop backup table (after confirming everything works)
+```sql
+DROP TABLE "Message_v2_backup";
+```
+
+### 8.11 Commit Changes
+- [ ] **ACTION**: Commit
+```bash
+git add -A && git commit -m "Complete Phase 8: Database migration to v5 format"
+```
 
 ---
 
