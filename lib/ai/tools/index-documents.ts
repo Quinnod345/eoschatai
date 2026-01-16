@@ -32,7 +32,7 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
         dataStream.write({
           type: 'data-tool',
           id: generateId(),
-          data: { message: 'Indexing documents...' }
+          data: { message: 'Indexing documents...' },
         });
 
         // Build query
@@ -77,7 +77,9 @@ export const indexDocumentsTool = ({ dataStream }: IndexDocumentsProps) =>
               dataStream.write({
                 type: 'data-tool',
                 id: generateId(),
-                data: { message: `Indexed ${indexed} of ${docs.length} documents...` }
+                data: {
+                  message: `Indexed ${indexed} of ${docs.length} documents...`,
+                },
               });
             }
           } catch (error) {

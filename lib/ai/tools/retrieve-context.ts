@@ -22,7 +22,7 @@ export const retrieveContextTool = ({ dataStream }: RetrieveContextProps) =>
         dataStream.write({
           type: 'data-tool',
           id: generateId(),
-          data: { message: `Searching knowledge base for: ${query}` }
+          data: { message: `Searching knowledge base for: ${query}` },
         });
 
         // Retrieve relevant context

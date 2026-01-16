@@ -1,13 +1,13 @@
 'use client';
 
 import { memo } from 'react';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './types';
 import { Button } from '@/components/ui/button';
 import { Paperclip } from 'lucide-react';
 
 interface AttachmentsButtonProps {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }
 
 function PureAttachmentsButton({
@@ -31,5 +31,3 @@ function PureAttachmentsButton({
 }
 
 export const AttachmentsButton = memo(PureAttachmentsButton);
-
-

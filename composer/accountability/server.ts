@@ -96,7 +96,12 @@ function defaultChart(title?: string): AccountabilityChartData {
 export const accountabilityDocumentHandler =
   createDocumentHandler<'accountability'>({
     kind: 'accountability',
-    onCreateDocument: async ({ title, dataStream, maxOutputTokens, context }) => {
+    onCreateDocument: async ({
+      title,
+      dataStream,
+      maxOutputTokens,
+      context,
+    }) => {
       // Stream STRICT JSON for the Accountability Chart between markers (AI decides structure/content)
       const provider = createCustomProvider();
       const system = `You are generating an EOS Accountability Chart JSON. Return STRICT JSON with this shape:
@@ -124,7 +129,10 @@ Rules:
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxOutputTokens: Math.min(12000, Math.max(1000, maxOutputTokens ?? 6000)),
+        maxOutputTokens: Math.min(
+          12000,
+          Math.max(1000, maxOutputTokens ?? 6000),
+        ),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Create an Accountability Chart JSON.
 CRITICAL: The JSON must include "title": "${title || 'Accountability Chart'}".
@@ -136,7 +144,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: 'AC_DATA_BEGIN\n' }
+        data: { type: 'text-delta', content: 'AC_DATA_BEGIN\n' },
       });
 
       for await (const delta of fullStream) {
@@ -149,7 +157,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
             data: {
               type: 'text-delta',
               content: textDelta,
-            }
+            },
           });
         }
       }
@@ -158,7 +166,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: '\nAC_DATA_END' }
+        data: { type: 'text-delta', content: '\nAC_DATA_END' },
       });
       return draft;
     },
@@ -176,7 +184,10 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxOutputTokens: Math.min(12000, Math.max(800, maxOutputTokens ?? 5000)),
+        maxOutputTokens: Math.min(
+          12000,
+          Math.max(800, maxOutputTokens ?? 5000),
+        ),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Apply the requested edit to the Accountability Chart JSON and return only JSON.`,
       });
@@ -195,7 +206,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
         dataStream.write({
           type: 'data-composer',
           id: generateId(),
-          data: { type: 'text-delta', content: responseContent }
+          data: { type: 'text-delta', content: responseContent },
         });
         return responseContent;
       }
@@ -204,7 +215,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: wrapped }
+        data: { type: 'text-delta', content: wrapped },
       });
       return wrapped;
     },

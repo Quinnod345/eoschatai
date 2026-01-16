@@ -40,7 +40,7 @@ export const createDocument = ({
         data: {
           type: 'kind',
           content: kind,
-        }
+        },
       });
 
       dataStream.write({
@@ -49,7 +49,7 @@ export const createDocument = ({
         data: {
           type: 'id',
           content: id,
-        }
+        },
       });
 
       dataStream.write({
@@ -58,7 +58,7 @@ export const createDocument = ({
         data: {
           type: 'title',
           content: title,
-        }
+        },
       });
 
       dataStream.write({
@@ -67,7 +67,7 @@ export const createDocument = ({
         data: {
           type: 'clear',
           content: '',
-        }
+        },
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -96,7 +96,7 @@ export const createDocument = ({
       dataStream.write({
         type: 'data-tool',
         id: generateId(),
-        data: { type: 'finish', content: '' }
+        data: { type: 'finish', content: '' },
       });
 
       return {

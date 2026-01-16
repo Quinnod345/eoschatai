@@ -76,7 +76,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     dataStream.write({
       type: 'data-composer',
       id: generateId(),
-      data: { type: 'text-delta', content: 'VTO_DATA_BEGIN\n' }
+      data: { type: 'text-delta', content: 'VTO_DATA_BEGIN\n' },
     });
 
     for await (const delta of fullStream) {
@@ -86,7 +86,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
         dataStream.write({
           type: 'data-composer',
           id: generateId(),
-          data: { type: 'text-delta', content: textDelta }
+          data: { type: 'text-delta', content: textDelta },
         });
       }
     }
@@ -95,7 +95,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     dataStream.write({
       type: 'data-composer',
       id: generateId(),
-      data: { type: 'text-delta', content: '\nVTO_DATA_END' }
+      data: { type: 'text-delta', content: '\nVTO_DATA_END' },
     });
 
     return draft;
@@ -136,7 +136,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: responseContent }
+        data: { type: 'text-delta', content: responseContent },
       });
     } else {
       // Otherwise, wrap the JSON with markers
@@ -144,7 +144,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: draft }
+        data: { type: 'text-delta', content: draft },
       });
     }
 

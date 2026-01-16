@@ -39,7 +39,7 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
             data: {
               type: 'sheet-delta',
               content: csv,
-            }
+            },
           });
 
           draftContent = csv;
@@ -53,7 +53,7 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
       data: {
         type: 'sheet-delta',
         content: draftContent,
-      }
+      },
     });
 
     return draftContent;
@@ -91,7 +91,7 @@ CRITICAL: If conversation context is provided, extract relevant data from it to 
             data: {
               type: 'sheet-delta',
               content: csv,
-            }
+            },
           });
 
           draftContent = csv;

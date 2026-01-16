@@ -42,7 +42,7 @@ export const updateDocument = ({
         data: {
           type: 'clear',
           content: document.title,
-        }
+        },
       });
 
       // Send AI edit metadata to the frontend
@@ -57,7 +57,7 @@ export const updateDocument = ({
             originalContent: document.content,
             timestamp: new Date().toISOString(),
           }),
-        }
+        },
       });
 
       const documentHandler = documentHandlersByComposerKind.find(
@@ -88,13 +88,13 @@ export const updateDocument = ({
             description,
             timestamp: new Date().toISOString(),
           }),
-        }
+        },
       });
 
       dataStream.write({
         type: 'data-tool',
         id: generateId(),
-        data: { type: 'finish', content: '' }
+        data: { type: 'finish', content: '' },
       });
 
       return {

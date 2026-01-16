@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import type { Attachment } from 'ai';
+import type { Attachment } from './types';
 import cx from 'classnames';
 import { Button } from '@/components/ui/button';
 import { ArrowUp } from 'lucide-react';
@@ -78,5 +78,3 @@ export const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   if (prevProps.audioProcessing !== nextProps.audioProcessing) return false;
   return true;
 });
-
-

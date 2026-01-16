@@ -64,7 +64,7 @@ export const requestSuggestions = ({
           data: {
             type: 'suggestion',
             content: suggestion,
-          }
+          },
         });
 
         suggestions.push(suggestion);

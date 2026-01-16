@@ -16,7 +16,7 @@ import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
 import GlassSurface from './GlassSurface';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './multimodal-input/types';
 import { TranslationUI } from './translation-ui';
 import { SmoothMarkdown } from './smooth-markdown';
 import {
@@ -293,8 +293,8 @@ const PurePreviewMessage = ({
   message: ExtendedUIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: ChatHelpers['setMessages'];
+  reload: ChatHelpers['reload'];
   isReadonly: boolean;
   requiresScrollPadding: boolean;
   onPin?: (messageId: string) => void;
@@ -666,7 +666,7 @@ const PurePreviewMessage = ({
 
                         {containsMentions ? (
                           // Custom rendering for text with mentions
-                          (<div className="prose dark:prose-invert prose-sm max-w-none">
+                          <div className="prose dark:prose-invert prose-sm max-w-none">
                             {formatMentionsInText(sanitizeText(part.text)).map(
                               (node, i) => (
                                 <React.Fragment
@@ -676,10 +676,10 @@ const PurePreviewMessage = ({
                                 </React.Fragment>
                               ),
                             )}
-                          </div>)
+                          </div>
                         ) : (
                           // Regular markdown rendering for text without mentions
-                          (<SmoothMarkdown
+                          <SmoothMarkdown
                             citations={citations}
                             isStreaming={
                               isLoading &&
@@ -688,9 +688,8 @@ const PurePreviewMessage = ({
                             }
                           >
                             {sanitizeText(part.text)}
-                          </SmoothMarkdown>)
+                          </SmoothMarkdown>
                         )}
-
                       </div>
                     </div>
                   );
@@ -869,15 +868,19 @@ const MemoizedPreviewMessage = memo(
 );
 
 // Wrap PreviewMessage with error boundary to prevent a single message from crashing the chat
-export const PreviewMessage: React.FC<Parameters<typeof PurePreviewMessage>[0]> = (props) => (
-  <ErrorBoundary 
+export const PreviewMessage: React.FC<
+  Parameters<typeof PurePreviewMessage>[0]
+> = (props) => (
+  <ErrorBoundary
     context="Message"
     fallback={(error, reset) => (
       <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5 my-2">
-        <p className="text-sm text-muted-foreground">Failed to render message.</p>
-        <button 
+        <p className="text-sm text-muted-foreground">
+          Failed to render message.
+        </p>
+        <button
           type="button"
-          onClick={reset} 
+          onClick={reset}
           className="text-xs text-primary hover:underline mt-2"
         >
           Try again

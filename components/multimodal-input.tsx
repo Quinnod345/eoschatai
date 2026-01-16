@@ -1,6 +1,7 @@
 'use client';
 
-import type { Attachment, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
+import type { Attachment, ChatHelpers } from './multimodal-input/types';
 import cx from 'classnames';
 import type React from 'react';
 import {
@@ -54,7 +55,6 @@ import {
   UserIcon,
 } from './icons';
 import equal from 'fast-deep-equal';
-import type { UseChatHelpers } from '@ai-sdk/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
@@ -385,16 +385,16 @@ function PureMultimodalInput({
   onEditProfile,
 }: {
   chatId: string;
-  input: UseChatHelpers['input'];
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
+  input: ChatHelpers['input'];
+  setInput: ChatHelpers['setInput'];
+  status: ChatHelpers['status'];
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
+  setMessages: ChatHelpers['setMessages'];
+  append: ChatHelpers['append'];
+  handleSubmit: ChatHelpers['handleSubmit'];
   className?: string;
   selectedVisibilityType: VisibilityType;
   selectedModelId?: string;
@@ -3965,7 +3965,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }) {
   return (
     <Button
@@ -4029,7 +4029,7 @@ function PureStopButton({
   chatId,
 }: {
   stop: () => void;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: ChatHelpers['setMessages'];
   chatId: string;
 }) {
   const [isStopping, setIsStopping] = useState(false);

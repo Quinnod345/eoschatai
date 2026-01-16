@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './multimodal-input/types';
 import type { VisibilityType } from './visibility-selector';
 import React, { useState, useEffect } from 'react';
 import '../styles/animations.css';
@@ -34,7 +34,7 @@ const EVENING_GREETINGS = [
 // Keep the original interface for backward compatibility
 interface SuggestedActionsProps {
   chatId: string;
-  append: UseChatHelpers['append'];
+  append: ChatHelpers['append'];
   selectedVisibilityType: VisibilityType;
 }
 

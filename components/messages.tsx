@@ -3,7 +3,7 @@ import { PreviewMessage, ThinkingMessage } from './message';
 import { memo, useEffect, useMemo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './multimodal-input/types';
 import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
@@ -21,11 +21,11 @@ interface CitationReference {
 
 interface MessagesProps {
   chatId: string;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
   votes: Array<Vote> | undefined;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: ChatHelpers['setMessages'];
+  reload: ChatHelpers['reload'];
   isReadonly: boolean;
   isArtifactVisible?: boolean;
   isComposerVisible?: boolean;

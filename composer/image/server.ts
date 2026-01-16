@@ -21,7 +21,7 @@ export const imageDocumentHandler = createDocumentHandler<'image'>({
       data: {
         type: 'image-delta',
         content: image.base64,
-      }
+      },
     });
 
     return draftContent;
@@ -43,7 +43,7 @@ export const imageDocumentHandler = createDocumentHandler<'image'>({
       data: {
         type: 'image-delta',
         content: image.base64,
-      }
+      },
     });
 
     return draftContent;

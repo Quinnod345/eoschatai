@@ -80,7 +80,7 @@ export const chartDocumentHandler = createDocumentHandler({
       data: {
         type: 'text-delta',
         content: `CHART_DATA_BEGIN\n${chartContent}\nCHART_DATA_END`,
-      }
+      },
     });
 
     console.log('Chart document created successfully');
@@ -210,7 +210,7 @@ export const chartDocumentHandler = createDocumentHandler({
         data: {
           type: 'text-delta',
           content: `CHART_DATA_BEGIN\n${finalChartContent}\nCHART_DATA_END`,
-        }
+        },
       });
 
       if (hasChanges) {

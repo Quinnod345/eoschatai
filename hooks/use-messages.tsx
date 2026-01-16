@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useScrollToBottom } from './use-scroll-to-bottom';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from '@/components/multimodal-input/types';
 
 export function useMessages({
   chatId,
   status,
 }: {
   chatId: string;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }) {
   const {
     containerRef,

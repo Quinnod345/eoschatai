@@ -1,4 +1,5 @@
-import type { Attachment, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
+import type { Attachment } from './multimodal-input/types';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -31,7 +32,7 @@ import { chartComposer } from '@/composer/chart/client';
 import { vtoComposer } from '@/composer/vto/client';
 import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './multimodal-input/types';
 import type { VisibilityType } from './visibility-selector';
 import {
   type ComposerLifecycleState,
@@ -92,17 +93,17 @@ function PureComposer({
 }: {
   chatId: string;
   input: string;
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
-  stop: UseChatHelpers['stop'];
+  setInput: ChatHelpers['setInput'];
+  status: ChatHelpers['status'];
+  stop: ChatHelpers['stop'];
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: ChatHelpers['setMessages'];
   votes: Array<Vote> | undefined;
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
-  reload: UseChatHelpers['reload'];
+  append: ChatHelpers['append'];
+  handleSubmit: ChatHelpers['handleSubmit'];
+  reload: ChatHelpers['reload'];
   isReadonly: boolean;
   selectedVisibilityType: VisibilityType;
 }) {
@@ -189,7 +190,10 @@ function PureComposer({
 
         // Block remote fetch if in streaming or saving state
         if (shouldBlockRemoteFetch(stateRefs.lifecycleState)) {
-          console.log('[Composer] Blocking remote fetch during:', stateRefs.lifecycleState);
+          console.log(
+            '[Composer] Blocking remote fetch during:',
+            stateRefs.lifecycleState,
+          );
           return;
         }
 

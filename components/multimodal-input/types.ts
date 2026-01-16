@@ -1,6 +1,17 @@
 import type React from 'react';
-import type { Attachment, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
 import type { UseChatHelpers } from '@ai-sdk/react';
+
+// AI SDK 5: Attachment type is no longer exported from 'ai'
+// Define locally for backward compatibility
+export type Attachment = {
+  name?: string;
+  contentType?: string;
+  url: string;
+};
+
+// AI SDK 5: UseChatHelpers requires a type parameter
+export type ChatHelpers = UseChatHelpers<UIMessage>;
 import type { VisibilityType } from '@/components/visibility-selector';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
@@ -48,14 +59,14 @@ export interface MultimodalInputProps {
   chatId: string;
   input: string;
   setInput: (value: string) => void;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: React.Dispatch<React.SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
   setMessages: React.Dispatch<React.SetStateAction<Array<UIMessage>>>;
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
+  append: ChatHelpers['append'];
+  handleSubmit: ChatHelpers['handleSubmit'];
   className?: string;
   selectedVisibilityType: VisibilityType;
   setSelectedVisibilityType: React.Dispatch<
@@ -88,7 +99,7 @@ export interface SendButtonProps {
   submitForm: () => void;
   input: string;
   uploadQueue: string[];
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }
 
 // Props for stop button
@@ -101,7 +112,7 @@ export interface StopButtonProps {
 // Props for attachments button
 export interface AttachmentsButtonProps {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }
 
 // Props for usage chip
@@ -124,5 +135,3 @@ export interface PendingFile {
   file: File;
   previewUrl?: string;
 }
-
-

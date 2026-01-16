@@ -1,5 +1,5 @@
 import type { Suggestion } from '@/lib/db/schema';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './multimodal-input/types';
 import type { ComponentType, Dispatch, ReactNode, SetStateAction } from 'react';
 import type { DataStreamDelta } from './data-stream-handler';
 import type { UIComposer } from './composer';
@@ -24,7 +24,7 @@ type ComposerAction<M = any> = {
 };
 
 export type ComposerToolbarContext = {
-  appendMessage: UseChatHelpers['append'];
+  appendMessage: ChatHelpers['append'];
 };
 
 export type ComposerToolbarItem = {
