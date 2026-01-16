@@ -1,4 +1,4 @@
-import type { Attachment, UIMessage } from 'ai';
+import type { UIMessage } from 'ai';
 import type { Session } from 'next-auth';
 import type { VisibilityType } from '@/components/visibility-selector';
 import type { ResearchMode } from '@/components/nexus-research-selector';

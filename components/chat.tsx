@@ -487,6 +487,11 @@ export function Chat({
     }
   });
 
+  // AI SDK 5: data stream is no longer returned from useChat
+  // Custom data is now handled through message parts
+  // Create empty placeholder for backward compatibility
+  const data: any[] = [];
+
   // Track current Nexus stream ID for recovery
   const [nexusStreamId, setNexusStreamId] = useState<string | null>(null);
   const [isResumingStream, setIsResumingStream] = useState(false);
@@ -887,7 +892,7 @@ export function Chat({
       setHasAppendedQuery(true);
       window.history.replaceState({}, '', `/chat/${id}`);
     }
-  }, [query, append, hasAppendedQuery, id]);
+  }, [query, appendAdapter, hasAppendedQuery, id]);
 
   // Handle scrollTo query parameter
   useEffect(() => {
@@ -1492,11 +1497,6 @@ export function Chat({
     [regenerate],
   );
 
-  // AI SDK 5: data stream is no longer returned from useChat
-  // Custom data is now handled through message parts
-  // Create empty placeholder for backward compatibility
-  const data: any[] = [];
-
   // Handle document context auto-submission
   useEffect(() => {
     if (documentContext && messages.length === 0 && status !== 'streaming') {
@@ -1527,7 +1527,7 @@ export function Chat({
       const timer = setTimeout(submitMessage, 100);
       return () => clearTimeout(timer);
     }
-  }, [documentContext, messages.length, status, append]);
+  }, [documentContext, messages.length, status, appendAdapter]);
 
   // Handle dashboard and new composer creation based on URL
   useEffect(() => {
@@ -1734,7 +1734,7 @@ export function Chat({
 
       setTimeout(sendMessage, 500);
     }
-  }, [pendingMessage, isReadonly, status, append, onPendingMessageSent]);
+  }, [pendingMessage, isReadonly, status, appendAdapter, onPendingMessageSent]);
 
   // Reset the sent flag when pendingMessage changes
   useEffect(() => {
@@ -1844,7 +1844,7 @@ export function Chat({
           votes={votes}
           messages={messages}
           setMessages={setMessages}
-          reload={reload}
+          reload={reloadAdapter}
           isReadonly={isReadonly}
           isComposerVisible={isComposerVisible}
           citations={
