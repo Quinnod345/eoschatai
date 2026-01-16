@@ -2771,7 +2771,7 @@ Always prioritize the user's document content over generic information. If speci
                       console.log(`[SAVE] Tool ${tc.toolName}:`, {
                         toolCallId: tc.toolCallId,
                         hasResult: !!matchingResult,
-                        resultKeys: mr?.result ? Object.keys(mr.result) : [],
+                        resultKeys: mr?.output ? Object.keys(mr.output) : [],
                       });
                       
                       // Save as SDK 5 tool part format: tool-{toolName}
@@ -2781,7 +2781,7 @@ Always prioritize the user's document content over generic information. If speci
                         toolName: tc.toolName,
                         input: tc.args,
                         state: matchingResult ? 'output-available' : 'input-available',
-                        output: mr?.result,
+                        output: mr?.output,
                       });
                     }
 
