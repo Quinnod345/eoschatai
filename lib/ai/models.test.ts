@@ -2,7 +2,7 @@ import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { getResponseChunksByPrompt } from '@/tests/prompts/utils';
 
-// AI SDK 5: MockLanguageModelV1 renamed to MockLanguageModelV3
+// AI SDK 5: MockLanguageModelV3 renamed to MockLanguageModelV3
 export const chatModel = new MockLanguageModelV3({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
@@ -20,7 +20,7 @@ export const chatModel = new MockLanguageModelV3({
   }),
 });
 
-export const titleModel = new MockLanguageModelV1({
+export const titleModel = new MockLanguageModelV3({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',
@@ -45,7 +45,7 @@ export const titleModel = new MockLanguageModelV1({
   }),
 });
 
-export const composerModel = new MockLanguageModelV1({
+export const composerModel = new MockLanguageModelV3({
   doGenerate: async () => ({
     rawCall: { rawPrompt: null, rawSettings: {} },
     finishReason: 'stop',

@@ -1,5 +1,5 @@
 import type { ModelMessage } from 'ai';
-// AI SDK 5: LanguageModelV1StreamPart renamed/removed, use any for test compatibility
+// AI SDK 5: LanguageModelStreamPart renamed/removed, use any for test compatibility
 type LanguageModelStreamPart = any;
 import { TEST_PROMPTS } from './basic';
 
@@ -41,7 +41,7 @@ export function compareMessages(
   return true;
 }
 
-const textToDeltas = (text: string): LanguageModelV1StreamPart[] => {
+const textToDeltas = (text: string): LanguageModelStreamPart[] => {
   const deltas = text
     .split(' ')
     .map((char) => ({ type: 'text-delta' as const, textDelta: `${char} ` }));
@@ -51,7 +51,7 @@ const textToDeltas = (text: string): LanguageModelV1StreamPart[] => {
 
 export const getResponseChunksByPrompt = (
   prompt: ModelMessage[],
-): Array<LanguageModelV1StreamPart> => {
+): Array<LanguageModelStreamPart> => {
   const recentMessage = prompt.at(-1);
 
   if (!recentMessage) {
