@@ -1,13 +1,13 @@
 'use client';
 
 import { memo } from 'react';
-import type { ChatHelpers } from './types';
+import type { ChatStatus } from './types';
 import { Button } from '@/components/ui/button';
 import { Paperclip } from 'lucide-react';
 
 interface AttachmentsButtonProps {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: ChatHelpers['status'];
+  status: ChatStatus;
 }
 
 function PureAttachmentsButton({

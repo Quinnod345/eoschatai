@@ -12,6 +12,14 @@ export type Attachment = {
 
 // AI SDK 5: UseChatHelpers requires a type parameter
 export type ChatHelpers = UseChatHelpers<UIMessage>;
+
+// AI SDK 5: Define explicit types for component props
+// These methods were renamed or removed in SDK 5, but we use adapters in chat.tsx
+export type ChatStatus = 'submitted' | 'streaming' | 'ready' | 'error';
+export type AppendFunction = (message: { role: string; content?: string; parts?: any[] }, options?: { experimental_attachments?: Attachment[] }) => void;
+export type HandleSubmitFunction = (event?: { preventDefault?: () => void }, options?: any) => void;
+export type ReloadFunction = (options?: { messageId?: string }) => void;
+export type SetInputFunction = (value: string) => void;
 import type { VisibilityType } from '@/components/visibility-selector';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
@@ -58,15 +66,15 @@ export interface MentionResource {
 export interface MultimodalInputProps {
   chatId: string;
   input: string;
-  setInput: (value: string) => void;
-  status: ChatHelpers['status'];
+  setInput: SetInputFunction;
+  status: ChatStatus;
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: React.Dispatch<React.SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
   setMessages: React.Dispatch<React.SetStateAction<Array<UIMessage>>>;
-  append: ChatHelpers['append'];
-  handleSubmit: ChatHelpers['handleSubmit'];
+  append: AppendFunction;
+  handleSubmit: HandleSubmitFunction;
   className?: string;
   selectedVisibilityType: VisibilityType;
   setSelectedVisibilityType: React.Dispatch<
@@ -99,7 +107,7 @@ export interface SendButtonProps {
   submitForm: () => void;
   input: string;
   uploadQueue: string[];
-  status: ChatHelpers['status'];
+  status: ChatStatus;
 }
 
 // Props for stop button
@@ -112,7 +120,7 @@ export interface StopButtonProps {
 // Props for attachments button
 export interface AttachmentsButtonProps {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: ChatHelpers['status'];
+  status: ChatStatus;
 }
 
 // Props for usage chip

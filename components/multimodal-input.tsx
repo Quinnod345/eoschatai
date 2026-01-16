@@ -1,7 +1,7 @@
 'use client';
 
 import type { UIMessage } from 'ai';
-import type { Attachment, ChatHelpers } from './multimodal-input/types';
+import type { Attachment, ChatHelpers, ChatStatus, SetInputFunction, AppendFunction, HandleSubmitFunction } from './multimodal-input/types';
 import cx from 'classnames';
 import type React from 'react';
 import {
@@ -385,16 +385,16 @@ function PureMultimodalInput({
   onEditProfile,
 }: {
   chatId: string;
-  input: ChatHelpers['input'];
-  setInput: ChatHelpers['setInput'];
-  status: ChatHelpers['status'];
+  input: string;
+  setInput: SetInputFunction;
+  status: ChatStatus;
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
   setMessages: ChatHelpers['setMessages'];
-  append: ChatHelpers['append'];
-  handleSubmit: ChatHelpers['handleSubmit'];
+  append: AppendFunction;
+  handleSubmit: HandleSubmitFunction;
   className?: string;
   selectedVisibilityType: VisibilityType;
   selectedModelId?: string;
@@ -3965,7 +3965,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: ChatHelpers['status'];
+  status: ChatStatus;
 }) {
   return (
     <Button

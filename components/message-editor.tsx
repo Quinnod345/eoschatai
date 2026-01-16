@@ -11,13 +11,13 @@ import {
 } from 'react';
 import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
-import type { ChatHelpers } from './multimodal-input/types';
+import type { ChatHelpers, ReloadFunction } from './multimodal-input/types';
 
 export type MessageEditorProps = {
   message: UIMessage;
   setMode: Dispatch<SetStateAction<'view' | 'edit'>>;
   setMessages: ChatHelpers['setMessages'];
-  reload: ChatHelpers['reload'];
+  reload: ReloadFunction;
 };
 
 export function MessageEditor({

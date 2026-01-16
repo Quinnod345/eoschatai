@@ -16,7 +16,7 @@ import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
 import GlassSurface from './GlassSurface';
-import type { ChatHelpers } from './multimodal-input/types';
+import type { ChatHelpers, ReloadFunction } from './multimodal-input/types';
 import { TranslationUI } from './translation-ui';
 import { SmoothMarkdown } from './smooth-markdown';
 import {
@@ -294,7 +294,7 @@ const PurePreviewMessage = ({
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: ChatHelpers['setMessages'];
-  reload: ChatHelpers['reload'];
+  reload: ReloadFunction;
   isReadonly: boolean;
   requiresScrollPadding: boolean;
   onPin?: (messageId: string) => void;

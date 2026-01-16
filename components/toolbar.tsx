@@ -27,7 +27,7 @@ import {
 import { ArrowUpIcon, StopIcon, SummarizeIcon } from './icons';
 import { composerDefinitions, type ComposerKind } from './composer';
 import type { ComposerToolbarItem } from './create-composer';
-import type { ChatHelpers } from './multimodal-input/types';
+import type { ChatHelpers, ChatStatus, AppendFunction } from './multimodal-input/types';
 
 type ToolProps = {
   description: string;
@@ -37,11 +37,11 @@ type ToolProps = {
   isToolbarVisible?: boolean;
   setIsToolbarVisible?: Dispatch<SetStateAction<boolean>>;
   isAnimating: boolean;
-  append: ChatHelpers['append'];
+  append: AppendFunction;
   onClick: ({
     appendMessage,
   }: {
-    appendMessage: ChatHelpers['append'];
+    appendMessage: AppendFunction;
   }) => void;
 };
 
@@ -143,7 +143,7 @@ const ReadingLevelSelector = ({
 }: {
   setSelectedTool: Dispatch<SetStateAction<string | null>>;
   isAnimating: boolean;
-  append: ChatHelpers['append'];
+  append: AppendFunction;
 }) => {
   const LEVELS = [
     'Elementary',
@@ -257,7 +257,7 @@ export const Tools = ({
   isToolbarVisible: boolean;
   selectedTool: string | null;
   setSelectedTool: Dispatch<SetStateAction<string | null>>;
-  append: ChatHelpers['append'];
+  append: AppendFunction;
   isAnimating: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
   tools: Array<ComposerToolbarItem>;
@@ -314,8 +314,8 @@ const PureToolbar = ({
 }: {
   isToolbarVisible: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
-  status: ChatHelpers['status'];
-  append: ChatHelpers['append'];
+  status: ChatStatus;
+  append: AppendFunction;
   stop: ChatHelpers['stop'];
   setMessages: ChatHelpers['setMessages'];
   composerKind: ComposerKind;

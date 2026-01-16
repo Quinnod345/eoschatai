@@ -32,7 +32,7 @@ import { chartComposer } from '@/composer/chart/client';
 import { vtoComposer } from '@/composer/vto/client';
 import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
-import type { ChatHelpers } from './multimodal-input/types';
+import type { ChatHelpers, ChatStatus, SetInputFunction, AppendFunction, HandleSubmitFunction, ReloadFunction } from './multimodal-input/types';
 import type { VisibilityType } from './visibility-selector';
 import {
   type ComposerLifecycleState,
@@ -93,17 +93,17 @@ function PureComposer({
 }: {
   chatId: string;
   input: string;
-  setInput: ChatHelpers['setInput'];
-  status: ChatHelpers['status'];
+  setInput: SetInputFunction;
+  status: ChatStatus;
   stop: ChatHelpers['stop'];
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
   setMessages: ChatHelpers['setMessages'];
   votes: Array<Vote> | undefined;
-  append: ChatHelpers['append'];
-  handleSubmit: ChatHelpers['handleSubmit'];
-  reload: ChatHelpers['reload'];
+  append: AppendFunction;
+  handleSubmit: HandleSubmitFunction;
+  reload: ReloadFunction;
   isReadonly: boolean;
   selectedVisibilityType: VisibilityType;
 }) {

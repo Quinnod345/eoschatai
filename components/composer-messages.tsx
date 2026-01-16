@@ -4,18 +4,18 @@ import type { UIMessage } from 'ai';
 import { memo } from 'react';
 import equal from 'fast-deep-equal';
 import type { UIComposer } from './composer';
-import type { ChatHelpers } from './multimodal-input/types';
+import type { ChatHelpers, ChatStatus, ReloadFunction } from './multimodal-input/types';
 import { motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
 
 interface ComposerMessagesProps {
   chatId: string;
-  status: ChatHelpers['status'];
+  status: ChatStatus;
   votes: Array<Vote> | undefined;
   messages: Array<UIMessage>;
   setMessages: ChatHelpers['setMessages'];
-  reload: ChatHelpers['reload'];
+  reload: ReloadFunction;
   isReadonly: boolean;
   composerStatus: UIComposer['status'];
   onStartReply?: (
