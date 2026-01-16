@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { createDocumentHandler } from '@/lib/composer/server';
-import { experimental_generateImage } from 'ai';
+import { experimental_generateImage, generateId } from 'ai';
 
 export const imageDocumentHandler = createDocumentHandler<'image'>({
   kind: 'image',
@@ -16,12 +16,12 @@ export const imageDocumentHandler = createDocumentHandler<'image'>({
     draftContent = image.base64;
 
     dataStream.write({
-      'type': 'data',
-
-      'value': [{
+      type: 'data-composer',
+      id: generateId(),
+      data: {
         type: 'image-delta',
         content: image.base64,
-      }]
+      }
     });
 
     return draftContent;
@@ -38,12 +38,12 @@ export const imageDocumentHandler = createDocumentHandler<'image'>({
     draftContent = image.base64;
 
     dataStream.write({
-      'type': 'data',
-
-      'value': [{
+      type: 'data-composer',
+      id: generateId(),
+      data: {
         type: 'image-delta',
         content: image.base64,
-      }]
+      }
     });
 
     return draftContent;

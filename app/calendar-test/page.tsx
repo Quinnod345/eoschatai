@@ -1,24 +1,40 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import { useState } from 'react';
 
+// Helper to extract text from message parts (AI SDK 5)
+function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
+  if (!message.parts) return '';
+  return message.parts
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text' && !!p.text)
+    .map((p) => p.text)
+    .join('');
+}
+
 export default function CalendarTestPage() {
-  const [message, setMessage] = useState('');
   const [input, setInput] = useState('');
   const {
     messages,
+    sendMessage,
     status
-  } = useChat();
+  } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+  });
   
   const isLoading = status === 'streaming' || status === 'submitted';
 
   const askAboutCalendar = () => {
-    setInput('What events do I have scheduled for tomorrow?');
-    setTimeout(() => {
-      const form = document.getElementById('chat-form') as HTMLFormElement;
-      if (form) form.requestSubmit();
-    }, 100);
+    sendMessage({ text: 'What events do I have scheduled for tomorrow?' });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (input.trim()) {
+      sendMessage({ text: input });
+      setInput('');
+    }
   };
 
   return (
@@ -62,31 +78,34 @@ export default function CalendarTestPage() {
       <div className="border rounded-lg p-4">
         <h2 className="text-lg font-semibold mb-2">Conversation</h2>
         <div className="space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`p-3 rounded-lg ${
-                message.role === 'user'
-                  ? 'bg-blue-100 ml-8'
-                  : 'bg-gray-100 mr-8'
-              }`}
-            >
-              <p className="text-sm font-semibold mb-1">
-                {message.role === 'user' ? 'You' : 'AI Assistant'}
-              </p>
-              <div className="whitespace-pre-wrap">{message.content}</div>
+          {messages.map((message) => {
+            const messageText = getMessageText(message);
+            return (
+              <div
+                key={message.id}
+                className={`p-3 rounded-lg ${
+                  message.role === 'user'
+                    ? 'bg-blue-100 ml-8'
+                    : 'bg-gray-100 mr-8'
+                }`}
+              >
+                <p className="text-sm font-semibold mb-1">
+                  {message.role === 'user' ? 'You' : 'AI Assistant'}
+                </p>
+                <div className="whitespace-pre-wrap">{messageText}</div>
 
-              {message.role === 'assistant' &&
-                message.content.includes('error') && (
-                  <div className="mt-2 border-t pt-2 text-red-500 text-sm">
-                    Possible error detected in response. Try the debugging page:{' '}
-                    <a href="/calendar-debug" className="underline">
-                      Calendar Debug
-                    </a>
-                  </div>
-                )}
-            </div>
-          ))}
+                {message.role === 'assistant' &&
+                  messageText.includes('error') && (
+                    <div className="mt-2 border-t pt-2 text-red-500 text-sm">
+                      Possible error detected in response. Try the debugging page:{' '}
+                      <a href="/calendar-debug" className="underline">
+                        Calendar Debug
+                      </a>
+                    </div>
+                  )}
+              </div>
+            );
+          })}
 
           {messages.length === 0 && (
             <p className="text-gray-500 italic">

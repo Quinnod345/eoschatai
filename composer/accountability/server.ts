@@ -1,5 +1,5 @@
 import { createDocumentHandler } from '@/lib/composer/server';
-import { smoothStream, streamText } from 'ai';
+import { generateId, smoothStream, streamText } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
 
 export interface SeatNode {
@@ -15,10 +15,6 @@ export interface AccountabilityChartData {
   version: number;
   title?: string;
   root: SeatNode;
-}
-
-function generateId() {
-  return Math.random().toString(36).slice(2, 10);
 }
 
 function defaultChart(title?: string): AccountabilityChartData {
@@ -128,7 +124,7 @@ Rules:
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+        maxOutputTokens: Math.min(12000, Math.max(1000, maxOutputTokens ?? 6000)),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Create an Accountability Chart JSON.
 CRITICAL: The JSON must include "title": "${title || 'Accountability Chart'}".
@@ -138,28 +134,31 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
 
       let draft = 'AC_DATA_BEGIN\n';
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'text-delta', content: 'AC_DATA_BEGIN\n' }]
+        type: 'data-composer',
+        id: generateId(),
+        data: { type: 'text-delta', content: 'AC_DATA_BEGIN\n' }
       });
 
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          draft += delta.text;
+          const { textDelta } = delta;
+          draft += textDelta;
           dataStream.write({
-            'type': 'data',
-
-            'value': [{
+            type: 'data-composer',
+            id: generateId(),
+            data: {
               type: 'text-delta',
-              content: delta.text,
-            }]
+              content: textDelta,
+            }
           });
         }
       }
 
       draft += '\nAC_DATA_END';
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'text-delta', content: '\nAC_DATA_END' }]
+        type: 'data-composer',
+        id: generateId(),
+        data: { type: 'text-delta', content: '\nAC_DATA_END' }
       });
       return draft;
     },
@@ -177,7 +176,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
         system,
-        maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+        maxOutputTokens: Math.min(12000, Math.max(800, maxOutputTokens ?? 5000)),
         experimental_transform: smoothStream({ chunking: 'word' }),
         prompt: `Apply the requested edit to the Accountability Chart JSON and return only JSON.`,
       });
@@ -185,7 +184,7 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
       let responseContent = '';
       for await (const delta of fullStream) {
         if (delta.type === 'text-delta') {
-          responseContent += delta.text;
+          responseContent += delta.textDelta;
         }
       }
 
@@ -194,16 +193,18 @@ Do not assume any number of seats; use the user's instructions. Keep JSON compac
         responseContent.includes('AC_DATA_END')
       ) {
         dataStream.write({
-          'type': 'data',
-          'value': [{ type: 'text-delta', content: responseContent }]
+          type: 'data-composer',
+          id: generateId(),
+          data: { type: 'text-delta', content: responseContent }
         });
         return responseContent;
       }
 
       const wrapped = `AC_DATA_BEGIN\n${responseContent}\nAC_DATA_END`;
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'text-delta', content: wrapped }]
+        type: 'data-composer',
+        id: generateId(),
+        data: { type: 'text-delta', content: wrapped }
       });
       return wrapped;
     },

@@ -1,4 +1,5 @@
 import { createDocumentHandler } from '@/lib/composer/server';
+import { generateId } from 'ai';
 
 interface ChartData {
   type: string;
@@ -74,12 +75,12 @@ export const chartDocumentHandler = createDocumentHandler({
 
     // Send with a special marker to help client-side processing
     dataStream.write({
-      'type': 'data',
-
-      'value': [{
+      type: 'data-composer',
+      id: generateId(),
+      data: {
         type: 'text-delta',
         content: `CHART_DATA_BEGIN\n${chartContent}\nCHART_DATA_END`,
-      }]
+      }
     });
 
     console.log('Chart document created successfully');
@@ -204,12 +205,12 @@ export const chartDocumentHandler = createDocumentHandler({
 
       // Send the updated chart data
       dataStream.write({
-        'type': 'data',
-
-        'value': [{
+        type: 'data-composer',
+        id: generateId(),
+        data: {
           type: 'text-delta',
           content: `CHART_DATA_BEGIN\n${finalChartContent}\nCHART_DATA_END`,
-        }]
+        }
       });
 
       if (hasChanges) {

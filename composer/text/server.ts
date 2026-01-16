@@ -1,4 +1,4 @@
-import { smoothStream, streamText } from 'ai';
+import { smoothStream, streamText, generateId } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
 import { createDocumentHandler } from '@/lib/composer/server';
 import {
@@ -75,7 +75,7 @@ STRICT OUTPUT INSTRUCTIONS:
       model: provider.languageModel('composer-model'),
       // Include systemContext and user-provided chat context
       system: systemContext,
-      maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+      maxOutputTokens: Math.min(12000, Math.max(1000, maxOutputTokens ?? 6000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       // Use title plus context (if provided) to guide content generation
       prompt:
@@ -94,9 +94,9 @@ Generate the document content now (pure Markdown, no meta-commentary):`
     const scrubMeta = (text: string) =>
       text
         // Remove common meta lines the model might emit
-        .replace(/\bI(?:’|')ll create a document[^\n]*\n?/gi, '')
+        .replace(/\bI(?:'|')ll create a document[^\n]*\n?/gi, '')
         .replace(/\bI will create a document[^\n]*\n?/gi, '')
-        .replace(/\bI(?:’|')ll add[^\n]*\n?/gi, '')
+        .replace(/\bI(?:'|')ll add[^\n]*\n?/gi, '')
         .replace(/\bLet me (?:create|write|add)[^\n]*\n?/gi, '');
 
     for await (const delta of fullStream) {
@@ -110,12 +110,12 @@ Generate the document content now (pure Markdown, no meta-commentary):`
         draftContent += cleaned;
 
         dataStream.write({
-          'type': 'data',
-
-          'value': [{
+          type: 'data-text',
+          id: generateId(),
+          data: {
             type: 'text-delta',
             content: cleaned,
-          }]
+          }
         });
       }
     }
@@ -140,7 +140,7 @@ STRICT OUTPUT INSTRUCTIONS:
 - Do NOT include meta commentary or assistant statements.
 
 ${inlineEditPrompt(document.content || '', description, 'text')}`,
-      maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+      maxOutputTokens: Math.min(12000, Math.max(800, maxOutputTokens ?? 5000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Please apply the requested edit: ${description}`,
       providerOptions: {
@@ -155,9 +155,9 @@ ${inlineEditPrompt(document.content || '', description, 'text')}`,
 
     const scrubMeta = (text: string) =>
       text
-        .replace(/\bI(?:’|')ll create a document[^\n]*\n?/gi, '')
+        .replace(/\bI(?:'|')ll create a document[^\n]*\n?/gi, '')
         .replace(/\bI will create a document[^\n]*\n?/gi, '')
-        .replace(/\bI(?:’|')ll add[^\n]*\n?/gi, '')
+        .replace(/\bI(?:'|')ll add[^\n]*\n?/gi, '')
         .replace(/\bLet me (?:create|write|add)[^\n]*\n?/gi, '');
 
     for await (const delta of fullStream) {
@@ -170,12 +170,12 @@ ${inlineEditPrompt(document.content || '', description, 'text')}`,
 
         draftContent += cleaned;
         dataStream.write({
-          'type': 'data',
-
-          'value': [{
+          type: 'data-text',
+          id: generateId(),
+          data: {
             type: 'text-delta',
             content: cleaned,
-          }]
+          }
         });
       }
     }

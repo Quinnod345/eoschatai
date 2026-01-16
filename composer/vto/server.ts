@@ -1,4 +1,4 @@
-import { smoothStream, streamText } from 'ai';
+import { generateId, smoothStream, streamText } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
 import { createDocumentHandler } from '@/lib/composer/server';
 import { inlineEditPrompt } from '@/lib/ai/prompts';
@@ -63,7 +63,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     const { fullStream } = streamText({
       model: provider.languageModel('composer-model'),
       system,
-      maxOutputTokens: Math.min(12000, Math.max(1000, maxTokens ?? 6000)),
+      maxOutputTokens: Math.min(12000, Math.max(1000, maxOutputTokens ?? 6000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt:
         context && context.trim().length > 0
@@ -74,24 +74,28 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     // Wrap with markers so client can parse during streaming
     draft += 'VTO_DATA_BEGIN\n';
     dataStream.write({
-      'type': 'data',
-      'value': [{ type: 'text-delta', content: 'VTO_DATA_BEGIN\n' }]
+      type: 'data-composer',
+      id: generateId(),
+      data: { type: 'text-delta', content: 'VTO_DATA_BEGIN\n' }
     });
 
     for await (const delta of fullStream) {
       if (delta.type === 'text-delta') {
-        draft += delta.text;
+        const { textDelta } = delta;
+        draft += textDelta;
         dataStream.write({
-          'type': 'data',
-          'value': [{ type: 'text-delta', content: delta.text }]
+          type: 'data-composer',
+          id: generateId(),
+          data: { type: 'text-delta', content: textDelta }
         });
       }
     }
 
     draft += '\nVTO_DATA_END';
     dataStream.write({
-      'type': 'data',
-      'value': [{ type: 'text-delta', content: '\nVTO_DATA_END' }]
+      type: 'data-composer',
+      id: generateId(),
+      data: { type: 'text-delta', content: '\nVTO_DATA_END' }
     });
 
     return draft;
@@ -110,7 +114,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     const { fullStream } = streamText({
       model: provider.languageModel('composer-model'),
       system,
-      maxOutputTokens: Math.min(12000, Math.max(800, maxTokens ?? 5000)),
+      maxOutputTokens: Math.min(12000, Math.max(800, maxOutputTokens ?? 5000)),
       experimental_transform: smoothStream({ chunking: 'word' }),
       prompt: `Apply the requested edit to the VTO document.`,
     });
@@ -119,7 +123,7 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     let responseContent = '';
     for await (const delta of fullStream) {
       if (delta.type === 'text-delta') {
-        responseContent += delta.text;
+        responseContent += delta.textDelta;
       }
     }
 
@@ -130,15 +134,17 @@ Do not include any prose outside JSON. Populate reasonable placeholders when the
     ) {
       draft = responseContent;
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'text-delta', content: responseContent }]
+        type: 'data-composer',
+        id: generateId(),
+        data: { type: 'text-delta', content: responseContent }
       });
     } else {
       // Otherwise, wrap the JSON with markers
       draft = `VTO_DATA_BEGIN\n${responseContent}\nVTO_DATA_END`;
       dataStream.write({
-        'type': 'data',
-        'value': [{ type: 'text-delta', content: draft }]
+        type: 'data-composer',
+        id: generateId(),
+        data: { type: 'text-delta', content: draft }
       });
     }
 
