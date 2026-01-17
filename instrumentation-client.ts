@@ -4,6 +4,9 @@
 
 import * as Sentry from '@sentry/nextjs';
 
+// Required for Next.js App Router navigation instrumentation
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
@@ -43,5 +46,3 @@ Sentry.init({
     return event;
   },
 });
-
-

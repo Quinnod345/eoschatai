@@ -15,5 +15,6 @@ export function sanitizeHtml(html: string): string {
     purify = require('dompurify');
   }
   
-  return purify.default ? purify.default.sanitize(html) : (purify as any).sanitize(html);
+  const p = purify!;
+  return p.default ? p.default.sanitize(html) : (p as any).sanitize(html);
 }

@@ -11,7 +11,7 @@ const textPartSchema = z.object({
 const filePartSchema = z.object({
   type: z.literal('file'),
   url: z.string(), // File URL
-  mediaType: z.string().optional(),
+  mediaType: z.string().default('application/octet-stream'), // Required by UIMessage type
   mimeType: z.string().optional(), // SDK 4 compatibility
 });
 

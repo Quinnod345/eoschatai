@@ -150,27 +150,28 @@ async function extractTextFromFile(
             return pdfText;
           }
 
-          return `Error analyzing PDF file ${fileName}. Unable to extract text content: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`;
+          return `Error analyzing PDF file ${fileName}. Unable to extract text content: ${aiError instanceof Error ? aiError.message : 'Unknown error'}`;
         }
       } catch (pdfParseError) {
         console.log(
-          `Standard PDF parsing failed: ${pdfParseError}. Using OpenAI processing.`,
+          `Standard PDF parsing failed: ${pdfParseError}. Using Claude for analysis.`,
         );
 
-        // If standard parsing failed completely, we'll use a more general approach with OpenAI
+        // If standard parsing failed completely, we'll use Claude for metadata analysis
         try {
-          console.log('Using OpenAI for PDF filename and metadata analysis');
+          console.log('Using Claude for PDF filename and metadata analysis');
 
-          // Use OpenAI to provide a description based on the filename and metadata
-          if (!openai) {
+          // Use Claude to provide a description based on the filename and metadata
+          if (!anthropic) {
             console.warn(
-              '[documents.upload] OpenAI unavailable; unable to analyze PDF metadata.',
+              '[documents.upload] Anthropic unavailable; unable to analyze PDF metadata.',
             );
-            return `PDF ${fileName} could not be analyzed because the OpenAI API key is missing.`;
+            return `PDF ${fileName} could not be analyzed because the Anthropic API key is missing.`;
           }
 
-          const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+          const response = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
             messages: [
               {
                 role: 'user',
@@ -188,24 +189,24 @@ async function extractTextFromFile(
                 [Create a structured representation of what this type of document typically contains, which can be used as AI context]`,
               },
             ],
-            max_completion_tokens: 4000,
           });
 
+          const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
           console.log(
-            `OpenAI analysis returned a response with ${response.choices[0].message.content?.length || 0} characters`,
+            `Claude analysis returned a response with ${responseText.length || 0} characters`,
           );
 
           // Return the description and placeholder content
           return (
-            response.choices[0].message.content ||
+            responseText ||
             `Failed to extract content from PDF file ${fileName}. This appears to be a file named ${fileName} that could not be analyzed in detail.`
           );
-        } catch (openaiError) {
+        } catch (claudeError) {
           console.error(
-            'Error using OpenAI for PDF filename analysis:',
-            openaiError,
+            'Error using Claude for PDF filename analysis:',
+            claudeError,
           );
-          return `Error analyzing PDF file ${fileName}. The file could not be processed: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`;
+          return `Error analyzing PDF file ${fileName}. The file could not be processed: ${claudeError instanceof Error ? claudeError.message : 'Unknown error'}`;
         }
       }
     } catch (error) {

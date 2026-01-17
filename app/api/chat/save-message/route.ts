@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
           attachments: [],
           createdAt: message.createdAt,
           provider: 'openai', // Default provider
+          stoppedAt: null,
+          reasoning: null,
         },
       ],
     });

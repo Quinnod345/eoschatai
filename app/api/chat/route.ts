@@ -380,7 +380,7 @@ export async function POST(request: Request) {
       let title = 'New Chat';
       try {
         title = await generateTitleFromUserMessage({
-          message,
+          message: message as UIMessage,
         });
       } catch (titleError) {
         console.error('Title generation failed, using fallback:', titleError);
@@ -392,9 +392,10 @@ export async function POST(request: Request) {
         } else if (
           firstPart &&
           typeof firstPart === 'object' &&
-          'text' in firstPart
+          'text' in firstPart &&
+          typeof (firstPart as { text?: unknown }).text === 'string'
         ) {
-          messageText = firstPart.text || '';
+          messageText = (firstPart as { text: string }).text || '';
         }
         const fallbackTitle = messageText.substring(0, 50);
         title =
@@ -542,8 +543,8 @@ export async function POST(request: Request) {
       queryText = lastUserMessage;
     } else if (lastUserMessage && typeof lastUserMessage === 'object') {
       // Handle text object format { text: string, type: string }
-      if (lastUserMessage.text && typeof lastUserMessage.text === 'string') {
-        queryText = lastUserMessage.text;
+      if ('text' in lastUserMessage && typeof (lastUserMessage as { text?: unknown }).text === 'string') {
+        queryText = (lastUserMessage as { text: string }).text;
       }
     }
 
@@ -2727,7 +2728,7 @@ Always prioritize the user's document content over generic information. If speci
                         }
                       } else if (typeof reasoningOutputs === 'string') {
                         reasoningContent = reasoningOutputs;
-                        console.log('[SAVE] Reasoning saved:', reasoningContent.length, 'chars');
+                        console.log('[SAVE] Reasoning saved:', (reasoningContent as string).length, 'chars');
                       }
                     } catch {
                       // Reasoning not available - normal for non-thinking responses
@@ -3098,13 +3099,16 @@ Always prioritize the user's document content over generic information. If speci
               console.log('[THINKING DEBUG] Thinking enabled:', preflightEnableThinking, 'Budget:', preflightThinkingBudget);
               
               // Log reasoning content for debugging
-              result.reasoning.then((reasoning) => {
-                if (reasoning && Array.isArray(reasoning) && reasoning.length > 0) {
-                  console.log('[THINKING] Reasoning received:', reasoning.length, 'parts');
+              (async () => {
+                try {
+                  const reasoning = await result.reasoning;
+                  if (reasoning && Array.isArray(reasoning) && reasoning.length > 0) {
+                    console.log('[THINKING] Reasoning received:', reasoning.length, 'parts');
+                  }
+                } catch {
+                  // Reasoning not available - this is normal for non-thinking responses
                 }
-              }).catch(() => {
-                // Reasoning not available - this is normal for non-thinking responses
-              });
+              })();
               
               writer.merge(result.toUIMessageStream({
                 sendReasoning: true,
