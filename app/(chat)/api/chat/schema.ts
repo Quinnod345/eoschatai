@@ -1,10 +1,29 @@
 import { z } from 'zod/v3';
 import { PROVIDERS } from '@/lib/ai/providers';
 
+// AI SDK 5 text part
 const textPartSchema = z.object({
   text: z.string().min(1).max(100000),
-  type: z.enum(['text']),
+  type: z.literal('text'),
 });
+
+// AI SDK 5 file part (URL-based)
+const filePartSchema = z.object({
+  type: z.literal('file'),
+  url: z.string(), // File URL
+  mediaType: z.string().optional(),
+  mimeType: z.string().optional(), // SDK 4 compatibility
+});
+
+// Allow any part type (be permissive for SDK 5 flexibility)
+const messagePartSchema = z.union([
+  textPartSchema,
+  filePartSchema,
+  // Allow other part types that may be sent
+  z.object({
+    type: z.string(),
+  }).passthrough(),
+]);
 
 // AI SDK 5: Message format changed - id is nanoid (not UUID), createdAt optional, content optional (use parts)
 export const postRequestBodySchema = z.object({
@@ -14,7 +33,7 @@ export const postRequestBodySchema = z.object({
     createdAt: z.coerce.date().optional(), // Optional in SDK 5
     role: z.enum(['user']),
     content: z.string().max(100000).optional(), // Optional in SDK 5 (parts is primary)
-    parts: z.array(textPartSchema),
+    parts: z.array(messagePartSchema),
     experimental_attachments: z
       .array(
         z.object({
@@ -34,8 +53,8 @@ export const postRequestBodySchema = z.object({
       )
       .optional(),
   }),
-  selectedChatModel: z.enum(['chat-model']),
-  selectedProvider: z.enum([PROVIDERS.OPENAI]),
+  selectedChatModel: z.enum(['chat-model', 'claude-sonnet']),
+  selectedProvider: z.enum([PROVIDERS.OPENAI, PROVIDERS.ANTHROPIC]),
   selectedVisibilityType: z.enum(['public', 'private']),
   selectedPersonaId: z.string().optional(),
   selectedProfileId: z.string().optional(),

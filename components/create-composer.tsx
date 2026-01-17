@@ -40,6 +40,7 @@ interface ComposerContent<M = any> {
   isCurrentVersion: boolean;
   currentVersionIndex: number;
   status: 'streaming' | 'idle';
+  chatStatus?: 'submitted' | 'streaming' | 'ready' | 'error';
   suggestions: Array<Suggestion>;
   onSaveContent: (updatedContent: string, debounce: boolean) => void;
   isInline: boolean;

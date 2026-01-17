@@ -26,6 +26,8 @@ import {
   Mic,
   Clock,
   MessageSquare,
+  Lightbulb,
+  ChevronDown,
 } from 'lucide-react';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { ErrorBoundary } from './error-boundary';
@@ -518,7 +520,7 @@ const PurePreviewMessage = ({
     <AnimatePresence>
       <motion.div
         data-testid={`message-${message.role}`}
-        className="w-full mx-auto max-w-3xl px-4 group/message"
+        className="w-full mx-auto max-w-3xl px-3 md:px-4 group/message"
         initial={{ y: 5, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         data-role={message.role}
@@ -589,6 +591,43 @@ const PurePreviewMessage = ({
                 align={message.role === 'user' ? 'end' : 'start'}
               />
             )}
+
+            {/* Render Claude extended thinking (reasoning) if present */}
+            {message.role === 'assistant' && (() => {
+              // Extract reasoning from message parts
+              const reasoningParts = message.parts?.filter(
+                (p: any) => p.type === 'reasoning' || p.type === 'thinking'
+              ) || [];
+              
+              let reasoning = '';
+              if (reasoningParts.length > 0) {
+                reasoning = reasoningParts
+                  .map((p: any) => p.text || p.thinking || p.reasoning || p.content || '')
+                  .filter(Boolean)
+                  .join('\n\n');
+              }
+              
+              // Also check providerMetadata for Anthropic thinking
+              if (!reasoning && (message as any).experimental_providerMetadata?.anthropic?.thinking) {
+                reasoning = (message as any).experimental_providerMetadata.anthropic.thinking;
+              }
+              
+              // Check top-level reasoning property
+              if (!reasoning && (message as any).reasoning) {
+                reasoning = (message as any).reasoning;
+              }
+
+              // Check if the response text has started streaming (reasoning is done)
+              const textParts = message.parts?.filter((p: any) => p.type === 'text') || [];
+              const hasTextContent = textParts.some((p: any) => p.text && p.text.trim().length > 0);
+              
+              return reasoning ? (
+                <ReasoningSection 
+                  reasoningContent={reasoning} 
+                  isResponseStreaming={hasTextContent}
+                />
+              ) : null;
+            })()}
 
             {/* Render reasoning text if present (GPT-5 thinking) */}
             {message.role === 'assistant' &&
@@ -934,6 +973,124 @@ export const PreviewMessage: React.FC<
   </ErrorBoundary>
 );
 
+// Phrases that cycle for reasoning section
+const REASONING_PHRASES = [
+  'Analyzing',
+  'Considering',
+  'Reasoning',
+  'Processing',
+  'Thinking deeply',
+  'Working through',
+  'Evaluating',
+];
+
+// Collapsible reasoning section for assistant messages with Claude extended thinking
+export const ReasoningSection = ({
+  reasoningContent,
+  defaultExpanded = false,
+  isResponseStreaming = false,
+}: {
+  reasoningContent: string;
+  defaultExpanded?: boolean;
+  isResponseStreaming?: boolean;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [phraseIndex, setPhraseIndex] = useState(() => Math.floor(Math.random() * REASONING_PHRASES.length));
+  const mountedRef = React.useRef(true);
+  const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Cycle through phrases only when collapsed AND response not yet streaming
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    // Stop cycling when expanded or when response starts streaming
+    if (isExpanded || isResponseStreaming) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+    
+    intervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        setPhraseIndex((i) => (i + 1) % REASONING_PHRASES.length);
+      }
+    }, 1500);
+    
+    return () => {
+      mountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isExpanded, isResponseStreaming]);
+
+  if (!reasoningContent) return null;
+
+  // Show "Finished thinking" when response is streaming, otherwise cycle phrases
+  const displaySummary = isResponseStreaming ? 'Finished thinking' : REASONING_PHRASES[phraseIndex];
+
+  return (
+    <div className="mb-3 w-full">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 hover:bg-muted/70 border border-border/50 w-full text-left overflow-hidden"
+      >
+        <Lightbulb className="size-4 text-muted-foreground shrink-0" />
+        
+        {/* Dynamic summary with animation */}
+        <motion.span 
+          key={displaySummary}
+          initial={{ opacity: 0.5, y: 2 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className="flex-1 min-w-0 text-sm text-muted-foreground truncate"
+        >
+          {displaySummary}
+        </motion.span>
+        
+        <ChevronDown 
+          className={cn(
+            "size-4 text-muted-foreground/70 shrink-0 transition-transform duration-200",
+            isExpanded && "rotate-180"
+          )} 
+        />
+      </button>
+
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, height: 'auto', filter: 'blur(0px)' }}
+            exit={{ opacity: 0, height: 0, filter: 'blur(6px)' }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 text-sm text-muted-foreground/80 whitespace-pre-wrap font-mono bg-muted/30 rounded-lg p-3 max-h-64 overflow-y-auto leading-relaxed border border-border/30">
+              {reasoningContent}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// Phrases for ThinkingMessage - keeps user engaged while waiting
+const THINKING_PHRASES = [
+  'Thinking',
+  'Processing',
+  'Analyzing',
+  'Working on it',
+  'Considering',
+  'Preparing response',
+  'Almost there',
+];
+
+// ThinkingMessage cycles through phrases while waiting for AI response
 export const ThinkingMessage = ({
   searchProgress,
   chatStatus,
@@ -943,13 +1100,34 @@ export const ThinkingMessage = ({
 }) => {
   const role = 'assistant';
   const [dotCount, setDotCount] = useState(0);
+  const [phraseIndex, setPhraseIndex] = useState(() => Math.floor(Math.random() * THINKING_PHRASES.length));
+  const mountedRef = React.useRef(true);
+  const dotIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const phraseIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Simple dot animation
+  // Use refs for intervals to prevent issues with stale closures
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDotCount((prev) => (prev + 1) % 4);
+    mountedRef.current = true;
+    
+    // Dot animation - every 500ms
+    dotIntervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        setDotCount((d) => (d + 1) % 4);
+      }
     }, 500);
-    return () => clearInterval(interval);
+
+    // Phrase cycling - every 1.5 seconds
+    phraseIntervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        setPhraseIndex((i) => (i + 1) % THINKING_PHRASES.length);
+      }
+    }, 1500);
+
+    return () => {
+      mountedRef.current = false;
+      if (dotIntervalRef.current) clearInterval(dotIntervalRef.current);
+      if (phraseIntervalRef.current) clearInterval(phraseIntervalRef.current);
+    };
   }, []);
 
   // Check if we're actively searching
@@ -959,8 +1137,8 @@ export const ThinkingMessage = ({
   const searchCompleted = searchProgress?.searchesCompleted || 0;
   const searchTotal = searchProgress?.totalSearches || 0;
 
-  // Determine message based on priority: search > chat status > default
-  let displayMessage = 'Thinking';
+  // Priority: search > chat status > cycling phrase
+  let displayMessage = THINKING_PHRASES[phraseIndex];
 
   if (searchProgress?.currentSearch) {
     displayMessage = `Searching: ${searchProgress.currentSearch}`;
@@ -987,30 +1165,22 @@ export const ThinkingMessage = ({
         {/* Content */}
         <div className="flex flex-col gap-2 w-full">
           <div className="flex items-center gap-2">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={displayMessage}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className="text-muted-foreground"
-              >
-                {displayMessage}
-                {'.'.repeat(dotCount)}
-              </motion.span>
-            </AnimatePresence>
+            <motion.span 
+              key={displayMessage}
+              initial={{ opacity: 0.5, y: 2 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="text-muted-foreground"
+            >
+              {displayMessage}
+              {'.'.repeat(dotCount)}
+            </motion.span>
 
             {/* Search progress */}
             {isSearching && searchTotal > 0 && (
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="text-xs text-muted-foreground ml-2"
-              >
+              <span className="text-xs text-muted-foreground ml-2">
                 ({searchCompleted}/{searchTotal})
-              </motion.span>
+              </span>
             )}
           </div>
         </div>

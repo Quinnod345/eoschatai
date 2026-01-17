@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -12,8 +12,8 @@ import { motion } from 'framer-motion';
 import VoiceModeBatchSave from './voice-mode-batch-save';
 import VoiceModeFixed from './voice-mode-fixed';
 import VoiceModeIntegrated from './voice-mode-integrated';
-import { Gate } from '@/components/gate';
-import { UpgradePrompt } from '@/components/upgrade-prompt';
+import { useAccountStore } from '@/lib/stores/account-store';
+import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 import { cn } from '@/lib/utils';
 
 interface VoiceFABProps {
@@ -44,6 +44,16 @@ export default function VoiceFAB({
   onUpdateMessages,
 }: VoiceFABProps) {
   const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
+  
+  // Get entitlements and upgrade modal
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const openUpgradeModal = useUpgradeStore((state) => state.openModal);
+  
+  // Check if user has recordings feature enabled
+  const hasRecordingsAccess = useMemo(() => {
+    if (!entitlements) return false;
+    return entitlements.features.recordings.enabled;
+  }, [entitlements]);
 
   // Feature flag to use batch save or fixed voice mode
   const useBatchSaveVoiceMode = true; // Changed to true to work like ChatGPT
@@ -78,14 +88,14 @@ export default function VoiceFAB({
     switch (variant) {
       case 'floating':
         return cn(
-          'fixed bottom-6 right-6 z-40 rounded-full shadow-lg hover:shadow-xl',
+          'fixed bottom-24 md:bottom-6 right-4 md:right-6 z-40 rounded-full shadow-lg hover:shadow-xl',
           'bg-eos-orange hover:bg-eos-orange/90 text-white',
-          'border-2 border-white/20 backdrop-blur-sm',
+          'border-2 border-white/20 backdrop-blur-sm touch-target',
           getSizeClasses(),
         );
       case 'inline':
         return cn(
-          'rounded-full p-2 h-9 w-9 flex items-center justify-center border border-transparent',
+          'rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center border border-transparent touch-target-sm',
           'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100',
           'hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200',
           'focus:outline-none focus:ring-2 focus:ring-ring',
@@ -111,6 +121,13 @@ export default function VoiceFAB({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // If user doesn't have access, open upgrade modal instead
+    if (!hasRecordingsAccess) {
+      openUpgradeModal('recordings');
+      return;
+    }
+    
     setIsVoiceModeOpen(true);
   };
 
@@ -124,57 +141,41 @@ export default function VoiceFAB({
           whileTap={{ scale: 0.95 }}
           className="fixed bottom-6 right-6 z-40"
         >
-          <Gate
-            feature="recordings"
-            placement="voice:floating"
-            fallback={
-              <UpgradePrompt feature="recordings" placement="voice:floating" />
-            }
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  onClick={handleClick}
-                  className={cn(getVariantClasses(), className)}
-                  size="icon"
-                >
-                  {buttonContent}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                Start Voice Conversation
-              </TooltipContent>
-            </Tooltip>
-          </Gate>
-        </motion.div>
-      ) : (
-        <Gate
-          feature="recordings"
-          placement="voice:inline"
-          fallback={
-            <UpgradePrompt feature="recordings" placement="voice:inline" />
-          }
-        >
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 onClick={handleClick}
-                variant={variant === 'minimal' ? 'ghost' : 'outline'}
-                size={showLabel ? 'sm' : 'icon'}
                 className={cn(getVariantClasses(), className)}
+                size="icon"
               >
                 {buttonContent}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {variant === 'minimal'
-                ? 'Voice Mode'
-                : 'Start Voice Conversation'}
+            <TooltipContent side="left">
+              Start Voice Conversation
             </TooltipContent>
           </Tooltip>
-        </Gate>
+        </motion.div>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              onClick={handleClick}
+              variant={variant === 'minimal' ? 'ghost' : 'outline'}
+              size={showLabel ? 'sm' : 'icon'}
+              className={cn(getVariantClasses(), className)}
+            >
+              {buttonContent}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {variant === 'minimal'
+              ? 'Voice Mode'
+              : 'Start Voice Conversation'}
+          </TooltipContent>
+        </Tooltip>
       )}
 
       {useBatchSaveVoiceMode ? (

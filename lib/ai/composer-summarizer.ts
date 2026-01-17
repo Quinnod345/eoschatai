@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import type { Document } from '@/lib/db/schema';
 
@@ -28,7 +28,7 @@ export async function summarizeComposer(document: Document): Promise<string> {
     const kindInstructions = getInstructionsForKind(document.kind);
 
     const summary = await generateText({
-      model: openai('gpt-4o'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       prompt: `${kindInstructions}
 
 Document Title: ${document.title}

@@ -186,6 +186,8 @@ function PureMessages({
   });
 
   // Memoize the thinking state to avoid infinite loops
+  // ThinkingMessage only shows during the "Thinking..." loading phase
+  // Reasoning content is now displayed inside PreviewMessage (ReasoningSection)
   const shouldShowThinking = useMemo(() => {
     if (messages.length === 0) return false;
 
@@ -197,26 +199,40 @@ function PureMessages({
       return true;
     }
 
-    // Show thinking if status is submitted
+    // Show thinking if status is submitted (waiting for assistant to respond)
     if (status === 'submitted') {
       return messages[messages.length - 1].role === 'user';
     }
 
-    // Show thinking if status is streaming but last assistant message has no content yet
+    // Show thinking if status is streaming but assistant has no content yet
     if (status === 'streaming') {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === 'user') {
         return true; // No assistant response yet
       }
       if (lastMessage.role === 'assistant') {
-        // Check if message has text content
+        // Check if message has ANY content (text or reasoning)
         const textContent = lastMessage.parts
           ?.filter((part) => part.type === 'text')
-          .map((part) => part.text)
+          .map((part) => (part as any).text)
           .join('')
           .trim();
 
-        return !textContent || textContent.length === 0;
+        // Check if there's reasoning/thinking content
+        const hasReasoning = lastMessage.parts?.some(
+          (part) => {
+            const partType = part.type as string;
+            return partType === 'reasoning' || partType === 'thinking';
+          }
+        ) || lastMessage.parts?.some(
+          (part: any) => part.reasoning || part.thinking
+        );
+
+        // Only show "Thinking..." if there's no content at all
+        // If there's reasoning, PreviewMessage will render it
+        const hasNoContent = (!textContent || textContent.length === 0) && !hasReasoning;
+        
+        return hasNoContent;
       }
     }
 
@@ -224,22 +240,33 @@ function PureMessages({
   }, [messages, searchProgress?.status, status]);
 
   // Memoize filtered messages to avoid recalculating on every render
+  // We now render assistant messages with reasoning content (no longer filtered)
   const filteredMessages = useMemo(() => {
     return messages.filter((message, index) => {
-      // Don't render empty assistant messages when we should be showing thinking instead
+      // Don't render completely empty assistant messages when thinking
       if (
         message.role === 'assistant' &&
         index === messages.length - 1 &&
         shouldShowThinking
       ) {
+        // Check if message has ANY content (text OR reasoning)
         const textContent = message.parts
           ?.filter((part) => part.type === 'text')
           .map((part) => part.text)
           .join('')
           .trim();
 
-        // If this is an empty assistant message and we should show thinking, don't render it
-        return textContent && textContent.length > 0;
+        const hasReasoning = message.parts?.some(
+          (part) => {
+            const partType = part.type as string;
+            return partType === 'reasoning' || partType === 'thinking';
+          }
+        ) || message.parts?.some(
+          (part: any) => part.reasoning || part.thinking
+        );
+
+        // Render if there's text OR reasoning - reasoning will be shown in ReasoningSection
+        return (textContent && textContent.length > 0) || hasReasoning;
       }
       return true;
     });
@@ -282,9 +309,9 @@ function PureMessages({
     return (
       <div
         ref={messagesContainerRef}
-        className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-36 relative bg-transparent"
+        className="flex flex-col min-w-0 gap-4 md:gap-6 flex-1 overflow-y-scroll pt-4 pb-28 md:pb-36 relative bg-transparent"
       >
-        <div className="w-full max-w-3xl mx-auto px-4">
+        <div className="w-full max-w-3xl mx-auto px-3 md:px-4">
           <ComposerDashboard />
         </div>
       </div>
@@ -299,7 +326,7 @@ function PureMessages({
   return (
     <div
       ref={messagesContainerRef}
-      className={`${meshClasses} flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4 pb-64 relative bg-transparent`}
+      className={`${meshClasses} flex flex-col min-w-0 gap-4 md:gap-6 flex-1 overflow-y-scroll pt-4 pb-32 md:pb-64 relative bg-transparent`}
     >
       {/* Spacer (like SwiftUI Spacer()) */}
       <div className="shrink-0 h-2" />
@@ -356,6 +383,7 @@ function PureMessages({
 
       {shouldShowThinking && (
         <ThinkingMessage
+          key="thinking-indicator"
           searchProgress={searchProgress}
           chatStatus={
             dataStream?.length &&

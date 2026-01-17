@@ -9,6 +9,7 @@ import {
   gt,
   gte,
   inArray,
+  isNull,
   lt,
   type SQL,
   sql,
@@ -367,6 +368,7 @@ export async function saveMessages({
               attachments: sql`excluded.attachments`,
               provider: sql`excluded.provider`,
               createdAt: sql`excluded."createdAt"`,
+              reasoning: sql`excluded.reasoning`,
             },
           }),
       { operation: 'Save messages', retries: 3 },
@@ -786,6 +788,9 @@ export async function getMessageCountByUserId({
           eq(chat.userId, id),
           gte(message.createdAt, twentyFourHoursAgo),
           eq(message.role, 'user'),
+          // Exclude messages that were stopped mid-generation
+          // These don't count toward the daily message limit
+          isNull(message.stoppedAt),
         ),
       )
       .execute();
@@ -795,6 +800,44 @@ export async function getMessageCountByUserId({
     console.error(
       'Failed to get message count by user id for the last 24 hours from database',
     );
+    throw error;
+  }
+}
+
+/**
+ * Mark the latest user message in a chat as stopped
+ * This is called when a user stops generation mid-stream
+ * Messages marked as stopped don't count toward the daily message limit
+ */
+export async function markLatestUserMessageAsStopped({
+  chatId,
+}: {
+  chatId: string;
+}) {
+  try {
+    // Find and update the most recent user message in this chat
+    const latestUserMessage = await db
+      .select({ id: message.id })
+      .from(message)
+      .where(and(eq(message.chatId, chatId), eq(message.role, 'user')))
+      .orderBy(desc(message.createdAt))
+      .limit(1)
+      .execute();
+
+    if (latestUserMessage.length > 0) {
+      await db
+        .update(message)
+        .set({ stoppedAt: new Date() })
+        .where(eq(message.id, latestUserMessage[0].id))
+        .execute();
+      
+      console.log(`[DB] Marked message ${latestUserMessage[0].id} as stopped`);
+      return latestUserMessage[0].id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Failed to mark message as stopped:', error);
     throw error;
   }
 }

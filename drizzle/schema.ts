@@ -170,6 +170,9 @@ export const messageV2 = pgTable(
     attachments: json().notNull(),
     createdAt: timestamp({ mode: 'string' }).notNull(),
     provider: varchar(),
+    // When a user stops generation mid-stream, this timestamp is set
+    // Messages with stoppedAt set don't count toward daily message limits
+    stoppedAt: timestamp({ mode: 'string' }),
   },
   (table) => {
     return {
@@ -310,8 +313,8 @@ export const userSettings = pgTable(
     profilePicture: text(),
     dailyMessageCount: integer().default(0),
     lastMessageCountReset: timestamp({ mode: 'string' }).defaultNow(),
-    selectedChatModel: text().default('gpt-4.1'),
-    selectedProvider: text().default('openai'),
+    selectedChatModel: text().default('claude-sonnet'),
+    selectedProvider: text().default('anthropic'),
     selectedVisibilityType: text().default('private'),
     selectedPersonaId: uuid(),
     selectedProfileId: uuid(),

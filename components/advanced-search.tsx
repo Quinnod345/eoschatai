@@ -26,7 +26,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -489,7 +489,7 @@ export function AdvancedSearch() {
       );
     });
 
-    return <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlighted) }} />;
+    return <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(highlighted) }} />;
   };
 
   const formatDuration = (seconds: number) => {
@@ -533,7 +533,7 @@ export function AdvancedSearch() {
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-3xl p-0 gap-0 h-[80vh] flex flex-col border bg-background rounded-lg shadow-md [&>button]:hidden !z-[2147483647]">
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-3xl p-0 gap-0 h-[85vh] sm:h-[80vh] flex flex-col border bg-background rounded-lg shadow-md [&>button]:hidden !z-[2147483647]">
           <DialogHeader className="sr-only">
             <DialogTitle>Search</DialogTitle>
           </DialogHeader>
@@ -548,8 +548,8 @@ export function AdvancedSearch() {
                     ref={inputRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search chats, messages, documents, composers"
-                    className="flex-1 bg-transparent text-sm outline-none border-0 placeholder:text-muted-foreground/70"
+                    placeholder="Search chats, messages, documents..."
+                    className="flex-1 bg-transparent text-base sm:text-sm outline-none border-0 placeholder:text-muted-foreground/70"
                     style={{
                       border: 'none',
                       outline: 'none',
@@ -577,7 +577,7 @@ export function AdvancedSearch() {
                 </Button>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0">
                 {quickFilters.map((filter) => (
                   <Button
                     key={filter.id}

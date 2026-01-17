@@ -1,6 +1,7 @@
 'use client';
 
 import { Composer } from '@/components/create-composer';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import { useComposer as useGlobalComposer } from '@/hooks/use-composer';
 import { CopyIcon, DownloadIcon, RedoIcon, UndoIcon } from '@/components/icons';
 import { toast } from '@/lib/toast-system';
@@ -2589,6 +2590,7 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
     setMetadata,
     title,
     status,
+    chatStatus,
   }) => {
     console.log('[AC Debug] Content component rendered:', {
       content,
@@ -4204,7 +4206,8 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
     const { setComposer } = useGlobalComposer();
 
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className="relative flex flex-col gap-4 p-6">
+        <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
         <div className="flex items-center justify-between rounded-lg border bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-2">
           <div className="text-sm text-muted-foreground">
             {ac.title || 'Accountability Chart'}

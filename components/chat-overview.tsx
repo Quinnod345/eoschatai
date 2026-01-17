@@ -109,8 +109,8 @@ export function ChatOverview({
   if (!greeting) return null;
 
   return (
-    <div className="chat-overview-container flex flex-col items-center justify-center text-center mb-64 px-4">
-      <h1 className="chat-overview-title text-4xl md:text-5xl font-medium tracking-tight">
+    <div className="chat-overview-container flex flex-col items-center justify-center text-center mb-32 md:mb-64 px-3 md:px-4">
+      <h1 className="chat-overview-title text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight">
         <BlurRevealText
           text={greeting}
           className="text-orange-500"
@@ -119,7 +119,7 @@ export function ChatOverview({
         />
       </h1>
 
-      <p className="mt-4 text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-light italic">
+      <p className="mt-3 md:mt-4 text-base sm:text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-light italic">
         <BlurRevealText
           text={subtitle}
           baseDelay={subtitleDelay}

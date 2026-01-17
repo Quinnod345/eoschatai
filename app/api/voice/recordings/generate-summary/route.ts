@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
-const createOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+const createAnthropicClient = () => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn(
-      '[voice.recordings.summary] OPENAI_API_KEY missing; summary generation disabled.',
+      '[voice.recordings.summary] ANTHROPIC_API_KEY missing; summary generation disabled.',
     );
     return null;
   }
 
-  return new OpenAI({ apiKey });
+  return new Anthropic({ apiKey });
 };
 
-const openai = createOpenAIClient();
+const anthropic = createAnthropicClient();
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,22 +43,18 @@ export async function POST(request: NextRequest) {
       formattedTranscript = transcript;
     }
 
-    if (!openai) {
+    if (!anthropic) {
       return NextResponse.json(
-        { summary: 'Summary generation unavailable: OpenAI API key missing.' },
+        { summary: 'Summary generation unavailable: Anthropic API key missing.' },
         { status: 200 },
       );
     }
 
-    // Generate summary using GPT-5
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5-mini',
+    // Generate summary using Claude Haiku
+    const completion = await anthropic.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 1024,
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are an expert meeting analyst. Create concise, actionable meeting summaries.',
-        },
         {
           role: 'user',
           content: `Please analyze this ${speakers}-speaker meeting transcript and provide a comprehensive summary.
@@ -76,15 +72,16 @@ Create a summary that includes:
 Keep the summary concise but comprehensive, focusing on the most important information.`,
         },
       ],
-      temperature: 0.7,
+      system: 'You are an expert meeting analyst. Create concise, actionable meeting summaries.',
     });
 
-    const summary =
-      completion.choices[0]?.message?.content || 'Summary generation failed';
+    const summary = completion.content[0].type === 'text' 
+      ? completion.content[0].text 
+      : 'Unable to generate summary';
 
     return NextResponse.json({ summary });
-  } catch (error: any) {
-    console.error('Summary generation error:', error);
+  } catch (error) {
+    console.error('[voice.recordings.summary] Error:', error);
     return NextResponse.json(
       { error: 'Failed to generate summary' },
       { status: 500 },

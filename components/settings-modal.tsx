@@ -653,31 +653,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <>
       <AnimatedModal isOpen={isOpen} onClose={onClose}>
         <div
-          className="relative bg-background/80 rounded-2xl border border-white/30 dark:border-zinc-700/30 shadow-enhanced backdrop-blur-[16px] settings-modal"
-          style={{
-            width: 'min(1100px, 95vw)',
-            height: 'min(80vh, 700px)',
-            maxWidth: '100%',
-          }}
+          className="relative bg-background/80 rounded-xl sm:rounded-2xl border border-white/30 dark:border-zinc-700/30 shadow-enhanced backdrop-blur-[16px] settings-modal w-[calc(100vw-1rem)] sm:w-[min(1100px,95vw)] h-[calc(100vh-2rem)] sm:h-[min(80vh,700px)]"
         >
           <div
-            className="absolute inset-0 settings-modal-grid overflow-hidden"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(180px, 224px) minmax(300px, 1fr)',
-            }}
+            className="absolute inset-0 settings-modal-grid overflow-hidden grid grid-rows-[auto_1fr] sm:grid-rows-none sm:grid-cols-[minmax(180px,224px)_minmax(300px,1fr)]"
           >
-            {/* Sidebar */}
-            <div className="bg-muted/30 p-4 border-r overflow-y-auto">
-              <h2 className="text-lg font-semibold mb-4">Settings</h2>
-              <nav className="space-y-1">
+            {/* Sidebar - horizontal scrolling tabs on mobile, vertical on desktop */}
+            <div className="bg-muted/30 p-2 sm:p-4 border-b sm:border-b-0 sm:border-r overflow-x-auto sm:overflow-x-visible overflow-y-auto">
+              <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4 hidden sm:block">Settings</h2>
+              <nav className="flex sm:flex-col gap-1 sm:gap-1 sm:space-y-1">
                 {navigationItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setActiveSection(item.id)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                      'flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md text-xs sm:text-sm transition-colors whitespace-nowrap sm:whitespace-normal sm:w-full flex-shrink-0',
                       activeSection === item.id
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-muted',
@@ -692,7 +683,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             {/* Content */}
             <div className="flex flex-col min-w-0 overflow-hidden">
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6">
                 <div className="max-w-xl mx-auto w-full">
                   {/* Profile Section */}
                   {activeSection === 'profile' && (

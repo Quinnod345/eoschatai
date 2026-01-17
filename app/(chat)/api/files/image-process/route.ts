@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
-const createOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+const createAnthropicClient = () => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn(
-      '[image-process] OPENAI_API_KEY missing; skipping AI analysis.',
+      '[image-process] ANTHROPIC_API_KEY missing; skipping AI analysis.',
     );
     return null;
   }
 
-  return new OpenAI({ apiKey });
+  return new Anthropic({ apiKey });
 };
 
-const openai = createOpenAIClient();
+const anthropic = createAnthropicClient();
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -58,23 +58,51 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`Processing image: ${filename} from URL: ${cleanImageUrl}`);
-
-    if (!openai) {
-      return NextResponse.json(
-        {
-          filename: filename,
-          description: 'Image analysis unavailable: OpenAI API key missing.',
-          text: '',
-        },
-        { status: 200 },
-      );
+    // If no AI client available, return basic result
+    if (!anthropic) {
+      console.log('No Anthropic client available, skipping AI analysis');
+      return NextResponse.json({
+        filename: filename,
+        description: 'An image was uploaded',
+        text: '',
+      });
     }
 
-    // Process the image using OpenAI's vision model to get OCR text and description
-    // Implement retry logic for transient failures
-    let lastError: any = null;
+    // Fetch the image and convert to base64
+    let imageBase64: string;
+    let mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    
+    try {
+      const imageResponse = await fetch(cleanImageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+      }
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      imageBase64 = Buffer.from(arrayBuffer).toString('base64');
+      
+      // Determine media type from URL or content-type
+      const contentType = imageResponse.headers.get('content-type') || '';
+      if (contentType.includes('png')) {
+        mediaType = 'image/png';
+      } else if (contentType.includes('gif')) {
+        mediaType = 'image/gif';
+      } else if (contentType.includes('webp')) {
+        mediaType = 'image/webp';
+      } else {
+        mediaType = 'image/jpeg'; // Default
+      }
+    } catch (fetchError: any) {
+      console.error('Failed to fetch image for processing:', fetchError);
+      return NextResponse.json({
+        filename: filename,
+        description: 'An image was uploaded, but could not be fetched for analysis.',
+        text: '',
+        error: `Image fetch failed: ${fetchError.message}`,
+      });
+    }
+
     const maxRetries = 2;
+    let lastError: any = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -86,61 +114,54 @@ export async function POST(request: Request) {
           );
         }
 
-        // First, get a comprehensive description and any text visible in the image
-        const visionResponse = await openai.chat.completions.create({
-          model: 'gpt-4.1-mini',
+        // Get a comprehensive description and any text visible in the image
+        const visionResponse = await anthropic.messages.create({
+          model: 'claude-3-5-haiku-20241022',
+          max_tokens: 1000,
           messages: [
-            {
-              role: 'system',
-              content:
-                'You are an AI trained to analyze images. Your task is to provide a detailed description of the image and extract any visible text.',
-            },
             {
               role: 'user',
               content: [
                 {
-                  type: 'text',
-                  text: 'Analyze this image. Provide: 1) A comprehensive description of what you see, and 2) Extract any visible text content in the image.',
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: mediaType,
+                    data: imageBase64,
+                  },
                 },
                 {
-                  type: 'image_url',
-                  image_url: {
-                    url: cleanImageUrl,
-                    detail: 'high', // Request high-detail analysis
-                  },
+                  type: 'text',
+                  text: 'Analyze this image. Provide: 1) A comprehensive description of what you see, and 2) Extract any visible text content in the image. Format your response as JSON with "description" and "text" fields. If no text is visible, use an empty string for text.',
                 },
               ],
             },
           ],
-          max_tokens: 1000,
         });
 
-        const analysisResult =
-          visionResponse.choices[0]?.message?.content || '';
+        const analysisResult = visionResponse.content[0].type === 'text' 
+          ? visionResponse.content[0].text 
+          : '';
         console.log(
           `Vision analysis complete. Result length: ${analysisResult.length}`,
         );
 
-        // Use a second prompt to separate the description and extracted text
-        const extractionResponse = await openai.chat.completions.create({
-          model: 'gpt-4.1-mini',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are an AI trained to parse image analysis results. Your task is to separate the description from the text content in an analysis.',
-            },
-            {
-              role: 'user',
-              content: `Parse the following image analysis result into two distinct parts: 1) Image description, and 2) Extracted text. Format your response as JSON with "description" and "text" fields. If no text was detected, include an empty string for text.\n\nAnalysis result: ${analysisResult}`,
-            },
-          ],
-          response_format: { type: 'json_object' },
-        });
-
-        const parsedResult = JSON.parse(
-          extractionResponse.choices[0]?.message?.content || '{}',
-        );
+        // Try to parse as JSON, otherwise extract manually
+        let parsedResult: { description: string; text: string };
+        try {
+          // Clean the response - remove markdown code blocks if present
+          const cleanedResult = analysisResult
+            .replace(/```json\s*/g, '')
+            .replace(/```\s*/g, '')
+            .trim();
+          parsedResult = JSON.parse(cleanedResult);
+        } catch {
+          // If JSON parsing fails, use the raw analysis as description
+          parsedResult = {
+            description: analysisResult,
+            text: '',
+          };
+        }
 
         return NextResponse.json({
           filename: filename,
@@ -162,9 +183,10 @@ export async function POST(request: Request) {
         const isRetryable =
           aiError.status === 500 ||
           aiError.status === 503 ||
-          aiError.status === 429 ||
+          aiError.status === 529 ||
           aiError.code === 'ECONNRESET' ||
-          aiError.message?.includes('timeout');
+          aiError.message?.includes('timeout') ||
+          aiError.message?.includes('overloaded');
 
         // If not retryable or last attempt, break
         if (!isRetryable || attempt === maxRetries) {

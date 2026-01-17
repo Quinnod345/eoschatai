@@ -1,5 +1,6 @@
 import { Composer } from '@/components/create-composer';
 import { CodeEditor } from '@/components/code-editor';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import {
   CopyIcon,
   DownloadIcon,
@@ -91,11 +92,12 @@ export const codeComposer = new Composer<'code', Metadata>({
       }));
     }
   },
-  content: ({ metadata, setMetadata, ...props }) => {
+  content: ({ metadata, setMetadata, status, chatStatus, ...props }) => {
     return (
       <>
-        <div className="px-1">
-          <CodeEditor {...props} />
+        <div className="relative px-1">
+          <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
+          <CodeEditor {...props} status={status} />
         </div>
 
         {metadata?.outputs && (

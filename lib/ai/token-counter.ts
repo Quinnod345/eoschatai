@@ -15,18 +15,28 @@ export function countTokens(text: string, model: string = 'gpt-4'): number {
   try {
     // Use cached encoding or create new one
     let enc = encodingCache[model];
-    
+
     if (!enc) {
       // Map model names to encoding names
+      // Note: For Claude models, we use gpt-4 encoding as an approximation
+      // Claude's actual tokenizer is different but gpt-4 provides a reasonable estimate
       const modelMap: Record<string, string> = {
         'gpt-4.1': 'gpt-4',
         'gpt-4': 'gpt-4',
         'gpt-4o': 'gpt-4',
         'gpt-4o-mini': 'gpt-4',
         'gpt-5': 'gpt-4', // o1 uses similar encoding
-        'o1': 'gpt-4',
+        o1: 'gpt-4',
         'o1-mini': 'gpt-4',
         'o1-preview': 'gpt-4',
+        // Claude models - use gpt-4 tokenizer as approximation for token counting
+        // (Claude doesn't have a public tokenizer, so we use tiktoken's gpt-4 encoder)
+        'claude-sonnet': 'gpt-4',
+        'claude-sonnet-4-5-20250929': 'gpt-4',
+        'claude-sonnet-4-20250514': 'gpt-4',
+        'claude-3-5-haiku-20241022': 'gpt-4',
+        'claude-3-5-sonnet-20241022': 'gpt-4',
+        'claude-3-opus-20240229': 'gpt-4',
       };
 
       const encodingModel = modelMap[model] || 'gpt-4';
@@ -115,7 +125,7 @@ export function estimateTokenBudget(model: string): {
       message: 12000,
       response: 32768,
     },
-    'o1': {
+    o1: {
       max: 200000,
       system: 16000,
       message: 12000,
@@ -133,9 +143,40 @@ export function estimateTokenBudget(model: string): {
       message: 8000,
       response: 32768,
     },
+    // Claude models
+    'claude-sonnet': {
+      max: 200000,
+      system: 16000,
+      message: 12000,
+      response: 64000, // Claude supports very long outputs
+    },
+    'claude-sonnet-4-5-20250929': {
+      max: 200000,
+      system: 16000,
+      message: 12000,
+      response: 64000,
+    },
+    'claude-sonnet-4-20250514': {
+      max: 200000,
+      system: 16000,
+      message: 12000,
+      response: 64000,
+    },
+    'claude-3-5-haiku-20241022': {
+      max: 200000,
+      system: 8000,
+      message: 6000,
+      response: 8192,
+    },
+    'claude-3-5-sonnet-20241022': {
+      max: 200000,
+      system: 16000,
+      message: 12000,
+      response: 64000,
+    },
   };
 
-  const config = budgets[model] || budgets['gpt-4.1'];
+  const config = budgets[model] || budgets['claude-sonnet'];
 
   return {
     maxOutputTokens: config.max,
@@ -216,4 +257,3 @@ export function countMultiple(
 export function countTotal(texts: string[], model: string = 'gpt-4'): number {
   return texts.reduce((sum, text) => sum + countTokens(text, model), 0);
 }
-

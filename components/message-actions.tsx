@@ -197,7 +197,7 @@ export function PureMessageActions({
             </span>
           )}
 
-          <div className="flex flex-row gap-1">
+          <div className="flex flex-row gap-1 md:gap-1 flex-wrap">
             {/* Sources button - only show for assistant messages with citations */}
             {message.role === 'assistant' && hasCitations && (
               <Tooltip>

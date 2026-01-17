@@ -769,6 +769,27 @@ const runMigrate = async () => {
           console.error('Error creating Circle.so course persona tables:', error);
         }
 
+        // Add reasoning column to Message_v2 for storing Claude's extended thinking
+        try {
+          const reasoningExists = await columnExists(
+            connection,
+            'Message_v2',
+            'reasoning',
+          );
+
+          if (!reasoningExists) {
+            await connection`
+              ALTER TABLE "Message_v2"
+              ADD COLUMN "reasoning" TEXT
+            `;
+            console.log('Added reasoning column to Message_v2 table');
+          } else {
+            console.log('reasoning column already exists in Message_v2 table');
+          }
+        } catch (error) {
+          console.error('Error adding reasoning column:', error);
+        }
+
         const end = Date.now();
         console.log('✅ Migrations completed in', end - start, 'ms');
 

@@ -14,6 +14,7 @@ import type {
 } from './types';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import { OpenAI } from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 function safeJsonParse<T>(
   value: string | null | undefined,
@@ -47,6 +48,7 @@ function sanitizeStringArray(value: unknown): string[] {
 export class FiresearchService {
   private firecrawl: FirecrawlApp;
   private openai: OpenAI;
+  private anthropic: Anthropic;
   private config: FiresearchConfig;
 
   constructor(config: FiresearchConfig) {
@@ -56,6 +58,9 @@ export class FiresearchService {
     });
     this.openai = new OpenAI({
       apiKey: config.openaiApiKey,
+    });
+    this.anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
     });
   }
 
@@ -396,7 +401,7 @@ Return your analysis in JSON format:
     sources: ResearchSource[],
     analysis: any,
     maxTokens = 6000,
-    model = 'gpt-4.1',
+    model = 'claude-sonnet-4-5-20250929',
   ): Promise<{
     summary: string;
     relatedTopics: string[];
@@ -483,16 +488,20 @@ Return your response in JSON format:
 }
 `;
 
-    // Use GPT-4.1 for synthesis (larger context than 4o-mini)
-    const response = await this.openai.chat.completions.create({
+    // Use Claude for synthesis (larger context)
+    const response = await this.anthropic.messages.create({
       model: model,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
-      response_format: { type: 'json_object' },
-    } as any);
+    });
 
+    const responseText = response.content[0].type === 'text' 
+      ? response.content[0].text 
+      : '';
+    
     const result = safeJsonParse<any>(
-      response.choices[0].message.content,
+      responseText,
       {},
       'synthesis response',
     );

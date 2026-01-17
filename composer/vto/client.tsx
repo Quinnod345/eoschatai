@@ -1,6 +1,7 @@
 'use client';
 
 import { Composer } from '@/components/create-composer';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import {
   CopyIcon,
   DownloadIcon,
@@ -826,6 +827,7 @@ export const vtoComposer = new Composer<'vto', Metadata>({
     setMetadata,
     title,
     status,
+    chatStatus,
   }) => {
     const previewRef = useRef<HTMLDivElement>(null);
     const lastValidVtoRef = useRef<VtoData | null>(null);
@@ -947,7 +949,8 @@ export const vtoComposer = new Composer<'vto', Metadata>({
     const isGenerating = status === 'streaming';
 
     return (
-      <div className="flex flex-col gap-4 p-6">
+      <div className="relative flex flex-col gap-4 p-6">
+        <ComposerEditingOverlay isVisible={isGenerating} chatStatus={chatStatus} />
         <div className="flex items-center justify-between rounded-lg border bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-2">
           <div className="text-sm text-muted-foreground">V/TO Builder</div>
           <div className="flex items-center gap-2">

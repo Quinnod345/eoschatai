@@ -2,6 +2,7 @@ import { Composer } from '@/components/create-composer';
 import { DiffView } from '@/components/diffview';
 import { DocumentSkeleton } from '@/components/document-skeleton';
 import { Editor } from '@/components/text-editor';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import {
   ClockRewind,
   CopyIcon,
@@ -75,6 +76,7 @@ export const textComposer = new Composer<'text', TextComposerMetadata>({
   content: ({
     mode,
     status,
+    chatStatus,
     content,
     isCurrentVersion,
     currentVersionIndex,
@@ -102,7 +104,8 @@ export const textComposer = new Composer<'text', TextComposerMetadata>({
 
     return (
       <>
-        <div className="flex flex-row py-8 md:p-20 px-4">
+        <div className="relative flex flex-row py-8 md:p-20 px-4">
+          <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
           <Editor
             content={content}
             suggestions={metadata ? metadata.suggestions : []}

@@ -72,10 +72,16 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
       
       const existingParts = Array.isArray(message.parts) ? message.parts : [];
       
-      // Build base message with parts
+      // If message has reasoning from the database, add it as a reasoning part
+      // This enables displaying Claude's extended thinking when revisiting chats
+      const reasoningParts = message.reasoning
+        ? [{ type: 'reasoning' as const, text: message.reasoning }]
+        : [];
+      
+      // Build base message with parts (reasoning first, then existing, then attachments)
       const baseMessage = {
         id: message.id,
-        parts: [...existingParts, ...attachmentParts],
+        parts: [...reasoningParts, ...existingParts, ...attachmentParts],
         role: message.role as UIMessage['role'],
         createdAt: message.createdAt,
       };

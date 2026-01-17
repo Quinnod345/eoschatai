@@ -223,8 +223,8 @@ export function AppSidebar({ user }: { user: User | undefined }) {
             {/* Spacer - reduced to bring buttons closer */}
             <div className="flex-1 min-w-0 max-w-[8px]" />
 
-            {/* Action buttons - tighter spacing */}
-            <div className="flex gap-0 items-center flex-shrink-0 -ml-1">
+            {/* Action buttons */}
+            <div className="flex gap-3 items-center flex-shrink-0">
               <AdvancedSearch />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -294,7 +294,12 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </div>
 
           {/* Composer Menu Items - Using plain buttons to avoid SidebarMenuButton's collapsible padding changes */}
-          <div className="px-2 pb-2 flex flex-col gap-1.5">
+          <div 
+            className={cn(
+              "pb-2 flex flex-col gap-1.5",
+              isCollapsed ? "px-2 items-center" : "px-2"
+            )}
+          >
             {composerItems.map((item) => {
               const isActive = selectedComposerKind === item.kind;
 
@@ -307,31 +312,37 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                       type="button"
                       onClick={() => handleComposerClick(item.kind, item.label)}
                       className={cn(
-                        // Base styles - FIXED padding that NEVER changes
-                        'h-11 w-full rounded-lg text-[14px] leading-6 font-normal text-sidebar-foreground',
-                        'px-3 py-3', // CONSTANT padding
-                        'text-left relative', // Relative for absolute text positioning
-                        'transition-colors duration-200',
+                        // Base styles
+                        'rounded-lg text-[14px] leading-6 font-normal text-sidebar-foreground',
+                        'relative',
+                        'transition-all duration-200',
+                        // Collapsed: square button, centered icon
+                        // Expanded: full width, left-aligned
+                        isCollapsed 
+                          ? 'h-10 w-10 flex items-center justify-center' 
+                          : 'h-11 w-full px-3 py-3 text-left',
                         // Active/hover states
                         isActive
                           ? 'active-glass-button'
                           : 'hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:shadow-sm',
                       )}
                     >
-                      {/* Icon - Fixed position, never moves */}
-                      <div className="w-4 h-4 flex items-center justify-center">
+                      {/* Icon - Centered when collapsed, left when expanded */}
+                      <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
                         <item.icon size={16} className="w-4 h-4" />
                       </div>
-                      {/* Text - Fast fade */}
-                      <span
-                        className="absolute left-[calc(12px+16px+8px)] top-1/2 -translate-y-1/2 font-normal whitespace-nowrap pointer-events-none"
-                        style={{
-                          opacity: isCollapsed ? 0 : 1,
-                          transition: `opacity 150ms ${fastEasing}`,
-                        }}
-                      >
-                        {item.label}
-                      </span>
+                      {/* Text - Only visible when expanded */}
+                      {!isCollapsed && (
+                        <span
+                          className="absolute left-[calc(12px+16px+8px)] top-1/2 -translate-y-1/2 font-normal whitespace-nowrap pointer-events-none"
+                          style={{
+                            opacity: 1,
+                            transition: `opacity 150ms ${fastEasing}`,
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                      )}
                     </button>
                   </TooltipTrigger>
                   {/* Only show tooltip content when sidebar is collapsed */}

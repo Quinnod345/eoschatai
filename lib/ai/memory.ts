@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
 import { z } from 'zod/v3';
 import { db } from '@/lib/db';
@@ -29,7 +29,7 @@ export async function classifyMemoryCandidate(
   text: string,
 ): Promise<MemoryDecision> {
   const result = await generateObject({
-    model: openai('gpt-5-mini'),
+    model: anthropic('claude-3-5-haiku-20241022'),
     schema: MemoryDecisionSchema,
     system:
       'You are a conservative memory classifier. Save only clear, stable, reusable facts/preferences. Avoid one-off or sensitive details. Return conservative confidence.',

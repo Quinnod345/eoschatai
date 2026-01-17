@@ -1,4 +1,5 @@
 import { Composer } from '@/components/create-composer';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import {
   CopyIcon,
   DownloadIcon,
@@ -34,15 +35,19 @@ export const sheetComposer = new Composer<'sheet', Metadata>({
     isCurrentVersion,
     onSaveContent,
     status,
+    chatStatus,
   }) => {
     return (
-      <SpreadsheetEditor
-        content={content}
-        currentVersionIndex={currentVersionIndex}
-        isCurrentVersion={isCurrentVersion}
-        saveContent={onSaveContent}
-        status={status}
-      />
+      <div className="relative">
+        <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
+        <SpreadsheetEditor
+          content={content}
+          currentVersionIndex={currentVersionIndex}
+          isCurrentVersion={isCurrentVersion}
+          saveContent={onSaveContent}
+          status={status}
+        />
+      </div>
     );
   },
   actions: [

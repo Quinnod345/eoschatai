@@ -1,4 +1,5 @@
 import { Composer } from '@/components/create-composer';
+import { ComposerEditingOverlay } from '@/components/composer-editing-overlay';
 import {
   CopyIcon,
   DownloadIcon,
@@ -631,6 +632,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
     currentVersionIndex,
     onSaveContent,
     status,
+    chatStatus,
     metadata, // This `metadata` is from the useComposer hook
     setMetadata,
   }) => {
@@ -846,7 +848,8 @@ CHART_DATA_END`
     };
 
     return (
-      <div className="flex flex-col items-center p-8 w-full">
+      <div className="relative flex flex-col items-center p-8 w-full">
+        <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
         {metadata?.editMode === 'visual' ? (
           <>
             {localChartData ? (

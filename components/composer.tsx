@@ -14,6 +14,7 @@ import {
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { Document, Vote } from '@/lib/db/schema';
 import { fetcher } from '@/lib/utils';
 import { MultimodalInput } from './multimodal-input';
@@ -115,7 +116,7 @@ function PureComposer({
     mutate: mutateDocuments,
   } = useSWR<Array<Document>>(
     composer.documentId !== 'init' && composer.status !== 'streaming'
-      ? `/api/document?id=${composer.documentId}`
+      ? `/api/document?id=${composer.documentId}&versions=true`
       : null,
     fetcher,
   );
@@ -455,7 +456,7 @@ function PureComposer({
       : isLatestVersion(currentVersionIndex, documents.length);
 
   const { width: windowWidth, height: windowHeight } = useWindowSize();
-  const isMobile = windowWidth ? windowWidth < 768 : false;
+  const isMobile = useIsMobile();
 
   const composerDefinition = composerDefinitions.find(
     (definition) => definition.kind === composer.kind,
@@ -647,7 +648,7 @@ function PureComposer({
               },
             }}
           >
-            <div className="p-2 flex flex-row justify-between items-start">
+            <div className="p-2 md:p-2 flex flex-row justify-between items-start gap-2">
               <div className="flex flex-row gap-4 items-start">
                 <ComposerCloseButton stop={stop} />
 
@@ -764,6 +765,7 @@ function PureComposer({
                   }
                   mode={mode}
                   status={composer.status}
+                  chatStatus={status}
                   currentVersionIndex={resolveVersionIndex(
                     currentVersionIndex,
                     documents?.length ?? 0,

@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import type { DBMessage } from '@/lib/db/schema';
 import { db } from '@/lib/db';
@@ -42,9 +42,9 @@ export async function summarizeOlderMessages(
       })
       .join('\n\n');
 
-    // Generate summary using GPT-4.1
+    // Generate summary using Claude 3.5 Haiku
     const summary = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       prompt: `You are summarizing an older conversation to preserve key context. Create a concise but comprehensive summary that captures:
 
 1. Main topics discussed

@@ -1,8 +1,9 @@
 /**
  * Generate AI-powered persona instructions based on actual course content
- * Uses GPT-4.1 to create customized instructions from course lessons
+ * Uses Claude to create customized instructions from course lessons
  */
 
+import { anthropic } from '@ai-sdk/anthropic';
 import { openai } from '@ai-sdk/openai';
 import { generateText, embed } from 'ai';
 import { Index } from '@upstash/vector';
@@ -18,7 +19,7 @@ interface CourseContent {
 }
 
 /**
- * Generate persona instructions using GPT-4.1 nano based on course content
+ * Generate persona instructions using Claude Haiku based on course content
  */
 export async function generateCourseInstructions(
   courseContent: CourseContent,
@@ -68,7 +69,7 @@ LENGTH: 800-1200 characters (comprehensive but concise)
 Generate the persona instructions now:`;
 
     const { text } = await generateText({
-      model: openai('gpt-4.1-mini'), // Using gpt-4.1-mini for instruction generation
+      model: anthropic('claude-3-5-haiku-20241022'), // Using Claude Haiku for instruction generation
       prompt,
       maxOutputTokens: 600,
       temperature: 0.7,
@@ -97,7 +98,7 @@ Generate the persona instructions now:`;
 }
 
 /**
- * Generate persona instructions from RAG database using GPT-4.1
+ * Generate persona instructions from RAG database using Claude
  * Queries the Upstash namespace to get actual course content, then generates instructions
  */
 export async function generateInstructionsFromRAG(params: {
@@ -176,7 +177,7 @@ export async function generateInstructionsFromRAG(params: {
     const contentSample = uniqueContent
       .slice(0, 10) // Use top 10 unique chunks
       .join('\n\n---\n\n')
-      .substring(0, 8000); // Limit to 8K chars for GPT prompt
+      .substring(0, 8000); // Limit to 8K chars for Claude prompt
 
     const audienceContext =
       params.targetAudience === 'implementer'
@@ -208,11 +209,11 @@ TONE: Professional and authoritative
 Generate the persona instructions now:`;
 
     console.log(
-      '[RAG Instructions] Calling GPT-4.1 to generate instructions...',
+      '[RAG Instructions] Calling Claude to generate instructions...',
     );
 
     const { text } = await generateText({
-      model: openai('gpt-4o'), // Using GPT-4.1 (latest)
+      model: anthropic('claude-sonnet-4-5-20250929'), // Using Claude 4.5 Sonnet
       prompt,
       maxOutputTokens: 800,
       temperature: 0.7,

@@ -17,6 +17,9 @@ import { toast } from '@/lib/toast-system';
 import { Dropdown as SavedContentDropdown } from '@/components/saved-content-dropdown';
 import type { UIMessage } from 'ai';
 import GlassSurface from '@/components/GlassSurface';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Menu } from 'lucide-react';
 
 function PureChatHeader({
   chatId,
@@ -47,6 +50,7 @@ function PureChatHeader({
 }) {
   const router = useRouter();
   const { width: windowWidth } = useWindowSize();
+  const isMobile = useIsMobile();
 
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState<Persona | undefined>();
@@ -284,9 +288,31 @@ function PureChatHeader({
     <>
       <header className="absolute top-0.5 left-0 right-0 pt-2.5 pb-3 px-2 md:px-2 z-40 bg-transparent pointer-events-none no-mesh-override">
         <div className="flex items-center gap-1 md:gap-2 w-full">
-          {/* Left Section - Empty spacer (Personas and Profiles moved to multimodal input) */}
+          {/* Left Section - Mobile sidebar trigger */}
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
-            {/* Personas and Profiles dropdowns are now in the multimodal input plus button */}
+            {/* Mobile sidebar trigger - only show on mobile */}
+            {isMobile && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <GlassSurface
+                    width={40}
+                    height={40}
+                    borderRadius={10}
+                    displace={3}
+                    backgroundOpacity={0.25}
+                    blur={11}
+                    insetShadowIntensity={0.2}
+                    isButton={true}
+                    className="h-10 w-10 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors touch-target-sm"
+                  >
+                    <SidebarTrigger className="h-10 w-10 p-0 border-0 bg-transparent hover:bg-transparent">
+                      <Menu className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />
+                    </SidebarTrigger>
+                  </GlassSurface>
+                </TooltipTrigger>
+                <TooltipContent>Open menu</TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           {/* Center Section - Tools (only when sidebar closed or mobile) */}

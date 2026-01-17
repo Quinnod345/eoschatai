@@ -5,7 +5,7 @@ import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLoading } from '@/hooks/use-loading';
 import { useSession } from 'next-auth/react';
-import DOMPurify from 'isomorphic-dompurify';
+import { sanitizeHtml } from '@/lib/sanitize';
 import type { ComposerKind } from '@/components/composer';
 import { Button } from '@/components/ui/button';
 import { fetcher } from '@/lib/utils';
@@ -743,7 +743,7 @@ function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
         {markdownHtml ? (
           <div
             className="prose prose-sm dark:prose-invert max-h-full overflow-hidden"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownHtml) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownHtml) }}
           />
         ) : (
           <pre className="whitespace-pre-wrap break-words opacity-80 text-muted-foreground">

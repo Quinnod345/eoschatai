@@ -120,6 +120,11 @@ export const message = pgTable('Message_v2', {
   attachments: json('attachments').notNull(),
   createdAt: timestamp('createdAt').notNull(),
   provider: varchar('provider'),
+  // When a user stops generation mid-stream, this timestamp is set
+  // Messages with stoppedAt set don't count toward daily message limits
+  stoppedAt: timestamp('stoppedAt'),
+  // Store Claude's extended thinking content for display when revisiting chats
+  reasoning: text('reasoning'),
 });
 
 export type DBMessage = InferSelectModel<typeof message>;
@@ -511,8 +516,8 @@ export const userSettings = pgTable('UserSettings', {
   lastMessageCountReset: timestamp('lastMessageCountReset').defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-  selectedChatModel: text('selectedChatModel').default('gpt-4.1'),
-  selectedProvider: text('selectedProvider').default('openai'),
+  selectedChatModel: text('selectedChatModel').default('claude-sonnet'),
+  selectedProvider: text('selectedProvider').default('anthropic'),
   selectedVisibilityType: text('selectedVisibilityType').default('private'),
   selectedPersonaId: uuid('selectedPersonaId'),
   selectedProfileId: uuid('selectedProfileId'),

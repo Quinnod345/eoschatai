@@ -854,122 +854,52 @@ function PureMultimodalInput({
     }
   }, [input]);
 
+  // Multi-line detection based on TEXT CONTENT ONLY (not pixel measurements)
+  // This prevents feedback loops from layout width changes affecting measurements
+  const lastMultiLineRef = useRef(false);
+  
   const adjustHeight = useCallback(() => {
-    // Skip height adjustment if we're in the middle of form submission
     if (isSubmittingRef.current || !textareaRef.current) {
       return;
     }
 
     const textarea = textareaRef.current;
-    const computedStyle = window.getComputedStyle(textarea);
-
-    // Use a clone to measure height without affecting layout/animation
-    const clone = textarea.cloneNode() as HTMLTextAreaElement;
-
-    // Copy all relevant styles from the actual textarea
-    clone.style.fontSize = computedStyle.fontSize;
-    clone.style.fontFamily = computedStyle.fontFamily;
-    clone.style.fontWeight = computedStyle.fontWeight;
-    clone.style.letterSpacing = computedStyle.letterSpacing;
-    clone.style.lineHeight = computedStyle.lineHeight;
-    clone.style.whiteSpace = 'pre-wrap';
-    clone.style.wordWrap = 'break-word';
-    clone.style.boxSizing = computedStyle.boxSizing;
-    clone.style.border = computedStyle.border;
-
-    // Critical: Match width exactly using offsetWidth to account for borders/box-sizing
-    clone.style.width = `${textarea.offsetWidth}px`;
-
-    // Apply Single Line Styles to the clone for initial measurement
-    clone.style.height = 'auto';
-    clone.style.paddingTop = '8px'; // py-2 = 8px
-    clone.style.paddingBottom = '8px';
-
-    // In grid layout, checking for single line fit:
-    // If currently in multi-line (full width), we need to simulate the reduced width constraint
-    // by adding padding to the clone (simulating button space).
-    // If currently in single-line (reduced width), the offsetWidth is already correct.
-    if (isMultiLine) {
-      clone.style.paddingLeft = '48px'; // Simulate left button space
-      clone.style.paddingRight = '128px'; // Simulate right button space
-    } else {
-      clone.style.paddingLeft = '12px'; // pl-3
-      clone.style.paddingRight = '12px'; // pr-3
+    const text = textarea.value;
+    
+    // FIRST: Decide layout based on text content (stable - doesn't depend on width)
+    // Estimate if text would wrap: ~50 chars fit on single line with buttons
+    // Count words and their lengths to estimate wrapping
+    const hasNewlines = text.includes('\n');
+    const charCount = text.length;
+    
+    // Simple heuristic: if text is long enough that it would likely wrap
+    // in the narrower single-line layout, use multi-line
+    // Single-line textarea is roughly 50-60 chars wide, use 70 for buffer
+    const likelyToWrap = charCount > 70;
+    
+    const shouldBeMultiLine = hasNewlines || likelyToWrap;
+    
+    // Update layout state BEFORE measuring height
+    // Only update if changed to prevent unnecessary re-renders
+    if (shouldBeMultiLine !== lastMultiLineRef.current) {
+      lastMultiLineRef.current = shouldBeMultiLine;
+      setIsMultiLine(shouldBeMultiLine);
     }
-
-    // Important: Hide the clone but keep it in the DOM for measurement
-    clone.style.position = 'absolute';
-    clone.style.visibility = 'hidden';
-    clone.style.overflow = 'hidden';
-    clone.style.top = '-9999px';
-    clone.style.left = '-9999px';
-
-    // Set value and ensure we measure accurately
-    clone.value = textarea.value;
-
-    // Append to body to ensure we can measure it
-    document.body.appendChild(clone);
-
-    // Force a reflow to ensure accurate measurement
-    void clone.offsetHeight;
-
-    // Measure content height in single-line configuration
-    const singleLineContentHeight = clone.scrollHeight;
-
-    // Determine if content exceeds single line threshold
-    // A single line with 8px vertical padding is 24px line-height + 16px padding = 40px
-    // Use a more conservative threshold (52px) to prevent premature switching
-    // This ensures we only switch when text is definitely wrapping
-    const isMulti = singleLineContentHeight > 52;
-    setIsMultiLine(isMulti);
-
-    // Now measure actual required height based on the target mode
-    if (isMulti) {
-      // Update clone to Multi Line styles for accurate height measurement
-      // px-4 = 16px, pt-3 = 12px, pb-3 = 12px (no longer need 48px for buttons)
-      clone.style.paddingLeft = '16px';
-      clone.style.paddingRight = '16px';
-      clone.style.paddingBottom = '12px';
-      clone.style.paddingTop = '12px';
-
-      // Force re-measurement with new padding
-      void clone.offsetHeight;
-    }
-
-    const targetContentHeight = clone.scrollHeight;
-
-    // Determine final height
-    let finalHeight = targetContentHeight;
-
-    if (isMulti) {
-      // Enforce minimum height for multi-line mode
-      // Just ensure it's enough for the text. Buttons are separate now.
-      finalHeight = Math.max(targetContentHeight, 52);
-    } else {
-      // Force compact height for single line
-      finalHeight = 40;
-    }
-
-    // Clean up clone
-    if (clone.parentElement) {
-      clone.parentElement.removeChild(clone);
-    }
-
-    // Get the computed max height
-    const maxHeightValue = computedStyle.maxHeight;
-    const maxHeight =
-      maxHeightValue && maxHeightValue !== 'none'
-        ? Number.parseFloat(maxHeightValue)
-        : Number.POSITIVE_INFINITY;
-
-    // Set height to content height or max height
-    if (finalHeight > maxHeight) {
-      textarea.style.height = `${maxHeight}px`;
-      textarea.style.overflowY = 'auto';
-    } else {
-      textarea.style.height = `${finalHeight}px`;
-      textarea.style.overflowY = 'hidden';
-    }
+    
+    // THEN: Measure and set height (after layout decision is stable)
+    const minHeight = 40;
+    const maxHeightPx = typeof window !== 'undefined' 
+      ? window.innerHeight * 0.35 
+      : 400;
+    
+    const scrollTop = textarea.scrollTop;
+    textarea.style.height = 'auto';
+    const scrollHeight = textarea.scrollHeight;
+    
+    const finalHeight = Math.max(minHeight, Math.min(scrollHeight, maxHeightPx));
+    textarea.style.height = `${finalHeight}px`;
+    textarea.style.overflowY = scrollHeight > maxHeightPx ? 'auto' : 'hidden';
+    textarea.scrollTop = scrollTop;
   }, []);
 
   // Handle @ mention detection
@@ -1002,11 +932,8 @@ function PureMultimodalInput({
         setShowMentions(false);
       }
 
-      // Call adjustHeight immediately for responsive UI
-      // Use requestAnimationFrame to ensure DOM is updated
-      requestAnimationFrame(() => {
-        adjustHeight();
-      });
+      // Adjust textarea height after input change
+      adjustHeight();
     },
     [
       setInput,
@@ -1207,7 +1134,6 @@ function PureMultimodalInput({
         // Better edge case detection
         const hasMultipleLines = /\n/.test(prefix);
         const hasPunctuation = /[\?\!\.]$/.test(prefix);
-        const isVeryLong = prefix.length > 100;
         const hasMultipleSentences = (prefix.match(/[.!?]/g) || []).length > 1;
         const looksLikeCompleteQuestion =
           /^(what|where|when|why|who|how|can|could|would|should|is|are|do|does)\s/i.test(
@@ -1236,10 +1162,19 @@ function PureMultimodalInput({
           return;
         }
 
+        // Build context for smarter predictions
+        const context = {
+          chatId,
+          personaId: selectedPersonaId || undefined,
+          personaName: selectedPersona?.name,
+          isNewChat,
+          selectedModelId: selectedModelId || undefined,
+        };
+
         const res = await fetch('/api/predictions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prefix }),
+          body: JSON.stringify({ prefix, context }),
         });
 
         if (!res.ok) {
@@ -1261,6 +1196,13 @@ function PureMultimodalInput({
           if (/^[A-Z].*[.!?]$/.test(trimmed)) return false;
           // Skip if it's asking a question back
           if (trimmed.endsWith('?')) return false;
+          // Skip if it repeats words from the prefix
+          const prefixWords = prefix.toLowerCase().split(/\s+/).slice(-3);
+          const itemWords = trimmed.toLowerCase().split(/\s+/);
+          const hasRepeatedWord = prefixWords.some(pw => 
+            pw.length > 3 && itemWords.includes(pw)
+          );
+          if (hasRepeatedWord) return false;
           return true;
         });
 
@@ -1276,6 +1218,10 @@ function PureMultimodalInput({
     showMentions,
     isNewChat,
     autocompleteEnabled,
+    chatId,
+    selectedPersonaId,
+    selectedPersona?.name,
+    selectedModelId,
   ]);
 
   const { visibilityType, setVisibilityType } = useChatVisibility({
@@ -1915,38 +1861,36 @@ function PureMultimodalInput({
     [setAttachments],
   );
 
+  // Helper to reset submission state when submit is cancelled or fails
+  const resetSubmitState = useCallback(() => {
+    isSubmittingRef.current = false;
+    lockedHeightRef.current = null;
+    inputValueAtSubmitRef.current = null;
+    setDisableInputTransitions(false);
+    if (textareaRef.current) {
+      textareaRef.current.style.minHeight = '';
+      textareaRef.current.style.maxHeight = '';
+      textareaRef.current.style.transition = '';
+    }
+  }, []);
+
   const submitForm = useCallback(() => {
-    // Set flag to prevent height adjustments during submission FIRST
+    // Set flag to prevent height adjustments during submission
     isSubmittingRef.current = true;
 
-    // Lock current height SYNCHRONOUSLY before any state updates
-    // This prevents the visual jump when input is cleared
+    // Lock current height to prevent visual jump when input is cleared
     if (textareaRef.current) {
       const currentHeight = textareaRef.current.offsetHeight;
-      // Store locked height in ref so useEffect can maintain it
       lockedHeightRef.current = currentHeight;
-      // Store current input value to prevent value prop changes during submission
       inputValueAtSubmitRef.current = input;
-      // Lock both height and ensure it stays fixed
       textareaRef.current.style.height = `${currentHeight}px`;
       textareaRef.current.style.minHeight = `${currentHeight}px`;
       textareaRef.current.style.maxHeight = `${currentHeight}px`;
-      // Prevent any transitions
       textareaRef.current.style.transition = 'none';
     }
     setDisableInputTransitions(true);
 
     window.history.replaceState({}, '', `/chat/${chatId}`);
-
-    // Use requestAnimationFrame to ensure height lock is applied before React processes state updates
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        const currentHeight = textareaRef.current.offsetHeight;
-        textareaRef.current.style.height = `${currentHeight}px`;
-        textareaRef.current.style.minHeight = `${currentHeight}px`;
-        textareaRef.current.style.maxHeight = `${currentHeight}px`;
-      }
-    });
 
     // Trim the input to remove any trailing/leading whitespace or newlines
     let finalInputContent = input.trim(); // Start with trimmed text input
@@ -2074,15 +2018,7 @@ function PureMultimodalInput({
     );
     if (processingAudio.length > 0) {
       toast.error('Please wait for audio transcription to complete!');
-      isSubmittingRef.current = false;
-      lockedHeightRef.current = null;
-      inputValueAtSubmitRef.current = null;
-      setDisableInputTransitions(false);
-      if (textareaRef.current) {
-        textareaRef.current.style.minHeight = '';
-        textareaRef.current.style.maxHeight = '';
-        textareaRef.current.style.transition = '';
-      }
+      resetSubmitState();
       return;
     }
 
@@ -2092,30 +2028,14 @@ function PureMultimodalInput({
       toast.error(
         `Cannot send message with failed audio attachments. Please remove the failed audio files (${errorAudio.map((a) => a.name).join(', ')}) or try uploading in a supported format.`,
       );
-      isSubmittingRef.current = false;
-      lockedHeightRef.current = null;
-      inputValueAtSubmitRef.current = null;
-      setDisableInputTransitions(false);
-      if (textareaRef.current) {
-        textareaRef.current.style.minHeight = '';
-        textareaRef.current.style.maxHeight = '';
-        textareaRef.current.style.transition = '';
-      }
+      resetSubmitState();
       return;
     }
 
     // Ensure the submit doesn't hang by checking first
     if (status !== 'ready') {
       toast.error('Please wait for the model to finish its response!');
-      isSubmittingRef.current = false;
-      lockedHeightRef.current = null;
-      inputValueAtSubmitRef.current = null;
-      setDisableInputTransitions(false);
-      if (textareaRef.current) {
-        textareaRef.current.style.minHeight = '';
-        textareaRef.current.style.maxHeight = '';
-        textareaRef.current.style.transition = '';
-      }
+      resetSubmitState();
       return;
     }
 
@@ -2179,73 +2099,46 @@ function PureMultimodalInput({
           // Don't clear input state yet - will be cleared after height reset
         } else {
           // Nothing to send
-          isSubmittingRef.current = false;
-          lockedHeightRef.current = null;
-          setDisableInputTransitions(false);
-          if (textareaRef.current) {
-            textareaRef.current.style.minHeight = '';
-            textareaRef.current.style.maxHeight = '';
-            textareaRef.current.style.transition = '';
-          }
+          resetSubmitState();
           return;
         }
       }
 
       // Common cleanup operations
-      setAttachments([]); // Clear regular attachments
-      setPdfContents([]); // Clear PDF contents
-      setDocumentContents([]); // Clear document contents
-      setAudioContents([]); // Clear audio contents
-      setSelectedMentions([]); // Clear mentions
-      setShowPredictions(false); // Hide predictions after submit
-      setPredictions([]); // Clear predictions
+      setAttachments([]);
+      setPdfContents([]);
+      setDocumentContents([]);
+      setAudioContents([]);
+      setSelectedMentions([]);
+      setShowPredictions(false);
+      setPredictions([]);
+      
       // Delay shrinking input to avoid visible jump at submit moment
       setTimeout(() => {
         if (textareaRef.current) {
-          // First, manually reset height to minimum single-line height (40px)
-          // This avoids the 'auto' recalculation that resetHeight does
+          // Reset to single-line height with smooth transition
           textareaRef.current.style.height = '40px';
           textareaRef.current.style.minHeight = '';
           textareaRef.current.style.maxHeight = '';
           textareaRef.current.style.transition = 'height 0.2s ease';
           textareaRef.current.style.overflowY = 'hidden';
-
-          // Clear locked height ref
-          lockedHeightRef.current = null;
-
-          // Re-enable transitions
-          setDisableInputTransitions(false);
-
-          // Now clear the ref and input state together
-          // Use double RAF to ensure height is set before value prop changes
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              inputValueAtSubmitRef.current = null;
-              setInput('');
-            });
-          });
         }
-      }, 200);
-
-      // Reset the submission flag after cleanup
-      setTimeout(() => {
+        
+        // Reset all submission state
+        lockedHeightRef.current = null;
+        inputValueAtSubmitRef.current = null;
         isSubmittingRef.current = false;
-      }, 50);
+        lastMultiLineRef.current = false;
+        setDisableInputTransitions(false);
+        setIsMultiLine(false);
+        setInput('');
+      }, 150);
 
       if (width && width > 768) {
         textareaRef.current?.focus();
       }
     } catch (error) {
-      // Reset flag on error too
-      isSubmittingRef.current = false;
-      lockedHeightRef.current = null;
-      inputValueAtSubmitRef.current = null;
-      if (textareaRef.current) {
-        textareaRef.current.style.minHeight = '';
-        textareaRef.current.style.maxHeight = '';
-        textareaRef.current.style.transition = '';
-      }
-      setDisableInputTransitions(false);
+      resetSubmitState();
       toast.error('Failed to send message. Please try again.');
     }
   }, [
@@ -2264,6 +2157,7 @@ function PureMultimodalInput({
     setAudioContents,
     width,
     status,
+    resetSubmitState,
   ]);
 
   const { isAtBottom, scrollToBottom } = useScrollToBottom();
@@ -2532,12 +2426,8 @@ function PureMultimodalInput({
 
       if (imageItems.length === 0) {
         // No image items found - might be text paste
-        // Call adjustHeight after paste is processed to handle the pasted content
-        setTimeout(() => {
-          requestAnimationFrame(() => {
-            adjustHeight();
-          });
-        }, 10);
+        // Small delay to let the paste complete before measuring height
+        setTimeout(adjustHeight, 0);
         return;
       }
 
@@ -2666,7 +2556,7 @@ function PureMultimodalInput({
         createPortal(
           <div
             ref={mentionsRef}
-            className="mention-dropdown bg-popover shadow-xl rounded-lg border border-border w-96 max-h-96 overflow-y-auto"
+            className="mention-dropdown bg-popover shadow-xl rounded-lg border border-border w-[calc(100vw-2rem)] md:w-96 max-h-[60vh] md:max-h-96 overflow-y-auto"
             style={{
               position: 'fixed', // Fixed positioning relative to viewport
               top: `${cursorPosition.top}px`,
@@ -3506,7 +3396,7 @@ function PureMultimodalInput({
                       variant="ghost"
                       size="icon"
                       className={cn(
-                        'rounded-xl p-2 h-9 w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200',
+                        'rounded-xl p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 touch-target-sm',
                         selectedPersonaId &&
                           'ring-2 ring-eos-orange/30 bg-eos-orange/5',
                       )}
@@ -3786,7 +3676,8 @@ function PureMultimodalInput({
                     : '',
                 )}
               >
-                {status === 'submitted' ? (
+                {/* Show stop button during both thinking (submitted) and streaming phases */}
+                {(status === 'submitted' || status === 'streaming') ? (
                   <motion.div
                     key={`stop-${chatId}`}
                     initial={{ opacity: 0, scale: 0.8 }}
@@ -3849,26 +3740,60 @@ function PureMultimodalInput({
         {showPredictions && predictions.length > 0 && !showMentions && (
           <div className="absolute top-full left-0 right-0 mt-2 z-10">
             <div className="flex flex-wrap gap-2 justify-start px-2">
-              {predictions.slice(0, 3).map((p) => (
+              {predictions.slice(0, 3).map((p, index) => (
                 <motion.button
                   key={p}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, filter: 'blur(4px)' }}
+                  transition={{ 
+                    duration: 0.2, 
+                    delay: index * 0.05,
+                    ease: 'easeOut'
+                  }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={async () => {
-                    // Insert remainder completion
-                    const current = input || '';
-                    const remainder = p;
-                    const joiner =
-                      current.endsWith(' ') || remainder.startsWith(' ')
-                        ? ''
-                        : ' ';
-                    setInput(current + joiner + remainder);
+                    // Smart fill behavior for prediction completion
+                    const current = (input || '').trimEnd();
+                    const remainder = p.trim();
+                    
+                    // Determine the best way to join the current input with the prediction
+                    let finalText = current;
+                    
+                    // Check if current input ends with a partial word (no space at end)
+                    const lastSpaceIndex = current.lastIndexOf(' ');
+                    const lastWord = lastSpaceIndex === -1 ? current : current.slice(lastSpaceIndex + 1);
+                    const remainderFirstWord = remainder.split(/\s+/)[0] || '';
+                    
+                    // Check if the remainder starts with the partial word (case-insensitive)
+                    // If so, replace the partial word with the full completion
+                    const partialMatch = 
+                      lastWord.length > 0 && 
+                      lastWord.length < 4 && 
+                      remainderFirstWord.toLowerCase().startsWith(lastWord.toLowerCase());
+                    
+                    if (partialMatch) {
+                      // Replace partial word with completion
+                      const baseText = lastSpaceIndex === -1 ? '' : current.slice(0, lastSpaceIndex + 1);
+                      finalText = baseText + remainder;
+                    } else {
+                      // Normal append with smart spacing
+                      const needsSpace = 
+                        current.length > 0 && 
+                        !current.endsWith(' ') && 
+                        !remainder.startsWith(' ') &&
+                        !/^[.,!?;:]/.test(remainder); // Don't add space before punctuation
+                      
+                      finalText = current + (needsSpace ? ' ' : '') + remainder;
+                    }
+                    
+                    setInput(finalText);
                     setShowPredictions(false);
                     setPredictions([]);
                     textareaRef.current?.focus();
+                    
+                    // Track prediction usage for ranking
                     try {
                       await fetch('/api/predictions/rank', {
                         method: 'POST',
@@ -3892,7 +3817,7 @@ function PureMultimodalInput({
         )}
 
         {/* Bottom toolbar (Secondary controls only) */}
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="mt-2 flex flex-col md:flex-row flex-wrap items-start md:items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
             {/* Only show usage chips for free plan users */}
             {user?.plan === 'free' && (
@@ -4075,7 +4000,7 @@ function PureStopButton({
   return (
     <Button
       data-testid="stop-button"
-      className="rounded-full p-2 h-9 w-9 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 bg-background shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200"
+      className="rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 bg-background shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200 touch-target-sm"
       onClick={handleStop}
       disabled={isStopping}
       title="Stop generation"
@@ -4130,7 +4055,7 @@ function PureSendButton({
     <Button
       data-testid="send-button"
       className={cx(
-        'rounded-full p-2 h-9 w-9 flex items-center justify-center transition-all duration-200 shadow-sm',
+        'rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center transition-all duration-200 shadow-sm touch-target-sm',
         isDisabled
           ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 cursor-not-allowed'
           : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md hover:scale-105 active:scale-95',

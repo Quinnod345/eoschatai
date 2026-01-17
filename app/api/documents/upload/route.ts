@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { sql, eq, and } from 'drizzle-orm';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { processUserDocument } from '@/lib/ai/user-rag';
 import {
   getAccessContext,
@@ -17,24 +17,24 @@ import { trackBlockedAction } from '@/lib/analytics';
 import { reserveStorageAtomic, releaseStorageReservation } from '@/lib/storage/tracking';
 import { computeStringHash } from '@/lib/utils/file-hash';
 
-const createOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+const createAnthropicClient = () => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || apiKey.trim() === '') {
     console.warn(
-      '[documents.upload] OPENAI_API_KEY missing or empty; advanced document analysis disabled.',
+      '[documents.upload] ANTHROPIC_API_KEY missing or empty; advanced document analysis disabled.',
     );
     return null;
   }
 
   try {
-    return new OpenAI({ apiKey });
+    return new Anthropic({ apiKey });
   } catch (error) {
-    console.error('[documents.upload] Failed to create OpenAI client:', error);
+    console.error('[documents.upload] Failed to create Anthropic client:', error);
     return null;
   }
 };
 
-const openai = createOpenAIClient();
+const anthropic = createAnthropicClient();
 
 // Extract text from different file types
 async function extractTextFromFile(
@@ -95,19 +95,20 @@ async function extractTextFromFile(
           const textFromPdf =
             data?.text || 'Limited text could be extracted from this PDF';
 
-          // Use OpenAI to analyze the text content and provide a description
-          if (!openai) {
+          // Use Claude to analyze the text content and provide a description
+          if (!anthropic) {
             console.warn(
-              '[documents.upload] OpenAI unavailable; returning raw PDF extraction.',
+              '[documents.upload] Anthropic unavailable; returning raw PDF extraction.',
             );
             return (
               pdfText ||
-              `OpenAI analysis unavailable for PDF ${fileName}. Provide additional context manually.`
+              `AI analysis unavailable for PDF ${fileName}. Provide additional context manually.`
             );
           }
 
-          const response = await openai.chat.completions.create({
-            model: 'gpt-4.1-mini',
+          const response = await anthropic.messages.create({
+            model: 'claude-3-5-haiku-20241022',
+            max_tokens: 4000,
             messages: [
               {
                 role: 'user',
@@ -125,20 +126,23 @@ async function extractTextFromFile(
                 [Provide a detailed 2-3 paragraph summary explaining what this document appears to be, its purpose, key information it contains, and its structure]`,
               },
             ],
-            max_completion_tokens: 4000,
           });
 
+          const responseText = response.content[0].type === 'text' 
+            ? response.content[0].text 
+            : '';
+          
           console.log(
-            `OpenAI text analysis returned a response with ${response.choices[0].message.content?.length || 0} characters`,
+            `Claude text analysis returned a response with ${responseText.length} characters`,
           );
 
           // Return the enhanced text and description
           return (
-            response.choices[0].message.content ||
+            responseText ||
             `Failed to extract content from PDF file ${fileName} using AI analysis.`
           );
-        } catch (openaiError) {
-          console.error('Error using OpenAI for PDF analysis:', openaiError);
+        } catch (aiError) {
+          console.error('Error using Claude for PDF analysis:', aiError);
 
           // Fallback to whatever text we could extract
           if (pdfText && pdfText.trim().length > 0) {

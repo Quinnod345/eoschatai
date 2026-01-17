@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
 import { z } from 'zod/v3';
 
@@ -42,7 +42,7 @@ export async function analyzeQueryComplexity(
     console.log(`Query Analyzer: Analyzing query: "${query}"`);
 
     const result = await generateObject({
-      model: openai('gpt-4o-mini'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       schema: z.object({
         complexity: z.enum(['simple', 'medium', 'complex']).describe(
           'Simple: General question, no specific user context. Medium: Specific question that might use user data. Complex: Multi-part or requires comprehensive context.',

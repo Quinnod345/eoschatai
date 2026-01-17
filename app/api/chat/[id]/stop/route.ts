@@ -3,6 +3,7 @@ import {
   deleteStreamIdsByChatId,
   getChatById,
   getStreamIdsByChatId,
+  markLatestUserMessageAsStopped,
 } from '@/lib/db/queries';
 import { createClient } from 'redis';
 
@@ -32,6 +33,15 @@ export async function POST(
 
     if (chat.userId !== session.user.id) {
       return new Response('Forbidden', { status: 403 });
+    }
+
+    // Mark the latest user message as stopped so it doesn't count toward daily limit
+    try {
+      await markLatestUserMessageAsStopped({ chatId });
+      console.log(`Marked latest user message as stopped for chat: ${chatId}`);
+    } catch (markError) {
+      console.warn(`Failed to mark message as stopped for chat ${chatId}:`, markError);
+      // Continue with stream cleanup
     }
 
     // Get all stream IDs for this chat before deleting them

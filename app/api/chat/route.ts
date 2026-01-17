@@ -147,8 +147,8 @@ function createTextStreamResponse(
   });
 }
 
-// Lightweight preflight to pick model and suggest a token budget using GPT-4.1-nano
-async function decideModelWithNano(args: {
+// Lightweight preflight to pick model and suggest a token budget using Claude Haiku
+async function decideModelWithHaiku(args: {
   provider: ReturnType<typeof createCustomProvider>;
   queryText: string;
   hasCodeOrMath: boolean;
@@ -159,9 +159,9 @@ async function decideModelWithNano(args: {
   mode?: 'nexus' | 'standard';
   hasComposerOpen?: boolean;
 }): Promise<{
-  model: 'gpt-4.1' | 'gpt-5';
+  enableThinking: boolean;
   maxOutputTokens: number;
-  reasoningEffort?: 'low' | 'medium' | 'high';
+  thinkingBudget?: number;
 }> {
   const {
     provider,
@@ -174,7 +174,7 @@ async function decideModelWithNano(args: {
     mode = 'standard',
     hasComposerOpen = false,
   } = args;
-  console.log('[PREFLIGHT] Starting nano preflight', {
+  console.log('[PREFLIGHT] Starting Haiku preflight', {
     mode,
     hasComposerOpen,
     hasCodeOrMath,
@@ -185,62 +185,66 @@ async function decideModelWithNano(args: {
     queryLength: (queryText || '').length,
   });
   const { text } = await generateText({
-    model: provider.languageModel('gpt-4.1-nano'),
-    system: `You are a token allocation grader. Decide the optimal OpenAI model and output token budget ONLY from the task text and context below.
+    model: provider.languageModel('preflight-model'),
+    system: `You are a token allocation grader. Decide the optimal Claude model configuration and output token budget ONLY from the task text and context below.
 
-MODEL SELECTION (be generous with GPT-5):
-- Use GPT-4.1 for: simple explanations, basic tutorials, straightforward code, simple troubleshooting, brief summaries.
-- Use GPT-5 for: deep analysis, comprehensive summaries, multi-faceted analysis, literary/rhetorical analysis, "find what's hidden", critical analysis, weakness identification, audience analysis, detailed documentation, research tasks, or any request asking for both summary AND analysis.
+EXTENDED THINKING DECISION (enable_thinking: true/false):
+Extended thinking makes Claude reason more deeply before responding. Enable it for complex tasks.
 
-DEEP ANALYSIS TRIGGERS (use GPT-5):
+ENABLE THINKING (enable_thinking: true) for:
+- Deep analysis, comprehensive summaries, multi-faceted analysis
+- Literary/rhetorical analysis, "find what's hidden", critical analysis
+- Weakness identification, audience analysis, detailed documentation
+- Research tasks, any request asking for both summary AND analysis
 - "deep analysis", "comprehensive", "thorough", "detailed analysis"
 - "find hidden", "beneath the surface", "relate everything", "central point"
 - "rhetorical situation", "audience analysis", "critical analysis"
 - "pick apart", "weak points", "critique", "evaluate"
-- Multiple analysis dimensions requested (e.g., summary + analysis + rhetorical + audience)
+- Multiple analysis dimensions requested
 - Academic or scholarly analysis requests
 - Requests with specific formatting requirements for analysis
+- Any file uploads (PDFs, documents, images)
+- Multiple file uploads (2+ files)
+- Large documents (10+ pages)
+- Analysis of uploaded content
+- Character count > 10000
+- Complex multi-step reasoning
 
-FILE UPLOAD TRIGGERS (strongly favor GPT-5):
-- Any file uploads present (PDFs, documents, images, etc.)
-- Multiple file uploads (2+ files) = automatic GPT-5
-- Large documents (10+ pages) = automatic GPT-5
-- Analysis of uploaded content = automatic GPT-5
+DISABLE THINKING (enable_thinking: false) for:
+- Simple explanations, basic tutorials, straightforward code
+- Simple troubleshooting, brief summaries
+- Quick questions, casual conversation
+- Character count < 5000 with no complexity signals
 
-INPUT LENGTH CONSIDERATIONS:
-- Character count > 5000: Lean towards GPT-5
-- Character count > 10000: Strong preference for GPT-5
-- Character count > 20000: Automatic GPT-5
-- Very long inputs often contain complex context requiring deeper reasoning
+THINKING BUDGET (when enable_thinking is true - be very generous, deeper thinking = better results):
+- Use 16000 for: moderate complexity queries, summaries, standard analysis
+- Use 32000 for: multi-step reasoning, critique, comparative analysis, complex code review
+- Use 50000 for: extreme complexity, multi-faceted analysis, research synthesis
+- Use 64000 for: hidden insight discovery, academic rigor, philosophical analysis, strategic planning
 
-REASONING EFFORT (when GPT-5 is selected):
-- Use "low" for: moderate complexity queries, summaries, standard analysis
-- Use "medium" for: multi-step reasoning, critique, comparative analysis, complex code review
-- Use "high" for: extreme complexity, multi-faceted analysis, research synthesis, hidden insight discovery, academic rigor, philosophical analysis, strategic planning
+TOKEN BUDGET TIERS (Claude supports very long outputs - be generous):
+- Minimal: 1000–2000 (simple questions)
+- Light: 2000–4000 (basic explanations)
+- Standard: 4000–8000 (typical responses)
+- Comprehensive: 8000–16000 (detailed explanations, analysis)
+- Extensive: 16000–32000 (research, documentation)
+- Massive: 32000–64000 (comprehensive reports, long documents)
 
-TOKEN BUDGET TIERS (choose one range, then pick a value inside it):
-- Minimal: 400–800
-- Light: 800–1500
-- Standard: 1500–3000
-- Comprehensive: 3000–6000
-- Extensive: 6000–10000
-- Massive: 10000–20000
-
-TOKEN BUDGET ADJUSTMENTS:
-- File uploads: +50% minimum, +100% for multiple files
-- Long input (>10k chars): +40% minimum
-- Very long input (>20k chars): +80% minimum
-- Code/programming: +40–50% tokens baseline
-- Math/derivations: +40–50% tokens baseline
-- Literary/rhetorical analysis: +50–60% tokens baseline
-- Multiple adjustments stack (e.g., file upload + long input + analysis)
+TOKEN BUDGET ADJUSTMENTS (Claude is very capable - lean toward higher values):
+- File uploads: +100% minimum
+- Long input (>10k chars): +50% minimum
+- Very long input (>20k chars): +100% minimum
+- Code/programming: +50% tokens baseline
+- Math/derivations: +50% tokens baseline
+- Literary/rhetorical analysis: +60% tokens baseline
+- Multiple adjustments stack
 
 DOCUMENT EDITING TRIGGERS (use high token budgets):
 - "expand", "add more", "elaborate", "add detail", "add examples"
 - "edit the document", "update the document", "revise", "rewrite"
 - "add transitions", "improve", "enhance", "make it better"
-- Document editing requires 3000–8000 tokens minimum for substantial edits
-- When composer_open is true, assume document editing context
+- Document editing requires 8000–16000 tokens minimum for substantial edits
+- When composer_open is true, assume document editing context and use at least 8000 tokens
 
 INTELLIGENCE SIGNALS:
 - Major token increase for: "deep", "comprehensive", "thorough", "in-depth", "analysis", multi-part requests, academic analysis, literary criticism.
@@ -250,11 +254,11 @@ INTELLIGENCE SIGNALS:
 MODE CONTEXT:
 - mode: ${mode}
 - composer_open: ${hasComposerOpen}
-If mode is nexus, allow even higher budgets. If composer_open is true, allocate AT LEAST 4000 tokens for document editing tasks.
+If mode is nexus, use high budgets (16000+). If composer_open is true, allocate AT LEAST 8000 tokens for document editing tasks.
 
-Return STRICT JSON: {"model":"gpt-4.1"|"gpt-5","max_tokens":<integer 400..100000>,"reasoning_effort":"low"|"medium"|"high"}. 
-If model is gpt-4.1, reasoning_effort must be "low" (ignored for GPT-4.1). 
-If model is gpt-5, choose appropriate reasoning_effort based on complexity. No commentary.`,
+Return STRICT JSON: {"enable_thinking":true|false,"max_tokens":<integer 1000..64000>,"thinking_budget":<integer 0|16000|32000|50000|64000>}. 
+If enable_thinking is false, thinking_budget should be 0. 
+If enable_thinking is true, choose appropriate thinking_budget based on complexity. No commentary.`,
     prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}\ncomposer_open: ${hasComposerOpen}`,
     maxOutputTokens: 128,
     temperature: 0,
@@ -265,31 +269,25 @@ If model is gpt-5, choose appropriate reasoning_effort based on complexity. No c
   try {
     parsed = JSON.parse(cleaned);
   } catch (parseError) {
-    console.error('[PREFLIGHT] Failed to parse nano response:', cleaned);
-    throw new Error('Nano preflight returned invalid JSON');
+    console.error('[PREFLIGHT] Failed to parse Haiku response:', cleaned);
+    throw new Error('Haiku preflight returned invalid JSON');
   }
 
-  const model = parsed.model === 'gpt-5' ? 'gpt-5' : 'gpt-4.1';
+  const enableThinking = parsed.enable_thinking === true;
   const maxTokens = Number(parsed.max_tokens);
-  // Normalize reasoning_effort to one of: 'low' | 'medium' | 'high'. Default to 'medium' if invalid.
-  const rawEffort =
-    typeof parsed.reasoning_effort === 'string'
-      ? parsed.reasoning_effort.toLowerCase().trim()
-      : '';
-  const allowedEfforts = new Set(['low', 'medium', 'high']);
-  const reasoningEffort: 'low' | 'medium' | 'high' = allowedEfforts.has(
-    rawEffort,
-  )
-    ? (rawEffort as 'low' | 'medium' | 'high')
-    : 'medium';
+  // Normalize thinking_budget to one of: 16000 | 32000 | 50000 | 64000. Default to 32000 if invalid.
+  const rawBudget = Number(parsed.thinking_budget);
+  const allowedBudgets = new Set([16000, 32000, 50000, 64000]);
+  const thinkingBudget: number = allowedBudgets.has(rawBudget) ? rawBudget : 32000;
+  
   if (!Number.isFinite(maxTokens)) {
-    throw new Error('Nano preflight returned invalid max_tokens');
+    throw new Error('Haiku preflight returned invalid max_tokens');
   }
-  console.log('[PREFLIGHT] Decision', { model, maxOutputTokens: maxTokens, reasoningEffort });
+  console.log('[PREFLIGHT] Decision', { enableThinking, maxOutputTokens: maxTokens, thinkingBudget: enableThinking ? thinkingBudget : 0 });
   return {
-    model,
+    enableThinking,
     maxOutputTokens: Math.max(200, Math.floor(maxTokens)),
-    reasoningEffort: model === 'gpt-5' ? reasoningEffort : undefined,
+    thinkingBudget: enableThinking ? thinkingBudget : undefined,
   };
 }
 
@@ -299,7 +297,12 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     requestBody = postRequestBodySchema.parse(json);
-  } catch (_) {
+  } catch (error) {
+    console.error('[CHAT] Request body validation failed:', error);
+    // Log more details for Zod validation errors
+    if (error instanceof Error && 'issues' in error) {
+      console.error('[CHAT] Validation issues:', JSON.stringify((error as any).issues, null, 2));
+    }
     return new Response('Invalid request body', { status: 400 });
   }
 
@@ -309,7 +312,7 @@ export async function POST(request: Request) {
       message,
       selectedChatModel,
       selectedVisibilityType,
-      selectedProvider = 'openai',
+      selectedProvider = 'anthropic',
       selectedPersonaId,
       selectedProfileId,
       selectedResearchMode,
@@ -1081,6 +1084,8 @@ export async function POST(request: Request) {
           attachments: attachmentsToSave,
           createdAt: new Date(),
           provider: selectedProvider,
+          stoppedAt: null,
+          reasoning: null, // User messages don't have reasoning
         },
       ],
     });
@@ -1680,10 +1685,9 @@ Always prioritize the user's document content over generic information. If speci
             queryText?.toLowerCase().includes('analysis')); // Both summary AND analysis requested
 
         const providerForDecision = createCustomProvider(selectedProvider);
-        let preflightModel: 'gpt-4.1' | 'gpt-5' = 'gpt-4.1';
+        let preflightEnableThinking = false;
         let preflightMaxTokens = 2000;
-        let preflightReasoningEffort: 'low' | 'medium' | 'high' | undefined =
-          undefined;
+        let preflightThinkingBudget: number | undefined = undefined;
 
         // If the user supplied URLs, instruct the model to fetch them via searchWeb before answering
         const urlRegex = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/gi;
@@ -1708,7 +1712,7 @@ Always prioritize the user's document content over generic information. If speci
           nexusPromptAddition +
           urlFetchInstruction +
           toolResponseInstructions;
-
+        
         // Run preflight for all modes, but with different parameters for Nexus
         writer.write({
           type: 'data-custom',
@@ -1722,7 +1726,7 @@ Always prioritize the user's document content over generic information. If speci
         });
 
         try {
-          const decision = await decideModelWithNano({
+          const decision = await decideModelWithHaiku({
             provider: providerForDecision,
             queryText: queryText || '',
             hasCodeOrMath,
@@ -1733,14 +1737,14 @@ Always prioritize the user's document content over generic information. If speci
             mode: isNexusMode ? 'nexus' : 'standard',
             hasComposerOpen: Boolean(composerDocumentId),
           });
-          preflightModel = decision.model;
+          preflightEnableThinking = decision.enableThinking;
           preflightMaxTokens = decision.maxOutputTokens;
-          preflightReasoningEffort = decision.reasoningEffort;
+          preflightThinkingBudget = decision.thinkingBudget;
 
           console.log('[PREFLIGHT] Final decision:', {
-            model: preflightModel,
+            enableThinking: preflightEnableThinking,
             maxOutputTokens: preflightMaxTokens,
-            reasoningEffort: preflightReasoningEffort,
+            thinkingBudget: preflightThinkingBudget,
             mode: isNexusMode ? 'nexus' : 'standard',
           });
         } catch (e) {
@@ -1748,44 +1752,30 @@ Always prioritize the user's document content over generic information. If speci
             'Preflight decision failed, falling back to defaults',
             e,
           );
-          // For Nexus mode, use more generous defaults
+          // For Nexus mode, use more generous defaults with thinking enabled
           if (isNexusMode) {
-            preflightModel = 'gpt-5';
+            preflightEnableThinking = true;
             preflightMaxTokens = 8000;
-            preflightReasoningEffort = 'high';
+            preflightThinkingBudget = 20000;
           }
         }
 
-        // Apply conservative override: favor GPT-4.1 unless Nexus forces otherwise
-        // Nexus mode uses GPT-4.1 by default per requirements; otherwise use preflight selection
-        // Nexus uses the preflight-selected model as well, but preflight is conservative with GPT-5
-        // Use preflight model selection for all modes
-        const finalChatModel = preflightModel;
+        // Always use claude-sonnet model - thinking is controlled via parameter
+        const finalChatModel = 'claude-sonnet';
 
-        // Establish safe hard limit based on final model
-        // More generous limits for both models
-        const safeHardLimit = finalChatModel.includes('gpt-4.1')
-          ? 32000 // Doubled from 16000
-          : 100000; // Doubled from 50000
-        // Set temperature based on model
-        // GPT-5 and newer models only support default temperature of 1
-        const temperature = finalChatModel === 'gpt-5' ? 1 : 0.8;
+        // Claude has very generous output limits - no hard caps needed
+        // Claude 4.5 Sonnet supports up to 64K output tokens
+        // Set temperature based on thinking mode
+        // Claude with extended thinking requires temperature undefined or 1
+        const temperature = preflightEnableThinking ? undefined : 0.8;
 
-        // For Nexus mode, allow reasonable cap; otherwise, clamp by both preflight and model limit
-        // When a composer is open, use a much higher minimum for document editing
-        const baseMinTokens = composerDocumentId ? 4000 : 1000;
-        const nexusTokenLimit = isNexusMode
-          ? 16000 // Doubled from 8000
-          : Math.min(
-              safeHardLimit,
-              Math.max(baseMinTokens, preflightMaxTokens),
-            );
+        // Use preflight token recommendation directly - no capping
+        // Claude can handle much larger outputs than GPT models
+        const baseMinTokens = composerDocumentId ? 8000 : 2000;
+        const outputTokenLimit = Math.max(baseMinTokens, preflightMaxTokens);
 
-        // Compute artifact token multiplier without disrupting preflight
-        // More generous boost: 2.0x up to a higher cap
-        const artifactMaxTokens = isNexusMode
-          ? 24000 // Doubled from 12000
-          : Math.min(20000, Math.floor((preflightMaxTokens || 3000) * 2.0)); // Increased multiplier and cap
+        // For composer/artifact generation, be very generous
+        const artifactMaxTokens = Math.max(16000, preflightMaxTokens * 2);
 
         console.log('[DEBUG] Nexus mode check:', {
           selectedResearchMode,
@@ -1886,11 +1876,11 @@ Always prioritize the user's document content over generic information. If speci
             {
               model: finalChatModel,
               softTokenGuidance,
-              safeHardLimit: nexusTokenLimit,
+              outputTokenLimit,
               temperature,
               hasNexusResearch: !!nexusResearchContext,
               systemPromptLength: finalSystemPrompt.length,
-              reasoningEffort: preflightReasoningEffort || 'none',
+              thinkingBudget: preflightThinkingBudget || 'none',
             },
           );
 
@@ -1921,15 +1911,19 @@ Always prioritize the user's document content over generic information. If speci
               // Removed smoothStream transform - frontend handles smoothing with useSmoothStream hook
               // This allows immediate character-by-character streaming without word buffering
               // AI SDK 5: experimental_generateMessageId removed - use generateId in toUIMessageStreamResponse
-              // Dynamic settings based on Nexus mode
-              temperature: temperature, // Use the variable we defined
-              maxOutputTokens: nexusTokenLimit, // Much higher limit for nexus/o3
-              // Add reasoning effort for GPT-5
-              ...(finalChatModel === 'gpt-5' && preflightReasoningEffort
+              // Dynamic settings based on mode
+              temperature: temperature, // Use the variable we defined (undefined for thinking mode)
+              maxOutputTokens: outputTokenLimit, // Generous limit for Claude
+              // Add extended thinking when enabled via preflight
+              // AI SDK 5: Use providerOptions (not experimental_providerMetadata) for inputs
+              ...(preflightEnableThinking && preflightThinkingBudget
                 ? {
-                    experimental_providerMetadata: {
-                      openai: {
-                        reasoningEffort: preflightReasoningEffort,
+                    providerOptions: {
+                      anthropic: {
+                        thinking: {
+                          type: 'enabled',
+                          budgetTokens: preflightThinkingBudget,
+                        },
                       },
                     },
                   }
@@ -2681,9 +2675,9 @@ Always prioritize the user's document content over generic information. If speci
                   });
 
                   // Warn if approaching output limits
-                  if (outputTokens > nexusTokenLimit * 0.9) {
+                  if (outputTokens > outputTokenLimit * 0.9) {
                     console.warn(
-                      `[USAGE] Response used ${outputTokens} tokens, very close to limit of ${nexusTokenLimit}`,
+                      `[USAGE] Response used ${outputTokens} tokens, very close to limit of ${outputTokenLimit}`,
                     );
                   }
 
@@ -2692,7 +2686,7 @@ Always prioritize the user's document content over generic information. If speci
                     console.error(
                       '[USAGE] Response truncated due to token limit!',
                       {
-                        limit: nexusTokenLimit,
+                        limit: outputTokenLimit,
                         used: outputTokens,
                         model: finalChatModel,
                       },
@@ -2706,7 +2700,7 @@ Always prioritize the user's document content over generic information. If speci
                         type: 'token-limit-warning',
                         message: 'Response may be truncated due to length limits',
                         tokensUsed: outputTokens,
-                        tokenLimit: nexusTokenLimit,
+                        tokenLimit: outputTokenLimit,
                       }
                     });
                   }
@@ -2717,6 +2711,27 @@ Always prioritize the user's document content over generic information. If speci
                     // AI SDK 5: Use result.steps to get ALL tool calls across all steps
                     // result.toolCalls only returns the LAST step's calls!
                     const assistantId = generateUUID();
+                    
+                    // Capture reasoning content from extended thinking (if enabled)
+                    let reasoningContent: string | null = null;
+                    try {
+                      const reasoningOutputs = await result.reasoning;
+                      if (reasoningOutputs && Array.isArray(reasoningOutputs) && reasoningOutputs.length > 0) {
+                        // Join all reasoning outputs into a single string
+                        reasoningContent = reasoningOutputs
+                          .map((r: any) => r.text || r.content || r.thinking || r.reasoning || (typeof r === 'string' ? r : null))
+                          .filter(Boolean)
+                          .join('\n\n');
+                        if (reasoningContent) {
+                          console.log('[SAVE] Reasoning saved:', reasoningContent.length, 'chars');
+                        }
+                      } else if (typeof reasoningOutputs === 'string') {
+                        reasoningContent = reasoningOutputs;
+                        console.log('[SAVE] Reasoning saved:', reasoningContent.length, 'chars');
+                      }
+                    } catch {
+                      // Reasoning not available - normal for non-thinking responses
+                    }
                     
                     // Build message parts including text AND tool invocations
                     const messageParts: any[] = [];
@@ -2891,6 +2906,8 @@ Always prioritize the user's document content over generic information. If speci
                           attachments: [], // Attachments now part of file parts
                           createdAt: new Date(),
                           provider: selectedProvider,
+                          stoppedAt: null,
+                          reasoning: reasoningContent, // Save Claude's extended thinking
                         },
                       ],
                     });
@@ -3028,6 +3045,8 @@ Always prioritize the user's document content over generic information. If speci
                               attachments: [],
                               createdAt: new Date(),
                               provider: selectedProvider,
+                              stoppedAt: null,
+                              reasoning: null, // Partial messages don't have reasoning
                             },
                           ],
                         });
@@ -3075,7 +3094,21 @@ Always prioritize the user's document content over generic information. If speci
 
               // Important: Don't consume the stream before merging if we've pre-created content
               // The consumeStream() call was preventing pre-created data from reaching the client
-              writer.merge(result.toUIMessageStream());
+              // Enable sendReasoning to stream Claude's extended thinking content to the client
+              console.log('[THINKING DEBUG] Thinking enabled:', preflightEnableThinking, 'Budget:', preflightThinkingBudget);
+              
+              // Log reasoning content for debugging
+              result.reasoning.then((reasoning) => {
+                if (reasoning && Array.isArray(reasoning) && reasoning.length > 0) {
+                  console.log('[THINKING] Reasoning received:', reasoning.length, 'parts');
+                }
+              }).catch(() => {
+                // Reasoning not available - this is normal for non-thinking responses
+              });
+              
+              writer.merge(result.toUIMessageStream({
+                sendReasoning: true,
+              }));
             } catch (streamError) {
               console.error('RAG ERROR: Error processing stream:', streamError);
               // Clear timeout on stream error
@@ -3127,7 +3160,7 @@ Always prioritize the user's document content over generic information. If speci
           confidence: z.number().min(0).max(100).optional(),
         });
         const result = await generateObject({
-          model: (await import('@ai-sdk/openai')).openai('gpt-5-mini'),
+          model: (await import('@ai-sdk/anthropic')).anthropic('claude-3-5-haiku-20241022'),
           schema,
           system:
             'Decide if the user is asking to store a useful long-term memory. Prefer not saving unless it is a clear, stable preference, profile fact, company detail, or reusable knowledge. Return conservative confidence.',

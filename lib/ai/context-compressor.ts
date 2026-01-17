@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { countTokens } from './token-counter';
 
@@ -7,13 +7,13 @@ import { countTokens } from './token-counter';
  * Uses LLM to intelligently compress while preserving key information
  * @param text - Text to compress
  * @param maxTokens - Maximum tokens allowed
- * @param model - Model to use for compression (default: gpt-4o-mini for speed)
+ * @param model - Model to use for compression (default: claude-3-5-haiku for speed)
  * @returns Compressed text
  */
 export async function compressContext(
   text: string,
   maxTokens: number,
-  model: string = 'gpt-4o-mini',
+  model: string = 'claude-3-5-haiku-20241022',
 ): Promise<string> {
   if (!text || maxTokens <= 0) {
     return '';
@@ -34,9 +34,9 @@ export async function compressContext(
     // Calculate target token count (aim for 90% of budget for safety)
     const targetTokens = Math.floor(maxTokens * 0.9);
 
-    // Use GPT-4o-mini for fast, cost-effective compression
+    // Use Claude 3.5 Haiku for fast, cost-effective compression
     const result = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       prompt: `You are compressing context to fit a token budget while preserving all key information.
 
 ORIGINAL TEXT (${currentTokens} tokens):
@@ -177,7 +177,7 @@ export async function extractKeyPoints(
 ): Promise<string> {
   try {
     const result = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: anthropic('claude-3-5-haiku-20241022'),
       prompt: `Extract the ${maxPoints} most important points from this text as a concise bulleted list:
 
 ${text}

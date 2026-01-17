@@ -1871,7 +1871,7 @@ export function Chat({
 
         {/* Show follow-up questions if available */}
         {followUpQuestions.length > 0 && selectedResearchMode === 'nexus' && (
-          <div className="fixed bottom-4 right-4 z-30 max-w-md w-[92vw] sm:w-[420px] pointer-events-auto">
+          <div className="fixed bottom-20 md:bottom-4 left-3 right-3 md:left-auto md:right-4 z-30 md:max-w-md md:w-[420px] pointer-events-auto">
             <NexusFollowUpQuestions
               className="shadow-lg"
               questions={followUpQuestions}
@@ -1896,7 +1896,7 @@ export function Chat({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="absolute bottom-32 left-0 right-0 mx-auto px-4 w-full md:max-w-3xl z-20"
+              className="absolute bottom-28 md:bottom-32 left-0 right-0 mx-auto px-3 md:px-4 w-full md:max-w-3xl z-20"
             >
               <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
                 <Telescope className="w-4 h-4 animate-pulse" />
@@ -1926,7 +1926,7 @@ export function Chat({
                 }
               : { duration: 0 }
           }
-          className="absolute left-0 right-0 flex flex-col mx-auto px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10"
+          className="absolute left-0 right-0 flex flex-col mx-auto px-3 md:px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10 safe-area-bottom"
         >
           {/* Reply Indicator */}
           <AnimatePresence initial={false}>

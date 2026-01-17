@@ -62,7 +62,7 @@ const DialogContent = React.forwardRef<
         exit={{ opacity: 0, scale: 0.96, y: 10 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         className={cn(
-          'relative w-full max-w-lg gap-4 bg-background/90 p-6 shadow-2xl backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 sm:rounded-2xl pointer-events-auto',
+          'relative w-full max-w-[calc(100vw-2rem)] sm:max-w-lg gap-4 bg-background/90 p-4 sm:p-6 shadow-2xl backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-xl sm:rounded-2xl pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto',
           '[&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-words [&_code]:whitespace-pre-wrap',
           className,
         )}
@@ -75,8 +75,8 @@ const DialogContent = React.forwardRef<
       >
         {children}
         {!hideCloseButton && (
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
-            <X className="h-4 w-4" />
+          <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-1.5 opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10 touch-target-sm">
+            <X className="h-5 w-5 sm:h-4 sm:w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
