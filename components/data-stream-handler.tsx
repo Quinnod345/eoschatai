@@ -107,6 +107,11 @@ export function DataStreamHandler({ id }: { id: string }) {
     
     if (!lastAssistantMessage?.parts) return;
 
+    // DEBUG: Log all parts to see what we're receiving
+    console.log('[DataStreamHandler] Processing message parts:', 
+      lastAssistantMessage.parts.map((p: any) => ({ type: p.type, hasData: !!p.data }))
+    );
+
     // Process data-tool parts from the message
     for (const part of lastAssistantMessage.parts) {
       // AI SDK 5: data parts have type like 'data-tool', 'data-custom', etc.
@@ -120,6 +125,12 @@ export function DataStreamHandler({ id }: { id: string }) {
         // Extract the delta from the data part
         const dataPart = part as any;
         const data = dataPart.data;
+        
+        console.log('[DataStreamHandler] Found data part:', { 
+          partType: dataPart.type, 
+          dataType: data?.type,
+          hasContent: !!data?.content 
+        });
         
         if (!data?.type) continue;
 

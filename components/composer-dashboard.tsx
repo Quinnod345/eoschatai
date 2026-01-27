@@ -123,9 +123,21 @@ export function ComposerDashboard() {
   }, [isRecordings, recordingsData]);
 
   const [cachedRows, setCachedRows] = useState<Row[]>([]);
+  const [cachedKind, setCachedKind] = useState<ComposerKind | null>(null);
+  
+  // Clear cache when kind changes to prevent stale data from showing
   useEffect(() => {
-    if (rows && rows.length > 0) setCachedRows(rows);
-  }, [rows]);
+    if (kind !== cachedKind) {
+      setCachedRows([]);
+      setCachedKind(kind);
+    }
+  }, [kind, cachedKind]);
+  
+  useEffect(() => {
+    if (rows && rows.length > 0 && kind === cachedKind) {
+      setCachedRows(rows);
+    }
+  }, [rows, kind, cachedKind]);
 
   const displayRows = isRecordings
     ? recordingRows

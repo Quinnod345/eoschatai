@@ -8,7 +8,8 @@ export type MentionCategory =
   | 'command' // Quick actions and commands
   | 'template' // Message templates
   | 'history' // Previous chats or messages
-  | 'insight'; // Analytics and reports
+  | 'insight' // Analytics and reports
+  | 'composer'; // Composer documents (AI-generated content)
 
 export type MentionType =
   // Resources
@@ -19,6 +20,8 @@ export type MentionType =
   | 'people'
   | 'file'
   | 'knowledge'
+  | 'recording' // Voice recordings
+  | 'accountability' // Accountability charts
   // Calendar
   | 'calendar'
   | 'event'
@@ -47,7 +50,59 @@ export type MentionType =
   | 'message'
   // Insights
   | 'analytics'
-  | 'trends';
+  | 'trends'
+  // Composers (AI-generated documents)
+  | 'composer' // Generic composer
+  | 'text-composer' // Text/markdown composer
+  | 'code-composer' // Code composer
+  | 'sheet-composer' // Spreadsheet composer
+  | 'chart-composer' // Chart composer
+  | 'image-composer' // Image composer
+  | 'vto-composer' // VTO composer
+  | 'accountability-composer'; // Accountability chart composer
+
+// Composer kind to mention type mapping
+export type ComposerKind =
+  | 'text'
+  | 'code'
+  | 'image'
+  | 'sheet'
+  | 'chart'
+  | 'vto'
+  | 'accountability';
+
+export const COMPOSER_KIND_TO_MENTION_TYPE: Record<ComposerKind, MentionType> = {
+  text: 'text-composer',
+  code: 'code-composer',
+  image: 'image-composer',
+  sheet: 'sheet-composer',
+  chart: 'chart-composer',
+  vto: 'vto-composer',
+  accountability: 'accountability-composer',
+};
+
+export const MENTION_TYPE_TO_COMPOSER_KIND: Partial<Record<MentionType, ComposerKind>> = {
+  'text-composer': 'text',
+  'code-composer': 'code',
+  'image-composer': 'image',
+  'sheet-composer': 'sheet',
+  'chart-composer': 'chart',
+  'vto-composer': 'vto',
+  'accountability-composer': 'accountability',
+  composer: 'text', // Default to text for generic composer mentions
+};
+
+// Composer-specific mention shortcuts
+export const COMPOSER_MENTION_SHORTCUTS: Record<string, ComposerKind | 'all'> = {
+  '@doc': 'text',
+  '@code': 'code',
+  '@sheet': 'sheet',
+  '@chart': 'chart',
+  '@image': 'image',
+  '@vto': 'vto',
+  '@ac': 'accountability',
+  '@composer': 'all', // Shows all composers
+};
 
 export interface MentionResource {
   id: string;
@@ -86,6 +141,63 @@ export interface MentionInstance {
   lastUsed?: Date;
   metadata?: Record<string, any>;
 }
+
+// Composer-specific mention instance with rich metadata
+export interface ComposerMentionInstance extends MentionInstance {
+  kind: ComposerKind;
+  title: string;
+  content?: string; // Full content for context
+  contentSummary?: string; // AI-generated summary
+  tags?: string[];
+  category?: string;
+  viewCount?: number;
+  editCount?: number;
+  mentionCount?: number;
+  lastAccessedAt?: Date;
+  createdAt: Date;
+  userId: string;
+  isContext?: boolean; // Whether this composer is used for RAG
+}
+
+// Result type when a composer mention is selected
+export interface ComposerMentionSelection {
+  composer: ComposerMentionInstance;
+  action: 'reference' | 'edit' | 'open' | 'link';
+  instruction?: string; // For edit actions, the instruction to apply
+}
+
+// Icons for each composer type
+export const COMPOSER_KIND_ICONS: Record<ComposerKind, string> = {
+  text: 'FileText',
+  code: 'Code',
+  image: 'Image',
+  sheet: 'Table',
+  chart: 'BarChart',
+  vto: 'Target',
+  accountability: 'Users',
+};
+
+// Display names for each composer type
+export const COMPOSER_KIND_DISPLAY_NAMES: Record<ComposerKind, string> = {
+  text: 'Text Document',
+  code: 'Code',
+  image: 'Image',
+  sheet: 'Spreadsheet',
+  chart: 'Chart',
+  vto: 'V/TO',
+  accountability: 'Accountability Chart',
+};
+
+// Colors for each composer type (for visual distinction)
+export const COMPOSER_KIND_COLORS: Record<ComposerKind, string> = {
+  text: '#3B82F6', // blue
+  code: '#10B981', // green
+  image: '#F59E0B', // amber
+  sheet: '#8B5CF6', // purple
+  chart: '#EC4899', // pink
+  vto: '#EF4444', // red
+  accountability: '#06B6D4', // cyan
+};
 
 export interface MentionAction {
   id: string;

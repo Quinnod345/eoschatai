@@ -30,6 +30,8 @@ import {
   type DBMessage,
   type Chat,
   stream,
+  type Stream,
+  type StreamStatus,
   userSettings,
   pinnedMessage,
 } from './schema';
@@ -830,11 +832,11 @@ export async function markLatestUserMessageAsStopped({
         .set({ stoppedAt: new Date() })
         .where(eq(message.id, latestUserMessage[0].id))
         .execute();
-      
+
       console.log(`[DB] Marked message ${latestUserMessage[0].id} as stopped`);
       return latestUserMessage[0].id;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Failed to mark message as stopped:', error);
@@ -842,17 +844,40 @@ export async function markLatestUserMessageAsStopped({
   }
 }
 
+// Stream metadata type for additional state
+export interface StreamMetadata {
+  researchMode?: string;
+  partialContent?: string;
+  composerKind?: string;
+  composerTitle?: string;
+  error?: string;
+}
+
 export async function createStreamId({
   streamId,
   chatId,
+  messageId,
+  composerDocumentId,
+  metadata,
 }: {
   streamId: string;
   chatId: string;
+  messageId?: string;
+  composerDocumentId?: string;
+  metadata?: StreamMetadata;
 }) {
   try {
-    await db
-      .insert(stream)
-      .values({ id: streamId, chatId, createdAt: new Date() });
+    const now = new Date();
+    await db.insert(stream).values({
+      id: streamId,
+      chatId,
+      createdAt: now,
+      status: 'active',
+      lastActiveAt: now,
+      messageId,
+      composerDocumentId,
+      metadata,
+    });
   } catch (error) {
     console.error('Failed to create stream id in database');
     throw error;
@@ -875,6 +900,176 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
   }
 }
 
+export async function getActiveStreamByChatId({
+  chatId,
+}: {
+  chatId: string;
+}): Promise<Stream | null> {
+  try {
+    const activeStreams = await db
+      .select()
+      .from(stream)
+      .where(and(eq(stream.chatId, chatId), eq(stream.status, 'active')))
+      .orderBy(desc(stream.createdAt))
+      .limit(1)
+      .execute();
+
+    return activeStreams[0] || null;
+  } catch (error) {
+    console.error('Failed to get active stream by chat id from database');
+    throw error;
+  }
+}
+
+export async function getStreamById({
+  streamId,
+}: {
+  streamId: string;
+}): Promise<Stream | null> {
+  try {
+    const streams = await db
+      .select()
+      .from(stream)
+      .where(eq(stream.id, streamId))
+      .limit(1)
+      .execute();
+
+    return streams[0] || null;
+  } catch (error) {
+    console.error('Failed to get stream by id from database');
+    throw error;
+  }
+}
+
+export async function updateStreamStatus({
+  streamId,
+  status,
+  metadata,
+}: {
+  streamId: string;
+  status: StreamStatus;
+  metadata?: StreamMetadata;
+}) {
+  try {
+    const updateData: Partial<Stream> = {
+      status,
+      lastActiveAt: new Date(),
+    };
+
+    if (metadata !== undefined) {
+      updateData.metadata = metadata;
+    }
+
+    await db.update(stream).set(updateData).where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to update stream status in database');
+    throw error;
+  }
+}
+
+export async function updateStreamLastActive({
+  streamId,
+  metadata,
+}: {
+  streamId: string;
+  metadata?: StreamMetadata;
+}) {
+  try {
+    const updateData: Partial<Stream> = {
+      lastActiveAt: new Date(),
+    };
+
+    if (metadata !== undefined) {
+      updateData.metadata = metadata;
+    }
+
+    await db.update(stream).set(updateData).where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to update stream last active in database');
+    throw error;
+  }
+}
+
+export async function updateStreamMessageId({
+  streamId,
+  messageId,
+}: {
+  streamId: string;
+  messageId: string;
+}) {
+  try {
+    await db
+      .update(stream)
+      .set({
+        messageId,
+        lastActiveAt: new Date(),
+      })
+      .where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to update stream messageId in database');
+    throw error;
+  }
+}
+
+export async function markStreamCompleted({ streamId }: { streamId: string }) {
+  try {
+    await db
+      .update(stream)
+      .set({
+        status: 'completed',
+        lastActiveAt: new Date(),
+      })
+      .where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to mark stream as completed in database');
+    throw error;
+  }
+}
+
+export async function markStreamInterrupted({
+  streamId,
+  metadata,
+}: {
+  streamId: string;
+  metadata?: StreamMetadata;
+}) {
+  try {
+    await db
+      .update(stream)
+      .set({
+        status: 'interrupted',
+        lastActiveAt: new Date(),
+        ...(metadata && { metadata }),
+      })
+      .where(eq(stream.id, streamId));
+  } catch (error) {
+    console.error('Failed to mark stream as interrupted in database');
+    throw error;
+  }
+}
+
+export async function markStreamErrored({
+  streamId,
+  error,
+}: {
+  streamId: string;
+  error?: string;
+}) {
+  try {
+    await db
+      .update(stream)
+      .set({
+        status: 'errored',
+        lastActiveAt: new Date(),
+        metadata: error ? { error } : undefined,
+      })
+      .where(eq(stream.id, streamId));
+  } catch (error: any) {
+    console.error('Failed to mark stream as errored in database');
+    throw error;
+  }
+}
+
 export async function deleteStreamIdsByChatId({ chatId }: { chatId: string }) {
   try {
     return await db.delete(stream).where(eq(stream.chatId, chatId));
@@ -889,6 +1084,29 @@ export async function deleteStreamId({ streamId }: { streamId: string }) {
     return await db.delete(stream).where(eq(stream.id, streamId));
   } catch (error) {
     console.error('Failed to delete stream id from database');
+    throw error;
+  }
+}
+
+export async function cleanupStaleStreams({
+  maxAgeMinutes = 30,
+}: {
+  maxAgeMinutes?: number;
+}) {
+  try {
+    const cutoffTime = new Date(Date.now() - maxAgeMinutes * 60 * 1000);
+
+    // Mark stale active streams as interrupted
+    await db
+      .update(stream)
+      .set({ status: 'interrupted' })
+      .where(
+        and(eq(stream.status, 'active'), lt(stream.lastActiveAt, cutoffTime)),
+      );
+
+    console.log(`Cleaned up stale streams older than ${maxAgeMinutes} minutes`);
+  } catch (error) {
+    console.error('Failed to cleanup stale streams');
     throw error;
   }
 }

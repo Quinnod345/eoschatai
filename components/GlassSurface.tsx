@@ -364,7 +364,7 @@ const GlassSurface = forwardRef<HTMLElement, GlassSurfaceProps>(
 
     const transitionClass = noTransition
       ? ''
-      : 'transition-opacity duration-[260ms] ease-out';
+      : 'transition-opacity duration-300 ease-out';
     const overflowClass = isToolCall ? 'overflow-visible' : 'overflow-hidden';
     const glassSurfaceClasses = isBackdrop
       ? `absolute inset-0 ${overflowClass} ${transitionClass} pointer-events-none`

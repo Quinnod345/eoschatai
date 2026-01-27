@@ -32,8 +32,9 @@ export const createDocument = ({
     execute: async ({ title, kind }) => {
       const id = generateUUID();
 
-      console.log(`Creating document with kind: ${kind}, title: ${title}`);
+      console.log(`[createDocument] Starting document creation with kind: ${kind}, title: ${title}`);
 
+      console.log(`[createDocument] Writing kind to dataStream: ${kind}`);
       dataStream.write({
         type: 'data-tool',
         id: generateId(),

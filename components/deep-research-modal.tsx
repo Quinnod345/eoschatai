@@ -59,7 +59,7 @@ export function DeepResearchModal({ open, onClose }: DeepResearchModalProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">

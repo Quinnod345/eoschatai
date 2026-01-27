@@ -2,11 +2,11 @@
 
 import * as React from 'react';
 import {
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-} from '@/components/ui/alert-dialog';
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -32,7 +32,7 @@ import { parseDocumentContent } from '@/lib/utils/document-parser';
 import { AnimatedModal } from '@/components/ui/animated-modal';
 import { Checkbox } from '@/components/ui/checkbox';
 
-// Custom styling to match the settings modal styling
+// CSS class names for dynamic styling
 const styles = {
   wrapper: 'document-modal-wrapper',
   enhancedModal: 'document-modal-enhanced',
@@ -973,27 +973,19 @@ export function DocumentContextModal({
 
   return (
     <>
-      <AnimatedModal isOpen={isOpen} onClose={onClose}>
-        <div className={cn('p-6 sm:p-8', styles.wrapper, styles.enhancedModal)}>
-          <AlertDialogHeader className="mb-6">
-            <AlertDialogTitle
-              className={cn(
-                'text-xl sm:text-2xl font-semibold',
-                styles.headerText,
-              )}
-            >
-              Document Context
-            </AlertDialogTitle>
-            <AlertDialogDescription
-              className={cn('text-sm mt-2', styles.mutedText)}
-            >
-              Upload your EOS documents to provide context for AI responses.
-              <span className="block mt-2 text-sm font-medium text-foreground">
-                Primary Accountability, V/TO, and Scorecard composers are
-                automatically used as context. You can customize below.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+      <AnimatedModal isOpen={isOpen} onClose={onClose} size="xl" title="Document Context">
+        <DialogHeader>
+          <DialogTitle className="text-xl sm:text-2xl font-semibold">
+            Document Context
+          </DialogTitle>
+          <DialogDescription>
+            Upload your EOS documents to provide context for AI responses.
+            <span className="block mt-2 text-sm font-medium text-foreground">
+              Primary Accountability, V/TO, and Scorecard composers are
+              automatically used as context. You can customize below.
+            </span>
+          </DialogDescription>
+        </DialogHeader>
 
           <div className="mb-6 flex items-center justify-between p-4 bg-muted/30 rounded-lg">
             <label className="text-sm flex items-center gap-2 cursor-pointer">
@@ -1293,36 +1285,31 @@ export function DocumentContextModal({
             </div>
           </div>
 
-          <AlertDialogFooter className="document-modal-footer">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={loading || uploading}
-              className={cn(styles.cancelButton)}
-            >
-              Close
-            </Button>
-          </AlertDialogFooter>
-        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={loading || uploading}
+          >
+            Close
+          </Button>
+        </DialogFooter>
       </AnimatedModal>
       {showComposerPicker && (
         <AnimatedModal
           isOpen={showComposerPicker}
           onClose={() => setShowComposerPicker(false)}
+          size="xl"
+          title="Choose Composers"
         >
-          <div className={cn('p-6 sm:p-8', styles.wrapper, styles.pickerModal)}>
-            <AlertDialogHeader className="mb-6">
-              <AlertDialogTitle
-                className={cn('text-xl font-semibold', styles.headerText)}
-              >
-                Choose Composers
-              </AlertDialogTitle>
-              <AlertDialogDescription
-                className={cn('text-sm mt-2', styles.mutedText)}
-              >
-                Select composers to use as context. Click to toggle.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">
+              Choose Composers
+            </DialogTitle>
+            <DialogDescription>
+              Select composers to use as context. Click to toggle.
+            </DialogDescription>
+          </DialogHeader>
             <Tabs
               value={pickerFilter}
               onValueChange={(value) => setPickerFilter(value as any)}
@@ -1643,25 +1630,24 @@ export function DocumentContextModal({
                   </div>
                 )}
             </div>
-            <AlertDialogFooter className="mt-8 pt-6 border-t">
-              <Button
-                variant="outline"
-                onClick={() => setShowComposerPicker(false)}
-                className="min-w-[100px]"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  saveComposerSettings();
-                  setShowComposerPicker(false);
-                }}
-                className="min-w-[120px]"
-              >
-                Save Selection
-              </Button>
-            </AlertDialogFooter>
-          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowComposerPicker(false)}
+              className="min-w-[100px]"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                saveComposerSettings();
+                setShowComposerPicker(false);
+              }}
+              className="min-w-[120px]"
+            >
+              Save Selection
+            </Button>
+          </DialogFooter>
         </AnimatedModal>
       )}
     </>

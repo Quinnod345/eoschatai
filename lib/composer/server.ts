@@ -10,6 +10,7 @@ import type { Session } from 'next-auth';
 import type { Document } from '@/lib/db/schema';
 import { saveDocument } from '@/lib/db/queries';
 import { accountabilityDocumentHandler } from '@/composer/accountability/server';
+import { ComposerContentBuffer } from '@/lib/stream/buffer-service';
 
 export interface SaveDocumentProps {
   id: string;
@@ -42,6 +43,9 @@ export interface DocumentHandler<T = ComposerKind> {
   onUpdateDocument: (args: UpdateDocumentCallbackProps) => Promise<void>;
 }
 
+// Interval for incremental saves during streaming (in milliseconds)
+const INCREMENTAL_SAVE_INTERVAL = 500;
+
 export function createDocumentHandler<T extends ComposerKind>(config: {
   kind: T;
   onCreateDocument: (params: CreateDocumentCallbackProps) => Promise<string>;
@@ -54,10 +58,39 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
         `[Document Handler] Starting onCreateDocument for ${config.kind}, id: ${args.id}`,
       );
 
+      // Initialize content buffer for incremental saves
+      const contentBuffer = new ComposerContentBuffer(args.id);
+      let lastSaveTime = Date.now();
+      let accumulatedContent = '';
+
+      // Create a wrapped dataStream that also buffers content
+      const wrappedDataStream = {
+        ...args.dataStream,
+        write: (chunk: unknown) => {
+          // Forward to original dataStream
+          args.dataStream.write(chunk as any);
+
+          // Extract content from text deltas for incremental saves
+          const chunkData = chunk as any;
+          if (chunkData?.data?.type === 'text-delta' && chunkData?.data?.content) {
+            accumulatedContent += chunkData.data.content;
+
+            // Periodically save to Redis
+            const now = Date.now();
+            if (now - lastSaveTime >= INCREMENTAL_SAVE_INTERVAL) {
+              lastSaveTime = now;
+              contentBuffer.savePartialContent(accumulatedContent).catch((err) => {
+                console.error('[Document Handler] Failed to save partial content:', err);
+              });
+            }
+          }
+        },
+      };
+
       const draftContent = await config.onCreateDocument({
         id: args.id,
         title: args.title,
-        dataStream: args.dataStream,
+        dataStream: wrappedDataStream as UIMessageStreamWriter,
         session: args.session,
         maxOutputTokens: args.maxOutputTokens,
         context: args.context,
@@ -80,6 +113,9 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
           userId: args.session.user.id,
         });
 
+        // Clean up Redis buffer after successful save
+        await contentBuffer.cleanup();
+
         console.log(
           `[Document Handler] Document ${args.id} saved successfully`,
         );
@@ -88,10 +124,39 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
       return;
     },
     onUpdateDocument: async (args: UpdateDocumentCallbackProps) => {
+      // Initialize content buffer for incremental saves
+      const contentBuffer = new ComposerContentBuffer(args.document.id);
+      let lastSaveTime = Date.now();
+      let accumulatedContent = '';
+
+      // Create a wrapped dataStream that also buffers content
+      const wrappedDataStream = {
+        ...args.dataStream,
+        write: (chunk: unknown) => {
+          // Forward to original dataStream
+          args.dataStream.write(chunk as any);
+
+          // Extract content from text deltas for incremental saves
+          const chunkData = chunk as any;
+          if (chunkData?.data?.type === 'text-delta' && chunkData?.data?.content) {
+            accumulatedContent += chunkData.data.content;
+
+            // Periodically save to Redis
+            const now = Date.now();
+            if (now - lastSaveTime >= INCREMENTAL_SAVE_INTERVAL) {
+              lastSaveTime = now;
+              contentBuffer.savePartialContent(accumulatedContent).catch((err) => {
+                console.error('[Document Handler] Failed to save partial content:', err);
+              });
+            }
+          }
+        },
+      };
+
       const draftContent = await config.onUpdateDocument({
         document: args.document,
         description: args.description,
-        dataStream: args.dataStream,
+        dataStream: wrappedDataStream as UIMessageStreamWriter,
         session: args.session,
         maxOutputTokens: args.maxOutputTokens,
       });
@@ -104,11 +169,25 @@ export function createDocumentHandler<T extends ComposerKind>(config: {
           kind: config.kind,
           userId: args.session.user.id,
         });
+
+        // Clean up Redis buffer after successful save
+        await contentBuffer.cleanup();
       }
 
       return;
     },
   };
+}
+
+/**
+ * Recover partial composer content from Redis buffer
+ * Call this when loading a document that may have been interrupted
+ */
+export async function recoverPartialContent(
+  documentId: string,
+): Promise<string | null> {
+  const contentBuffer = new ComposerContentBuffer(documentId);
+  return contentBuffer.getPartialContent();
 }
 
 /*

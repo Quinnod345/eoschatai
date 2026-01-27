@@ -9,11 +9,10 @@ import {
   useCallback,
   useEffect,
   useState,
-  startTransition,
   useRef,
 } from 'react';
-import useSWR, { useSWRConfig } from 'swr';
-import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
+import useSWR from 'swr';
+import { useWindowSize } from 'usehooks-ts';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Document, Vote } from '@/lib/db/schema';
 import { fetcher } from '@/lib/utils';
@@ -33,21 +32,26 @@ import { chartComposer } from '@/composer/chart/client';
 import { vtoComposer } from '@/composer/vto/client';
 import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
-import type { ChatHelpers, ChatStatus, SetInputFunction, AppendFunction, HandleSubmitFunction, ReloadFunction } from './multimodal-input/types';
+import type {
+  ChatHelpers,
+  ChatStatus,
+  SetInputFunction,
+  AppendFunction,
+  HandleSubmitFunction,
+  ReloadFunction,
+} from './multimodal-input/types';
 import type { VisibilityType } from './visibility-selector';
 import {
-  type ComposerLifecycleState,
   type VersionIndexState,
   isLatestVersion,
   resolveVersionIndex,
-  shouldBlockRemoteFetch,
-  shouldBlockSave,
-  type ComposerStateRefs,
-  createInitialStateRefs,
-  resetStateRefsForNewDocument,
 } from '@/lib/composer/state-machine';
 import { isValidVtoContent } from '@/lib/composer/content-parsers';
 import { ComposerErrorBoundary } from './composer-error-boundary';
+import {
+  useAutoSave,
+  useSaveStatusDisplay,
+} from '@/lib/composer/use-auto-save';
 
 export const composerDefinitions = [
   textComposer,
@@ -110,6 +114,7 @@ function PureComposer({
 }) {
   const { composer, setComposer, metadata, setMetadata } = useComposer();
 
+  // Fetch documents for version history (not for content - local state is source of truth)
   const {
     data: documents,
     isLoading: isDocumentsFetching,
@@ -119,274 +124,141 @@ function PureComposer({
       ? `/api/document?id=${composer.documentId}&versions=true`
       : null,
     fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      // IMPORTANT: Don't serve stale data on mount - always fetch fresh
+      // This prevents showing old content when reopening a document
+      revalidateOnMount: true,
+      dedupingInterval: 0,
+    },
   );
 
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
-  // Version index: null means "use latest", number means specific version
   const [currentVersionIndex, setCurrentVersionIndex] =
     useState<VersionIndexState>(null);
-  // Explicit lifecycle state for managing async operations
-  const [lifecycleState, setLifecycleState] =
-    useState<ComposerLifecycleState>('idle');
-  // Consolidated state refs for use in closures (avoids stale closure issues)
-  const stateRefsRef = useRef<ComposerStateRefs>(createInitialStateRefs());
-  // Track previous documents array to detect when new versions are added
-  const documentsRef = useRef<Array<Document> | undefined>(undefined);
-  // Abort controller for fetch requests
-  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Track if initial content has been loaded
+  const initialLoadDoneRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const { open: isSidebarOpen } = useSidebar();
-  // Inline title editing
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
 
-  // Sync lifecycle state with composer.status
-  useEffect(() => {
-    const newLifecycleState: ComposerLifecycleState =
-      composer.status === 'streaming' ? 'streaming' : 'idle';
-    setLifecycleState((prev) => {
-      // Don't override 'saving' state unless streaming starts
-      if (prev === 'saving' && newLifecycleState !== 'streaming') {
-        return prev;
-      }
-      return newLifecycleState;
-    });
-    // Keep ref in sync for closures
-    stateRefsRef.current.lifecycleState = newLifecycleState;
-  }, [composer.status]);
+  // Auto-save hook - handles all save logic
+  const {
+    save: autoSave,
+    saveStatus,
+    flushNow,
+    lastSavedAt,
+  } = useAutoSave(
+    composer.documentId !== 'init' ? composer.documentId : undefined,
+    composer.kind,
+    { title: composer.title },
+  );
 
+  // Display text for save status
+  const saveStatusText = useSaveStatusDisplay(saveStatus);
+
+  // Track the last loaded document content to detect fresh data
+  const lastLoadedContentRef = useRef<string | null>(null);
+
+  // Load initial content from documents (only once per document, but handle SWR revalidation)
   useEffect(() => {
-    if (documents && documents.length > 0) {
+    if (documents && documents.length > 0 && isMountedRef.current) {
       const mostRecentDocument = documents.at(-1);
-      const stateRefs = stateRefsRef.current;
-
-      if (mostRecentDocument && stateRefs.isMounted) {
-        const remoteCreatedAt = new Date(
-          mostRecentDocument.createdAt,
-        ).getTime();
+      if (mostRecentDocument) {
         setDocument(mostRecentDocument);
 
-        // Update version index if user is following latest or on initial load
-        const wasOnLatest = isLatestVersion(
-          currentVersionIndex,
-          documentsRef.current?.length ?? 0,
-        );
-        const didArrayGrow =
-          (documentsRef.current?.length || 0) < documents.length;
+        const localContent = composer.content ?? '';
+        const remoteContent = mostRecentDocument.content ?? '';
+        const isInitialLoad = !localContent || localContent.trim().length === 0;
 
-        // Keep following latest when new versions are created
-        if (currentVersionIndex === null || (wasOnLatest && didArrayGrow)) {
-          console.log('[Composer] Following latest version:', {
-            wasOnLatest,
-            didArrayGrow,
-            newLength: documents.length,
-          });
-          // Keep null to indicate "latest" rather than setting specific index
-          setCurrentVersionIndex(null);
-        }
+        // Load remote content if:
+        // 1. Local content is empty (initial load), OR
+        // 2. Remote content is different from what we last loaded (SWR revalidated with fresh data)
+        //    AND local content matches the stale data we loaded (user hasn't edited)
+        const shouldLoadRemote =
+          (isInitialLoad && !initialLoadDoneRef.current) ||
+          (lastLoadedContentRef.current !== null &&
+            remoteContent !== lastLoadedContentRef.current &&
+            localContent === lastLoadedContentRef.current);
 
-        // Update the ref for next comparison
-        documentsRef.current = documents;
-
-        // Block remote fetch if in streaming or saving state
-        if (shouldBlockRemoteFetch(stateRefs.lifecycleState)) {
-          console.log(
-            '[Composer] Blocking remote fetch during:',
-            stateRefs.lifecycleState,
-          );
-          return;
-        }
-
-        setComposer((currentComposer) => {
-          if (!stateRefs.isMounted) return currentComposer;
-
-          const remoteContent = mostRecentDocument.content ?? '';
-          const localContent = currentComposer.content ?? '';
-
-          // Check if initial load (empty local content)
-          const isInitialLoad =
-            !localContent || localContent.trim().length === 0;
-
-          // Check if we just saved this exact content
-          const isSameAsLastSaved =
-            stateRefs.lastSavedContent !== null &&
-            stateRefs.lastSavedContent === remoteContent;
-
-          // Determine if we should override local content with remote
-          const shouldOverrideContent =
-            remoteContent !== undefined &&
-            (isInitialLoad || // Always load on initial open
-              (remoteContent !== localContent &&
-                !isSameAsLastSaved &&
-                remoteCreatedAt > (stateRefs.lastRemoteAppliedAt || 0))) &&
-            // For VTO, only override if the fetched content is valid VTO
-            (currentComposer.kind !== 'vto' ||
-              !remoteContent ||
-              isValidVtoContent(remoteContent));
-
-          if (shouldOverrideContent) {
-            console.log('[Composer] Loading remote content:', {
-              documentId: mostRecentDocument.id,
-              contentLength: remoteContent.length,
-              isInitialLoad,
-              documentsLength: documents.length,
-            });
-            // Record last applied remote version timestamp
-            stateRefs.lastRemoteAppliedAt = remoteCreatedAt;
-            return { ...currentComposer, content: remoteContent };
+        if (shouldLoadRemote) {
+          // For VTO, validate content before loading
+          if (
+            composer.kind === 'vto' &&
+            remoteContent &&
+            !isValidVtoContent(remoteContent)
+          ) {
+            // Mark initial load as done even if validation fails to prevent repeated attempts
+            // This avoids wasting resources on invalid content during SWR revalidation cycles
+            initialLoadDoneRef.current = true;
+            lastLoadedContentRef.current = remoteContent;
+            return;
           }
 
-          return currentComposer;
-        });
+          console.log('[Composer] Loading content:', {
+            documentId: mostRecentDocument.id,
+            contentLength: remoteContent.length,
+            reason: isInitialLoad ? 'initial' : 'revalidated',
+          });
+
+          setComposer((current) => ({ ...current, content: remoteContent }));
+          lastLoadedContentRef.current = remoteContent;
+          initialLoadDoneRef.current = true;
+        } else if (!initialLoadDoneRef.current && remoteContent) {
+          // First load - track what we loaded even if we didn't need to set it
+          lastLoadedContentRef.current = remoteContent;
+          initialLoadDoneRef.current = true;
+        }
       }
     }
-  }, [documents, setComposer, currentVersionIndex, lifecycleState]);
+  }, [documents, setComposer, composer.content, composer.kind]);
 
+  // Refresh documents when streaming completes
   useEffect(() => {
-    mutateDocuments();
+    if (composer.status === 'idle') {
+      mutateDocuments();
+    }
   }, [composer.status, mutateDocuments]);
 
-  const { mutate } = useSWRConfig();
-  const [isContentDirty, setIsContentDirty] = useState(false);
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Auto-save hook handles beacon save on unmount
+    };
+  }, []);
 
-  const handleContentChange = useCallback(
-    async (updatedContent: string) => {
-      const stateRefs = stateRefsRef.current;
-      if (!composer || !composer.documentId) return;
-
-      // Use state machine to check if save should be blocked
-      if (shouldBlockSave(stateRefs.lifecycleState)) {
-        console.log(
-          '[Composer] Skipping save - blocked by state:',
-          stateRefs.lifecycleState,
-        );
-        return;
+  // Simple save function that uses auto-save (always debounced in background)
+  const saveContent = useCallback(
+    (updatedContent: string, _debounce: boolean) => {
+      // Validate VTO content
+      if (composer.kind === 'vto') {
+        if (
+          !isValidVtoContent(updatedContent) ||
+          updatedContent.trim().length === 0
+        ) {
+          return;
+        }
       }
 
-      // Never persist invalid/empty VTO content
-      if (
-        composer.kind === 'vto' &&
-        (!isValidVtoContent(updatedContent) ||
-          updatedContent.trim().length === 0)
-      ) {
-        return;
-      }
-
-      // Don't save empty content for text documents (likely a race condition)
+      // Don't save empty text content
       if (
         composer.kind === 'text' &&
         (!updatedContent || updatedContent.trim().length === 0)
       ) {
-        console.log('[Composer] Skipping save of empty text content');
         return;
       }
 
-      // Mark as last locally saved to avoid immediate remote clobber
-      stateRefs.lastSavedContent = updatedContent;
-
-      // Cancel previous save if in flight
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      abortControllerRef.current = new AbortController();
-
-      // Transition to saving state
-      setLifecycleState('saving');
-      stateRefs.lifecycleState = 'saving';
-
-      // POST the latest content to persist
-      try {
-        await fetch(`/api/document?id=${composer.documentId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: composer.title,
-            content: updatedContent,
-            kind: composer.kind,
-          }),
-          signal: abortControllerRef.current.signal,
-        });
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          console.log('[Composer] Save aborted');
-          return;
-        }
-        console.error('Failed to save document content', err);
-      } finally {
-        if (stateRefs.isMounted) {
-          setIsContentDirty(false);
-          // Return to idle state after save completes
-          setLifecycleState('idle');
-          stateRefs.lifecycleState = 'idle';
-        }
-      }
-
-      // If we already have documents cached, append a new version locally
-      // Schedule mutate outside of the current render cycle to avoid React warnings
-      setTimeout(() => {
-        startTransition(() => {
-          mutate<Array<Document>>(
-            `/api/document?id=${composer.documentId}`,
-            (currentDocuments) => {
-              if (!currentDocuments || currentDocuments.length === 0)
-                return currentDocuments;
-              const currentDocument = currentDocuments.at(-1);
-              if (!currentDocument) return currentDocuments;
-              if (currentDocument.content === updatedContent)
-                return currentDocuments;
-              const newDocument = {
-                ...currentDocument,
-                content: updatedContent,
-                createdAt: new Date(),
-              } as Document;
-              return [...currentDocuments, newDocument];
-            },
-            { revalidate: false },
-          );
-        });
-      }, 0);
+      // Queue for background save
+      autoSave(updatedContent);
     },
-    [composer, mutate],
-  );
-
-  const debouncedHandleContentChange = useDebounceCallback(
-    handleContentChange,
-    2000,
-  );
-
-  // Cleanup on unmount
-  useEffect(() => {
-    const stateRefs = stateRefsRef.current;
-    stateRefs.isMounted = true;
-
-    return () => {
-      console.log('[Composer] Unmounting, cleaning up...');
-      stateRefs.isMounted = false;
-      debouncedHandleContentChange.cancel();
-
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, [debouncedHandleContentChange]);
-
-  const saveContent = useCallback(
-    (updatedContent: string, debounce: boolean) => {
-      if (updatedContent !== (document?.content ?? '')) {
-        setIsContentDirty(true);
-        if (debounce) {
-          debouncedHandleContentChange(updatedContent);
-        } else {
-          void handleContentChange(updatedContent);
-        }
-      }
-    },
-    [document?.content, debouncedHandleContentChange, handleContentChange],
+    [composer.kind, autoSave],
   );
 
   function getDocumentContentById(index: number | null) {
@@ -398,26 +270,18 @@ function PureComposer({
 
   const handleVersionChange = (type: 'next' | 'prev' | 'toggle' | 'latest') => {
     if (!documents || documents.length === 0) return;
-    const stateRefs = stateRefsRef.current;
 
     if (type === 'latest') {
-      // Set to null to indicate "follow latest"
       setCurrentVersionIndex(null);
       setMode('edit');
 
       // Force load the latest content when clicking "latest"
       const latestDoc = documents[documents.length - 1];
       if (latestDoc?.content) {
-        console.log('[Composer] Forcing load of latest version content:', {
-          contentLength: latestDoc.content.length,
-          documentId: latestDoc.id,
-        });
         setComposer((current) => ({
           ...current,
           content: latestDoc.content ?? '',
         }));
-        // Clear the saved content ref so it doesn't block future loads
-        stateRefs.lastSavedContent = null;
       }
     }
 
@@ -441,7 +305,6 @@ function PureComposer({
       if (currentIndex < documents.length - 1) {
         setCurrentVersionIndex(currentIndex + 1);
       } else {
-        // At latest, switch to following mode
         setCurrentVersionIndex(null);
       }
     }
@@ -468,18 +331,11 @@ function PureComposer({
 
   useEffect(() => {
     if (composer.documentId !== 'init') {
-      const stateRefs = stateRefsRef.current;
-      // Reset refs when opening a new document
-      // This prevents stale saved content ref from blocking content load
-      console.log('[Composer] Document ID changed, resetting refs:', {
-        newDocumentId: composer.documentId,
-        clearingLastSavedRef: stateRefs.lastSavedContent !== null,
-      });
-      resetStateRefsForNewDocument(stateRefs, composer.documentId);
-      // Reset version index to follow latest
+      // Reset for new document
+      console.log('[Composer] Document ID changed:', composer.documentId);
+      initialLoadDoneRef.current = false;
+      lastLoadedContentRef.current = null;
       setCurrentVersionIndex(null);
-      // Reset documents ref
-      documentsRef.current = undefined;
 
       if (composerDefinition.initialize) {
         composerDefinition.initialize({
@@ -666,12 +522,11 @@ function PureComposer({
                           const newTitle =
                             (draftTitle || '').trim() || 'Untitled';
                           const oldTitle = composer.title;
-                          const stateRefs = stateRefsRef.current;
 
                           // Optimistic update
                           setComposer((a) => ({ ...a, title: newTitle }));
 
-                          if (composer.documentId && stateRefs.isMounted) {
+                          if (composer.documentId && isMountedRef.current) {
                             try {
                               const response = await fetch(
                                 `/api/document?id=${composer.documentId}`,
@@ -684,13 +539,13 @@ function PureComposer({
                                 },
                               );
 
-                              if (!response.ok && stateRefs.isMounted) {
+                              if (!response.ok && isMountedRef.current) {
                                 // Rollback on error
                                 setComposer((a) => ({ ...a, title: oldTitle }));
                               }
                             } catch {
                               // Rollback on network error
-                              if (stateRefs.isMounted) {
+                              if (isMountedRef.current) {
                                 setComposer((a) => ({ ...a, title: oldTitle }));
                               }
                             }
@@ -712,23 +567,38 @@ function PureComposer({
                     )}
                   </div>
 
-                  {isContentDirty ? (
-                    <div className="text-sm text-muted-foreground">
-                      Saving changes...
-                    </div>
-                  ) : document ? (
-                    <div className="text-sm text-muted-foreground">
-                      {`Updated ${formatDistance(
-                        new Date(document.createdAt),
-                        new Date(),
-                        {
-                          addSuffix: true,
-                        },
-                      )}`}
-                    </div>
-                  ) : (
-                    <div className="w-32 h-3 mt-2 bg-muted-foreground/20 rounded-md animate-pulse" />
-                  )}
+                  <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    {saveStatus === 'saving' && (
+                      <>
+                        <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {saveStatus === 'saved' && (
+                      <>
+                        <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full" />
+                        <span>
+                          {lastSavedAt
+                            ? `Saved ${formatDistance(lastSavedAt, new Date(), { addSuffix: true })}`
+                            : document
+                              ? `Saved ${formatDistance(new Date(document.createdAt), new Date(), { addSuffix: true })}`
+                              : 'All changes saved'}
+                        </span>
+                      </>
+                    )}
+                    {saveStatus === 'pending' && (
+                      <>
+                        <span className="inline-block w-1.5 h-1.5 bg-yellow-500 rounded-full" />
+                        <span>Unsaved changes</span>
+                      </>
+                    )}
+                    {saveStatus === 'error' && (
+                      <>
+                        <span className="inline-block w-1.5 h-1.5 bg-red-500 rounded-full" />
+                        <span>Save failed - click to retry</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 

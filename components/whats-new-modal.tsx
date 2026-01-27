@@ -140,7 +140,8 @@ export function WhatsNewModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="max-w-5xl h-[85vh] p-0 overflow-hidden"
+        size="2xl"
+        className="h-[85vh] p-0 overflow-hidden"
         hideCloseButton
       >
         <VisuallyHidden>

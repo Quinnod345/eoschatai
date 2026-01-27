@@ -15,7 +15,7 @@ import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
 import { fetcher, generateUUID } from '@/lib/utils';
-import { Composer } from './composer';
+import { Composer, composerDefinitions } from './composer';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
 import type { VisibilityType } from './visibility-selector';
@@ -39,6 +39,11 @@ import { NexusFollowUpQuestions } from './nexus-followup-questions';
 import { Telescope } from 'lucide-react';
 import { ChatOverview } from './chat-overview';
 import { ErrorBoundary } from './error-boundary';
+import {
+  useStreamRecovery,
+  applyRecoveredChunks,
+  getRecoveredComposerState,
+} from '@/hooks/use-stream-recovery';
 
 export function Chat({
   id,
@@ -107,7 +112,9 @@ export function Chat({
 
   // Simplified Nexus state - just track if we're researching and the current query
   const [isNexusResearching, setIsNexusResearching] = useState(false);
-  const [currentNexusQuery, setCurrentNexusQuery] = useState<string | null>(null);
+  const [currentNexusQuery, setCurrentNexusQuery] = useState<string | null>(
+    null,
+  );
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [nexusCitations, setNexusCitations] = useState<
     Array<{
@@ -230,6 +237,14 @@ export function Chat({
 
   const [input, setInput] = useState('');
 
+  // Composer state - must be before useChat so onData callback can access it
+  const isComposerVisible = useComposerSelector((state) => state.isVisible);
+  const { composer, setComposer, setMetadata } = useComposer();
+
+  // Ref to track current composer kind synchronously (avoids stale closure issues in onData callback)
+  // React's state batching means setComposer updates are async, but deltas need the current kind immediately
+  const composerKindRef = useRef<ComposerKind | undefined>(composer.kind);
+
   // Create transport for useChat (AI SDK 5)
   const chatTransport = new DefaultChatTransport({
     api: '/api/chat',
@@ -309,183 +324,259 @@ export function Chat({
   });
 
   // Set up chat
-  const {
-    messages,
-    setMessages,
-    sendMessage,
-    status,
-    stop,
-    regenerate,
-  } = useChat({
-    id,
-    messages: initialMessages,
-    transport: chatTransport,
-    generateId: generateUUID,
+  const { messages, setMessages, sendMessage, status, stop, regenerate } =
+    useChat({
+      id,
+      messages: initialMessages,
+      transport: chatTransport,
+      generateId: generateUUID,
 
-    onFinish: ({ message }) => {
-      mutate(unstable_serialize(getChatHistoryPaginationKey));
-      // Dispatch event to refresh sidebar history
-      console.log('[Chat] Message finished, dispatching newMessageSent event', {
-        chatId: id,
-        messageId: message.id,
-      });
-      window.dispatchEvent(new Event('newMessageSent'));
-      // Clear any timeout we might have set
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current);
-        responseTimeoutRef.current = null;
-      }
+      // AI SDK v6: Handle custom data parts for composer streaming
+      onData: (dataPart: any) => {
+        // Handle composer-related data parts
+        if (dataPart.type?.startsWith('data-')) {
+          const data = dataPart.data;
+          if (!data?.type) return;
 
-      // Log performance metrics
-      if (responseStartTimeRef.current) {
-        const responseTime = performance.now() - responseStartTimeRef.current;
-        console.log(
-          `Response completed in ${responseTime.toFixed(0)}ms, approximate size: ${responseSizeRef.current} chars`,
-        );
+          console.log('[Chat] onData received:', {
+            type: dataPart.type,
+            dataType: data.type,
+          });
 
-        // Store estimated token count for the message
-        // In AI SDK 5, use parts instead of content
-        const messageText = message.parts
-          ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-          .map((p) => p.text)
-          .join('') || '';
-        if (message.id && messageText) {
-          messageTokenCountRef.current[message.id] = Math.floor(
-            messageText.length / 4,
-          );
-        }
-
-        // Reset metrics
-        responseStartTimeRef.current = null;
-      }
-    },
-
-    onError: async (error) => {
-      // Clear any timeout we might have set
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current);
-        responseTimeoutRef.current = null;
-      }
-
-      console.error('Chat error:', error);
-
-      // Check if this is a daily limit error (429)
-      if (error?.message) {
-        try {
-          const errorData = JSON.parse(error.message);
-          if (errorData.error === 'DAILY_LIMIT_REACHED') {
-            // Show a toast message for daily limit
-            toast.error(
-              'Daily message limit reached. Limit resets at midnight.',
-              {
-                duration: 5000,
-              },
+          // Handle metadata updates
+          if (data.type === 'id') {
+            setComposer((prev) => ({
+              ...prev,
+              documentId: data.content as string,
+              status: 'streaming',
+            }));
+          } else if (data.type === 'title') {
+            setComposer((prev) => ({
+              ...prev,
+              title: data.content as string,
+              status: 'streaming',
+            }));
+          } else if (data.type === 'kind') {
+            const newKind = data.content as ComposerKind;
+            // Update ref synchronously so subsequent delta handlers use the correct kind
+            composerKindRef.current = newKind;
+            setComposer((prev) => ({
+              ...prev,
+              kind: newKind,
+              status: 'streaming',
+              isVisible: true,
+            }));
+          } else if (data.type === 'clear') {
+            setComposer((prev) => ({
+              ...prev,
+              content: '',
+              status: 'streaming',
+            }));
+          } else if (data.type === 'finish') {
+            setComposer((prev) => ({
+              ...prev,
+              status: 'idle',
+            }));
+          } else if (
+            data.type === 'text-delta' ||
+            data.type === 'code-delta' ||
+            data.type === 'sheet-delta' ||
+            data.type === 'image-delta'
+          ) {
+            // Handle content deltas - find the appropriate composer handler
+            // Use composerKindRef to get the current kind (avoids stale closure from React's batched state updates)
+            const currentKind = composerKindRef.current;
+            const composerDef = composerDefinitions.find(
+              (def) => def.kind === currentKind,
             );
-
-            // Open the upgrade modal if user is on free plan
-            if (errorData.plan === 'free') {
-              const upgradeModule = await import('@/lib/stores/upgrade-store');
-              upgradeModule.useUpgradeStore.getState().openModal('premium');
+            if (composerDef?.onStreamPart) {
+              composerDef.onStreamPart({
+                streamPart: { type: data.type, content: data.content },
+                setComposer,
+                setMetadata,
+              });
             }
-
-            return;
           }
-        } catch {
-          // Not a JSON error, continue with normal error handling
         }
-      }
+      },
 
-      // Don't attempt fallbacks if we're in a provider transition
-      if (providerTransitioning) {
+      onFinish: ({ message }) => {
+        mutate(unstable_serialize(getChatHistoryPaginationKey));
+        // Dispatch event to refresh sidebar history
         console.log(
-          'Error during provider transition - skipping fallback logic',
+          '[Chat] Message finished, dispatching newMessageSent event',
+          {
+            chatId: id,
+            messageId: message.id,
+          },
         );
-        toast.error(
-          'Provider is changing. Please wait a moment before trying again.',
-        );
-        return;
-      }
+        window.dispatchEvent(new Event('newMessageSent'));
+        // Clear any timeout we might have set
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
 
-      // Check if this is a provider-related error
-      const errorMsg = error?.message?.toLowerCase() || '';
-      if (
-        errorMsg.includes('invalid request body') ||
-        errorMsg.includes('api key') ||
-        errorMsg.includes('provider')
-      ) {
-        // Try falling back to default provider
-        const fallbackProvider = DEFAULT_PROVIDER;
-
-        // Prevent infinite loop: only fall back if not already trying to use the fallback
-        // and we haven't already attempted a fallback recently
-        const lastFallbackTime = sessionStorage.getItem('last_fallback_time');
-        const now = Date.now();
-        const recentlyFalledBack =
-          lastFallbackTime &&
-          now - Number.parseInt(lastFallbackTime, 10) < 10000; // Increase to 10 seconds
-
-        if (activeProvider !== fallbackProvider && !recentlyFalledBack) {
+        // Log performance metrics
+        if (responseStartTimeRef.current) {
+          const responseTime = performance.now() - responseStartTimeRef.current;
           console.log(
-            `Error with ${activeProvider}, falling back to ${fallbackProvider}`,
+            `Response completed in ${responseTime.toFixed(0)}ms, approximate size: ${responseSizeRef.current} chars`,
           );
 
-          // Record fallback time to prevent loops
-          sessionStorage.setItem('last_fallback_time', now.toString());
-
-          // Set the transition state to prevent immediate API calls
-          setProviderTransitioning(true);
-
-          toast.error(`Error with OpenAI. Please try again.`);
-
-          // Switch to fallback provider
-          setActiveProvider(fallbackProvider);
-
-          // Store the fallback in session and cookies
-          sessionStorage.setItem('current_provider', fallbackProvider);
-          document.cookie = `ai-provider=${fallbackProvider}; path=/; max-age=${30 * 24 * 60 * 60}`;
-
-          // Clear transition state after a delay
-          setTimeout(() => {
-            setProviderTransitioning(false);
-            console.log(
-              'Fallback transition complete - transition state cleared',
+          // Store estimated token count for the message
+          // In AI SDK 5, use parts instead of content
+          const messageText =
+            message.parts
+              ?.filter(
+                (p): p is { type: 'text'; text: string } => p.type === 'text',
+              )
+              .map((p) => p.text)
+              .join('') || '';
+          if (message.id && messageText) {
+            messageTokenCountRef.current[message.id] = Math.floor(
+              messageText.length / 4,
             );
+          }
 
-            // Add a system message indicating the fallback after transitioning is complete
-            setMessages((prevMessages) => [
-              ...prevMessages,
-              {
-                id: generateUUID(),
-                role: 'system',
-                parts: [{ type: 'text', text: `Provider error detected. Using OpenAI. Please try again.` }],
-                createdAt: new Date(),
-              } as UIMessage,
-            ]);
-          }, 1000);
+          // Reset metrics
+          responseStartTimeRef.current = null;
+        }
+      },
 
-          return;
-        } else if (recentlyFalledBack) {
-          console.warn(
-            'Already attempted a fallback recently, not trying again to prevent loops',
+      onError: async (error) => {
+        // Clear any timeout we might have set
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
+
+        console.error('Chat error:', error);
+
+        // Check if this is a daily limit error (429)
+        if (error?.message) {
+          try {
+            const errorData = JSON.parse(error.message);
+            if (errorData.error === 'DAILY_LIMIT_REACHED') {
+              // Show a toast message for daily limit
+              toast.error(
+                'Daily message limit reached. Limit resets at midnight.',
+                {
+                  duration: 5000,
+                },
+              );
+
+              // Open the upgrade modal if user is on free plan
+              if (errorData.plan === 'free') {
+                const upgradeModule = await import(
+                  '@/lib/stores/upgrade-store'
+                );
+                upgradeModule.useUpgradeStore.getState().openModal('premium');
+              }
+
+              return;
+            }
+          } catch {
+            // Not a JSON error, continue with normal error handling
+          }
+        }
+
+        // Don't attempt fallbacks if we're in a provider transition
+        if (providerTransitioning) {
+          console.log(
+            'Error during provider transition - skipping fallback logic',
           );
           toast.error(
-            'Multiple provider errors detected. Please try refreshing the page.',
+            'Provider is changing. Please wait a moment before trying again.',
           );
+          return;
+        }
 
-          // Reset provider transitioning if it's stuck
-          if (providerTransitioning) {
+        // Check if this is a provider-related error
+        const errorMsg = error?.message?.toLowerCase() || '';
+        if (
+          errorMsg.includes('invalid request body') ||
+          errorMsg.includes('api key') ||
+          errorMsg.includes('provider')
+        ) {
+          // Try falling back to default provider
+          const fallbackProvider = DEFAULT_PROVIDER;
+
+          // Prevent infinite loop: only fall back if not already trying to use the fallback
+          // and we haven't already attempted a fallback recently
+          const lastFallbackTime = sessionStorage.getItem('last_fallback_time');
+          const now = Date.now();
+          const recentlyFalledBack =
+            lastFallbackTime &&
+            now - Number.parseInt(lastFallbackTime, 10) < 10000; // Increase to 10 seconds
+
+          if (activeProvider !== fallbackProvider && !recentlyFalledBack) {
+            console.log(
+              `Error with ${activeProvider}, falling back to ${fallbackProvider}`,
+            );
+
+            // Record fallback time to prevent loops
+            sessionStorage.setItem('last_fallback_time', now.toString());
+
+            // Set the transition state to prevent immediate API calls
+            setProviderTransitioning(true);
+
+            toast.error(`Error with OpenAI. Please try again.`);
+
+            // Switch to fallback provider
+            setActiveProvider(fallbackProvider);
+
+            // Store the fallback in session and cookies
+            sessionStorage.setItem('current_provider', fallbackProvider);
+            document.cookie = `ai-provider=${fallbackProvider}; path=/; max-age=${30 * 24 * 60 * 60}`;
+
+            // Clear transition state after a delay
             setTimeout(() => {
               setProviderTransitioning(false);
-              console.log('Force clearing provider transitioning state');
-            }, 500);
+              console.log(
+                'Fallback transition complete - transition state cleared',
+              );
+
+              // Add a system message indicating the fallback after transitioning is complete
+              setMessages((prevMessages) => [
+                ...prevMessages,
+                {
+                  id: generateUUID(),
+                  role: 'system',
+                  parts: [
+                    {
+                      type: 'text',
+                      text: `Provider error detected. Using OpenAI. Please try again.`,
+                    },
+                  ],
+                  createdAt: new Date(),
+                } as UIMessage,
+              ]);
+            }, 1000);
+
+            return;
+          } else if (recentlyFalledBack) {
+            console.warn(
+              'Already attempted a fallback recently, not trying again to prevent loops',
+            );
+            toast.error(
+              'Multiple provider errors detected. Please try refreshing the page.',
+            );
+
+            // Reset provider transitioning if it's stuck
+            if (providerTransitioning) {
+              setTimeout(() => {
+                setProviderTransitioning(false);
+                console.log('Force clearing provider transitioning state');
+              }, 500);
+            }
           }
         }
-      }
 
-      // Show general error message for other errors
-      toast.error(error.message);
-    }
-  });
+        // Show general error message for other errors
+        toast.error(error.message);
+      },
+    });
 
   // AI SDK 5: data stream is no longer returned from useChat
   // Custom data is now handled through message parts
@@ -496,20 +587,27 @@ export function Chat({
   // MUST be defined before any useEffect that uses it
   // Supports both text content and file parts (attachments)
   const appendAdapter = useCallback(
-    (message: { role: string; content?: string; parts?: any[] }, options?: { body?: Record<string, unknown> }) => {
+    (
+      message: { role: string; content?: string; parts?: any[] },
+      options?: { body?: Record<string, unknown> },
+    ) => {
       // Build parts array from message
       const parts: any[] = [];
-      
+
       // Add text part from content or existing parts
-      const text = message.content || message.parts?.find((p: any) => p.type === 'text')?.text || '';
+      const text =
+        message.content ||
+        message.parts?.find((p: any) => p.type === 'text')?.text ||
+        '';
       if (text) {
         parts.push({ type: 'text', text });
       }
-      
+
       // Add file parts from existing parts (SDK 5 attachments are file parts)
-      const fileParts = message.parts?.filter((p: any) => p.type === 'file') || [];
+      const fileParts =
+        message.parts?.filter((p: any) => p.type === 'file') || [];
       parts.push(...fileParts);
-      
+
       if (parts.length > 0) {
         sendMessage({ parts }, options);
       }
@@ -524,6 +622,119 @@ export function Chat({
     },
     [regenerate],
   );
+
+  // Stream recovery hook for resumable streams
+  const {
+    isRecovering: isRecoveringStream,
+    recoveryState,
+    recoveredChunks,
+    hasActiveStream,
+    error: recoveryError,
+    clearRecoveryState,
+  } = useStreamRecovery(id);
+
+  // Track how many chunks we've already applied (for incremental updates during polling)
+  const appliedChunkCountRef = useRef(0);
+  const recoveryInitializedRef = useRef(false);
+
+  // Apply recovered chunks when autoResume is enabled
+  // This effect handles both initial recovery and incremental updates from polling
+  useEffect(() => {
+    // Skip if not auto-resuming or no chunks
+    if (!autoResume || recoveredChunks.length === 0) {
+      return;
+    }
+
+    // Check if we have new chunks to apply
+    const newChunkCount = recoveredChunks.length - appliedChunkCountRef.current;
+    if (newChunkCount <= 0) {
+      return;
+    }
+
+    // Get only the new chunks we haven't applied yet
+    const newChunks = recoveredChunks.slice(appliedChunkCountRef.current);
+
+    // Check if we have final messages from the database (stream completed)
+    const finalMessagesChunk = newChunks.find(
+      (chunk) =>
+        chunk && typeof chunk === 'object' && '__finalMessages' in chunk,
+    ) as { __finalMessages: UIMessage[] } | undefined;
+
+    if (finalMessagesChunk) {
+      console.log('[Chat] Received final messages from database');
+      const finalMessages = finalMessagesChunk.__finalMessages;
+
+      // Replace messages with the complete version from the database
+      // This ensures we have the full response, not just what was buffered
+      if (finalMessages && finalMessages.length > 0) {
+        setMessages(finalMessages);
+        toast.success('Response recovered successfully.');
+      }
+
+      appliedChunkCountRef.current = recoveredChunks.length;
+      clearRecoveryState();
+      return;
+    }
+
+    console.log(
+      `[Chat] Applying ${newChunks.length} chunks (total: ${recoveredChunks.length}, applied: ${appliedChunkCountRef.current})`,
+    );
+
+    try {
+      // Apply the new chunks to messages
+      applyRecoveredChunks(newChunks, setMessages);
+      appliedChunkCountRef.current = recoveredChunks.length;
+
+      // On first recovery, set up composer state and show notification
+      if (!recoveryInitializedRef.current) {
+        recoveryInitializedRef.current = true;
+
+        // Recover composer state if available
+        const composerState = getRecoveredComposerState(recoveryState);
+        if (composerState) {
+          console.log('[Chat] Recovering composer state:', composerState);
+          setComposer((prev) => ({
+            ...prev,
+            documentId: composerState.documentId,
+            kind: composerState.kind as ComposerKind,
+            title: composerState.title,
+            content: composerState.content,
+            isVisible: true,
+            status: recoveryState?.status === 'active' ? 'streaming' : 'idle',
+          }));
+        }
+
+        // Show recovery notification
+        if (recoveryState?.status === 'interrupted') {
+          toast.info(
+            'Previous response was interrupted. Content has been recovered.',
+          );
+        } else if (recoveryState?.status === 'active') {
+          toast.info('Reconnecting to active stream...');
+        }
+      }
+    } catch (error) {
+      console.error('[Chat] Error applying recovered chunks:', error);
+    }
+
+    // Clear recovery state only when stream is complete
+    if (recoveryState && recoveryState.status !== 'active') {
+      clearRecoveryState();
+    }
+  }, [
+    autoResume,
+    recoveredChunks,
+    recoveryState,
+    clearRecoveryState,
+    setMessages,
+    setComposer,
+  ]);
+
+  // Reset recovery tracking when chat ID changes
+  useEffect(() => {
+    appliedChunkCountRef.current = 0;
+    recoveryInitializedRef.current = false;
+  }, [id]);
 
   // Track current Nexus stream ID for recovery
   const [nexusStreamId, setNexusStreamId] = useState<string | null>(null);
@@ -607,7 +818,7 @@ export function Chat({
     // Process only new Nexus events
     data.forEach((item: any) => {
       if (!item || typeof item !== 'object' || !('type' in item)) return;
-      
+
       // Create a unique key for this event
       const eventKey = `${item.type}-${data.indexOf(item)}`;
       if (processedEventsRef.current.has(eventKey)) return;
@@ -825,7 +1036,12 @@ export function Chat({
           {
             id: generateUUID(),
             role: 'system',
-            parts: [{ type: 'text', text: `Provider switched to OpenAI. Your next message will use the new provider.` }],
+            parts: [
+              {
+                type: 'text',
+                text: `Provider switched to OpenAI. Your next message will use the new provider.`,
+              },
+            ],
             createdAt: new Date(),
           } as UIMessage,
         ]);
@@ -851,7 +1067,12 @@ export function Chat({
             {
               id: generateUUID(),
               role: 'system',
-              parts: [{ type: 'text', text: `WARNING: Switching AI providers in the middle of a long conversation may cause unexpected errors or inconsistent responses. For the best experience, please start a new chat when changing providers.` }],
+              parts: [
+                {
+                  type: 'text',
+                  text: `WARNING: Switching AI providers in the middle of a long conversation may cause unexpected errors or inconsistent responses. For the best experience, please start a new chat when changing providers.`,
+                },
+              ],
               createdAt: new Date(),
             } as UIMessage,
           ]);
@@ -888,7 +1109,12 @@ export function Chat({
           {
             id: generateUUID(),
             role: 'system',
-            parts: [{ type: 'text', text: `Model switched to ${activeModel}. Your next message will use the new model.` }],
+            parts: [
+              {
+                type: 'text',
+                text: `Model switched to ${activeModel}. Your next message will use the new model.`,
+              },
+            ],
             createdAt: new Date(),
           } as UIMessage,
         ]);
@@ -976,8 +1202,6 @@ export function Chat({
   });
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
-  const isComposerVisible = useComposerSelector((state) => state.isVisible);
-  const { composer, setComposer } = useComposer();
 
   // Reference to store the timeout ID
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1007,10 +1231,11 @@ export function Chat({
     setMessages(newMessages);
 
     // Resubmit the last user message - extract text from parts (AI SDK 5)
-    const messageText = lastUserMessage.parts
-      ?.filter((p: any) => p.type === 'text')
-      .map((p: any) => p.text)
-      .join('') || '';
+    const messageText =
+      lastUserMessage.parts
+        ?.filter((p: any) => p.type === 'text')
+        .map((p: any) => p.text)
+        .join('') || '';
     await appendAdapter({
       role: 'user',
       content: messageText,
@@ -1772,9 +1997,7 @@ export function Chat({
   const hasAnimatedRef = useRef(false);
 
   const isInputCentered =
-    messages.length === 0 &&
-    attachments.length === 0 &&
-    !isReplying;
+    messages.length === 0 && attachments.length === 0 && !isReplying;
 
   // Compute if we should animate: only for new chats that haven't animated yet
   // and are transitioning from centered to bottom
@@ -1900,7 +2123,9 @@ export function Chat({
             >
               <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
                 <Telescope className="w-4 h-4 animate-pulse" />
-                <span className="text-sm font-medium">Researching: {currentNexusQuery}</span>
+                <span className="text-sm font-medium">
+                  Researching: {currentNexusQuery}
+                </span>
               </div>
             </motion.div>
           )}

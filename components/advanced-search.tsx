@@ -533,7 +533,7 @@ export function AdvancedSearch() {
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-3xl p-0 gap-0 h-[85vh] sm:h-[80vh] flex flex-col border bg-background rounded-lg shadow-md [&>button]:hidden !z-[2147483647]">
+        <DialogContent size="lg" className="p-0 gap-0 h-[85vh] sm:h-[80vh] flex flex-col" hideCloseButton>
           <DialogHeader className="sr-only">
             <DialogTitle>Search</DialogTitle>
           </DialogHeader>
@@ -891,7 +891,7 @@ export function AdvancedSearch() {
           open={showDocumentPreview}
           onOpenChange={setShowDocumentPreview}
         >
-          <DialogContent className="max-w-4xl h-[85vh] p-0 overflow-hidden flex flex-col">
+          <DialogContent size="xl" className="h-[85vh] p-0 overflow-hidden flex flex-col">
             <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
               <DialogTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

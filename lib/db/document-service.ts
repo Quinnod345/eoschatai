@@ -282,12 +282,15 @@ export async function getDocumentWithVersions(
 /**
  * Get version history as an array of documents (for backwards compatibility).
  * This returns versions formatted like the old getDocumentsById function.
+ * 
+ * IMPORTANT: Always includes the current document content as the last entry,
+ * even if it differs from the latest version (e.g., after skipVersion saves).
  */
 export async function getDocumentVersionsAsDocuments(
   documentId: string,
   maxVersions = 50,
 ): Promise<Array<typeof document.$inferSelect>> {
-  // First get the current document
+  // First get the current document (this has the LATEST saved content)
   const [currentDoc] = await db
     .select()
     .from(document)
@@ -308,8 +311,8 @@ export async function getDocumentVersionsAsDocuments(
     return [currentDoc];
   }
 
-  // Convert versions to document-like objects for backwards compatibility
-  return versions.map((v) => ({
+  // Convert versions to document-like objects
+  const versionDocs = versions.map((v) => ({
     id: currentDoc.id,
     title: v.title,
     kind: v.kind as typeof currentDoc.kind,
@@ -320,5 +323,43 @@ export async function getDocumentVersionsAsDocuments(
     isShared: currentDoc.isShared,
     shareSettings: currentDoc.shareSettings,
     contentSummary: currentDoc.contentSummary,
+    // New composer enhancement fields - use current doc values or defaults
+    category: currentDoc.category,
+    tags: currentDoc.tags,
+    viewCount: currentDoc.viewCount,
+    editCount: currentDoc.editCount,
+    mentionCount: currentDoc.mentionCount,
+    lastAccessedAt: currentDoc.lastAccessedAt,
+    sourceDocumentId: currentDoc.sourceDocumentId,
   }));
+
+  // Check if the current document content differs from the latest version
+  // This happens when saves use skipVersion=true
+  const latestVersion = versions[versions.length - 1];
+  if (latestVersion && currentDoc.content !== latestVersion.content) {
+    // Add the current document as the "latest" entry
+    // This ensures the UI always shows the most recent saved content
+    versionDocs.push({
+      id: currentDoc.id,
+      title: currentDoc.title,
+      kind: currentDoc.kind,
+      content: currentDoc.content,
+      createdAt: new Date(), // Use current time to indicate it's the "latest"
+      userId: currentDoc.userId,
+      isContext: currentDoc.isContext,
+      isShared: currentDoc.isShared,
+      shareSettings: currentDoc.shareSettings,
+      contentSummary: currentDoc.contentSummary,
+      // New composer enhancement fields
+      category: currentDoc.category,
+      tags: currentDoc.tags,
+      viewCount: currentDoc.viewCount,
+      editCount: currentDoc.editCount,
+      mentionCount: currentDoc.mentionCount,
+      lastAccessedAt: currentDoc.lastAccessedAt,
+      sourceDocumentId: currentDoc.sourceDocumentId,
+    });
+  }
+
+  return versionDocs;
 }

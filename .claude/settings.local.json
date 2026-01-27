@@ -56,7 +56,9 @@
       "Bash(PORT=3001 npm run dev)",
       "Bash(kill:*)",
       "Bash(pnpm db:push:*)",
-      "Bash(npx drizzle-kit:*)"
+      "Bash(npx drizzle-kit:*)",
+      "mcp__c351b095-c0e8-4168-a84a-db1e58cd48c6__notion-create-pages",
+      "mcp__c351b095-c0e8-4168-a84a-db1e58cd48c6__notion-update-page"
     ]
   },
   "enableAllProjectMcpServers": false

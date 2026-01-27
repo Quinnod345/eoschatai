@@ -69,15 +69,15 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
             name: att.name,
           }))
         : [];
-      
+
       const existingParts = Array.isArray(message.parts) ? message.parts : [];
-      
+
       // If message has reasoning from the database, add it as a reasoning part
       // This enables displaying Claude's extended thinking when revisiting chats
       const reasoningParts = message.reasoning
         ? [{ type: 'reasoning' as const, text: message.reasoning }]
         : [];
-      
+
       // Build base message with parts (reasoning first, then existing, then attachments)
       const baseMessage = {
         id: message.id,
@@ -85,7 +85,7 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
         role: message.role as UIMessage['role'],
         createdAt: message.createdAt,
       };
-      
+
       // Apply v4 → v5 conversion for any legacy parts (tool-invocation, etc.)
       return convertV4MessageToV5(baseMessage as any, index) as UIMessage;
     });
@@ -164,9 +164,50 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
     }
   }
 
-  // Note: isStreaming field doesn't exist in current schema, so no auto-resume
-  const hasStreamingMessage = false;
-  const shouldAutoResume = hasStreamingMessage;
+  // Check for active streams in the database for auto-resume
+  let shouldAutoResume = false;
+  try {
+    const { getActiveStreamByChatId } = await import('@/lib/db/queries');
+    const activeStream = await getActiveStreamByChatId({ chatId: id });
+
+    if (activeStream) {
+      // Check if stream is still recent (not stale)
+      const staleThreshold = 60 * 1000; // 60 seconds
+      const isStale =
+        Date.now() - new Date(activeStream.lastActiveAt).getTime() >
+        staleThreshold;
+
+      if (!isStale && activeStream.status === 'active') {
+        shouldAutoResume = true;
+        console.log(
+          '[ExistingChat] Found active stream, enabling auto-resume:',
+          {
+            streamId: activeStream.id,
+            status: activeStream.status,
+            lastActiveAt: activeStream.lastActiveAt,
+          },
+        );
+      } else if (!isStale && activeStream.status === 'interrupted') {
+        // Also enable auto-resume for interrupted streams to recover content
+        // Apply stale check to avoid recovering very old interrupted streams
+        shouldAutoResume = true;
+        console.log(
+          '[ExistingChat] Found interrupted stream, enabling auto-resume:',
+          {
+            streamId: activeStream.id,
+            status: activeStream.status,
+            lastActiveAt: activeStream.lastActiveAt,
+          },
+        );
+      }
+    }
+  } catch (streamError) {
+    console.error(
+      '[ExistingChat] Error checking for active stream:',
+      streamError,
+    );
+    // Continue without auto-resume on error
+  }
 
   const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get('chat-model');

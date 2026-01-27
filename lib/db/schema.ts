@@ -319,26 +319,119 @@ export const analyticsEvent = pgTable(
 
 export type AnalyticsEvent = InferSelectModel<typeof analyticsEvent>;
 
-export const document = pgTable('Document', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  createdAt: timestamp('createdAt').notNull(),
-  title: text('title').notNull(),
-  content: text('content'),
-  kind: varchar('kind', {
-    enum: ['text', 'code', 'image', 'sheet', 'chart', 'vto', 'accountability'],
-  })
-    .notNull()
-    .default('text'),
-  userId: uuid('userId')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  isContext: boolean('isContext').default(false), // Controls whether embeddings exist for this composer document
-  isShared: boolean('isShared').default(false), // Whether this document is shared
-  shareSettings: json('shareSettings'), // Sharing settings for the document
-  contentSummary: text('contentSummary'), // AI-generated summary for large documents
-});
+export const document = pgTable(
+  'Document',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    createdAt: timestamp('createdAt').notNull(),
+    title: text('title').notNull(),
+    content: text('content'),
+    kind: varchar('kind', {
+      enum: ['text', 'code', 'image', 'sheet', 'chart', 'vto', 'accountability'],
+    })
+      .notNull()
+      .default('text'),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    isContext: boolean('isContext').default(false), // Controls whether embeddings exist for this composer document
+    isShared: boolean('isShared').default(false), // Whether this document is shared
+    shareSettings: json('shareSettings'), // Sharing settings for the document
+    contentSummary: text('contentSummary'), // AI-generated summary for large documents
+    // Composer enhancement fields
+    tags: jsonb('tags').default([]), // Array of custom tags for categorization
+    category: varchar('category', { length: 100 }), // User-defined category
+    viewCount: integer('viewCount').default(0), // Number of times viewed
+    editCount: integer('editCount').default(0), // Number of times edited
+    mentionCount: integer('mentionCount').default(0), // Number of times mentioned
+    lastAccessedAt: timestamp('lastAccessedAt'), // Last time this composer was accessed
+    sourceDocumentId: uuid('sourceDocumentId'), // If converted from UserDocument, reference to original
+  },
+  (table) => ({
+    // Performance indexes for composer features
+    composerTitleIdx: index('composer_title_idx').on(table.title),
+    composerTagsIdx: index('composer_tags_idx').using('gin', table.tags),
+    composerCategoryIdx: index('composer_category_idx').on(table.category),
+    composerLastAccessIdx: index('composer_last_access_idx').on(
+      table.lastAccessedAt,
+    ),
+    composerUserKindIdx: index('composer_user_kind_idx').on(
+      table.userId,
+      table.kind,
+    ),
+  }),
+);
 
 export type Document = InferSelectModel<typeof document>;
+
+// Composer Relationship table for tracking relationships between composers
+export const composerRelationship = pgTable(
+  'ComposerRelationship',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    sourceId: uuid('sourceId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    targetId: uuid('targetId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    relationshipType: varchar('relationshipType', {
+      enum: ['parent', 'child', 'related', 'references', 'referenced_by'],
+    }).notNull(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    metadata: jsonb('metadata'), // Additional relationship context
+  },
+  (table) => ({
+    sourceIdx: index('composer_rel_source_idx').on(table.sourceId),
+    targetIdx: index('composer_rel_target_idx').on(table.targetId),
+    typeIdx: index('composer_rel_type_idx').on(table.relationshipType),
+    uniqueRelationship: unique('composer_rel_unique').on(
+      table.sourceId,
+      table.targetId,
+      table.relationshipType,
+    ),
+  }),
+);
+
+export type ComposerRelationship = InferSelectModel<typeof composerRelationship>;
+
+// Composer Mention table for tracking where composers are mentioned
+export const composerMention = pgTable(
+  'ComposerMention',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    composerId: uuid('composerId')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    mentionedInChatId: uuid('mentionedInChatId').references(() => chat.id, {
+      onDelete: 'cascade',
+    }),
+    mentionedInComposerId: uuid('mentionedInComposerId').references(
+      () => document.id,
+      { onDelete: 'cascade' },
+    ),
+    messageId: uuid('messageId').references(() => message.id, {
+      onDelete: 'set null',
+    }),
+    mentionedAt: timestamp('mentionedAt').notNull().defaultNow(),
+    mentionContext: text('mentionContext'), // Snippet of surrounding text for context
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    composerIdx: index('composer_mention_composer_idx').on(table.composerId),
+    chatIdx: index('composer_mention_chat_idx').on(table.mentionedInChatId),
+    inComposerIdx: index('composer_mention_in_composer_idx').on(
+      table.mentionedInComposerId,
+    ),
+    messageIdx: index('composer_mention_message_idx').on(table.messageId),
+    userIdx: index('composer_mention_user_idx').on(table.userId),
+    timeIdx: index('composer_mention_time_idx').on(table.mentionedAt),
+  }),
+);
+
+export type ComposerMention = InferSelectModel<typeof composerMention>;
 
 // Organization member roles table
 export const orgMemberRole = pgTable(
@@ -432,16 +525,41 @@ export const suggestion = pgTable('Suggestion', {
 
 export type Suggestion = InferSelectModel<typeof suggestion>;
 
-// Fixed Stream table - removed duplicate primary key definition
-export const stream = pgTable('Stream', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  chatId: uuid('chatId')
-    .notNull()
-    .references(() => chat.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('createdAt').notNull(),
-});
+// Stream state enum for tracking stream lifecycle
+export const streamStatusEnum = pgEnum('stream_status', [
+  'active',
+  'completed',
+  'interrupted',
+  'errored',
+]);
+
+// Stream table with state tracking for resumable streams
+export const stream = pgTable(
+  'Stream',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    chatId: uuid('chatId')
+      .notNull()
+      .references(() => chat.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull(),
+    // Stream state tracking fields
+    status: streamStatusEnum('status').notNull().default('active'),
+    lastActiveAt: timestamp('lastActiveAt').notNull().defaultNow(),
+    messageId: uuid('messageId'), // The assistant message being streamed
+    composerDocumentId: uuid('composerDocumentId'), // Active composer document if any
+    metadata: jsonb('metadata'), // Additional state (research mode, partial content, etc.)
+  },
+  (table) => ({
+    statusIdx: index('stream_status_idx').on(table.status),
+    chatIdStatusIdx: index('stream_chat_status_idx').on(
+      table.chatId,
+      table.status,
+    ),
+  }),
+);
 
 export type Stream = InferSelectModel<typeof stream>;
+export type StreamStatus = (typeof streamStatusEnum.enumValues)[number];
 
 export const embeddings = pgTable(
   'Embeddings',

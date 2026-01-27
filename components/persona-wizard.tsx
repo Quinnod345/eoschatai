@@ -1593,7 +1593,7 @@ export function PersonaWizard({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[calc(100vw-1rem)] sm:w-full max-w-3xl h-[90vh] sm:h-[85vh] p-0 flex flex-col overflow-hidden">
+      <DialogContent size="xl" className="h-[calc(100vh-2rem)] sm:h-[85vh] p-0 flex flex-col overflow-hidden">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b bg-muted/30">
           <DialogTitle className="text-lg">

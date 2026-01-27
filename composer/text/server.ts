@@ -103,7 +103,7 @@ Generate the document content now (pure Markdown, no meta-commentary):`
       const { type } = delta;
 
       if (type === 'text-delta') {
-        const { text: textDelta } = delta;
+        const textDelta = delta.text;
         const cleaned = scrubMeta(textDelta);
         if (cleaned.length === 0) continue;
 
@@ -164,7 +164,7 @@ ${inlineEditPrompt(document.content || '', description, 'text')}`,
       const { type } = delta;
 
       if (type === 'text-delta') {
-        const { text: textDelta } = delta;
+        const textDelta = delta.text;
         const cleaned = scrubMeta(textDelta);
         if (cleaned.length === 0) continue;
 

@@ -233,7 +233,7 @@ export function CourseAssistantModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl bg-background/95 backdrop-blur-md border-2 border-border/50">
+      <DialogContent size="lg">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

@@ -155,7 +155,7 @@ export function BookmarksModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col p-0">
+      <DialogContent size="lg" className="flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Bookmark className="h-5 w-5 text-blue-500" />

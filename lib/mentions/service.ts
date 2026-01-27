@@ -7,7 +7,27 @@ import type {
   MentionType,
   MentionFilter,
   MentionCommand,
+  ComposerMentionInstance,
+  ComposerKind,
 } from './types';
+import {
+  COMPOSER_KIND_TO_MENTION_TYPE,
+  COMPOSER_KIND_ICONS,
+  COMPOSER_KIND_DISPLAY_NAMES,
+  COMPOSER_KIND_COLORS,
+  COMPOSER_MENTION_SHORTCUTS,
+} from './types';
+
+// Composer fetcher function type - will be injected to avoid circular dependencies
+export type ComposerFetcher = (
+  userId: string,
+  options?: {
+    search?: string;
+    kind?: ComposerKind | 'all';
+    limit?: number;
+    sortBy?: 'recent' | 'accessed' | 'mentioned' | 'title';
+  },
+) => Promise<ComposerMentionInstance[]>;
 
 // Enhanced mention service with intelligent features
 export class MentionService {
@@ -16,6 +36,7 @@ export class MentionService {
   private instances: Map<string, MentionInstance[]> = new Map();
   private commands: Map<string, MentionCommand> = new Map();
   private userHistory: Map<string, MentionInstance[]> = new Map();
+  private composerFetcher: ComposerFetcher | null = null;
 
   private constructor() {
     this.initializeDefaultResources();
@@ -27,6 +48,11 @@ export class MentionService {
       MentionService.instance = new MentionService();
     }
     return MentionService.instance;
+  }
+
+  // Set the composer fetcher function (call from app initialization)
+  setComposerFetcher(fetcher: ComposerFetcher) {
+    this.composerFetcher = fetcher;
   }
 
   // Initialize default mention resources
@@ -156,6 +182,103 @@ export class MentionService {
         color: 'purple',
         aliases: ['meeting'],
         shortcut: '@agenda',
+      },
+      // Composer resources
+      {
+        id: 'composers',
+        name: 'All Composers',
+        type: 'composer',
+        category: 'composer',
+        description: 'Access all your AI-generated documents',
+        icon: 'FileStack',
+        color: COMPOSER_KIND_COLORS.text,
+        aliases: ['composer', 'generated', 'ai-docs'],
+        shortcut: '@composer',
+        isDynamic: true,
+      },
+      {
+        id: 'text-composers',
+        name: 'Text Documents',
+        type: 'text-composer',
+        category: 'composer',
+        description: 'Text and markdown documents',
+        icon: COMPOSER_KIND_ICONS.text,
+        color: COMPOSER_KIND_COLORS.text,
+        aliases: ['text', 'markdown', 'notes'],
+        shortcut: '@doc',
+        isDynamic: true,
+      },
+      {
+        id: 'code-composers',
+        name: 'Code Documents',
+        type: 'code-composer',
+        category: 'composer',
+        description: 'Code snippets and scripts',
+        icon: COMPOSER_KIND_ICONS.code,
+        color: COMPOSER_KIND_COLORS.code,
+        aliases: ['code', 'script', 'programming'],
+        shortcut: '@code',
+        isDynamic: true,
+      },
+      {
+        id: 'sheet-composers',
+        name: 'Spreadsheets',
+        type: 'sheet-composer',
+        category: 'composer',
+        description: 'Spreadsheet and data tables',
+        icon: COMPOSER_KIND_ICONS.sheet,
+        color: COMPOSER_KIND_COLORS.sheet,
+        aliases: ['spreadsheet', 'table', 'data', 'csv', 'excel'],
+        shortcut: '@sheet',
+        isDynamic: true,
+      },
+      {
+        id: 'chart-composers',
+        name: 'Charts',
+        type: 'chart-composer',
+        category: 'composer',
+        description: 'Data visualizations and charts',
+        icon: COMPOSER_KIND_ICONS.chart,
+        color: COMPOSER_KIND_COLORS.chart,
+        aliases: ['chart', 'graph', 'visualization', 'viz'],
+        shortcut: '@chart',
+        isDynamic: true,
+      },
+      {
+        id: 'image-composers',
+        name: 'Images',
+        type: 'image-composer',
+        category: 'composer',
+        description: 'AI-generated images',
+        icon: COMPOSER_KIND_ICONS.image,
+        color: COMPOSER_KIND_COLORS.image,
+        aliases: ['image', 'picture', 'photo', 'dalle'],
+        shortcut: '@image',
+        isDynamic: true,
+      },
+      {
+        id: 'vto-composers',
+        name: 'V/TO Documents',
+        type: 'vto-composer',
+        category: 'composer',
+        description: 'Vision/Traction Organizer documents',
+        icon: COMPOSER_KIND_ICONS.vto,
+        color: COMPOSER_KIND_COLORS.vto,
+        aliases: ['vto', 'vision', 'traction'],
+        shortcut: '@vto',
+        isDynamic: true,
+      },
+      {
+        id: 'accountability-composers',
+        name: 'Accountability Charts',
+        type: 'accountability-composer',
+        category: 'composer',
+        description: 'Organizational accountability charts',
+        icon: COMPOSER_KIND_ICONS.accountability,
+        color: COMPOSER_KIND_COLORS.accountability,
+        aliases: ['accountability', 'ac', 'org-chart', 'hierarchy'],
+        shortcut: '@ac',
+        isDynamic: true,
       },
     ];
 
@@ -422,6 +545,26 @@ export class MentionService {
         });
         break;
       }
+
+      // Composer types
+      case 'composer':
+      case 'text-composer':
+      case 'code-composer':
+      case 'sheet-composer':
+      case 'chart-composer':
+      case 'image-composer':
+      case 'vto-composer':
+      case 'accountability-composer': {
+        const composers = await this.fetchComposers(
+          context.userId,
+          searchTerm,
+          resource.type,
+        );
+        composers.forEach((composer) => {
+          instances.push(composer);
+        });
+        break;
+      }
     }
 
     return instances;
@@ -450,6 +593,100 @@ export class MentionService {
   ): Promise<any[]> {
     // This would fetch team members
     return [];
+  }
+
+  // Fetch composers with smart sorting
+  private async fetchComposers(
+    userId: string,
+    search: string,
+    type: MentionType,
+  ): Promise<ComposerMentionInstance[]> {
+    if (!this.composerFetcher) {
+      console.warn('Composer fetcher not set. Call setComposerFetcher first.');
+      return [];
+    }
+
+    // Determine which kind of composer to fetch
+    let kind: ComposerKind | 'all' = 'all';
+    switch (type) {
+      case 'text-composer':
+        kind = 'text';
+        break;
+      case 'code-composer':
+        kind = 'code';
+        break;
+      case 'sheet-composer':
+        kind = 'sheet';
+        break;
+      case 'chart-composer':
+        kind = 'chart';
+        break;
+      case 'image-composer':
+        kind = 'image';
+        break;
+      case 'vto-composer':
+        kind = 'vto';
+        break;
+      case 'accountability-composer':
+        kind = 'accountability';
+        break;
+      case 'composer':
+      default:
+        kind = 'all';
+    }
+
+    try {
+      return await this.composerFetcher(userId, {
+        search,
+        kind,
+        limit: 10,
+        sortBy: 'accessed', // Prioritize recently accessed
+      });
+    } catch (error) {
+      console.error('Error fetching composers:', error);
+      return [];
+    }
+  }
+
+  // Get composer suggestions directly (for use in UI components)
+  async getComposerSuggestions(
+    userId: string,
+    query: string,
+    options?: {
+      kind?: ComposerKind | 'all';
+      limit?: number;
+      includePreview?: boolean;
+    },
+  ): Promise<ComposerMentionInstance[]> {
+    if (!this.composerFetcher) {
+      return [];
+    }
+
+    // Check if query matches a shortcut
+    const shortcutMatch = Object.entries(COMPOSER_MENTION_SHORTCUTS).find(
+      ([shortcut]) => query.toLowerCase().startsWith(shortcut.replace('@', '')),
+    );
+
+    const kind = shortcutMatch
+      ? (shortcutMatch[1] as ComposerKind | 'all')
+      : options?.kind || 'all';
+
+    // Remove shortcut prefix from search
+    let searchTerm = query;
+    if (shortcutMatch) {
+      searchTerm = query
+        .slice(shortcutMatch[0].length - 1)
+        .trim()
+        .replace(/^:/, '')
+        .trim();
+    }
+
+    return await this.composerFetcher(userId, {
+      search: searchTerm,
+      kind,
+      limit: options?.limit || 10,
+      sortBy: 'accessed',
+    });
   }
 
   // Get recent mentions for a user

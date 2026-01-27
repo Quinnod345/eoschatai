@@ -42,6 +42,12 @@ import {
   Mic,
   Telescope,
   Check,
+  // Composer icons
+  Code,
+  Image as ImageIcon,
+  Table,
+  PieChart,
+  FileStack,
 } from 'lucide-react';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
@@ -108,14 +114,24 @@ interface MentionResource {
     | 'search'
     | 'analyze'
     | 'help'
-    | 'agenda';
+    | 'agenda'
+    // Composer types
+    | 'composer'
+    | 'text-composer'
+    | 'code-composer'
+    | 'sheet-composer'
+    | 'chart-composer'
+    | 'image-composer'
+    | 'vto-composer'
+    | 'accountability-composer';
   category?:
     | 'resource'
     | 'calendar'
     | 'person'
     | 'tool'
     | 'command'
-    | 'template';
+    | 'template'
+    | 'composer';
   description: string;
   icon: React.ReactNode;
   color?: string;
@@ -286,6 +302,103 @@ const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
     color: 'purple',
     aliases: ['meeting'],
     shortcut: '@agenda',
+  },
+  // Composer category - AI-generated documents
+  {
+    id: 'composers',
+    name: 'All Composers',
+    type: 'composer',
+    category: 'composer',
+    description: 'Access all your AI-generated documents',
+    icon: <FileStack className="size-4" />,
+    color: 'blue',
+    aliases: ['composer', 'generated', 'ai-docs'],
+    shortcut: '@composer',
+    isDynamic: true,
+  },
+  {
+    id: 'text-composers',
+    name: 'Text Documents',
+    type: 'text-composer',
+    category: 'composer',
+    description: 'Text and markdown documents',
+    icon: <FileText className="size-4" />,
+    color: 'blue',
+    aliases: ['text', 'markdown', 'notes'],
+    shortcut: '@doc',
+    isDynamic: true,
+  },
+  {
+    id: 'code-composers',
+    name: 'Code Documents',
+    type: 'code-composer',
+    category: 'composer',
+    description: 'Code snippets and scripts',
+    icon: <Code className="size-4" />,
+    color: 'emerald',
+    aliases: ['code', 'script', 'programming'],
+    shortcut: '@code',
+    isDynamic: true,
+  },
+  {
+    id: 'sheet-composers',
+    name: 'Spreadsheets',
+    type: 'sheet-composer',
+    category: 'composer',
+    description: 'Spreadsheet and data tables',
+    icon: <Table className="size-4" />,
+    color: 'violet',
+    aliases: ['spreadsheet', 'table', 'data', 'csv', 'excel'],
+    shortcut: '@sheet',
+    isDynamic: true,
+  },
+  {
+    id: 'chart-composers',
+    name: 'Charts',
+    type: 'chart-composer',
+    category: 'composer',
+    description: 'Data visualizations and charts',
+    icon: <PieChart className="size-4" />,
+    color: 'pink',
+    aliases: ['chart', 'graph', 'visualization', 'viz'],
+    shortcut: '@chart',
+    isDynamic: true,
+  },
+  {
+    id: 'image-composers',
+    name: 'Images',
+    type: 'image-composer',
+    category: 'composer',
+    description: 'AI-generated images',
+    icon: <ImageIcon className="size-4" />,
+    color: 'amber',
+    aliases: ['image', 'picture', 'photo', 'dalle'],
+    shortcut: '@image',
+    isDynamic: true,
+  },
+  {
+    id: 'vto-composers',
+    name: 'V/TO Documents',
+    type: 'vto-composer',
+    category: 'composer',
+    description: 'Vision/Traction Organizer documents',
+    icon: <Target className="size-4" />,
+    color: 'red',
+    aliases: ['vto-doc', 'vision-doc'],
+    shortcut: '@vto-doc',
+    isDynamic: true,
+  },
+  {
+    id: 'accountability-composers',
+    name: 'Accountability Charts',
+    type: 'accountability-composer',
+    category: 'composer',
+    description: 'Organizational accountability charts',
+    icon: <Users className="size-4" />,
+    color: 'cyan',
+    aliases: ['ac-doc', 'org-chart-doc'],
+    shortcut: '@ac-doc',
+    isDynamic: true,
   },
 ];
 
@@ -758,33 +871,103 @@ function PureMultimodalInput({
         setDynamicMentionResources([]);
         return;
       }
+
+      // Check for composer-specific shortcuts
+      const composerShortcuts: Record<string, string> = {
+        'doc:': 'text',
+        'code:': 'code',
+        'sheet:': 'sheet',
+        'chart:': 'chart',
+        'image:': 'image',
+        'vto:': 'vto',
+        'ac:': 'accountability',
+        'composer:': 'all',
+      };
+      let composerKind: string | undefined;
+      let searchQuery = q;
+      for (const [shortcut, kind] of Object.entries(composerShortcuts)) {
+        if (q.toLowerCase().startsWith(shortcut)) {
+          composerKind = kind;
+          searchQuery = q.slice(shortcut.length).trim();
+          break;
+        }
+      }
+
       try {
-        // Fetch composer documents (by title)
+        // Build query params for composer documents
+        const composerParams = new URLSearchParams({ 
+          search: searchQuery, 
+          limit: '8' 
+        });
+        if (composerKind && composerKind !== 'all') {
+          composerParams.set('kind', composerKind);
+        }
+
+        // Fetch composer documents (by title) and recordings
         const [docsRes, recsRes] = await Promise.all([
-          fetch(
-            `/api/documents?${new URLSearchParams({ search: q, limit: '5' })}`,
-          ),
+          fetch(`/api/documents?${composerParams}`),
           fetch(`/api/voice/recordings`),
         ]);
 
         const dyn: MentionResource[] = [];
 
+        // Helper to get icon for composer kind
+        const getComposerIcon = (kind: string) => {
+          switch (kind) {
+            case 'text': return <FileText className="size-4" />;
+            case 'code': return <Code className="size-4" />;
+            case 'sheet': return <Table className="size-4" />;
+            case 'chart': return <PieChart className="size-4" />;
+            case 'image': return <ImageIcon className="size-4" />;
+            case 'vto': return <Target className="size-4" />;
+            case 'accountability': return <Users className="size-4" />;
+            default: return <FileStack className="size-4" />;
+          }
+        };
+
+        // Helper to get color for composer kind
+        const getComposerColor = (kind: string) => {
+          switch (kind) {
+            case 'text': return 'blue';
+            case 'code': return 'emerald';
+            case 'sheet': return 'violet';
+            case 'chart': return 'pink';
+            case 'image': return 'amber';
+            case 'vto': return 'red';
+            case 'accountability': return 'cyan';
+            default: return 'blue';
+          }
+        };
+
+        // Helper to get type for composer kind
+        const getComposerType = (kind: string): MentionResource['type'] => {
+          switch (kind) {
+            case 'text': return 'text-composer';
+            case 'code': return 'code-composer';
+            case 'sheet': return 'sheet-composer';
+            case 'chart': return 'chart-composer';
+            case 'image': return 'image-composer';
+            case 'vto': return 'vto-composer';
+            case 'accountability': return 'accountability-composer';
+            default: return 'composer';
+          }
+        };
+
         if (docsRes.ok) {
           const data = await docsRes.json();
           const docs = Array.isArray(data?.documents) ? data.documents : [];
           for (const d of docs) {
+            const kind = d.kind || 'text';
             dyn.push({
               id: d.id,
               name: d.title || 'Untitled Document',
-              type: 'document',
-              category: 'resource',
-              description: d.kind
-                ? `Composer • ${d.kind}`
-                : 'Composer document',
-              icon: <FileText className="size-4" />,
-              color: 'purple',
+              type: getComposerType(kind),
+              category: 'composer',
+              description: `${kind.charAt(0).toUpperCase() + kind.slice(1)} Composer${d.tags?.length ? ` • ${d.tags.slice(0, 2).join(', ')}` : ''}`,
+              icon: getComposerIcon(kind),
+              color: getComposerColor(kind),
               isDynamic: true,
-              preview: d.preview,
+              preview: d.contentSummary || d.preview,
             } as MentionResource);
           }
         }
@@ -796,8 +979,8 @@ function PureMultimodalInput({
             const title: string = r?.recording?.title || 'Untitled Recording';
             const transcript: string = r?.transcript?.text || '';
             const matches =
-              title.toLowerCase().includes(q.toLowerCase()) ||
-              transcript.toLowerCase().includes(q.toLowerCase());
+              title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              transcript.toLowerCase().includes(searchQuery.toLowerCase());
             if (!matches) continue;
             dyn.push({
               id: r?.recording?.id,
@@ -2590,7 +2773,7 @@ function PureMultimodalInput({
             </div>
 
             {/* Group resources by category */}
-            {['calendar', 'resource', 'person', 'tool', 'command', 'template']
+            {['composer', 'calendar', 'resource', 'person', 'tool', 'command', 'template']
               .filter((category) =>
                 filteredMentionResources.some((r) => r.category === category),
               )
@@ -2599,7 +2782,8 @@ function PureMultimodalInput({
                   (r) => r.category === category,
                 );
                 const categoryColors = {
-                  calendar: 'blue',
+                  composer: 'blue',
+                  calendar: 'sky',
                   resource: 'purple',
                   person: 'teal',
                   tool: 'orange',
@@ -2684,6 +2868,7 @@ function PureMultimodalInput({
 
             {/* No grouped resources fallback */}
             {![
+              'composer',
               'calendar',
               'resource',
               'person',

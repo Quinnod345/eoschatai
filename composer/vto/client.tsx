@@ -10,7 +10,7 @@ import {
   InfoIcon,
 } from '@/components/icons';
 import { toast } from '@/lib/toast-system';
-import { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback, memo, useState } from 'react';
 import { useComposer as useGlobalComposer } from '@/hooks/use-composer';
 import {
   Tooltip,
@@ -105,9 +105,36 @@ function parseVtoFromContent(content: string | undefined): VtoData | null {
       const end = content.indexOf('VTO_DATA_END');
       jsonStr = content.substring(start, end).trim();
     }
-    const parsed = JSON.parse(jsonStr) as VtoData;
-    if (!parsed || !parsed.coreValues || !parsed.coreFocus) return null;
-    return parsed;
+    const parsed = JSON.parse(jsonStr) as Partial<VtoData>;
+    // During streaming, parsed object may be incomplete - merge with defaults
+    const defaults = defaultVto();
+    // Deep merge to ensure all nested objects exist
+    const merged: VtoData = {
+      coreValues: parsed.coreValues ?? defaults.coreValues,
+      coreFocus: {
+        ...defaults.coreFocus,
+        ...(parsed.coreFocus || {}),
+      },
+      tenYearTarget: parsed.tenYearTarget ?? defaults.tenYearTarget,
+      marketingStrategy: {
+        ...defaults.marketingStrategy,
+        ...(parsed.marketingStrategy || {}),
+      },
+      threeYearPicture: {
+        ...defaults.threeYearPicture,
+        ...(parsed.threeYearPicture || {}),
+      },
+      oneYearPlan: {
+        ...defaults.oneYearPlan,
+        ...(parsed.oneYearPlan || {}),
+      },
+      rocks: {
+        ...defaults.rocks,
+        ...(parsed.rocks || {}),
+      },
+      issuesList: parsed.issuesList ?? defaults.issuesList,
+    };
+    return merged;
   } catch {
     return null;
   }
@@ -198,6 +225,50 @@ function LabeledText({
   );
 }
 
+// Individual input row with local state to prevent focus loss
+const BulletedListItem = memo(function BulletedListItem({
+  value,
+  index,
+  onChangeValue,
+  onRemove,
+}: {
+  value: string;
+  index: number;
+  onChangeValue: (index: number, value: string) => void;
+  onRemove: (index: number) => void;
+}) {
+  const [localValue, setLocalValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Sync local state when prop changes (but not from our own typing)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="text-sm text-muted-foreground w-4">{index + 1}.</div>
+      <input
+        ref={inputRef}
+        className="flex-1 border rounded-md px-3 py-2 text-sm dark:bg-zinc-900"
+        value={localValue}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          setLocalValue(newValue);
+          onChangeValue(index, newValue);
+        }}
+      />
+      <button
+        type="button"
+        className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        onClick={() => onRemove(index)}
+      >
+        Remove
+      </button>
+    </div>
+  );
+});
+
 function BulletedList({
   items,
   onChange,
@@ -207,6 +278,29 @@ function BulletedList({
   onChange: (items: string[]) => void;
   addLabel?: string;
 }) {
+  const handleChangeValue = useCallback((index: number, value: string) => {
+    onChange(items.map((it, i) => {
+      if (i === index) return value;
+      return typeof it === 'string' ? it : (it?.title as string) || '';
+    }));
+  }, [items, onChange]);
+
+  const handleRemove = useCallback((index: number) => {
+    onChange(
+      items
+        .filter((_, i) => i !== index)
+        .map((it) => typeof it === 'string' ? it : (it?.title as string) || ''),
+    );
+  }, [items, onChange]);
+
+  const handleAdd = useCallback(() => {
+    onChange(
+      items
+        .map((it) => typeof it === 'string' ? it : (it?.title as string) || '')
+        .concat(''),
+    );
+  }, [items, onChange]);
+
   return (
     <div className="flex flex-col gap-2">
       {items.map((item, idx) => {
@@ -216,55 +310,21 @@ function BulletedList({
             : typeof item === 'number'
               ? String(item)
               : (item?.title as string) || '';
-        const keySig = typeof item === 'string' ? item.slice(0, 3) : 'obj';
         return (
-          <div
-            key={`${idx}-${keySig}-${items.length}`}
-            className="flex items-center gap-2"
-          >
-            <div className="text-sm text-muted-foreground w-4">{idx + 1}.</div>
-            <input
-              className="flex-1 border rounded-md px-3 py-2 text-sm dark:bg-zinc-900"
-              value={valueStr}
-              onChange={(e) => {
-                const next = items.map((it) =>
-                  typeof it === 'string' ? it : (it?.title as string) || '',
-                );
-                next[idx] = e.target.value;
-                onChange(next);
-              }}
-            />
-            <button
-              type="button"
-              className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              onClick={() =>
-                onChange(
-                  items
-                    .filter((_, i) => i !== idx)
-                    .map((it) =>
-                      typeof it === 'string' ? it : (it?.title as string) || '',
-                    ),
-                )
-              }
-            >
-              Remove
-            </button>
-          </div>
+          <BulletedListItem
+            key={`item-${idx}`}
+            value={valueStr}
+            index={idx}
+            onChangeValue={handleChangeValue}
+            onRemove={handleRemove}
+          />
         );
       })}
       <div>
         <button
           type="button"
           className="text-xs px-2 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          onClick={() =>
-            onChange(
-              items
-                .map((it) =>
-                  typeof it === 'string' ? it : (it?.title as string) || '',
-                )
-                .concat(''),
-            )
-          }
+          onClick={handleAdd}
         >
           {addLabel ?? 'Add row'}
         </button>
@@ -359,7 +419,8 @@ function toSmartRock(rock: string | VtoRock, futureDate?: string): VtoRock {
   return { title, metric, owner, dueDate: due };
 }
 
-function SmartRockRow({
+// SmartRockRow with local state to prevent focus loss
+const SmartRockRow = memo(function SmartRockRow({
   value,
   onChange,
   futureDate,
@@ -370,15 +431,41 @@ function SmartRockRow({
   futureDate?: string;
   onRemove: () => void;
 }) {
-  const check = smartCheck(value, futureDate);
-  const makeSmart = () => onChange(toSmartRock(value, futureDate));
-  if (typeof value === 'string') {
+  // Local state for inputs to prevent focus loss during parent re-renders
+  const [localValue, setLocalValue] = useState(value);
+  
+  // Sync local state when prop changes from outside (not from our typing)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const check = smartCheck(localValue, futureDate);
+  const makeSmart = useCallback(() => {
+    const smartValue = toSmartRock(localValue, futureDate);
+    setLocalValue(smartValue);
+    onChange(smartValue);
+  }, [localValue, futureDate, onChange]);
+
+  const handleStringChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    onChange(newValue);
+  }, [onChange]);
+
+  const handleFieldChange = useCallback((field: keyof VtoRock) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (typeof localValue === 'string') return;
+    const newValue = { ...localValue, [field]: e.target.value };
+    setLocalValue(newValue);
+    onChange(newValue);
+  }, [localValue, onChange]);
+
+  if (typeof localValue === 'string') {
     return (
       <div className="flex items-center gap-2">
         <input
           className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={localValue}
+          onChange={handleStringChange}
         />
         <SmartBadge
           valid={
@@ -416,26 +503,26 @@ function SmartRockRow({
         <input
           placeholder="Title"
           className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
-          value={value.title}
-          onChange={(e) => onChange({ ...value, title: e.target.value })}
+          value={localValue.title}
+          onChange={handleFieldChange('title')}
         />
         <input
           placeholder="Metric (measurable target)"
           className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
-          value={value.metric}
-          onChange={(e) => onChange({ ...value, metric: e.target.value })}
+          value={localValue.metric}
+          onChange={handleFieldChange('metric')}
         />
         <input
           placeholder="Owner"
           className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
-          value={value.owner}
-          onChange={(e) => onChange({ ...value, owner: e.target.value })}
+          value={localValue.owner}
+          onChange={handleFieldChange('owner')}
         />
         <input
           placeholder="Due date (e.g., March 31, 2025)"
           className="border rounded-md px-3 py-2 text-sm dark:bg-zinc-900 break-words whitespace-pre-wrap"
-          value={value.dueDate}
-          onChange={(e) => onChange({ ...value, dueDate: e.target.value })}
+          value={localValue.dueDate}
+          onChange={handleFieldChange('dueDate')}
         />
       </div>
       <div className="flex items-center justify-end gap-2">
@@ -449,7 +536,7 @@ function SmartRockRow({
       </div>
     </div>
   );
-}
+});
 
 function VtoPreviewLayout({
   vto,
@@ -702,27 +789,14 @@ function VtoPreviewLayout({
               </div>
               <div className="flex flex-col gap-2">
                 {(vto.rocks.rocks || []).map((item, idx) => {
-                  const sig =
-                    typeof item === 'string'
-                      ? `s-${idx}-${item}`
-                      : `o-${item.title}-${item.owner}-${item.metric}-${item.dueDate}`;
                   return (
                     <SmartRockRow
-                      key={sig}
+                      key={`rock-${idx}`}
                       value={item}
                       futureDate={vto.rocks.futureDate}
                       onChange={(next) => {
                         const updated = [...(vto.rocks.rocks || [])];
-                        const index = updated.findIndex((r, i) => {
-                          const a =
-                            typeof r === 'string'
-                              ? `s-${i}-${r}`
-                              : `o-${r.title}-${r.owner}-${r.metric}-${r.dueDate}`;
-                          return a === sig;
-                        });
-                        const targetIndex =
-                          index >= 0 ? index : updated.length - 1;
-                        updated[targetIndex] = next;
+                        updated[idx] = next;
                         setVto({
                           ...vto,
                           rocks: { ...vto.rocks, rocks: updated },
@@ -730,13 +804,7 @@ function VtoPreviewLayout({
                       }}
                       onRemove={() => {
                         const updated = (vto.rocks.rocks || []).filter(
-                          (r, i) => {
-                            const a =
-                              typeof r === 'string'
-                                ? `s-${i}-${r}`
-                                : `o-${r.title}-${r.owner}-${r.metric}-${r.dueDate}`;
-                            return a !== sig;
-                          },
+                          (_, i) => i !== idx,
                         );
                         setVto({
                           ...vto,
@@ -804,16 +872,20 @@ export const vtoComposer = new Composer<'vto', Metadata>({
   },
   onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
     if (streamPart.type === 'text-delta') {
-      const text = String(streamPart.content || '');
-      const parsed = parseVtoFromContent(text);
+      // Server sends FULL content each time (not deltas), so REPLACE not accumulate
+      const content = String(streamPart.content || '');
+      
+      // Try to parse the full content
+      const parsed = parseVtoFromContent(content);
       if (parsed) {
         setMetadata((m: Metadata) => ({ ...(m || {}), vto: parsed }));
       }
+      
       setComposer((draft) => ({
         ...draft,
-        content: draft.content + text,
+        content: content,
         isVisible:
-          draft.status === 'streaming' && draft.content.length > 200
+          draft.status === 'streaming' && content.length > 200
             ? true
             : draft.isVisible,
         status: 'streaming',
@@ -831,6 +903,7 @@ export const vtoComposer = new Composer<'vto', Metadata>({
   }) => {
     const previewRef = useRef<HTMLDivElement>(null);
     const lastValidVtoRef = useRef<VtoData | null>(null);
+    const lastSavedJsonRef = useRef<string>('');
     const { setComposer } = useGlobalComposer();
 
     // Track last valid VTO parsed from full content to survive transient clears
@@ -864,7 +937,7 @@ export const vtoComposer = new Composer<'vto', Metadata>({
       setMetadata((m: Metadata | null) => ({ ...(m || {}), vto: next }));
     };
 
-    // Persist when local VTO differs from current content (avoid loops, streaming clobber, and empty/default saves)
+    // Auto-save when VTO changes (simple, fire-and-forget)
     useEffect(() => {
       if (!vto) return;
       if (status === 'streaming') return;
@@ -872,14 +945,16 @@ export const vtoComposer = new Composer<'vto', Metadata>({
       // Only persist meaningful VTO (avoid saving default/blank structures)
       if (!isMeaningfulVto(vto)) return;
 
-      const hasValidInContent = !!parseVtoFromContent(content);
+      const json = JSON.stringify(vto);
+      
+      // Skip if content hasn't changed
+      if (json === lastSavedJsonRef.current) return;
+      lastSavedJsonRef.current = json;
 
-      const json = JSON.stringify(vto, null, 2);
-      const wrapped = `VTO_DATA_BEGIN\n${json}\nVTO_DATA_END`;
-      // Persist if user edited metadata OR we differ from current content
-      if (wrapped !== (content || '') || !hasValidInContent)
-        onSaveContent(wrapped, true);
-    }, [vto, content, status, onSaveContent]);
+      // Queue for background save (debounced in parent)
+      const wrapped = `VTO_DATA_BEGIN\n${JSON.stringify(vto, null, 2)}\nVTO_DATA_END`;
+      onSaveContent(wrapped, true);
+    }, [vto, status, onSaveContent]);
 
     const exportPdf = async () => {
       try {
@@ -957,13 +1032,15 @@ export const vtoComposer = new Composer<'vto', Metadata>({
             <button
               type="button"
               onClick={exportPdf}
-              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              disabled={isGenerating}
+              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               Export PDF
             </button>
             <button
               type="button"
-              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              disabled={isGenerating}
+              className="text-xs px-3 py-1 rounded-md border hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               onClick={async () => {
                 try {
                   const res = await fetch('/api/user-settings', {
@@ -988,16 +1065,17 @@ export const vtoComposer = new Composer<'vto', Metadata>({
         </div>
         <div className="relative">
           {isGenerating && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-zinc-900/80 rounded-lg border">
-              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                <div className="animate-spin h-5 w-5 rounded-full border-2 border-zinc-300 border-t-transparent" />
-                <div>Generating your V/TO…</div>
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 dark:bg-black/70 rounded-lg pointer-events-auto backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 text-white bg-zinc-900/90 px-8 py-6 rounded-xl shadow-2xl border border-zinc-700">
+                <div className="animate-spin h-8 w-8 rounded-full border-3 border-white/30 border-t-white" />
+                <div className="text-lg font-medium">Generating V/TO</div>
+                <div className="text-sm text-zinc-400">Please wait...</div>
               </div>
             </div>
           )}
           <div
             ref={previewRef}
-            className="bg-white dark:bg-zinc-900 p-6 rounded-lg border"
+            className={`bg-white dark:bg-zinc-900 p-6 rounded-lg border transition-opacity ${isGenerating ? 'pointer-events-none' : ''}`}
           >
             <VtoPreviewLayout vto={vto} setVto={setVto} />
           </div>

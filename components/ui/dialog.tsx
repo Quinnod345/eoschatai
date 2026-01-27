@@ -3,7 +3,6 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 import { cn } from '@/lib/utils';
 
@@ -27,7 +26,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 bg-black/20 backdrop-blur-[8px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'fixed inset-0 bg-black/30 backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200',
       nested ? 'z-nested-modal-overlay' : 'z-modal-overlay',
       className,
     )}
@@ -40,47 +39,83 @@ interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
   hideCloseButton?: boolean;
   nested?: boolean;
+  /** Size variant for the dialog */
+  size?: 'sm' | 'default' | 'lg' | 'xl' | '2xl' | 'full' | 'custom';
 }
+
+const dialogSizeClasses = {
+  sm: 'sm:max-w-sm', // 384px
+  default: 'sm:max-w-xl', // 576px - increased from lg (512px)
+  lg: 'sm:max-w-2xl', // 672px
+  xl: 'sm:max-w-4xl', // 896px
+  '2xl': 'sm:max-w-6xl', // 1152px
+  full: 'sm:max-w-[calc(100vw-2rem)]',
+  custom: '', // No constraint - use className
+};
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideCloseButton = false, nested = false, ...props }, ref) => (
+>(({ className, children, hideCloseButton = false, nested = false, size = 'default', ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay nested={nested} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed inset-0 grid place-items-center p-4',
+        // Positioning - centered with safe area
+        'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+        // Z-index
         nested ? 'z-nested-modal-content' : 'z-modal-content',
+        // Base sizing - full width on mobile, constrained on larger screens
+        'w-[calc(100vw-1rem)] sm:w-full',
+        // Max height with safe scrolling
+        'max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)]',
+        // Overflow handling
+        'overflow-y-auto overflow-x-hidden overscroll-contain',
+        // Visual styling
+        'bg-background border border-border/50 shadow-xl',
+        'rounded-xl sm:rounded-2xl',
+        // Padding - more compact on mobile
+        'p-4 sm:p-6',
+        // Animation
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]',
+        'data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
+        'duration-200',
+        // Text handling
+        '[overflow-wrap:break-word] [word-break:break-word]',
+        // Size variant
+        dialogSizeClasses[size],
+        className,
       )}
       {...props}
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className={cn(
-          'relative w-full max-w-[calc(100vw-2rem)] sm:max-w-lg gap-4 bg-background/90 p-4 sm:p-6 shadow-2xl backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-xl sm:rounded-2xl pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto',
-          '[&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-words [&_code]:whitespace-pre-wrap',
-          className,
-        )}
-        style={{
-          boxShadow:
-            '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
-          wordBreak: 'break-word',
-          overflowWrap: 'break-word',
-        }}
-      >
-        {children}
-        {!hideCloseButton && (
-          <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-1.5 opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10 touch-target-sm">
-            <X className="h-5 w-5 sm:h-4 sm:w-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </motion.div>
+      {children}
+      {!hideCloseButton && (
+        <DialogPrimitive.Close 
+          className={cn(
+            // Positioning - sticky in top right corner
+            'absolute right-3 top-3 sm:right-4 sm:top-4',
+            // Size and shape
+            'h-8 w-8 sm:h-7 sm:w-7 rounded-full',
+            // Flex centering
+            'inline-flex items-center justify-center',
+            // Colors and interaction
+            'text-muted-foreground/70 hover:text-foreground',
+            'hover:bg-muted/80 active:bg-muted',
+            'transition-colors duration-150',
+            // Focus ring
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            // Z-index to stay above content
+            'z-10',
+          )}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      )}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
@@ -93,6 +128,8 @@ const DialogHeader = ({
   <div
     className={cn(
       'flex flex-col space-y-1.5 text-center sm:text-left',
+      // Add right padding to prevent close button overlap
+      'pr-8 sm:pr-10',
       className,
     )}
     {...props}
@@ -106,7 +143,10 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
+      // Stack buttons on mobile, row on desktop
+      'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3',
+      // Add top margin for separation
+      'mt-4 sm:mt-6 pt-4 border-t border-border/50',
       className,
     )}
     {...props}
@@ -121,7 +161,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-lg font-semibold leading-none tracking-tight',
+      'text-lg font-semibold leading-tight tracking-tight',
       className,
     )}
     {...props}
@@ -135,7 +175,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
+    className={cn('text-sm text-muted-foreground mt-1.5', className)}
     {...props}
   />
 ));

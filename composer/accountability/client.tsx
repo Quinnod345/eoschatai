@@ -2554,33 +2554,31 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
   onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
     console.log('[AC Debug] onStreamPart called:', streamPart);
     if (streamPart.type === 'text-delta') {
-      const text = String(streamPart.content || '');
-      console.log('[AC Debug] Received text-delta:', text);
-      setComposer((draft) => {
-        const newContent = draft.content + text;
+      // Server sends FULL content each time (not deltas), so REPLACE not accumulate
+      const content = String(streamPart.content || '');
+      console.log('[AC Debug] Received full content:', content.substring(0, 100));
+      
+      // Try to parse the full content
+      const parsed = parseACFromContent(content);
+      if (parsed) {
+        console.log('[AC Debug] Successfully parsed AC:', parsed);
+        setMetadata((m: Metadata) => ({ ...(m || {}), ac: parsed }));
+      }
 
-        // Try to parse accumulated content
-        const parsed = parseACFromContent(newContent);
-        if (parsed) {
-          console.log('[AC Debug] Successfully parsed AC:', parsed);
-          setMetadata((m: Metadata) => ({ ...(m || {}), ac: parsed }));
-        }
-
-        return {
-          ...draft,
-          // Sync composer.title to JSON title if present
-          title:
-            parsed?.title && parsed.title !== draft.title
-              ? (parsed.title as string)
-              : draft.title,
-          content: newContent,
-          isVisible:
-            draft.status === 'streaming' && newContent.length > 120
-              ? true
-              : draft.isVisible,
-          status: 'streaming',
-        };
-      });
+      setComposer((draft) => ({
+        ...draft,
+        // Sync composer.title to JSON title if present
+        title:
+          parsed?.title && parsed.title !== draft.title
+            ? (parsed.title as string)
+            : draft.title,
+        content: content,
+        isVisible:
+          draft.status === 'streaming' && content.length > 120
+            ? true
+            : draft.isVisible,
+        status: 'streaming',
+      }));
     }
   },
   content: ({
@@ -4205,10 +4203,12 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
     // Global composer switcher for cross-linking to VTO and Sheet
     const { setComposer } = useGlobalComposer();
 
+    const isStreaming = status === 'streaming';
+
     return (
       <div className="relative flex flex-col gap-4 p-6">
-        <ComposerEditingOverlay isVisible={status === 'streaming'} chatStatus={chatStatus} />
-        <div className="flex items-center justify-between rounded-lg border bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-2">
+        <ComposerEditingOverlay isVisible={isStreaming} chatStatus={chatStatus} />
+        <div className={`flex items-center justify-between rounded-lg border bg-white/70 dark:bg-zinc-900/70 backdrop-blur px-3 py-2 ${isStreaming ? 'pointer-events-none opacity-60' : ''}`}>
           <div className="text-sm text-muted-foreground">
             {ac.title || 'Accountability Chart'}
           </div>
@@ -4220,6 +4220,7 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
                 className="text-xs px-2 py-1 border rounded"
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(e.target.value)}
+                disabled={isStreaming}
               >
                 {getQuarterList(selectedQuarter, 2).map((q) => (
                   <option key={q} value={q}>
@@ -4402,15 +4403,16 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
           </div>
         </div>
         <div
-          className="relative w-full rounded-lg border bg-gray-50 dark:bg-zinc-900 overflow-hidden shadow-inner"
+          className={`relative w-full rounded-lg border bg-gray-50 dark:bg-zinc-900 overflow-hidden shadow-inner ${isStreaming ? 'pointer-events-none' : ''}`}
           ref={previewRef}
           style={{ width: '100%', height: '600px', minHeight: '520px' }}
         >
-          {status === 'streaming' && !hasParsedContent && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-zinc-900/80 rounded-lg border">
-              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                <div className="animate-spin h-5 w-5 rounded-full border-2 border-zinc-300 border-t-transparent" />
-                <div>Generating your Accountability Chart…</div>
+          {isStreaming && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 dark:bg-black/70 rounded-lg pointer-events-auto backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 text-white bg-zinc-900/90 px-8 py-6 rounded-xl shadow-2xl border border-zinc-700">
+                <div className="animate-spin h-8 w-8 rounded-full border-3 border-white/30 border-t-white" />
+                <div className="text-lg font-medium">Generating Accountability Chart</div>
+                <div className="text-sm text-zinc-400">Please wait...</div>
               </div>
             </div>
           )}

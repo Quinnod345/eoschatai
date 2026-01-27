@@ -1,97 +1,50 @@
 import { createDocumentHandler } from '@/lib/composer/server';
-import { generateId, smoothStream, streamText } from 'ai';
+import { generateId, streamText } from 'ai';
 import { createCustomProvider } from '@/lib/ai/providers';
 
-export interface SeatNode {
+// Type definitions for Accountability Chart
+type SeatNode = {
   id: string;
   name: string;
   holder: string;
   roles: string[];
-  children: SeatNode[];
   accent?: string;
-}
+  children: SeatNode[];
+};
 
-export interface AccountabilityChartData {
+type AccountabilityChartData = {
   version: number;
-  title?: string;
+  title: string;
   root: SeatNode;
+};
+
+export type { AccountabilityChartData, SeatNode };
+
+// JSON schema description for the AI to follow (used in prompts, not as structured output)
+const JSON_SCHEMA_INSTRUCTIONS = `
+You MUST output ONLY valid JSON (no markdown, no code fences, no explanation).
+The JSON must match this exact structure:
+
+{
+  "version": 1,
+  "title": "string - chart title",
+  "root": {
+    "id": "string - unique ID like seat-1",
+    "name": "string - seat name in UPPERCASE",
+    "holder": "string - person name or 'Seat Holder'",
+    "roles": ["string array - 2-5 key responsibilities"],
+    "children": [/* array of seat objects with same structure */]
+  }
 }
 
-function defaultChart(title?: string): AccountabilityChartData {
-  return {
-    version: 1,
-    title:
-      title ||
-      `${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} Accountability Chart`,
-    root: {
-      id: generateId(),
-      name: 'VISIONARY',
-      holder: 'Seat Holder',
-      roles: [
-        'Define the vision',
-        'Build key relationships',
-        'Solve big problems',
-        'Create company culture',
-      ],
-      accent: '#3b82f6',
-      children: [
-        {
-          id: generateId(),
-          name: 'INTEGRATOR',
-          holder: 'Seat Holder',
-          roles: [
-            'Lead the leadership team',
-            'Execute the vision',
-            'Hold people accountable',
-            'Resolve issues',
-          ],
-          accent: '#3b82f6',
-          children: [
-            {
-              id: generateId(),
-              name: 'MARKETING/SALES',
-              holder: 'Seat Holder',
-              roles: [
-                'Generate demand',
-                'Convert leads to customers',
-                'Retain customers',
-                'Build brand',
-              ],
-              accent: '#3b82f6',
-              children: [],
-            },
-            {
-              id: generateId(),
-              name: 'OPERATIONS',
-              holder: 'Seat Holder',
-              roles: [
-                'Deliver the product/service',
-                'Ensure quality',
-                'Optimize processes',
-                'Manage resources',
-              ],
-              accent: '#3b82f6',
-              children: [],
-            },
-            {
-              id: generateId(),
-              name: 'FINANCE',
-              holder: 'Seat Holder',
-              roles: [
-                'Manage cash flow',
-                'Financial reporting',
-                'Budget planning',
-                'Risk management',
-              ],
-              accent: '#3b82f6',
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-  };
-}
+CRITICAL RULES:
+- Output ONLY the JSON object, starting with { and ending with }
+- No markdown code fences (\`\`\`)
+- No explanations before or after
+- All seat objects must have: id, name, holder, roles (array), children (array, can be empty [])
+- Use unique IDs: seat-1, seat-2, seat-3, etc.
+- Seat names should be UPPERCASE (e.g., VISIONARY, INTEGRATOR, SALES)
+`;
 
 export const accountabilityDocumentHandler =
   createDocumentHandler<'accountability'>({
@@ -102,121 +55,182 @@ export const accountabilityDocumentHandler =
       maxOutputTokens,
       context,
     }) => {
-      // Stream STRICT JSON for the Accountability Chart between markers (AI decides structure/content)
       const provider = createCustomProvider();
-      const system = `You are generating an EOS Accountability Chart JSON. Return STRICT JSON with this shape:
-{
-  "version": number,
-  "title": string,
-  "root": {
-    "id": string,
-    "name": string,
-    "holder": string,
-    "roles": string[],
-    "accent"?: string,
-    "children": Array<SeatNode>
-  }
-}
-Rules:
-- Do not include any prose outside JSON.
-- MANDATORY: Always include a "title" field with type string. This is REQUIRED.
-- The title field MUST be included at the top level of the JSON object.
-- Use the exact title provided in the prompt.
-- Populate reasonable placeholders when unspecified.
-- Use stable ids (random ok) for seats.
-- Structure should be a valid EOS chart (Visionary, Integrator, major functions) unless the user specifies otherwise.`;
+      let draftContent = '';
+      let accumulatedText = '';
+      
+      const systemPrompt = `You are generating an EOS Accountability Chart as JSON.
+
+${JSON_SCHEMA_INSTRUCTIONS}
+
+EOS Structure requirements:
+- Root seat: VISIONARY with strategic roles (vision, culture, big relationships, R&D)
+- INTEGRATOR reports to Visionary, leads the leadership team (P&L, business plan, leadership team, integration)
+- Department heads report to Integrator: SALES/MARKETING, OPERATIONS, FINANCE (each with 3-5 specific roles)
+- Include 3-4 department heads for a typical EOS structure
+
+If no specific names are provided, use "Seat Holder" for the holder field.`;
+
+      const prompt = context && context.trim().length > 0
+        ? `Create an Accountability Chart JSON titled "${title || 'Accountability Chart'}".\n\nContext (use this information to populate names and roles):\n${context}\n\nOutput ONLY the JSON:`
+        : `Create an Accountability Chart JSON titled "${title || 'Accountability Chart'}" with typical EOS structure (Visionary, Integrator, 3-4 department heads).\n\nOutput ONLY the JSON:`;
 
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
-        system,
-        maxOutputTokens: Math.min(
-          12000,
-          Math.max(1000, maxOutputTokens ?? 6000),
-        ),
-        experimental_transform: smoothStream({ chunking: 'word' }),
-        prompt: `Create an Accountability Chart JSON.
-CRITICAL: The JSON must include "title": "${title || 'Accountability Chart'}".
-User request context (follow precisely, including any requested counts): ${context || 'N/A'}
-Do not assume any number of seats; use the user's instructions. Keep JSON compact and strictly valid.`,
-      });
-
-      let draft = 'AC_DATA_BEGIN\n';
-      dataStream.write({
-        type: 'data-composer',
-        id: generateId(),
-        data: { type: 'text-delta', content: 'AC_DATA_BEGIN\n' },
+        system: systemPrompt,
+        prompt,
+        maxOutputTokens: Math.min(8000, Math.max(1000, maxOutputTokens ?? 4000)),
       });
 
       for await (const delta of fullStream) {
-        if (delta.type === 'text-delta') {
-          const { text } = delta;
-          draft += text;
-          dataStream.write({
-            type: 'data-composer',
-            id: generateId(),
-            data: {
-              type: 'text-delta',
-              content: text,
-            },
-          });
+        const { type } = delta;
+        
+        if (type === 'text-delta') {
+          const text = delta.text;
+          accumulatedText += text;
+          
+          // Try to parse the accumulated text as JSON
+          // Clean up any markdown code fences that might slip through
+          let cleanedText = accumulatedText
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+          
+          // Only send if it looks like valid JSON so far
+          if (cleanedText.startsWith('{')) {
+            const wrapped = `AC_DATA_BEGIN\n${cleanedText}\nAC_DATA_END`;
+            
+            dataStream.write({
+              type: 'data-composer',
+              id: generateId(),
+              data: { type: 'text-delta', content: wrapped },
+            });
+            
+            draftContent = wrapped;
+          }
         }
       }
 
-      draft += '\nAC_DATA_END';
+      // Final cleanup and validation
+      let finalText = accumulatedText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      
+      // Try to pretty-print if valid JSON
+      try {
+        const parsed = JSON.parse(finalText);
+        finalText = JSON.stringify(parsed, null, 2);
+      } catch {
+        // Keep as-is if not valid JSON
+      }
+      
+      draftContent = `AC_DATA_BEGIN\n${finalText}\nAC_DATA_END`;
+      
+      // Send final content
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: '\nAC_DATA_END' },
+        data: { type: 'text-delta', content: draftContent },
       });
-      return draft;
+
+      return draftContent;
     },
+
     onUpdateDocument: async ({
       document,
       description,
       dataStream,
       maxOutputTokens,
     }) => {
-      // Inline AI edit for Accountability JSON; model decides changes based on description.
       const provider = createCustomProvider();
-      const current = document.content || '';
-      const system = `You are editing an EOS Accountability Chart JSON inline.\n\nRules:\n- Preserve existing JSON structure and fields not mentioned.\n- Apply ONLY the requested change.\n- Return STRICT JSON only. No prose.\n\nEdit request: "${description}"\n\nCurrent content (may include AC_DATA markers):\n${current}`;
+      let draftContent = '';
+      let accumulatedText = '';
+      
+      // Parse existing chart content
+      let existingChart: Partial<AccountabilityChartData> = {};
+      const content = document.content || '';
+      try {
+        const jsonMatch = content.match(/AC_DATA_BEGIN\s*([\s\S]*?)\s*AC_DATA_END/);
+        if (jsonMatch) {
+          existingChart = JSON.parse(jsonMatch[1]);
+        } else if (content.trim().startsWith('{')) {
+          existingChart = JSON.parse(content);
+        }
+      } catch {
+        // Use empty object if parsing fails
+      }
+
+      const systemPrompt = `You are editing an existing EOS Accountability Chart.
+
+${JSON_SCHEMA_INSTRUCTIONS}
+
+Current chart data:
+${JSON.stringify(existingChart, null, 2)}
+
+Apply the user's requested edit while preserving all other fields and structure.
+Only modify what the user specifically asks to change.
+Maintain all existing seat IDs unless adding/removing seats.`;
 
       const { fullStream } = streamText({
         model: provider.languageModel('composer-model'),
-        system,
-        maxOutputTokens: Math.min(
-          12000,
-          Math.max(800, maxOutputTokens ?? 5000),
-        ),
-        experimental_transform: smoothStream({ chunking: 'word' }),
-        prompt: `Apply the requested edit to the Accountability Chart JSON and return only JSON.`,
+        system: systemPrompt,
+        prompt: `Edit request: ${description}\n\nOutput the complete updated JSON:`,
+        maxOutputTokens: Math.min(8000, Math.max(800, maxOutputTokens ?? 4000)),
       });
 
-      let responseContent = '';
       for await (const delta of fullStream) {
-        if (delta.type === 'text-delta') {
-          responseContent += delta.text;
+        const { type } = delta;
+        
+        if (type === 'text-delta') {
+          const text = delta.text;
+          accumulatedText += text;
+          
+          // Clean up any markdown code fences
+          let cleanedText = accumulatedText
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+          
+          if (cleanedText.startsWith('{')) {
+            const wrapped = `AC_DATA_BEGIN\n${cleanedText}\nAC_DATA_END`;
+            
+            dataStream.write({
+              type: 'data-composer',
+              id: generateId(),
+              data: { type: 'text-delta', content: wrapped },
+            });
+            
+            draftContent = wrapped;
+          }
         }
       }
 
-      if (
-        responseContent.includes('AC_DATA_BEGIN') &&
-        responseContent.includes('AC_DATA_END')
-      ) {
-        dataStream.write({
-          type: 'data-composer',
-          id: generateId(),
-          data: { type: 'text-delta', content: responseContent },
-        });
-        return responseContent;
+      // Final cleanup
+      let finalText = accumulatedText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      
+      try {
+        const parsed = JSON.parse(finalText);
+        finalText = JSON.stringify(parsed, null, 2);
+      } catch {
+        // Keep as-is
       }
-
-      const wrapped = `AC_DATA_BEGIN\n${responseContent}\nAC_DATA_END`;
+      
+      draftContent = `AC_DATA_BEGIN\n${finalText}\nAC_DATA_END`;
+      
       dataStream.write({
         type: 'data-composer',
         id: generateId(),
-        data: { type: 'text-delta', content: wrapped },
+        data: { type: 'text-delta', content: draftContent },
       });
-      return wrapped;
+
+      return draftContent;
     },
   });

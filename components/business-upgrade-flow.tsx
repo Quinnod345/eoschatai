@@ -258,7 +258,7 @@ export function BusinessUpgradeFlow({
   return (
     <>
       <Dialog open={open && !showOrgModal} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-lg" forceMount>
+        <DialogContent size="default">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />

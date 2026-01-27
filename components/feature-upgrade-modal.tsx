@@ -36,7 +36,7 @@ export function FeatureUpgradeModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
             <div

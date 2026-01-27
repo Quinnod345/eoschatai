@@ -1,4 +1,5 @@
-import type { MentionType } from '@/lib/mentions/types';
+import type { MentionType, ComposerKind } from '@/lib/mentions/types';
+import { MENTION_TYPE_TO_COMPOSER_KIND } from '@/lib/mentions/types';
 
 export interface ProcessedMention {
   type: MentionType;
@@ -8,11 +9,22 @@ export interface ProcessedMention {
   metadata?: Record<string, any>;
 }
 
+export interface ComposerMentionData {
+  composerId: string;
+  kind: ComposerKind;
+  title: string;
+  content?: string;
+  contentSummary?: string;
+  action?: 'reference' | 'edit' | 'open' | 'link';
+  editInstruction?: string;
+}
+
 export interface MentionProcessingResult {
   enhancedPrompt: string;
   toolsToActivate: string[];
   contextData: Record<string, any>;
   mentionInstructions: string;
+  composerMentions?: ComposerMentionData[];
 }
 
 export class MentionProcessor {
@@ -216,6 +228,95 @@ The user needs to find available time. Automatically:
 `);
     }
 
+    // Composer mentions - AI-generated documents
+    const composerTypes: MentionType[] = [
+      'composer',
+      'text-composer',
+      'code-composer',
+      'sheet-composer',
+      'chart-composer',
+      'image-composer',
+      'vto-composer',
+      'accountability-composer',
+    ];
+
+    const composerMentions = composerTypes.flatMap(
+      (type) => mentionsByType[type] || [],
+    );
+
+    if (composerMentions.length > 0) {
+      // Determine if this is an edit request
+      const isEditRequest = MentionProcessor.isComposerEditRequest(originalMessage);
+
+      if (isEditRequest) {
+        result.toolsToActivate.push('updateDocument');
+        const editInstruction = MentionProcessor.extractEditInstruction(originalMessage);
+
+        instructions.push(`
+COMPOSER EDIT REQUEST:
+The user wants to edit an existing composer document. The mentioned composer(s):
+${composerMentions.map((m) => `- "${m.name}" (ID: ${m.id}, Type: ${MENTION_TYPE_TO_COMPOSER_KIND[m.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text'})`).join('\n')}
+
+Edit instruction: "${editInstruction}"
+
+IMPORTANT:
+1. Use the updateDocument tool to modify the composer
+2. Apply the edit instruction to the document content
+3. Preserve the document's structure and format
+4. Show the changes clearly in your response
+`);
+
+        // Add composer data with edit action
+        result.composerMentions = composerMentions.map((m) => ({
+          composerId: m.id,
+          kind: (MENTION_TYPE_TO_COMPOSER_KIND[m.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text') as ComposerKind,
+          title: m.name,
+          content: m.metadata?.content,
+          contentSummary: m.metadata?.contentSummary,
+          action: 'edit' as const,
+          editInstruction,
+        }));
+      } else {
+        result.toolsToActivate.push('getInformation');
+
+        instructions.push(`
+COMPOSER DOCUMENT CONTEXT:
+The user has referenced composer document(s). These are AI-generated documents:
+${composerMentions.map((m) => {
+  const kind = MENTION_TYPE_TO_COMPOSER_KIND[m.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text';
+  return `- "${m.name}" (Type: ${kind})${m.context ? `: ${m.context}` : ''}`;
+}).join('\n')}
+
+IMPORTANT:
+1. Use the content from these composers as primary context
+2. Reference specific sections when answering questions
+3. If the user asks to modify, use the updateDocument tool
+4. Provide links to open the composer when relevant
+`);
+
+        // Add composer data with reference action
+        result.composerMentions = composerMentions.map((m) => ({
+          composerId: m.id,
+          kind: (MENTION_TYPE_TO_COMPOSER_KIND[m.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text') as ComposerKind,
+          title: m.name,
+          content: m.metadata?.content,
+          contentSummary: m.metadata?.contentSummary,
+          action: 'reference' as const,
+        }));
+      }
+
+      // Add composer IDs to context for tracking
+      composerMentions.forEach((mention) => {
+        const composerId = mention.id.replace('composer-', '');
+        result.contextData[`composer_${composerId}`] = {
+          id: composerId,
+          kind: MENTION_TYPE_TO_COMPOSER_KIND[mention.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text',
+          name: mention.name,
+          ...mention.metadata,
+        };
+      });
+    }
+
     // Compile final instructions
     result.mentionInstructions = instructions.join('\n\n');
 
@@ -342,10 +443,28 @@ IMPORTANT:
         'scorecard',
         'vto',
         'rocks',
+        'composer',
+        'text-composer',
+        'code-composer',
+        'sheet-composer',
+        'chart-composer',
+        'image-composer',
+        'vto-composer',
+        'accountability-composer',
       ],
       createCalendarEvent: ['create'],
       getDailyBriefing: ['calendar'],
       parseNaturalLanguageEvent: ['calendar', 'event', 'meeting'],
+      updateDocument: [
+        'composer',
+        'text-composer',
+        'code-composer',
+        'sheet-composer',
+        'chart-composer',
+        'image-composer',
+        'vto-composer',
+        'accountability-composer',
+      ],
     };
 
     const relevantTypes = toolMentionMap[toolName] || [];
@@ -568,5 +687,113 @@ IMPORTANT:
     }
 
     return context;
+  }
+
+  // Check if the message is a composer edit request
+  static isComposerEditRequest(message: string): boolean {
+    const lowerMessage = message.toLowerCase();
+
+    // Patterns that indicate edit intent
+    const editPatterns = [
+      /\bedit\b/,
+      /\bupdate\b/,
+      /\bchange\b/,
+      /\bmodify\b/,
+      /\brevise\b/,
+      /\badd\b.*\bto\b/,
+      /\bremove\b.*\bfrom\b/,
+      /\bmake\b.*\b(longer|shorter|more|less)\b/,
+      /\bfix\b/,
+      /\bimprove\b/,
+      /\brewrite\b/,
+      /\brephrase\b/,
+      /\bpolish\b/,
+      /\bexpand\b/,
+      /\bcondense\b/,
+      /\bshorten\b/,
+      /\bsummarize\b/,
+      /\btranslate\b/,
+      /\bconvert\b/,
+    ];
+
+    return editPatterns.some((pattern) => pattern.test(lowerMessage));
+  }
+
+  // Extract the edit instruction from the message
+  static extractEditInstruction(message: string): string {
+    // Remove the mention patterns from the message
+    let instruction = message.replace(/@[\w-]+(?::[\w-]+)?/g, '').trim();
+
+    // Common prefix words to strip
+    const prefixes = [
+      'please',
+      'can you',
+      'could you',
+      'would you',
+      'i want you to',
+      'i need you to',
+      "i'd like you to",
+    ];
+
+    const lowerInstruction = instruction.toLowerCase();
+    for (const prefix of prefixes) {
+      if (lowerInstruction.startsWith(prefix)) {
+        instruction = instruction.slice(prefix.length).trim();
+        break;
+      }
+    }
+
+    return instruction;
+  }
+
+  // Process composer-specific mentions and return enriched data
+  static processComposerMentions(
+    mentions: ProcessedMention[],
+    originalMessage: string,
+  ): {
+    composerMentions: ComposerMentionData[];
+    isEditRequest: boolean;
+    editInstruction?: string;
+  } {
+    const composerTypes: MentionType[] = [
+      'composer',
+      'text-composer',
+      'code-composer',
+      'sheet-composer',
+      'chart-composer',
+      'image-composer',
+      'vto-composer',
+      'accountability-composer',
+    ];
+
+    const composerMentions = mentions.filter((m) =>
+      composerTypes.includes(m.type),
+    );
+
+    if (composerMentions.length === 0) {
+      return {
+        composerMentions: [],
+        isEditRequest: false,
+      };
+    }
+
+    const isEditRequest = MentionProcessor.isComposerEditRequest(originalMessage);
+    const editInstruction = isEditRequest
+      ? MentionProcessor.extractEditInstruction(originalMessage)
+      : undefined;
+
+    return {
+      composerMentions: composerMentions.map((m) => ({
+        composerId: m.id.replace('composer-', ''),
+        kind: (MENTION_TYPE_TO_COMPOSER_KIND[m.type as keyof typeof MENTION_TYPE_TO_COMPOSER_KIND] || 'text') as ComposerKind,
+        title: m.name,
+        content: m.metadata?.content,
+        contentSummary: m.metadata?.contentSummary,
+        action: isEditRequest ? 'edit' : 'reference',
+        editInstruction,
+      })),
+      isEditRequest,
+      editInstruction,
+    };
   }
 }

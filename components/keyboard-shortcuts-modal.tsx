@@ -181,7 +181,7 @@ export function KeyboardShortcutsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col p-0">
+      <DialogContent size="lg" className="flex flex-col p-0">
         <div className="px-6 pt-6 pb-2">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">

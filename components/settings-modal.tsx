@@ -651,9 +651,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <>
-      <AnimatedModal isOpen={isOpen} onClose={onClose}>
+      <AnimatedModal isOpen={isOpen} onClose={onClose} unstyled size="custom" title="Settings">
         <div
-          className="relative bg-background/80 rounded-xl sm:rounded-2xl border border-white/30 dark:border-zinc-700/30 shadow-enhanced backdrop-blur-[16px] settings-modal w-[calc(100vw-1rem)] sm:w-[min(1100px,95vw)] h-[calc(100vh-2rem)] sm:h-[min(80vh,700px)]"
+          className="relative bg-background rounded-xl sm:rounded-2xl border border-border/50 shadow-xl settings-modal w-[calc(100vw-1rem)] sm:w-[min(1100px,95vw)] h-[calc(100vh-2rem)] sm:h-[min(80vh,700px)]"
         >
           <div
             className="absolute inset-0 settings-modal-grid overflow-hidden grid grid-rows-[auto_1fr] sm:grid-rows-none sm:grid-cols-[minmax(180px,224px)_minmax(300px,1fr)]"

@@ -276,7 +276,7 @@ export function OrganizationModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl" nested>
+      <DialogContent size="lg" nested>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Building2 className="w-6 h-6" />

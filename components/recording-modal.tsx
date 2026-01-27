@@ -551,7 +551,7 @@ export default function RecordingModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-7xl h-[95vh] p-0 flex flex-col">
+      <DialogContent size="full" className="h-[calc(100vh-2rem)] p-0 flex flex-col">
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <DialogTitle className="text-xl">Voice Recordings</DialogTitle>
         </DialogHeader>

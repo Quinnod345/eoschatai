@@ -292,7 +292,7 @@ export function EnhancedMentionInput({
 
   // Get category color
   const getCategoryColor = (category: MentionCategory) => {
-    const colors = {
+    const colors: Record<string, string> = {
       resource: 'purple',
       calendar: 'blue',
       person: 'teal',
@@ -301,6 +301,7 @@ export function EnhancedMentionInput({
       template: 'indigo',
       history: 'yellow',
       insight: 'red',
+      composer: 'blue',
     };
     return colors[category] || 'gray';
   };

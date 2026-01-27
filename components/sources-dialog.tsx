@@ -34,7 +34,7 @@ export function SourcesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0">
+      <DialogContent size="lg" className="flex flex-col p-0">
         <div className="p-6 pb-4 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

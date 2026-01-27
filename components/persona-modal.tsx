@@ -454,7 +454,7 @@ export function PersonaModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[95vh] overflow-hidden bg-background/95 backdrop-blur-md border-2 border-border/50">
+      <DialogContent size="lg" className="overflow-hidden">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

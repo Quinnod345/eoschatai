@@ -217,7 +217,7 @@ export function PremiumFeaturesModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent size="2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <Crown className="w-6 h-6 text-yellow-500" />
