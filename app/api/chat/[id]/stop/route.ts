@@ -73,12 +73,18 @@ export async function POST(
         const bufferState = await getStreamBufferState(activeStream.id);
 
         // Mark stream as interrupted with metadata
+        const streamMeta = activeStream.metadata as {
+          composerKind?: string;
+          composerTitle?: string;
+        } | null;
         await markStreamInterrupted({
           streamId: activeStream.id,
           metadata: {
-            partialContent: bufferState?.metadata?.partialContent,
-            composerKind: activeStream.metadata?.composerKind,
-            composerTitle: activeStream.metadata?.composerTitle,
+            partialContent: bufferState?.metadata?.partialContent as
+              | string
+              | undefined,
+            composerKind: streamMeta?.composerKind,
+            composerTitle: streamMeta?.composerTitle,
           },
         });
 
@@ -116,9 +122,7 @@ export async function POST(
           const streamId = activeStream.id;
 
           // Delete legacy resumable-stream keys
-          const legacyKeys = await redis.keys(
-            `resumable-stream:${streamId}:*`,
-          );
+          const legacyKeys = await redis.keys(`resumable-stream:${streamId}:*`);
           if (legacyKeys.length > 0) {
             await redis.del(legacyKeys);
             console.log(

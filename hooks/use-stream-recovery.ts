@@ -56,9 +56,8 @@ export interface UseStreamRecoveryReturn {
  */
 export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
   const [isRecovering, setIsRecovering] = useState(false);
-  const [recoveryState, setRecoveryState] = useState<StreamRecoveryState | null>(
-    null,
-  );
+  const [recoveryState, setRecoveryState] =
+    useState<StreamRecoveryState | null>(null);
   const [recoveredChunks, setRecoveredChunks] = useState<unknown[]>([]);
   const [error, setError] = useState<string | null>(null);
   const checkedRef = useRef(false);
@@ -68,65 +67,70 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
   /**
    * Check for active stream and retrieve buffered chunks
    */
-  const checkForActiveStream = useCallback(async (): Promise<StreamRecoveryState | null> => {
-    if (!chatId) {
-      return null;
-    }
-
-    try {
-      setIsRecovering(true);
-      setError(null);
-
-      console.log(`[StreamRecovery] Checking for active stream: ${chatId}`);
-
-      const response = await fetch(`/api/chat?chatId=${chatId}`);
-
-      if (response.status === 204) {
-        // No active stream
-        console.log('[StreamRecovery] No active stream found');
-        setRecoveryState(null);
-        setRecoveredChunks([]);
+  const checkForActiveStream =
+    useCallback(async (): Promise<StreamRecoveryState | null> => {
+      if (!chatId) {
         return null;
       }
 
-      if (!response.ok) {
-        throw new Error(`Failed to check stream: ${response.status}`);
+      try {
+        setIsRecovering(true);
+        setError(null);
+
+        console.log(`[StreamRecovery] Checking for active stream: ${chatId}`);
+
+        const response = await fetch(`/api/chat?chatId=${chatId}`);
+
+        if (response.status === 204) {
+          // No active stream
+          console.log('[StreamRecovery] No active stream found');
+          setRecoveryState(null);
+          setRecoveredChunks([]);
+          return null;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to check stream: ${response.status}`);
+        }
+
+        const state: StreamRecoveryState = await response.json();
+        console.log('[StreamRecovery] Retrieved state:', {
+          streamId: state.streamId,
+          status: state.status,
+          chunkCount: state.chunks?.length || 0,
+          isActive: state.isActive,
+          isStale: state.isStale,
+        });
+
+        setRecoveryState(state);
+
+        // Extract the inner chunk from BufferedChunk wrapper
+        const extractedChunks =
+          state.chunks?.map((c: { chunk: unknown }) => c.chunk) || [];
+        console.log('[StreamRecovery] Extracted chunks:', {
+          count: extractedChunks.length,
+          firstChunkType: extractedChunks[0]
+            ? (extractedChunks[0] as Record<string, unknown>)?.type
+            : 'none',
+        });
+        setRecoveredChunks(extractedChunks);
+
+        // Track the last sequence number for polling
+        if (state.chunks && state.chunks.length > 0) {
+          lastSeqRef.current = Math.max(...state.chunks.map((c) => c.seq)) + 1;
+        }
+
+        return state;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : 'Unknown error';
+        console.error('[StreamRecovery] Error checking stream:', errorMessage);
+        setError(errorMessage);
+        return null;
+      } finally {
+        setIsRecovering(false);
       }
-
-      const state: StreamRecoveryState = await response.json();
-      console.log('[StreamRecovery] Retrieved state:', {
-        streamId: state.streamId,
-        status: state.status,
-        chunkCount: state.chunks?.length || 0,
-        isActive: state.isActive,
-        isStale: state.isStale,
-      });
-
-      setRecoveryState(state);
-      
-      // Extract the inner chunk from BufferedChunk wrapper
-      const extractedChunks = state.chunks?.map((c: { chunk: unknown }) => c.chunk) || [];
-      console.log('[StreamRecovery] Extracted chunks:', {
-        count: extractedChunks.length,
-        firstChunkType: extractedChunks[0] ? (extractedChunks[0] as Record<string, unknown>)?.type : 'none',
-      });
-      setRecoveredChunks(extractedChunks);
-      
-      // Track the last sequence number for polling
-      if (state.chunks && state.chunks.length > 0) {
-        lastSeqRef.current = Math.max(...state.chunks.map(c => c.seq)) + 1;
-      }
-
-      return state;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[StreamRecovery] Error checking stream:', errorMessage);
-      setError(errorMessage);
-      return null;
-    } finally {
-      setIsRecovering(false);
-    }
-  }, [chatId]);
+    }, [chatId]);
 
   /**
    * Clear recovery state
@@ -176,22 +180,31 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
 
         // 204 means no active stream - stop polling and fetch final message
         if (response.status === 204) {
-          console.log('[StreamRecovery] Stream no longer active (204), fetching final message');
+          console.log(
+            '[StreamRecovery] Stream no longer active (204), fetching final message',
+          );
           // Update recovery state to mark as not active
-          setRecoveryState((prev) => prev ? { ...prev, isActive: false, status: 'completed' } : null);
+          setRecoveryState((prev) =>
+            prev ? { ...prev, isActive: false, status: 'completed' } : null,
+          );
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
           }
-          
+
           // Fetch the complete messages from the database
           // The stream completed on the server and the message was saved
           try {
-            const messagesResponse = await fetch(`/api/chats/messages?chatId=${chatId}`);
+            const messagesResponse = await fetch(
+              `/api/chats/messages?chatId=${chatId}`,
+            );
             if (messagesResponse.ok) {
               const { messages: finalMessages } = await messagesResponse.json();
               if (finalMessages && finalMessages.length > 0) {
-                console.log('[StreamRecovery] Fetched final messages from database:', finalMessages.length);
+                console.log(
+                  '[StreamRecovery] Fetched final messages from database:',
+                  finalMessages.length,
+                );
                 // Signal that we have final messages to apply
                 // We'll use a special marker in recoveredChunks
                 setRecoveredChunks((prev) => [
@@ -201,7 +214,10 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
               }
             }
           } catch (fetchErr) {
-            console.error('[StreamRecovery] Failed to fetch final messages:', fetchErr);
+            console.error(
+              '[StreamRecovery] Failed to fetch final messages:',
+              fetchErr,
+            );
           }
           return;
         }
@@ -231,9 +247,12 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
             .map((c) => c.chunk);
 
           if (newChunks.length > 0) {
-            console.log(`[StreamRecovery] Poll: ${newChunks.length} new chunks`);
+            console.log(
+              `[StreamRecovery] Poll: ${newChunks.length} new chunks`,
+            );
             setRecoveredChunks((prev) => [...prev, ...newChunks]);
-            lastSeqRef.current = Math.max(...state.chunks.map((c) => c.seq)) + 1;
+            lastSeqRef.current =
+              Math.max(...state.chunks.map((c) => c.seq)) + 1;
           }
         }
       } catch (err) {
@@ -295,33 +314,46 @@ export function applyRecoveredChunks(
 
     // Log first few chunks for debugging with full structure
     if (i < 5) {
-      console.log(`[StreamRecovery] Chunk ${i}:`, JSON.stringify(chunkData, null, 2));
+      console.log(
+        `[StreamRecovery] Chunk ${i}:`,
+        JSON.stringify(chunkData, null, 2),
+      );
     }
 
     // Handle AI SDK 5 text-delta chunks (from toUIMessageStream)
     // AI SDK 5 uses 'delta' property for text-delta chunks
     if (chunkData?.type === 'text-delta') {
       // Try 'delta' first (AI SDK 5 format), then fallbacks
-      const text = 
+      const text =
         (chunkData.delta as string) ||
-        (chunkData.textDelta as string) || 
-        (chunkData.text as string) || 
+        (chunkData.textDelta as string) ||
+        (chunkData.text as string) ||
         (chunkData.content as string) ||
         (chunkData.value as string) ||
         '';
       if (text) {
         accumulatedText += text;
         if (i < 5) {
-          console.log(`[StreamRecovery] Extracted text from chunk ${i}: "${text.substring(0, 50)}..."`);
+          console.log(
+            `[StreamRecovery] Extracted text from chunk ${i}: "${text.substring(0, 50)}..."`,
+          );
         }
       } else {
         // Log unexpected structure with all keys
-        console.warn(`[StreamRecovery] text-delta chunk ${i} has no recognized text property. Keys:`, Object.keys(chunkData), 'Values:', chunkData);
+        console.warn(
+          `[StreamRecovery] text-delta chunk ${i} has no recognized text property. Keys:`,
+          Object.keys(chunkData),
+          'Values:',
+          chunkData,
+        );
       }
     }
 
     // Handle our custom data chunks (type: 'data-custom', etc.)
-    if (typeof chunkData?.type === 'string' && chunkData.type.startsWith('data-')) {
+    if (
+      typeof chunkData?.type === 'string' &&
+      chunkData.type.startsWith('data-')
+    ) {
       // Check if it's a text-delta inside data
       const innerData = chunkData.data as Record<string, unknown> | undefined;
       if (innerData?.type === 'text-delta') {
@@ -331,7 +363,9 @@ export function applyRecoveredChunks(
     }
   }
 
-  console.log(`[StreamRecovery] Extracted ${accumulatedText.length} chars of text`);
+  console.log(
+    `[StreamRecovery] Extracted ${accumulatedText.length} chars of text`,
+  );
 
   // If we have accumulated text, update or create the assistant message
   if (accumulatedText) {
@@ -354,10 +388,9 @@ export function applyRecoveredChunks(
 
         // Append new text to existing content (for incremental updates during polling)
         const newText = existingText + accumulatedText;
-        
+
         updatedMessages[lastAssistantIndex] = {
           ...existingMessage,
-          content: newText,
           parts: [
             { type: 'text' as const, text: newText },
             ...processedParts.map((p) => p as UIMessage['parts'][number]),
@@ -369,13 +402,14 @@ export function applyRecoveredChunks(
         return updatedMessages;
       } else {
         // No assistant message found - create one with the recovered content
-        console.log(`[StreamRecovery] Creating new assistant message with recovered content`);
+        console.log(
+          `[StreamRecovery] Creating new assistant message with recovered content`,
+        );
         // Generate a proper UUID for the recovered message
         const recoveredId = crypto.randomUUID();
         const newAssistantMessage: UIMessage = {
           id: recoveredId,
           role: 'assistant',
-          content: accumulatedText,
           parts: [
             { type: 'text' as const, text: accumulatedText },
             ...processedParts.map((p) => p as UIMessage['parts'][number]),
