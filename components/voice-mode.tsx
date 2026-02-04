@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@/lib/utils/secure-logger';
+import { MediaErrorBoundary } from './error-boundary';
 
 interface VoiceModeProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ const AUDIO_CONFIG: AudioConfig = {
   bitsPerSample: 16,
 };
 
-export default function VoiceMode({
+function VoiceModeInner({
   isOpen,
   onClose,
   selectedModelId,
@@ -81,7 +82,7 @@ export default function VoiceMode({
 
     try {
       // Step 1: Create ephemeral session (serverless approach)
-      console.log('Creating ephemeral voice session...');
+      
       const sessionResponse = await fetch('/api/voice/session', {
         method: 'POST',
         headers: {
@@ -119,13 +120,13 @@ export default function VoiceMode({
         `key.${clientSecret}`,
       ]);
 
-      console.log('WebSocket created, waiting for connection...');
+      
 
       ws.onopen = () => {
-        console.log('Voice mode: Connected to OpenAI Realtime API');
-        console.log('Voice mode: Protocol:', ws.protocol);
-        console.log('Voice mode: Extensions:', ws.extensions);
-        console.log('Voice mode: Ready state after open:', ws.readyState);
+        
+        
+        
+        
         setConnectionStatus('connected');
 
         // Configure the session with our desired settings
@@ -179,19 +180,19 @@ export default function VoiceMode({
             console.error('Abnormal closure - no close frame received');
             break;
           case 1000:
-            console.log('Normal closure');
+            
             break;
           case 1001:
-            console.log('Going away');
+            
             break;
           case 1002:
-            console.log('Protocol error');
+            
             break;
           case 1003:
-            console.log('Unsupported data');
+            
             break;
           default:
-            console.log('Unknown close code:', event.code);
+            
         }
 
         setConnectionStatus('disconnected');
@@ -225,11 +226,11 @@ export default function VoiceMode({
   const handleRealtimeEvent = useCallback((event: any) => {
     switch (event.type) {
       case 'session.created':
-        console.log('Voice mode: Session confirmed by server');
+        
         break;
 
       case 'session.updated':
-        console.log('Voice mode: Session updated');
+        
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -273,7 +274,7 @@ export default function VoiceMode({
         break;
 
       case 'response.done':
-        console.log('Voice mode: Response completed');
+        
         break;
 
       case 'error': {
@@ -301,7 +302,7 @@ export default function VoiceMode({
 
       default:
         // Log unknown events for debugging
-        console.log('Voice mode: Event:', event.type, event);
+        
         break;
     }
   }, []);
@@ -779,5 +780,22 @@ export default function VoiceMode({
       )}
     </AnimatePresence>,
     document.body,
+  );
+}
+
+
+/**
+ * VoiceMode wrapped with error boundary for graceful media error handling
+ */
+export default function VoiceMode(props: VoiceModeProps) {
+  // Only wrap with error boundary when the modal is open
+  if (!props.isOpen) {
+    return null;
+  }
+  
+  return (
+    <MediaErrorBoundary context="Voice Mode" onClose={props.onClose}>
+      <VoiceModeInner {...props} />
+    </MediaErrorBoundary>
   );
 }

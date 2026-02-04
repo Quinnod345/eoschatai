@@ -1397,7 +1397,7 @@ export function PersonaWizard({
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground italic">
-                        No composers selected. Click "Choose Composers" to
+                        No composers selected. Click &quot;Choose Composers&quot; to
                         select documents for persona context.
                       </p>
                     )}

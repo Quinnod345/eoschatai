@@ -79,9 +79,9 @@ export default function VoiceModeIntegrated({
     if (!currentChatId) {
       currentChatId = generateUUID(); // Use a proper UUID, not temp prefix
       setNewChatId(currentChatId);
-      console.log('Voice Mode: Generated new chat ID:', currentChatId);
+      
     } else {
-      console.log('Voice Mode: Using existing chat ID:', currentChatId);
+      
     }
 
     console.log(
@@ -139,7 +139,7 @@ export default function VoiceModeIntegrated({
       audioElementRef.current.autoplay = true;
 
       pc.ontrack = (event) => {
-        console.log('Received remote audio track');
+        
         if (audioElementRef.current) {
           audioElementRef.current.srcObject = event.streams[0];
         }
@@ -176,11 +176,11 @@ export default function VoiceModeIntegrated({
       dataChannelRef.current = dataChannel;
 
       dataChannel.onopen = () => {
-        console.log('Data channel opened');
+        
         setConnectionStatus('connected');
 
         // Connection established
-        console.log('Voice Mode: Connection established');
+        
         customToast.success('Voice mode connected');
 
         // Send initial configuration with custom instructions
@@ -225,7 +225,7 @@ export default function VoiceModeIntegrated({
       };
 
       dataChannel.onclose = () => {
-        console.log('Data channel closed');
+        
         setConnectionStatus('disconnected');
       };
 
@@ -255,7 +255,7 @@ export default function VoiceModeIntegrated({
         sdp: answerSdp,
       });
 
-      console.log('WebRTC connection established');
+      
     } catch (error: any) {
       console.error('Connection error:', error);
       setConnectionStatus('error');
@@ -285,7 +285,7 @@ export default function VoiceModeIntegrated({
 
       // Only save to DB if we have a real chat ID
       if (actualChatId) {
-        console.log('Voice Mode: Saving message to chat:', actualChatId);
+        
 
         try {
           const response = await fetch('/api/voice/messages', {
@@ -307,11 +307,11 @@ export default function VoiceModeIntegrated({
             const errorData = await response.json();
             console.error('Failed to save voice messages:', errorData);
           } else {
-            console.log('Voice messages saved successfully');
+            
 
             // Navigate to the new chat if this is the first message and we're not already there
             if (userMsg && !assistantMsg && newChatId && !hasNavigated) {
-              console.log('Voice Mode: Navigating to new chat:', newChatId);
+              
               setHasNavigated(true);
               // Use window.location for a full page navigation to ensure proper chat initialization
               window.location.href = `/chat/${newChatId}`;
@@ -338,7 +338,7 @@ export default function VoiceModeIntegrated({
       switch (event.type) {
         case 'session.created':
         case 'session.updated':
-          console.log('Session event:', event.type);
+          
           break;
 
         case 'input_audio_buffer.speech_started':
@@ -404,7 +404,7 @@ export default function VoiceModeIntegrated({
                     },
                   ],
                 };
-                console.log('Voice Mode: Adding user message:', uiMessage);
+                
                 onMessagesUpdate([uiMessage]);
               } else {
                 console.warn(
@@ -420,7 +420,7 @@ export default function VoiceModeIntegrated({
 
         case 'response.created':
           // A new response is starting, clear any existing assistant message
-          console.log('Voice Mode: New response created');
+          
           setCurrentAssistantMessage(null);
           break;
 
@@ -506,7 +506,7 @@ export default function VoiceModeIntegrated({
         case 'response.audio.started':
           setIsPlaying(true);
           // When audio starts, ensure we have a clean slate for the new response
-          console.log('Voice Mode: Audio response started');
+          
           break;
 
         case 'response.audio.done':
@@ -550,28 +550,28 @@ export default function VoiceModeIntegrated({
         case 'conversation.item.created':
           // Handle conversation item creation to track what type of message it is
           if (event?.item) {
-            console.log('Voice Mode: Conversation item created:', event.item);
+            
             if (
               event.item.type === 'message' &&
               event.item.role === 'assistant'
             ) {
               // This is a new assistant message starting
-              console.log('Voice Mode: New assistant message starting');
+              
               setCurrentAssistantMessage(null);
             }
           }
           break;
 
         default:
-          console.log('Realtime event:', event.type, event);
+          
           // Log any transcript-related events we might be missing
           if (event.type?.includes('transcript')) {
-            console.log('Transcript event details:', event);
+            
             // Check if this is a transcript event we should ignore
             if (
               event.type === 'conversation.item.input_audio_transcription.delta'
             ) {
-              console.log('Ignoring transcript delta for input audio');
+              
             }
           }
       }
@@ -612,7 +612,7 @@ export default function VoiceModeIntegrated({
 
   // Stop voice session
   const stopVoiceSession = () => {
-    console.log('Stopping voice session...');
+    
 
     // Send session end event before closing
     if (
@@ -701,7 +701,7 @@ export default function VoiceModeIntegrated({
   useEffect(() => {
     if (isOpen && connectionStatus === 'disconnected') {
       // Reset states for new session
-      console.log('Voice Mode: Modal opened, chatId:', chatId);
+      
 
       // Start voice session after a brief delay to ensure everything is ready
       const timeoutId = setTimeout(() => {

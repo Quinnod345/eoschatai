@@ -2073,24 +2073,26 @@ export function Chat({
 
         {/* PinnedMessagesBar is now integrated into ChatHeader via SavedContentDropdown */}
 
-        <Messages
-          chatId={id}
-          status={status}
-          votes={votes}
-          messages={messages}
-          setMessages={setMessages}
-          reload={reloadAdapter}
-          isReadonly={isReadonly}
-          isComposerVisible={isComposerVisible}
-          citations={
-            selectedResearchMode === 'nexus' ? nexusCitations : citations
-          }
-          searchProgress={searchProgress}
-          meetingMetadata={meetingMetadata}
-          onStartReply={startReply}
-          onRetry={handleRetry}
-          dataStream={data}
-        />
+        <ErrorBoundary context="Chat Messages">
+          <Messages
+            chatId={id}
+            status={status}
+            votes={votes}
+            messages={messages}
+            setMessages={setMessages}
+            reload={reloadAdapter}
+            isReadonly={isReadonly}
+            isComposerVisible={isComposerVisible}
+            citations={
+              selectedResearchMode === 'nexus' ? nexusCitations : citations
+            }
+            searchProgress={searchProgress}
+            meetingMetadata={meetingMetadata}
+            onStartReply={startReply}
+            onRetry={handleRetry}
+            dataStream={data}
+          />
+        </ErrorBoundary>
 
         {/* Show follow-up questions if available */}
         {followUpQuestions.length > 0 && selectedResearchMode === 'nexus' && (

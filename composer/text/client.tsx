@@ -73,7 +73,7 @@ export const textComposer = new Composer<'text', TextComposerMetadata>({
       });
     }
   },
-  content: ({
+  Content: ({
     mode,
     status,
     chatStatus,

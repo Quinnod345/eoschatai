@@ -15,27 +15,26 @@ function InviteAcceptContent() {
   const [message, setMessage] = useState('Processing your invitation...');
 
   useEffect(() => {
-    // Show immediate visual feedback
+    // Get the query params
+    const code = searchParams.get('code');
+    const email = searchParams.get('email');
+
+    // If no code is present, silently redirect without showing an error toast
+    // This handles the case where someone visits /invite/accept directly without a token
+    if (!code) {
+      setStatus('error');
+      setMessage('No invitation code provided');
+      setTimeout(() => router.push('/chat'), 1500);
+      return;
+    }
+
+    // Show immediate visual feedback only when we have a valid code to process
     const toastId = toast.loading('Accepting organization invitation...', {
       description: 'Please wait while we add you to the organization',
     });
 
     async function handleInvite() {
       try {
-        // Get the query params
-        const code = searchParams.get('code');
-        const email = searchParams.get('email');
-
-        if (!code) {
-          toast.dismiss(toastId);
-          toast.error('Invalid invitation link', {
-            description: 'The invitation code is missing',
-          });
-          setStatus('error');
-          setMessage('Invalid invitation link');
-          setTimeout(() => router.push('/chat'), 2000);
-          return;
-        }
 
         // Build the accept URL
         const acceptUrl = new URL(

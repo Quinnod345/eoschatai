@@ -11,6 +11,7 @@ import {
 import { Calendar, Clock, AlertCircle, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { DataErrorBoundary } from './error-boundary';
 
 interface CalendarEvent {
   id: string;
@@ -29,7 +30,7 @@ interface CalendarAnalytics {
   topCollaborators: { email: string; count: number }[];
 }
 
-export function CalendarWidget() {
+function CalendarWidgetInner() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [analytics, setAnalytics] = useState<CalendarAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,5 +257,36 @@ export function CalendarWidget() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * CalendarWidget wrapped with error boundary for graceful data fetch error handling
+ */
+export function CalendarWidget() {
+  return (
+    <DataErrorBoundary
+      context="Calendar"
+      skeleton={
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Loading Calendar...
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 bg-muted rounded w-3/4" />
+                <div className="h-4 bg-muted rounded w-1/2" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <CalendarWidgetInner />
+    </DataErrorBoundary>
   );
 }

@@ -88,7 +88,7 @@ export function DailyLimitModal({
 
                 {/* Subtitle */}
                 <p className="mb-4 text-sm text-muted-foreground">
-                  You've used all {limit} messages today
+                  You&apos;ve used all {limit} messages today
                 </p>
 
                 {/* Stats */}
