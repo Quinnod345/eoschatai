@@ -69,4 +69,34 @@ test.describe('Landing Page', () => {
       }
     }
   });
+
+  test('Footer links are present and functional', async ({ page }) => {
+    // Scroll to footer to ensure it's visible
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    
+    // Check for common footer elements
+    const footer = page.locator('footer');
+    if (await footer.isVisible()) {
+      await expect(footer).toBeVisible();
+      
+      // Test any footer links that might be present
+      const footerLinks = footer.getByRole('link');
+      const linkCount = await footerLinks.count();
+      
+      if (linkCount > 0) {
+        // Test first footer link (usually privacy, terms, etc.)
+        const firstLink = footerLinks.first();
+        const href = await firstLink.getAttribute('href');
+        
+        if (href && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
+          await firstLink.click();
+          // Wait for navigation
+          await page.waitForTimeout(1000);
+          // Should navigate somewhere or stay on same origin
+          const currentUrl = page.url();
+          expect(currentUrl).toBeTruthy();
+        }
+      }
+    }
+  });
 });

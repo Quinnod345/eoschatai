@@ -161,7 +161,7 @@ export function ContextSourcesDialog({
                             {/* Show content preview for memories */}
                             {source.type === 'memory' && item.content && (
                               <div className="pl-3 text-[11px] text-muted-foreground/80 italic">
-                                "{item.content}..."
+                                &quot;{item.content}...&quot;
                               </div>
                             )}
                           </div>

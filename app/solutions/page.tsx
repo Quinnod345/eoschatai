@@ -44,7 +44,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import LandingNavbar from '@/components/marketing/landing-navbar';
 import LandingFooter from '@/components/marketing/landing-footer';
-import Dither from '@/components/Dither';
+import { LazyDither as Dither } from '@/components/lazy-components';
 import DotGrid from '@/components/DotGrid';
 import ScrollFloat from '@/components/ScrollFloat';
 import RotatingText from '@/components/RotatingText';

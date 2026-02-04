@@ -20,69 +20,30 @@ import { SessionProvider } from 'next-auth/react';
 export const metadata: Metadata = {
   metadataBase: new URL('https://eosbot.ai'),
   title: {
-    default: 'EOS AI - AI-Powered Assistant for EOS Implementation & Business Growth',
-    template: '%s | EOS AI'
+    default: 'EOS AI - AI-Powered Assistant for EOS Implementation',
+    template: '%s | EOS AI',
   },
-  description: 'Transform your EOS implementation with AI. Get intelligent assistance for V/TO creation, Level 10 meetings, Scorecard tracking, and business growth. Start free today.',
+  description:
+    'AI-powered assistant for EOS Worldwide. Transform your business with intelligent V/TO management, Scorecard analysis, and Level 10 Meeting support.',
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',
     apple: '/favicon.ico',
   },
-  verification: {
-    google: 'google-site-verification-code-replace-this',
-  },
   keywords: [
-    'EOS', 'EOS implementation', 'EOS AI', 'business AI assistant', 
-    'Level 10 meetings', 'V/TO', 'Vision Traction Organizer', 'Scorecard',
-    'Accountability Chart', 'business growth', 'AI chatbot', 'EOS tools',
-    'entrepreneurial operating system', 'business coaching', 'AI assistant',
-    'EOS Implementer', 'EOS Integrator', 'business management'
+    'EOS AI',
+    'EOS Worldwide',
+    'Entrepreneurial Operating System',
+    'V/TO',
+    'Scorecard',
+    'Level 10 Meetings',
+    'Traction',
+    'business AI',
+    'AI assistant',
   ],
-  authors: [{ name: 'EOS AI Team', url: 'https://eosbot.ai' }],
+  authors: [{ name: 'EOS AI Team' }],
   creator: 'EOS AI',
   publisher: 'EOS AI',
-  category: 'Business Software',
-  classification: 'Business AI Assistant',
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: 'https://eosbot.ai',
-    title: 'EOS AI - AI-Powered Assistant for EOS Implementation & Business Growth',
-    description: 'Transform your EOS implementation with AI. Get intelligent assistance for V/TO creation, Level 10 meetings, Scorecard tracking, and business growth. Start free today.',
-    siteName: 'EOS AI',
-    images: [
-      {
-        url: '/images/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'EOS AI - AI-Powered Assistant for EOS Implementation',
-        type: 'image/jpeg',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    site: '@eosai',
-    creator: '@eosai',
-    title: 'EOS AI - AI-Powered Assistant for EOS Implementation & Business Growth',
-    description: 'Transform your EOS implementation with AI. Get intelligent assistance for V/TO creation, Level 10 meetings, Scorecard tracking, and business growth. Start free today.',
-    images: ['/images/twitter-card.jpg'],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  alternates: {
-    canonical: 'https://eosbot.ai',
-  },
 };
 
 export const viewport = {
@@ -161,69 +122,6 @@ export default async function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: THEME_COLOR_SCRIPT,
-          }}
-        />
-        <meta
-          name="google-site-verification"
-          content="google-site-verification-code-replace-this"
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "SoftwareApplication",
-              "name": "EOS AI",
-              "description": "AI-powered assistant for EOS implementation and business growth. Intelligent assistance for V/TO creation, Level 10 meetings, Scorecard tracking, and more.",
-              "url": "https://eosbot.ai",
-              "applicationCategory": "BusinessApplication",
-              "operatingSystem": "Web",
-              "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD",
-                "priceValidUntil": "2025-12-31",
-                "availability": "https://schema.org/InStock"
-              },
-              "publisher": {
-                "@type": "Organization",
-                "@id": "https://eosbot.ai/#organization",
-                "name": "EOS AI",
-                "url": "https://eosbot.ai",
-                "logo": {
-                  "@type": "ImageObject",
-                  "url": "https://eosbot.ai/favicon.ico"
-                },
-                "contactPoint": {
-                  "@type": "ContactPoint",
-                  "contactType": "customer support",
-                  "url": "https://eosbot.ai/contact"
-                },
-                "sameAs": [
-                  "https://twitter.com/eosai"
-                ]
-              },
-              "featureList": [
-                "AI-powered EOS implementation",
-                "V/TO creation and management",
-                "Level 10 meeting assistance",
-                "Scorecard tracking and analysis",
-                "Accountability Chart creation",
-                "Document intelligence and RAG",
-                "Voice mode and meeting recordings",
-                "Custom AI personas",
-                "Team collaboration tools",
-                "Calendar integration"
-              ],
-              "screenshot": "https://eosbot.ai/images/app-screenshot.jpg",
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.8",
-                "reviewCount": "127",
-                "bestRating": "5",
-                "worstRating": "1"
-              }
-            }),
           }}
         />
       </head>

@@ -623,7 +623,7 @@ function PureComposer({
                   setComposer((prev) => ({ ...prev, isVisible: false }))
                 }
               >
-                <composerDefinition.content
+                <composerDefinition.Content
                   title={composer.title}
                   content={
                     isCurrentVersion

@@ -432,8 +432,8 @@ export const POST = withErrorHandler(async (request: Request) => {
     // Check file size (10MB max)
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'File size should be less than 10MB' },
-        { status: 400 },
+        { error: 'File is too large. Please upload a file smaller than 10MB.' },
+        { status: 413 },
       );
     }
 

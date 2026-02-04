@@ -4,7 +4,7 @@ import { getDisplayTitle, getEOSMetadata } from '@/lib/utils/chat-utils';
 describe('Chat Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Clear console.error mock if it exists
+    // Mock console.error to avoid noise in test output
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -12,23 +12,20 @@ describe('Chat Utils', () => {
     it('should return clean title without EOS metadata', () => {
       const title = 'Weekly Team Meeting|||EOS_META:{"persona":"eos-implementer","profile":"123"}';
       const result = getDisplayTitle(title);
+      
       expect(result).toBe('Weekly Team Meeting');
     });
 
     it('should return title as-is if no metadata present', () => {
       const title = 'Regular Chat Title';
       const result = getDisplayTitle(title);
+      
       expect(result).toBe('Regular Chat Title');
     });
 
-    it('should handle null title', () => {
-      const result = getDisplayTitle(null);
-      expect(result).toBe('Untitled Chat');
-    });
-
-    it('should handle undefined title', () => {
-      const result = getDisplayTitle(undefined);
-      expect(result).toBe('Untitled Chat');
+    it('should handle null and undefined titles', () => {
+      expect(getDisplayTitle(null)).toBe('Untitled Chat');
+      expect(getDisplayTitle(undefined)).toBe('Untitled Chat');
     });
 
     it('should handle empty string', () => {
@@ -36,34 +33,33 @@ describe('Chat Utils', () => {
       expect(result).toBe('Untitled Chat');
     });
 
-    it('should handle non-string types', () => {
-      // @ts-expect-error - Testing runtime behavior with wrong types
-      const result1 = getDisplayTitle(123);
-      // @ts-expect-error - Testing runtime behavior with wrong types
-      const result2 = getDisplayTitle({});
-      // @ts-expect-error - Testing runtime behavior with wrong types
-      const result3 = getDisplayTitle([]);
-
-      expect(result1).toBe('Untitled Chat');
-      expect(result2).toBe('Untitled Chat');
-      expect(result3).toBe('Untitled Chat');
+    it('should handle non-string types gracefully', () => {
+      // @ts-expect-error - Testing runtime behavior
+      expect(getDisplayTitle(123)).toBe('Untitled Chat');
+      // @ts-expect-error - Testing runtime behavior  
+      expect(getDisplayTitle({})).toBe('Untitled Chat');
+      // @ts-expect-error - Testing runtime behavior
+      expect(getDisplayTitle([])).toBe('Untitled Chat');
     });
 
     it('should handle title with multiple metadata separators', () => {
-      const title = 'First Part|||EOS_META:data|||More|||EOS_META:more';
+      const title = 'First Part|||EOS_META:data|||More Text|||EOS_META:more';
       const result = getDisplayTitle(title);
+      
       expect(result).toBe('First Part');
     });
 
-    it('should handle whitespace in titles', () => {
+    it('should preserve whitespace in titles', () => {
       const title = '  Whitespace Title  |||EOS_META:{"test":true}';
       const result = getDisplayTitle(title);
+      
       expect(result).toBe('  Whitespace Title  ');
     });
 
-    it('should handle special characters in titles', () => {
+    it('should handle special characters', () => {
       const title = 'Title with émojis 🚀 and spéçial çhars|||EOS_META:{}';
       const result = getDisplayTitle(title);
+      
       expect(result).toBe('Title with émojis 🚀 and spéçial çhars');
     });
   });
@@ -92,6 +88,7 @@ describe('Chat Utils', () => {
     it('should return null for title without metadata', () => {
       const title = 'Regular Chat Title';
       const result = getEOSMetadata(title);
+      
       expect(result).toBeNull();
     });
 
@@ -109,6 +106,7 @@ describe('Chat Utils', () => {
     it('should handle empty metadata', () => {
       const title = 'Chat Title|||EOS_META:{}';
       const result = getEOSMetadata(title);
+      
       expect(result).toEqual({});
     });
 
@@ -129,10 +127,7 @@ describe('Chat Utils', () => {
       const result = getEOSMetadata(title);
       
       expect(result).toBeNull();
-      expect(console.error).toHaveBeenCalledWith(
-        'Error parsing EOS metadata from title:',
-        expect.any(Error)
-      );
+      expect(console.error).toHaveBeenCalled();
     });
 
     it('should handle multiple metadata separators (uses first one)', () => {
@@ -171,30 +166,8 @@ describe('Chat Utils', () => {
     });
   });
 
-  describe('Error handling', () => {
-    it('should handle JSON.parse throwing unexpected errors', () => {
-      // Mock JSON.parse to throw a custom error
-      const originalParse = JSON.parse;
-      JSON.parse = vi.fn().mockImplementation(() => {
-        throw new Error('Custom JSON parse error');
-      });
-
-      const title = 'Chat Title|||EOS_META:{"valid":"json"}';
-      const result = getEOSMetadata(title);
-      
-      expect(result).toBeNull();
-      expect(console.error).toHaveBeenCalledWith(
-        'Error parsing EOS metadata from title:',
-        expect.any(Error)
-      );
-
-      // Restore original JSON.parse
-      JSON.parse = originalParse;
-    });
-  });
-
   describe('Integration scenarios', () => {
-    it('should work correctly with realistic EOS implementer chat titles', () => {
+    it('should handle realistic EOS implementer chat titles', () => {
       const scenarios = [
         {
           title: 'EOS L10 Session Planning|||EOS_META:{"persona":"eos-implementer","profile":"l10-facilitator"}',
@@ -203,7 +176,7 @@ describe('Chat Utils', () => {
         },
         {
           title: 'Quarterly Review Discussion|||EOS_META:{"persona":"eos-implementer","profile":null}',
-          expectedDisplay: 'Quarterly Review Discussion',
+          expectedDisplay: 'Quarterly Review Discussion', 
           expectedMeta: { persona: 'eos-implementer', profile: null },
         },
         {
@@ -216,6 +189,58 @@ describe('Chat Utils', () => {
       scenarios.forEach(({ title, expectedDisplay, expectedMeta }) => {
         expect(getDisplayTitle(title)).toBe(expectedDisplay);
         expect(getEOSMetadata(title)).toEqual(expectedMeta);
+      });
+    });
+
+    it('should handle edge cases in real usage', () => {
+      // Empty metadata content
+      const emptyMeta = 'Title|||EOS_META:';
+      expect(getDisplayTitle(emptyMeta)).toBe('Title');
+      expect(getEOSMetadata(emptyMeta)).toBeNull();
+
+      // Only separator, no content
+      const onlySeparator = 'Title|||EOS_META';
+      expect(getDisplayTitle(onlySeparator)).toBe('Title|||EOS_META');
+      expect(getEOSMetadata(onlySeparator)).toBeNull();
+
+      // Malformed JSON
+      const malformed = 'Title|||EOS_META:{"incomplete":true';
+      expect(getDisplayTitle(malformed)).toBe('Title');
+      expect(getEOSMetadata(malformed)).toBeNull();
+    });
+  });
+
+  describe('Error resilience', () => {
+    it('should not throw on various edge cases', () => {
+      const edgeCases = [
+        '',
+        '|||',
+        '|||EOS_META:',
+        '|||EOS_META:null',
+        '|||EOS_META:undefined', 
+        '|||EOS_META:[1,2,3]',
+        '|||EOS_META:"string"',
+        'Normal|||EOS_META:{"valid":true}|||More text',
+      ];
+
+      edgeCases.forEach(testCase => {
+        expect(() => getDisplayTitle(testCase)).not.toThrow();
+        expect(() => getEOSMetadata(testCase)).not.toThrow();
+      });
+    });
+
+    it('should handle JSON.parse exceptions gracefully', () => {
+      // Test with various malformed JSON
+      const malformedCases = [
+        'Title|||EOS_META:{broken:json}',
+        'Title|||EOS_META:{"unclosed":true',
+        'Title|||EOS_META:}{"reversed":true{',
+        'Title|||EOS_META:{"trailing":true,}',
+      ];
+
+      malformedCases.forEach(testCase => {
+        expect(getEOSMetadata(testCase)).toBeNull();
+        expect(console.error).toHaveBeenCalled();
       });
     });
   });

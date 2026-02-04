@@ -12,6 +12,7 @@ import {
 import { eq, or, isNull, and, ne, inArray, desc } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { API_CACHE } from '@/lib/api/cache-headers';
 
 export async function GET() {
   const session = await auth();
@@ -133,11 +134,16 @@ export async function GET() {
         .orderBy(desc(persona.createdAt));
     }
 
-    return NextResponse.json({
-      systemPersonas: finalSystemPersonas,
-      userPersonas,
-      sharedPersonas,
-    });
+    // Use private-medium cache: 60s max-age with 120s stale-while-revalidate
+    // Personas change infrequently, and the list can be briefly cached
+    return NextResponse.json(
+      {
+        systemPersonas: finalSystemPersonas,
+        userPersonas,
+        sharedPersonas,
+      },
+      { headers: API_CACHE.privateMedium() }
+    );
   } catch (error) {
     console.error('Error fetching personas:', error);
     return NextResponse.json(

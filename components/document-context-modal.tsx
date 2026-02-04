@@ -1278,7 +1278,7 @@ export function DocumentContextModal({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
-                  No composers selected. Click "Choose Composers" to select
+                  No composers selected. Click &quot;Choose Composers&quot; to select
                   documents for AI context.
                 </p>
               )}
