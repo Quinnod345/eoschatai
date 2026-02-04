@@ -302,7 +302,7 @@ export function OrganizationModal({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  You're about to create a <strong>Free organization</strong>.
+                  You&apos;re about to create a <strong>Free organization</strong>.
                   Organizations are designed for team collaboration with
                   Business subscriptions.
                 </AlertDescription>
@@ -359,7 +359,7 @@ export function OrganizationModal({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  You're ready to upgrade to Business! Your organization will be
+                  You&apos;re ready to upgrade to Business! Your organization will be
                   billed for the Business subscription.
                 </AlertDescription>
               </Alert>
@@ -410,7 +410,7 @@ export function OrganizationModal({
                       disabled={loading}
                     />
                     <p className="text-xs text-muted-foreground">
-                      You'll be able to invite team members after creating the
+                      You&apos;ll be able to invite team members after creating the
                       organization
                     </p>
                   </div>

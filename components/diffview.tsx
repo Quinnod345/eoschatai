@@ -63,20 +63,26 @@ export const DiffView = ({ oldContent, newContent }: DiffEditorProps) => {
       // Render markdown with proper components for tables, headings, etc.
       const markdownComponents = {
         table: ({ children }: any) => (
-          <table className="border-collapse border border-gray-300">
+          <table className="border-collapse border border-gray-300 dark:border-zinc-600">
             {children}
           </table>
         ),
         thead: ({ children }: any) => (
-          <thead className="bg-gray-100">{children}</thead>
+          <thead className="bg-gray-100 dark:bg-zinc-800">{children}</thead>
         ),
         tbody: ({ children }: any) => <tbody>{children}</tbody>,
-        tr: ({ children }: any) => <tr className="border-b">{children}</tr>,
+        tr: ({ children }: any) => (
+          <tr className="border-b dark:border-zinc-700">{children}</tr>
+        ),
         th: ({ children }: any) => (
-          <th className="border px-4 py-2 text-left font-bold">{children}</th>
+          <th className="border border-gray-300 dark:border-zinc-600 px-4 py-2 text-left font-bold">
+            {children}
+          </th>
         ),
         td: ({ children }: any) => (
-          <td className="border px-4 py-2">{children}</td>
+          <td className="border border-gray-300 dark:border-zinc-600 px-4 py-2">
+            {children}
+          </td>
         ),
         h1: ({ children }: any) => (
           <h1 className="text-3xl font-bold mb-4">{children}</h1>
@@ -96,19 +102,23 @@ export const DiffView = ({ oldContent, newContent }: DiffEditorProps) => {
         ),
         li: ({ children }: any) => <li className="mb-1">{children}</li>,
         blockquote: ({ children }: any) => (
-          <blockquote className="border-l-4 border-gray-300 pl-4 italic">
+          <blockquote className="border-l-4 border-gray-300 dark:border-zinc-600 pl-4 italic">
             {children}
           </blockquote>
         ),
         code: ({ inline, children }: any) =>
           inline ? (
-            <code className="bg-gray-100 px-1 rounded">{children}</code>
+            <code className="bg-gray-100 dark:bg-zinc-800 px-1 rounded">
+              {children}
+            </code>
           ) : (
-            <pre className="bg-gray-100 p-2 rounded overflow-x-auto mb-2">
+            <pre className="bg-gray-100 dark:bg-zinc-800 p-2 rounded overflow-x-auto mb-2">
               <code>{children}</code>
             </pre>
           ),
-        hr: () => <hr className="my-4 border-t border-gray-300" />,
+        hr: () => (
+          <hr className="my-4 border-t border-gray-300 dark:border-zinc-600" />
+        ),
       };
 
       const oldHtmlContent = renderToString(
