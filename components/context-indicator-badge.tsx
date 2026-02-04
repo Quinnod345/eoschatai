@@ -26,11 +26,7 @@ export function ContextIndicatorBadge({
   const [sources, setSources] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    fetchContextInfo();
-  }, [messageId]);
-
-  const fetchContextInfo = async () => {
+  const fetchContextInfo = React.useCallback(async () => {
     try {
       const response = await fetch(`/api/messages/${messageId}/context-sources`);
       if (response.ok) {
@@ -43,7 +39,11 @@ export function ContextIndicatorBadge({
     } finally {
       setLoading(false);
     }
-  };
+  }, [messageId]);
+
+  React.useEffect(() => {
+    fetchContextInfo();
+  }, [fetchContextInfo]);
 
   if (loading || !hasContext || sources.length === 0) {
     return null;

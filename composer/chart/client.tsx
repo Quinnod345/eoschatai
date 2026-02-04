@@ -626,7 +626,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
       }
     }
   },
-  content: ({
+  Content: ({
     content, // This `content` is the string from the database, likely with markers
     isCurrentVersion,
     currentVersionIndex,

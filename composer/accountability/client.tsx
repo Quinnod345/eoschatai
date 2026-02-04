@@ -2581,7 +2581,7 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
       }));
     }
   },
-  content: ({
+  Content: ({
     content,
     onSaveContent,
     metadata,

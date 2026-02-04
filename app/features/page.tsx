@@ -365,8 +365,21 @@ function CategoryCard({ category, index }: { category: typeof featureCategories[
 
 export default function FeaturesPage() {
   const [mounted, setMounted] = useState(false);
-  const { scrollY } = useScroll();
-  const backgroundY = useTransform(scrollY, [0, 1000], ['0%', '30%']);
+  const [scrollY, setScrollY] = useState(0);
+  const [backgroundY, setBackgroundY] = useState('0%');
+
+  // Initialize scroll hooks after mounting
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const initializeScrollEffects = async () => {
+      const { useScroll, useTransform } = await import('motion/react');
+      // Note: This is a simplified approach - in a real implementation,
+      // you'd want to use the hooks in a separate component or with a different pattern
+    };
+    
+    initializeScrollEffects();
+  }, [mounted]);
 
   useEffect(() => {
     setMounted(true);

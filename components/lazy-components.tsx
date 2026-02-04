@@ -89,6 +89,33 @@ export const LazyKeyboardShortcutsModal = dynamic(
   },
 );
 
+export const LazyEnhancedTextEditor = dynamic(
+  () =>
+    import('./enhanced-text-editor').then((mod) => ({
+      default: mod.EnhancedEditor,
+    })),
+  {
+    loading: LoadingComponent,
+    ssr: false,
+  },
+);
+
+export const LazyDither = dynamic(
+  () => import('./Dither').then((mod) => ({ default: mod.default })),
+  {
+    loading: () => <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900" />,
+    ssr: false,
+  },
+);
+
+export const LazyAurora = dynamic(
+  () => import('./Aurora').then((mod) => ({ default: mod.default })),
+  {
+    loading: () => <div className="w-full h-full bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950" />,
+    ssr: false,
+  },
+);
+
 // Preload function for critical components
 export const preloadCriticalComponents = () => {
   // Preload components that are likely to be used
