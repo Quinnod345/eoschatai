@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from '@/lib/toast-system';
 import { cn } from '@/lib/utils';
 import { createLogger } from '@/lib/utils/secure-logger';
+import { MediaErrorBoundary } from './error-boundary';
 
 interface VoiceModeProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ const AUDIO_CONFIG: AudioConfig = {
   bitsPerSample: 16,
 };
 
-export default function VoiceMode({
+function VoiceModeInner({
   isOpen,
   onClose,
   selectedModelId,
@@ -779,5 +780,22 @@ export default function VoiceMode({
       )}
     </AnimatePresence>,
     document.body,
+  );
+}
+
+
+/**
+ * VoiceMode wrapped with error boundary for graceful media error handling
+ */
+export default function VoiceMode(props: VoiceModeProps) {
+  // Only wrap with error boundary when the modal is open
+  if (!props.isOpen) {
+    return null;
+  }
+  
+  return (
+    <MediaErrorBoundary context="Voice Mode" onClose={props.onClose}>
+      <VoiceModeInner {...props} />
+    </MediaErrorBoundary>
   );
 }
