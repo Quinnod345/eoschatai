@@ -72,7 +72,7 @@ export function WhatsNewModal({
         setSelectedFeatureId(allFeatures[0].id);
       }
     }
-  }, [isOpen, activeTab, newFeatures.length, allFeatures.length]);
+  }, [isOpen, activeTab, newFeatures, allFeatures]);
 
   const handleClose = () => {
     const latestVersion = new Date().toISOString();

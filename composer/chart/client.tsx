@@ -478,7 +478,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   canvas.height = 400;
 
   try {
-    console.log(`Rendering ${chartData.type} chart...`);
+    
 
     if (chartData.type === 'bar') {
       renderBarChart(canvas, chartData);
@@ -504,7 +504,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
       }
     }
 
-    console.log('Chart rendered successfully');
+    
   } catch (error) {
     console.error('Error rendering chart:', error);
   }
@@ -626,7 +626,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
       }
     }
   },
-  content: ({
+  Content: ({
     content, // This `content` is the string from the database, likely with markers
     isCurrentVersion,
     currentVersionIndex,
@@ -642,7 +642,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
-      console.log('[ComposerClient Content] useEffect for parsing triggered.');
+      
       console.log(
         '[ComposerClient Content] Initial metadata.chartData type:',
         metadata?.chartData?.type,
@@ -759,7 +759,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
             '[ComposerClient RenderEffect] No localChartData to render.',
           );
         if (!canvasRef.current)
-          console.log('[ComposerClient RenderEffect] Canvas ref not ready.');
+          
         return;
       }
       console.log(
