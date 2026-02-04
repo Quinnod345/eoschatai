@@ -681,6 +681,63 @@ pnpm upload-docs      # Upload knowledge base
 pnpm test             # Run E2E tests
 ```
 
+### Environment Variables
+
+Create a `.env.local` file with the following:
+
+<details>
+<summary><b>Required Variables</b></summary>
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/eosai"
+AUTH_SECRET="your-auth-secret-key"
+AUTH_GOOGLE_ID="your-google-oauth-client-id"
+AUTH_GOOGLE_SECRET="your-google-oauth-client-secret"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+OPENAI_API_KEY="your-openai-api-key"
+UPSTASH_VECTOR_REST_URL="your-upstash-vector-url"
+UPSTASH_VECTOR_REST_TOKEN="your-upstash-vector-token"
+BLOB_READ_WRITE_TOKEN="your-vercel-blob-token"
+```
+
+</details>
+
+<details>
+<summary><b>Optional Variables</b></summary>
+
+```bash
+REDIS_URL="redis://localhost:6379"
+GOOGLE_CLIENT_ID="your-google-calendar-client-id"
+GOOGLE_CLIENT_SECRET="your-google-calendar-client-secret"
+POSTHOG_KEY="your-posthog-key"
+STRIPE_SECRET_KEY="your-stripe-secret-key"
+```
+
+</details>
+
+---
+
+## 📖 API Documentation
+
+EOSAI provides a comprehensive REST API for building integrations.
+
+- **[Full API Reference](docs/API.md)** - Detailed endpoint documentation
+- **[OpenAPI Spec](docs/openapi.yaml)** - OpenAPI 3.1 specification
+
+### API Overview
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| **Chat** | `/api/chat`, `/api/chat/{id}` | AI conversations with streaming |
+| **User** | `/api/me`, `/api/user-settings` | User profile and settings |
+| **Organizations** | `/api/organizations/*` | Team management |
+| **Calendar** | `/api/calendar/*` | Google Calendar integration |
+| **Documents** | `/api/user-documents` | Document upload and RAG |
+| **Personas** | `/api/personas/*` | Custom AI personas |
+| **Search** | `/api/search` | Full-text and semantic search |
+
+For detailed documentation, see [docs/API.md](docs/API.md).
+
 ---
 
 ## 📊 Feature Comparison
@@ -727,11 +784,13 @@ pnpm test             # Run E2E tests
 
 ## 🗺️ Roadmap
 
+### ✅ Recently Completed
+- **API Documentation** - OpenAPI spec and detailed API reference
+
 ### 🔄 Currently in Development
 - **Mobile Apps** for iOS and Android
 - **Teams Integration** with Microsoft Teams
 - **Advanced Analytics** dashboard for usage insights
-- **API Access** for third-party integrations
 
 ### 🚀 Coming Soon
 - **Slack Integration** with bot capabilities
