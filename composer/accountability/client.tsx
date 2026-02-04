@@ -2552,16 +2552,16 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
     });
   },
   onStreamPart: ({ streamPart, setMetadata, setComposer }) => {
-    console.log('[AC Debug] onStreamPart called:', streamPart);
+    
     if (streamPart.type === 'text-delta') {
       // Server sends FULL content each time (not deltas), so REPLACE not accumulate
       const content = String(streamPart.content || '');
-      console.log('[AC Debug] Received full content:', content.substring(0, 100));
+      
       
       // Try to parse the full content
       const parsed = parseACFromContent(content);
       if (parsed) {
-        console.log('[AC Debug] Successfully parsed AC:', parsed);
+        
         setMetadata((m: Metadata) => ({ ...(m || {}), ac: parsed }));
       }
 
@@ -2760,13 +2760,13 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
 
       const handleEdit = (e: React.MouseEvent) => {
         e.stopPropagation();
-        console.log('[AC] Edit clicked for seat:', seat);
+        
         if (onEdit) onEdit(seat);
       };
 
       const handleAddChild = (e: React.MouseEvent) => {
         e.stopPropagation();
-        console.log('[AC] Add child clicked for seat:', seat);
+        
         if (onAddChild) onAddChild(seat);
       };
 
@@ -3254,7 +3254,7 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
           title: `L10 Meeting - ${new Date().toLocaleDateString()}`,
           attendees: [],
         };
-        console.log('Creating L10 meeting with:', requestBody);
+        
 
         const response = await fetch('/api/l10', {
           method: 'POST',
@@ -4746,7 +4746,7 @@ export const accountabilityComposer = new Composer<'accountability', Metadata>({
               setParentSeatId(null);
             }}
             onSubmit={(data) => {
-              console.log('[AC Debug] Add Seat submit', { parentSeatId, data });
+              
               if (parentSeatId) {
                 const updatedRoot = addChild(ac.root, parentSeatId, data);
                 const next = { ...ac, root: updatedRoot };

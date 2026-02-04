@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import LandingNavbar from '@/components/marketing/landing-navbar';
 import LandingFooter from '@/components/marketing/landing-footer';
 import GradientBlinds from '@/components/GradientBlinds';
-import Aurora from '@/components/Aurora';
-import Dither from '@/components/Dither';
+import { LazyAurora as Aurora } from '@/components/lazy-components';
+import { LazyDither as Dither } from '@/components/lazy-components';
 import ScrollFloat from '@/components/ScrollFloat';
 import RotatingText from '@/components/RotatingText';
 

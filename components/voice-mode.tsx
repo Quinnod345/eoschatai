@@ -81,7 +81,7 @@ export default function VoiceMode({
 
     try {
       // Step 1: Create ephemeral session (serverless approach)
-      console.log('Creating ephemeral voice session...');
+      
       const sessionResponse = await fetch('/api/voice/session', {
         method: 'POST',
         headers: {
@@ -119,13 +119,13 @@ export default function VoiceMode({
         `key.${clientSecret}`,
       ]);
 
-      console.log('WebSocket created, waiting for connection...');
+      
 
       ws.onopen = () => {
-        console.log('Voice mode: Connected to OpenAI Realtime API');
-        console.log('Voice mode: Protocol:', ws.protocol);
-        console.log('Voice mode: Extensions:', ws.extensions);
-        console.log('Voice mode: Ready state after open:', ws.readyState);
+        
+        
+        
+        
         setConnectionStatus('connected');
 
         // Configure the session with our desired settings
@@ -179,19 +179,19 @@ export default function VoiceMode({
             console.error('Abnormal closure - no close frame received');
             break;
           case 1000:
-            console.log('Normal closure');
+            
             break;
           case 1001:
-            console.log('Going away');
+            
             break;
           case 1002:
-            console.log('Protocol error');
+            
             break;
           case 1003:
-            console.log('Unsupported data');
+            
             break;
           default:
-            console.log('Unknown close code:', event.code);
+            
         }
 
         setConnectionStatus('disconnected');
@@ -225,11 +225,11 @@ export default function VoiceMode({
   const handleRealtimeEvent = useCallback((event: any) => {
     switch (event.type) {
       case 'session.created':
-        console.log('Voice mode: Session confirmed by server');
+        
         break;
 
       case 'session.updated':
-        console.log('Voice mode: Session updated');
+        
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -273,7 +273,7 @@ export default function VoiceMode({
         break;
 
       case 'response.done':
-        console.log('Voice mode: Response completed');
+        
         break;
 
       case 'error': {
@@ -301,7 +301,7 @@ export default function VoiceMode({
 
       default:
         // Log unknown events for debugging
-        console.log('Voice mode: Event:', event.type, event);
+        
         break;
     }
   }, []);
