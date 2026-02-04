@@ -88,6 +88,7 @@ export default withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
 
   // Automatically annotate React components to show their full name in breadcrumbs and session replay
+  // Note: R3F (react-three-fiber) components are excluded to prevent annotation errors
   reactComponentAnnotation: {
     enabled: true,
   },

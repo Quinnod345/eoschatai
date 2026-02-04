@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
+import { isAdminEmail } from '@/lib/auth/admin';
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -20,8 +21,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     
-    // Allow quinn@upaway.dev to access any chat
-    const isAdminUser = session.user.email === 'quinn@upaway.dev';
+    // Allow admin users to access any chat
+    const isAdminUser = isAdminEmail(session.user.email);
     
     if (chat.userId !== session.user.id && chat.visibility !== 'public' && !isAdminUser) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -1,0 +1,112 @@
+name: PR Size Labels
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: pr-size-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  size-label:
+    name: Label PR Size
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate PR size
+        id: size
+        run: |
+          ADDITIONS=$(gh pr view ${{ github.event.pull_request.number }} --json additions -q '.additions')
+          DELETIONS=$(gh pr view ${{ github.event.pull_request.number }} --json deletions -q '.deletions')
+          TOTAL=$((ADDITIONS + DELETIONS))
+          
+          echo "additions=$ADDITIONS" >> $GITHUB_OUTPUT
+          echo "deletions=$DELETIONS" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          
+          if [ $TOTAL -lt 10 ]; then
+            echo "label=size/XS" >> $GITHUB_OUTPUT
+          elif [ $TOTAL -lt 50 ]; then
+            echo "label=size/S" >> $GITHUB_OUTPUT
+          elif [ $TOTAL -lt 200 ]; then
+            echo "label=size/M" >> $GITHUB_OUTPUT
+          elif [ $TOTAL -lt 500 ]; then
+            echo "label=size/L" >> $GITHUB_OUTPUT
+          else
+            echo "label=size/XL" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove old size labels
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "size/XS" 2>/dev/null || true
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "size/S" 2>/dev/null || true
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "size/M" 2>/dev/null || true
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "size/L" 2>/dev/null || true
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "size/XL" 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add size label
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "${{ steps.size.outputs.label }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment size summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const total = ${{ steps.size.outputs.total }};
+            const additions = ${{ steps.size.outputs.additions }};
+            const deletions = ${{ steps.size.outputs.deletions }};
+            const label = '${{ steps.size.outputs.label }}';
+            
+            const emoji = {
+              'size/XS': '🟢',
+              'size/S': '🟢', 
+              'size/M': '🟡',
+              'size/L': '🟠',
+              'size/XL': '🔴'
+            }[label];
+            
+            const body = `${emoji} **PR Size: ${label.replace('size/', '')}**\n\n` +
+              `| Metric | Count |\n|--------|-------|\n` +
+              `| Additions | +${additions} |\n` +
+              `| Deletions | -${deletions} |\n` +
+              `| Total | ${total} |`;
+            
+            // Find and update existing comment or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('PR Size:')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }

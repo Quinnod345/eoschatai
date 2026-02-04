@@ -38,7 +38,7 @@ const DEFAULT_BORDERS = Object.values(CHART_COLORS);
 export const chartDocumentHandler = createDocumentHandler({
   kind: 'chart',
   onCreateDocument: async ({ title, dataStream }) => {
-    console.log('Creating chart document with title:', title);
+    
 
     // Default empty chart configuration
     const defaultChart: ChartData = {
@@ -71,7 +71,7 @@ export const chartDocumentHandler = createDocumentHandler({
 
     // Convert to string with proper formatting
     const chartContent = JSON.stringify(defaultChart, null, 2);
-    console.log('Sending chart data via text-delta');
+    
 
     // Send with a special marker to help client-side processing
     dataStream.write({
@@ -83,7 +83,7 @@ export const chartDocumentHandler = createDocumentHandler({
       },
     });
 
-    console.log('Chart document created successfully');
+    
 
     // Return the serialized chart configuration as content
     return chartContent;
@@ -92,7 +92,7 @@ export const chartDocumentHandler = createDocumentHandler({
     try {
       // Parse the existing chart configuration
       const chartData: ChartData = JSON.parse(document.content || '{}');
-      console.log(`Updating chart document: ${description.substring(0, 100)}`);
+      
 
       // First, let's see if we need to change the chart type
       const chartTypeMatches = {
@@ -214,10 +214,10 @@ export const chartDocumentHandler = createDocumentHandler({
       });
 
       if (hasChanges) {
-        console.log('Chart data updated successfully');
+        
         return finalChartContent;
       } else {
-        console.log('No changes detected in chart update request');
+        
         return document.content || '{}';
       }
     } catch (error) {

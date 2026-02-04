@@ -1,0 +1,33 @@
+# Robots.txt for EOS AI
+# https://eosbot.ai/robots.txt
+
+User-agent: *
+Allow: /
+
+# Important pages for SEO
+Allow: /
+Allow: /features
+Allow: /solutions
+Allow: /login
+Allow: /register
+Allow: /privacy
+Allow: /terms
+Allow: /sitemap.xml
+
+# Disallow private/admin areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /chat/
+Disallow: /invite/
+Disallow: /academy/
+Disallow: /_next/
+Disallow: /favicon.ico
+Disallow: /images/
+Disallow: /videos/
+Disallow: /scripts/
+
+# Crawl delay to be respectful
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://eosbot.ai/sitemap.xml

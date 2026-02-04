@@ -1,5 +1,7 @@
 # EOSAI - Enterprise Operating System AI Assistant
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Quinnod345/eoschatai/ci.yml?branch=main&style=flat-square)](https://github.com/Quinnod345/eoschatai/actions) [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE) [![Node](https://img.shields.io/badge/node-18+-brightgreen?style=flat-square)](https://nodejs.org) [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md) [![Version](https://img.shields.io/badge/version-3.0.19-orange?style=flat-square)](package.json)
+
 <div align="center">
   <img alt="EOSAI - Advanced AI chatbot for Enterprise Operating System implementation" src="app/(chat)/opengraph-image.png">
   <h1>🚀 EOSAI</h1>
@@ -8,16 +10,6 @@
   </p>
   <p>
     Built with Next.js 15, AI SDK, PostgreSQL, and cutting-edge AI technologies
-  </p>
-
-  <!-- Badges -->
-  <p>
-    <a href="https://github.com/your-org/eoschatai/actions"><img src="https://img.shields.io/github/actions/workflow/status/your-org/eoschatai/ci.yml?branch=main&style=flat-square&label=build" alt="Build Status"></a>
-    <img src="https://img.shields.io/badge/version-3.0.19-blue?style=flat-square" alt="Version">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License"></a>
-    <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square" alt="Node.js">
-    <img src="https://img.shields.io/badge/pnpm-%3E%3D9.12-orange?style=flat-square" alt="pnpm">
-    <a href="https://eosbot.ai"><img src="https://img.shields.io/badge/demo-live-brightgreen?style=flat-square" alt="Live Demo"></a>
   </p>
   
   <p align="center">
@@ -621,60 +613,6 @@ EOSAI is a revolutionary, enterprise-ready AI platform specifically designed for
 
 ---
 
-## 🏗️ Architecture
-
-EOSAI follows a modern, scalable architecture designed for enterprise reliability:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client Layer                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │   Next.js    │  │   React 19   │  │   Tailwind + GSAP    │  │
-│  │  App Router  │  │  Components  │  │    Animations        │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         API Layer                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │   Chat API   │  │  Documents   │  │   Calendar/OAuth     │  │
-│  │  (Streaming) │  │     API      │  │    Integration       │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       AI/RAG Layer                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │   Vercel AI  │  │  Embeddings  │  │  Context Assembler   │  │
-│  │     SDK      │  │   (OpenAI)   │  │  (Token Budget Mgmt) │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Data Layer                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  PostgreSQL  │  │   Upstash    │  │       Redis          │  │
-│  │  + pgvector  │  │    Vector    │  │  (Stream Buffer)     │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| **Context Assembler** | Intelligently manages token budgets across multiple RAG sources |
-| **Embedding Pipeline** | Generates and caches 1536-dimensional embeddings for semantic search |
-| **Stream Buffer** | Enables resumable AI response streams via Redis |
-| **Persona System** | Provides specialized AI behaviors with isolated knowledge bases |
-
-For detailed API documentation, see [docs/API.md](docs/API.md).
-
----
-
 ## 🛠 Technology Stack
 
 ### Frontend Technologies
@@ -703,10 +641,10 @@ For detailed API documentation, see [docs/API.md](docs/API.md).
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js 18+** - [Download](https://nodejs.org/)
-- **pnpm 9.12+** - Install with `npm install -g pnpm`
-- **PostgreSQL 15+** with pgvector extension
-- **OpenAI API key** - [Get one here](https://platform.openai.com/api-keys)
+- **Node.js 18+**
+- **pnpm 9.12+** 
+- **PostgreSQL** database
+- **OpenAI API key**
 
 ### Quick Setup
 
@@ -720,36 +658,12 @@ For detailed API documentation, see [docs/API.md](docs/API.md).
 2. **Configure environment**
    ```bash
    cp .env.example .env.local
-   ```
-   
-   Edit `.env.local` with your credentials:
-   ```env
-   # Required
-   DATABASE_URL="postgresql://user:pass@localhost:5432/eosai"
-   OPENAI_API_KEY="sk-..."
-   AUTH_SECRET="generate-with-openssl-rand-base64-32"
-   
-   # For RAG/Document Intelligence
-   UPSTASH_VECTOR_REST_URL="https://..."
-   UPSTASH_VECTOR_REST_TOKEN="..."
-   
-   # For Resumable Streams (optional but recommended)
-   REDIS_URL="redis://localhost:6379"
-   
-   # For Google Calendar Integration (optional)
-   GOOGLE_CLIENT_ID="..."
-   GOOGLE_CLIENT_SECRET="..."
-   
-   # For File Uploads (optional)
-   BLOB_READ_WRITE_TOKEN="..."
+   # Add your API keys and database URLs
    ```
 
 3. **Setup database**
    ```bash
-   # Run migrations
    pnpm db:migrate
-   
-   # Enable pgvector extension (for RAG)
    pnpm db:pgvector
    ```
 
@@ -762,23 +676,69 @@ Visit [http://localhost:3000](http://localhost:3000) to start using EOSAI!
 
 ### Essential Commands
 ```bash
-pnpm dev              # Start development server (with Turbopack)
+pnpm dev              # Start development server
 pnpm build            # Build for production
-pnpm start            # Start production server
-pnpm lint             # Run linting
-pnpm db:studio        # Open Drizzle Studio (database GUI)
-pnpm db:migrate       # Run database migrations
-pnpm test             # Run E2E tests with Playwright
+pnpm db:studio        # Open database GUI
+pnpm upload-docs      # Upload knowledge base
+pnpm test             # Run E2E tests
 ```
 
-### Troubleshooting
+### Environment Variables
 
-| Issue | Solution |
-|-------|----------|
-| Database connection error | Ensure PostgreSQL is running and `DATABASE_URL` is correct |
-| pgvector not found | Run `CREATE EXTENSION vector;` in your database |
-| OpenAI rate limits | Check your API key has sufficient quota |
-| Build failures | Clear `.next` folder and run `pnpm install` again |
+Create a `.env.local` file with the following:
+
+<details>
+<summary><b>Required Variables</b></summary>
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/eosai"
+AUTH_SECRET="your-auth-secret-key"
+AUTH_GOOGLE_ID="your-google-oauth-client-id"
+AUTH_GOOGLE_SECRET="your-google-oauth-client-secret"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+OPENAI_API_KEY="your-openai-api-key"
+UPSTASH_VECTOR_REST_URL="your-upstash-vector-url"
+UPSTASH_VECTOR_REST_TOKEN="your-upstash-vector-token"
+BLOB_READ_WRITE_TOKEN="your-vercel-blob-token"
+```
+
+</details>
+
+<details>
+<summary><b>Optional Variables</b></summary>
+
+```bash
+REDIS_URL="redis://localhost:6379"
+GOOGLE_CLIENT_ID="your-google-calendar-client-id"
+GOOGLE_CLIENT_SECRET="your-google-calendar-client-secret"
+POSTHOG_KEY="your-posthog-key"
+STRIPE_SECRET_KEY="your-stripe-secret-key"
+```
+
+</details>
+
+---
+
+## 📖 API Documentation
+
+EOSAI provides a comprehensive REST API for building integrations.
+
+- **[Full API Reference](docs/API.md)** - Detailed endpoint documentation
+- **[OpenAPI Spec](docs/openapi.yaml)** - OpenAPI 3.1 specification
+
+### API Overview
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| **Chat** | `/api/chat`, `/api/chat/{id}` | AI conversations with streaming |
+| **User** | `/api/me`, `/api/user-settings` | User profile and settings |
+| **Organizations** | `/api/organizations/*` | Team management |
+| **Calendar** | `/api/calendar/*` | Google Calendar integration |
+| **Documents** | `/api/user-documents` | Document upload and RAG |
+| **Personas** | `/api/personas/*` | Custom AI personas |
+| **Search** | `/api/search` | Full-text and semantic search |
+
+For detailed documentation, see [docs/API.md](docs/API.md).
 
 ---
 
@@ -826,11 +786,13 @@ pnpm test             # Run E2E tests with Playwright
 
 ## 🗺️ Roadmap
 
+### ✅ Recently Completed
+- **API Documentation** - OpenAPI spec and detailed API reference
+
 ### 🔄 Currently in Development
 - **Mobile Apps** for iOS and Android
 - **Teams Integration** with Microsoft Teams
 - **Advanced Analytics** dashboard for usage insights
-- **API Access** for third-party integrations
 
 ### 🚀 Coming Soon
 - **Slack Integration** with bot capabilities
@@ -842,28 +804,13 @@ pnpm test             # Run E2E tests with Playwright
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed guidelines.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-### Quick Start for Contributors
-
-1. **Fork** the repository
-2. **Clone** your fork and create a branch:
-   ```bash
-   git checkout -b feature/your-feature
-   ```
-3. **Make changes** following our [coding standards](CONTRIBUTING.md#coding-standards)
-4. **Test** your changes:
-   ```bash
-   pnpm lint && pnpm test
-   ```
-5. **Submit** a pull request
-
-### Code Quality
-
-- All code must pass linting (`pnpm lint`)
-- New features should include tests
-- Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
-- Add JSDoc comments to exported functions
+### Development Process
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Submit a pull request
 
 ---
 

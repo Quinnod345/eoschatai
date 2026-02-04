@@ -180,7 +180,7 @@ export default function OrgInviteEmail({
                             color: colors.foreground,
                           }}
                         >
-                          You're invited to join {orgName}
+                          You&apos;re invited to join {orgName}
                         </h2>
 
                         {/* Description */}
@@ -206,7 +206,7 @@ export default function OrgInviteEmail({
                             </>
                           ) : (
                             <>
-                              You've been invited to join the{' '}
+                              You&apos;ve been invited to join the{' '}
                               <strong style={{ color: colors.foreground }}>
                                 {orgName}
                               </strong>{' '}
@@ -253,7 +253,7 @@ export default function OrgInviteEmail({
                               color: colors.foreground,
                             }}
                           >
-                            As a member of {orgName}, you'll get access to:
+                            As a member of {orgName}, you&apos;ll get access to:
                           </p>
                           <ul
                             style={{
@@ -270,7 +270,7 @@ export default function OrgInviteEmail({
                               Organization-wide AI personas and configurations
                             </li>
                             <li style={{ marginBottom: 8 }}>
-                              Premium features included in your team's plan
+                              Premium features included in your team&apos;s plan
                             </li>
                             <li>
                               Collaborative document generation and sharing
@@ -291,7 +291,7 @@ export default function OrgInviteEmail({
                             This invitation link will expire in 7 days.
                           </p>
                           <p style={{ margin: '0 0 16px 0' }}>
-                            If you're having trouble with the button above, copy
+                            If you&apos;re having trouble with the button above, copy
                             and paste this URL into your browser:
                           </p>
                           <p
@@ -339,7 +339,7 @@ export default function OrgInviteEmail({
                           reserved.
                         </p>
                         <p style={{ margin: 0 }}>
-                          If you didn't request this invitation, you can safely
+                          If you didn&apos;t request this invitation, you can safely
                           ignore this email.
                         </p>
                       </td>

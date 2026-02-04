@@ -135,7 +135,7 @@ export default function VoiceModeBatchSave({
 
     // If there's a pending assistant message, add it to the save queue
     if (pendingAssistantMessageRef.current?.content.trim()) {
-      console.log('[Voice Mode] Including pending assistant message in save');
+      
       const pendingMessage = {
         ...pendingAssistantMessageRef.current,
         content: `${pendingAssistantMessageRef.current.content} [interrupted]`,
@@ -192,7 +192,7 @@ export default function VoiceModeBatchSave({
     );
 
     if (allMessages.length === 0) {
-      console.log('[Voice Mode] No messages to save');
+      
       return null;
     }
 
@@ -208,7 +208,7 @@ export default function VoiceModeBatchSave({
     try {
       // Always save messages - for new chats, create the chat too
       if (!existingChatId) {
-        console.log('[Voice Mode] Creating new chat and saving messages');
+        
         const response = await fetch('/api/voice/batch-save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -230,13 +230,13 @@ export default function VoiceModeBatchSave({
         }
 
         const data = await response.json();
-        console.log('[Voice Mode] Batch save successful:', data);
+        
 
         // Ensure we have the chat ID
         const savedChatId = data.chatId || chatId;
 
         // Add a delay to ensure database consistency before navigation
-        console.log('[Voice Mode] Waiting for database consistency...');
+        
         await new Promise((resolve) => setTimeout(resolve, 1500));
 
         // Update sidebar immediately
@@ -306,7 +306,7 @@ export default function VoiceModeBatchSave({
     (message: VoiceMessage) => {
       // Only add messages with actual content
       if (!message.content || message.content.trim().length === 0) {
-        console.log('[Voice Mode] Skipping empty message');
+        
         return;
       }
 
@@ -352,13 +352,13 @@ export default function VoiceModeBatchSave({
   const initializeConnection = useCallback(async () => {
     // Prevent initialization if user has hung up
     if (hasHungUpRef.current) {
-      console.log('[Voice Mode] User has hung up, skipping initialization');
+      
       return;
     }
 
     // Double-check modal is open
     if (!isOpen) {
-      console.log('[Voice Mode] Attempted to initialize but modal is closed');
+      
       return;
     }
 
@@ -371,7 +371,7 @@ export default function VoiceModeBatchSave({
 
     // Prevent initialization if cleanup is in progress
     if (cleanupInProgressRef.current) {
-      console.log('[Voice Mode] Cleanup in progress, skipping initialization');
+      
       return;
     }
 
@@ -392,7 +392,7 @@ export default function VoiceModeBatchSave({
     setConnectionStatus(VOICE_STATES.CONNECTION.CONNECTING);
 
     const chatId = getSessionChatId();
-    console.log('[Voice Mode] Initializing with chat ID:', chatId);
+    
 
     try {
       // Get ephemeral token
@@ -430,7 +430,7 @@ export default function VoiceModeBatchSave({
       audioElementRef.current.autoplay = true;
 
       pc.ontrack = (event) => {
-        console.log('[Voice Mode] Received remote audio track');
+        
         // @ts-ignore - connectionState types are incomplete
         if (
           audioElementRef.current &&
@@ -456,7 +456,7 @@ export default function VoiceModeBatchSave({
         peerConnectionRef.current.connectionState === 'disconnected' ||
         peerConnectionRef.current.connectionState === 'failed'
       ) {
-        console.log('[Voice Mode] Peer connection closed before adding tracks');
+        
         // Clean up the stream we just created
         stream.getTracks().forEach((track) => {
           track.stop();
@@ -496,7 +496,7 @@ export default function VoiceModeBatchSave({
           return;
         }
 
-        console.log('[Voice Mode] Data channel opened');
+        
         setConnectionStatus(VOICE_STATES.CONNECTION.CONNECTED);
         setSessionState(VOICE_STATES.SESSION.READY);
         customToast.success('Voice mode ready');
@@ -549,7 +549,7 @@ export default function VoiceModeBatchSave({
       };
 
       dataChannel.onclose = () => {
-        console.log('[Voice Mode] Data channel closed');
+        
         handleDisconnection();
       };
 
@@ -614,7 +614,7 @@ export default function VoiceModeBatchSave({
 
       // Double-check modal is still open
       if (!isOpen) {
-        console.log('[Voice Mode] Modal closed during initialization');
+        
         pc.close();
         throw new Error('Modal closed during initialization');
       }
@@ -624,7 +624,7 @@ export default function VoiceModeBatchSave({
         sdp: answerSdp,
       });
 
-      console.log('[Voice Mode] WebRTC connection established');
+      
     } catch (error: any) {
       console.error('[Voice Mode] Connection error:', error);
 
@@ -701,7 +701,7 @@ export default function VoiceModeBatchSave({
       switch (event.type) {
         case VOICE_EVENTS.SESSION_CREATED:
         case VOICE_EVENTS.SESSION_UPDATE:
-          console.log('[Voice Mode] Session event:', event.type);
+          
           setSessionState(VOICE_STATES.SESSION.ACTIVE);
           break;
 
@@ -781,7 +781,7 @@ export default function VoiceModeBatchSave({
           break;
 
         case VOICE_EVENTS.RESPONSE_CREATED: {
-          console.log('[Voice Mode] Response created');
+          
           // Use the last user speech time or find the last user message
           const lastUserMessage = messagesRef.current
             .filter((m) => m.role === 'user')
@@ -869,7 +869,7 @@ export default function VoiceModeBatchSave({
           break;
 
         case VOICE_EVENTS.RESPONSE_DONE:
-          console.log('[Voice Mode] Response done');
+          
           if (pendingAssistantMessageRef.current?.content?.trim()) {
             const completed = {
               ...pendingAssistantMessageRef.current,
@@ -932,13 +932,13 @@ export default function VoiceModeBatchSave({
   const verifyAndNavigate = useCallback(
     async (chatId: string, retries = 5) => {
       try {
-        console.log('[Voice Mode] Verifying chat exists:', chatId);
+        
         const response = await fetch(`/api/chat/${chatId}/verify`, {
           method: 'GET',
         });
 
         if (response.ok) {
-          console.log('[Voice Mode] Chat verified, navigating...');
+          
 
           // Force refresh the sidebar
           await mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -954,18 +954,18 @@ export default function VoiceModeBatchSave({
           const currentPath = window.location.pathname;
           if (currentPath === `/chat/${chatId}`) {
             // We're already on this chat, reload to show new messages
-            console.log('[Voice Mode] Already on chat page, reloading...');
+            
             window.location.reload();
           } else {
             // Navigate to the chat with loading state
-            console.log('[Voice Mode] Navigating to:', `/chat/${chatId}`);
+            
             const { setLoading } = useLoading.getState();
             setLoading(true, 'Opening voice chat...', 'chat');
             router.push(`/chat/${chatId}`);
           }
         } else if (retries > 0) {
           // Retry after a delay
-          console.log('[Voice Mode] Chat not found yet, retrying...');
+          
           setTimeout(() => {
             verifyAndNavigate(chatId, retries - 1);
           }, 500);
@@ -994,7 +994,7 @@ export default function VoiceModeBatchSave({
   const stopVoiceSession = useCallback(async () => {
     // Prevent multiple cleanup calls
     if (cleanupInProgressRef.current) {
-      console.log('[Voice Mode] Cleanup already in progress, skipping');
+      
       return;
     }
 
@@ -1009,7 +1009,7 @@ export default function VoiceModeBatchSave({
 
     // Immediately stop microphone to prevent any further listening
     if (mediaStreamRef.current) {
-      console.log('[Voice Mode] Immediately stopping microphone');
+      
       mediaStreamRef.current.getTracks().forEach((track) => {
         track.stop();
         track.enabled = false;
@@ -1034,7 +1034,7 @@ export default function VoiceModeBatchSave({
 
     // First, close the data channel to stop all communication
     if (dataChannelRef.current) {
-      console.log('[Voice Mode] Closing data channel');
+      
       try {
         dataChannelRef.current.close();
       } catch (e) {
@@ -1045,7 +1045,7 @@ export default function VoiceModeBatchSave({
 
     // Stop all audio tracks
     if (mediaStreamRef.current) {
-      console.log('[Voice Mode] Stopping media stream tracks');
+      
       mediaStreamRef.current.getTracks().forEach((track) => {
         track.stop();
         track.enabled = false;
@@ -1055,7 +1055,7 @@ export default function VoiceModeBatchSave({
 
     // Clean up audio element
     if (audioElementRef.current) {
-      console.log('[Voice Mode] Cleaning up audio element');
+      
       audioElementRef.current.pause();
       audioElementRef.current.srcObject = null;
       audioElementRef.current.remove();
@@ -1064,7 +1064,7 @@ export default function VoiceModeBatchSave({
 
     // Close peer connection
     if (peerConnectionRef.current) {
-      console.log('[Voice Mode] Closing peer connection');
+      
       peerConnectionRef.current.getTransceivers().forEach((transceiver) => {
         if (transceiver.stop) transceiver.stop();
       });
@@ -1074,7 +1074,7 @@ export default function VoiceModeBatchSave({
 
     // Close audio context
     if (audioContextRef.current) {
-      console.log('[Voice Mode] Closing audio context');
+      
       try {
         await audioContextRef.current.close();
       } catch (e) {
@@ -1100,14 +1100,14 @@ export default function VoiceModeBatchSave({
 
     // Save messages if we have any
     if (hasMessages) {
-      console.log('[Voice Mode] Saving messages before navigation');
+      
       const savedChatId = await saveAllMessages();
       if (savedChatId) {
         chatIdToNavigate = savedChatId;
         shouldNavigate = true;
       }
     } else {
-      console.log('[Voice Mode] No messages to save');
+      
     }
 
     // Clear messages after save
@@ -1125,7 +1125,7 @@ export default function VoiceModeBatchSave({
       // Start navigation process immediately
       verifyAndNavigate(chatIdToNavigate);
     } else {
-      console.log('[Voice Mode] No navigation needed, closing modal');
+      
       // If no messages were recorded or we're in an existing chat, just close
       // Add a small delay for smooth transition
       setTimeout(() => {
@@ -1158,7 +1158,7 @@ export default function VoiceModeBatchSave({
     if (isOpen && connectionStatus === VOICE_STATES.CONNECTION.DISCONNECTED) {
       // Only reset and initialize if we're not in the middle of saving/navigating
       if (!isSaving && !isNavigating && !hasHungUpRef.current) {
-        console.log('[Voice Mode] Opening modal');
+        
         // Reset state
         messagesRef.current = [];
         pendingAssistantMessageRef.current = null;
@@ -1181,7 +1181,7 @@ export default function VoiceModeBatchSave({
 
   // Handle close
   const handleClose = async () => {
-    console.log('[Voice Mode] handleClose called');
+    
     if (
       connectionStatus !== VOICE_STATES.CONNECTION.DISCONNECTED &&
       !cleanupInProgressRef.current
@@ -1200,7 +1200,7 @@ export default function VoiceModeBatchSave({
     return () => {
       if (cleanupInProgressRef.current) return;
 
-      console.log('[Voice Mode] Component unmounting, cleaning up...');
+      
       // Force cleanup regardless of connection status
       if (
         peerConnectionRef.current ||
@@ -1405,7 +1405,7 @@ export default function VoiceModeBatchSave({
                                 ? 'bg-eos-orange text-white'
                                 : isNavigating || !hasMessagesRef.current
                                   ? 'bg-green-500 text-white'
-                                  : 'bg-gray-200 text-gray-500',
+                                  : 'bg-gray-200 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400',
                             )}
                           >
                             {isSaving ? (
@@ -1429,7 +1429,7 @@ export default function VoiceModeBatchSave({
                               'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
                               isNavigating
                                 ? 'bg-eos-orange text-white'
-                                : 'bg-gray-200 text-gray-500',
+                                : 'bg-gray-200 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400',
                             )}
                           >
                             {isNavigating ? (

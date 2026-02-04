@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { MediaErrorBoundary } from './error-boundary';
 import {
   Loader2,
   Mic,
@@ -81,7 +82,7 @@ type SavedRecording = {
 
 type RecordingMode = 'idle' | 'recording' | 'paused' | 'completed';
 
-export default function RecordingModal({
+function RecordingModalInner({
   isOpen,
   onClose,
   chatId,
@@ -656,7 +657,7 @@ export default function RecordingModal({
                     No recordings yet
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Click "New Recording" to start
+                    Click &quot;New Recording&quot; to start
                   </p>
                 </div>
               ) : (
@@ -1457,5 +1458,21 @@ export default function RecordingModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * RecordingModal wrapped with error boundary for graceful media error handling
+ */
+export default function RecordingModal(props: RecordingModalProps) {
+  // Only wrap with error boundary when the modal is open
+  if (!props.isOpen) {
+    return null;
+  }
+  
+  return (
+    <MediaErrorBoundary context="Recording" onClose={props.onClose}>
+      <RecordingModalInner {...props} />
+    </MediaErrorBoundary>
   );
 }
