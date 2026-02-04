@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { motion, LayoutGroup, useScroll, useTransform } from 'motion/react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import GradientBlinds from '@/components/GradientBlinds';
-import RotatingText from '@/components/RotatingText';
-import ScrollFloat from '@/components/ScrollFloat';
-import CircularText from '@/components/CircularText';
-import MagicBento from '@/components/MagicBento';
-import DotGrid from '@/components/DotGrid';
-import Dither from '@/components/Dither';
+// Lazy-loaded heavy components for better initial load time
+import {
+  LazyGradientBlinds as GradientBlinds,
+  LazyRotatingText as RotatingText,
+  LazyScrollFloat as ScrollFloat,
+  LazyCircularText as CircularText,
+  LazyMagicBento as MagicBento,
+  LazyDotGrid as DotGrid,
+  LazyDither as Dither,
+} from '@/components/marketing/lazy-marketing';
 import LazyVideo from '@/components/LazyVideo';
 import LandingNavbar from '@/components/marketing/landing-navbar';
 import LandingFooter from '@/components/marketing/landing-footer';
@@ -850,7 +853,8 @@ export default function Home() {
                 {/* Subtitle */}
                 <div className="max-w-4xl subtitle flex justify-center">
                   <p className="font-montserrat text-base md:text-xl lg:text-2xl font-light text-white/90 drop-shadow-[0_2px_16px_rgba(255,255,255,0.1)] tracking-wide leading-relaxed text-center">
-                    Your journey to an AI-powered business starts here
+                    Master the Six Key Components® with intelligent automation
+                    and achieve Traction® faster
                   </p>
                 </div>
               </div>
@@ -1621,7 +1625,7 @@ export default function Home() {
               </div>
 
               {/* FAQ Items */}
-              <div className="space-y-4 mb-12">
+              <div className="space-y-4 mb-12" role="list" aria-label="Frequently asked questions">
                 {[
                   {
                     question: 'What is EOS AI?',
@@ -1696,12 +1700,12 @@ export default function Home() {
                   />
                 </svg>
                 <span className="font-montserrat text-sm">
-                  Feel free to mail us for any enquiries :{' '}
+                  Have questions? Reach out to us at{' '}
                   <a
-                    href="mailto:quinn@upaway.dev"
+                    href="mailto:support@eosbot.ai"
                     className="text-eos-orange hover:underline"
                   >
-                    quinn@upaway.dev
+                    support@eosbot.ai
                   </a>
                 </span>
               </div>
