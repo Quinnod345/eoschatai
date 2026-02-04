@@ -59,7 +59,7 @@ interface InitializeParameters<M = any> {
 type ComposerConfig<T extends string, M = any> = {
   kind: T;
   description: string;
-  content: ComponentType<ComposerContent<M>>;
+  Content: ComponentType<ComposerContent<M>>;
   actions: Array<ComposerAction<M>>;
   toolbar: ComposerToolbarItem[];
   initialize?: (parameters: InitializeParameters<M>) => void;
@@ -73,7 +73,7 @@ type ComposerConfig<T extends string, M = any> = {
 export class Composer<T extends string, M = any> {
   readonly kind: T;
   readonly description: string;
-  readonly content: ComponentType<ComposerContent<M>>;
+  readonly Content: ComponentType<ComposerContent<M>>;
   readonly actions: Array<ComposerAction<M>>;
   readonly toolbar: ComposerToolbarItem[];
   readonly initialize?: (parameters: InitializeParameters) => void;
@@ -86,7 +86,7 @@ export class Composer<T extends string, M = any> {
   constructor(config: ComposerConfig<T, M>) {
     this.kind = config.kind;
     this.description = config.description;
-    this.content = config.content;
+    this.Content = config.Content;
     this.actions = config.actions || [];
     this.toolbar = config.toolbar || [];
     this.initialize = config.initialize || (async () => ({}));

@@ -41,7 +41,7 @@ function InviteAcceptContent() {
           '/api/organizations/accept',
           window.location.origin,
         );
-        acceptUrl.searchParams.set('code', code);
+        acceptUrl.searchParams.set('code', code || '');
         if (email) {
           acceptUrl.searchParams.set('email', email);
         }

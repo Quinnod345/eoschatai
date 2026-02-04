@@ -119,7 +119,7 @@ export function validateRequestBody<T>(
  * @returns Response object for API routes
  */
 export function createValidationErrorResponse(error: z.ZodError) {
-  const formattedErrors = error.errors.map(err => ({
+  const formattedErrors = error.issues.map(err => ({
     field: err.path.join('.'),
     message: err.message,
   }));

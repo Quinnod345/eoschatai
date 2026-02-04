@@ -119,7 +119,7 @@ export function SidebarHistorySkeleton({ count = 5, className }: { count?: numbe
     <motion.div className={cn('flex flex-col gap-2', className)} variants={staggerContainer} initial="hidden" animate="show">
       {Array.from({ length: count }).map((_, i) => (
         <motion.div key={i} variants={staggerItem} className="rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30 border border-transparent">
-          <div className="h-4 rounded-md flex-1 bg-sidebar-accent-foreground/10 animate-pulse" style={{ maxWidth: \`\${widths[i % widths.length]}%\` }} />
+          <div className="h-4 rounded-md flex-1 bg-sidebar-accent-foreground/10 animate-pulse" style={{ maxWidth: `${widths[i % widths.length]}%` }} />
         </motion.div>
       ))}
     </motion.div>

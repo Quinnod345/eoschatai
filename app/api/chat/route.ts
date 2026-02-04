@@ -3798,7 +3798,7 @@ ${
     }
   } catch (error) {
     console.error('[Chat API] Unhandled error in POST route:', error);
-    return handleApiError(error, request);
+    return handleApiError(error);
   }
 }
 

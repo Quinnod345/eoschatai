@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { apiKey, apiKeyUsageLog } from '@/lib/db/schema';
+import { apiKey, apiKeyUsage } from '@/lib/db/schema';
 import { eq, and, desc, gte, sql } from 'drizzle-orm';
 
 // GET /api/api-keys/[id]/usage - Get usage stats for an API key
@@ -31,7 +31,7 @@ export async function GET(
       .select({
         id: apiKey.id,
         name: apiKey.name,
-        requestCount: apiKey.requestCount,
+        usageCount: apiKey.usageCount,
         lastUsedAt: apiKey.lastUsedAt,
         createdAt: apiKey.createdAt,
       })
@@ -57,73 +57,73 @@ export async function GET(
     // Get recent usage logs
     const recentLogs = await db
       .select({
-        endpoint: apiKeyUsageLog.endpoint,
-        method: apiKeyUsageLog.method,
-        statusCode: apiKeyUsageLog.statusCode,
-        responseTimeMs: apiKeyUsageLog.responseTimeMs,
-        tokensUsed: apiKeyUsageLog.tokensUsed,
-        createdAt: apiKeyUsageLog.createdAt,
+        endpoint: apiKeyUsage.endpoint,
+        method: apiKeyUsage.method,
+        statusCode: apiKeyUsage.statusCode,
+        responseTimeMs: apiKeyUsage.responseTimeMs,
+        totalTokens: apiKeyUsage.totalTokens,
+        createdAt: apiKeyUsage.createdAt,
       })
-      .from(apiKeyUsageLog)
+      .from(apiKeyUsage)
       .where(
         and(
-          eq(apiKeyUsageLog.apiKeyId, id),
-          gte(apiKeyUsageLog.createdAt, startDate)
+          eq(apiKeyUsage.apiKeyId, id),
+          gte(apiKeyUsage.createdAt, startDate)
         )
       )
-      .orderBy(desc(apiKeyUsageLog.createdAt))
+      .orderBy(desc(apiKeyUsage.createdAt))
       .limit(100);
 
     // Aggregate stats
     const aggregateStats = await db
       .select({
         totalRequests: sql<number>`count(*)::int`,
-        totalTokens: sql<number>`coalesce(sum(${apiKeyUsageLog.tokensUsed}), 0)::int`,
-        avgResponseTime: sql<number>`coalesce(avg(${apiKeyUsageLog.responseTimeMs}), 0)::int`,
-        successCount: sql<number>`count(*) filter (where ${apiKeyUsageLog.statusCode} >= 200 and ${apiKeyUsageLog.statusCode} < 300)::int`,
-        errorCount: sql<number>`count(*) filter (where ${apiKeyUsageLog.statusCode} >= 400)::int`,
+        totalTokens: sql<number>`coalesce(sum(${apiKeyUsage.totalTokens}), 0)::int`,
+        avgResponseTime: sql<number>`coalesce(avg(${apiKeyUsage.responseTimeMs}), 0)::int`,
+        successCount: sql<number>`count(*) filter (where ${apiKeyUsage.statusCode} >= 200 and ${apiKeyUsage.statusCode} < 300)::int`,
+        errorCount: sql<number>`count(*) filter (where ${apiKeyUsage.statusCode} >= 400)::int`,
       })
-      .from(apiKeyUsageLog)
+      .from(apiKeyUsage)
       .where(
         and(
-          eq(apiKeyUsageLog.apiKeyId, id),
-          gte(apiKeyUsageLog.createdAt, startDate)
+          eq(apiKeyUsage.apiKeyId, id),
+          gte(apiKeyUsage.createdAt, startDate)
         )
       );
 
     // Daily breakdown
     const dailyBreakdown = await db
       .select({
-        date: sql<string>`date_trunc('day', ${apiKeyUsageLog.createdAt})::date::text`,
+        date: sql<string>`date_trunc('day', ${apiKeyUsage.createdAt})::date::text`,
         requests: sql<number>`count(*)::int`,
-        tokens: sql<number>`coalesce(sum(${apiKeyUsageLog.tokensUsed}), 0)::int`,
+        tokens: sql<number>`coalesce(sum(${apiKeyUsage.totalTokens}), 0)::int`,
       })
-      .from(apiKeyUsageLog)
+      .from(apiKeyUsage)
       .where(
         and(
-          eq(apiKeyUsageLog.apiKeyId, id),
-          gte(apiKeyUsageLog.createdAt, startDate)
+          eq(apiKeyUsage.apiKeyId, id),
+          gte(apiKeyUsage.createdAt, startDate)
         )
       )
-      .groupBy(sql`date_trunc('day', ${apiKeyUsageLog.createdAt})`)
-      .orderBy(sql`date_trunc('day', ${apiKeyUsageLog.createdAt})`);
+      .groupBy(sql`date_trunc('day', ${apiKeyUsage.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${apiKeyUsage.createdAt})`);
 
     // Endpoint breakdown
     const endpointBreakdown = await db
       .select({
-        endpoint: apiKeyUsageLog.endpoint,
-        method: apiKeyUsageLog.method,
+        endpoint: apiKeyUsage.endpoint,
+        method: apiKeyUsage.method,
         requests: sql<number>`count(*)::int`,
-        avgResponseTime: sql<number>`coalesce(avg(${apiKeyUsageLog.responseTimeMs}), 0)::int`,
+        avgResponseTime: sql<number>`coalesce(avg(${apiKeyUsage.responseTimeMs}), 0)::int`,
       })
-      .from(apiKeyUsageLog)
+      .from(apiKeyUsage)
       .where(
         and(
-          eq(apiKeyUsageLog.apiKeyId, id),
-          gte(apiKeyUsageLog.createdAt, startDate)
+          eq(apiKeyUsage.apiKeyId, id),
+          gte(apiKeyUsage.createdAt, startDate)
         )
       )
-      .groupBy(apiKeyUsageLog.endpoint, apiKeyUsageLog.method)
+      .groupBy(apiKeyUsage.endpoint, apiKeyUsage.method)
       .orderBy(sql`count(*) desc`)
       .limit(10);
 
@@ -131,7 +131,7 @@ export async function GET(
       key: {
         id: existingKey.id,
         name: existingKey.name,
-        totalRequests: existingKey.requestCount,
+        totalRequests: existingKey.usageCount,
         lastUsedAt: existingKey.lastUsedAt,
         createdAt: existingKey.createdAt,
       },

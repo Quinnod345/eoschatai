@@ -91,10 +91,7 @@ export const LazyKeyboardShortcutsModal = dynamic(
 
 // Voice and recording components (heavy with audio processing)
 export const LazyRecordingModal = dynamic(
-  () =>
-    import('./recording-modal').then((mod) => ({
-      default: mod.RecordingModal,
-    })),
+  () => import('./recording-modal'),
   {
     loading: () => null, // Silent loading for modals
     ssr: false,
@@ -102,10 +99,7 @@ export const LazyRecordingModal = dynamic(
 );
 
 export const LazyVoiceMode = dynamic(
-  () =>
-    import('./voice-mode').then((mod) => ({
-      default: mod.VoiceMode,
-    })),
+  () => import('./voice-mode'),
   {
     loading: LoadingComponent,
     ssr: false,
@@ -113,10 +107,7 @@ export const LazyVoiceMode = dynamic(
 );
 
 export const LazyVoiceModeWebRTC = dynamic(
-  () =>
-    import('./voice-mode-webrtc').then((mod) => ({
-      default: mod.VoiceModeWebRTC,
-    })),
+  () => import('./voice-mode-webrtc'),
   {
     loading: LoadingComponent,
     ssr: false,

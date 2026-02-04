@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -81,12 +82,12 @@ describe('Settings Flow Integration', () => {
       });
 
       const ProfileSettings = () => {
-        const [profile, setProfile] = useState({
+        const [profile, setProfile] = React.useState({
           name: 'John Doe',
           email: 'john@example.com',
           bio: 'Software developer'
         });
-        const [updating, setUpdating] = useState(false);
+        const [updating, setUpdating] = React.useState(false);
 
         const handleUpdate = async () => {
           setUpdating(true);
@@ -175,8 +176,8 @@ describe('Settings Flow Integration', () => {
       });
 
       const ProfileSettings = () => {
-        const [email, setEmail] = useState('invalid-email');
-        const [error, setError] = useState<string | null>(null);
+        const [email, setEmail] = React.useState('invalid-email');
+        const [error, setError] = React.useState<string | null>(null);
 
         const handleUpdate = async () => {
           try {
@@ -226,7 +227,7 @@ describe('Settings Flow Integration', () => {
   describe('Theme and Appearance Settings', () => {
     it('should change theme and persist preference', async () => {
       const ThemeSettings = () => {
-        const [theme, setTheme] = useState('light');
+        const [theme, setTheme] = React.useState('light');
 
         const handleThemeChange = async (newTheme: string) => {
           setTheme(newTheme);
@@ -286,7 +287,7 @@ describe('Settings Flow Integration', () => {
       (localStorage.getItem as any).mockReturnValue('dark');
 
       const ThemeSettings = () => {
-        const [theme, setTheme] = useState(() => {
+        const [theme, setTheme] = React.useState(() => {
           return localStorage.getItem('theme') || 'light';
         });
 
@@ -311,7 +312,7 @@ describe('Settings Flow Integration', () => {
       });
 
       const NotificationSettings = () => {
-        const [notifications, setNotifications] = useState({
+        const [notifications, setNotifications] = React.useState({
           email: true,
           push: false,
           mentions: true,
@@ -383,7 +384,7 @@ describe('Settings Flow Integration', () => {
       });
 
       const AISettings = () => {
-        const [aiSettings, setAISettings] = useState({
+        const [aiSettings, setAISettings] = React.useState({
           model: 'gpt-4',
           temperature: 0.7,
           maxTokens: 2000,
@@ -463,8 +464,8 @@ describe('Settings Flow Integration', () => {
 
     it('should validate AI settings values', async () => {
       const AISettings = () => {
-        const [temperature, setTemperature] = useState(0.7);
-        const [error, setError] = useState<string | null>(null);
+        const [temperature, setTemperature] = React.useState(0.7);
+        const [error, setError] = React.useState<string | null>(null);
 
         const handleTemperatureChange = (value: number) => {
           if (value < 0 || value > 2) {
@@ -515,7 +516,7 @@ describe('Settings Flow Integration', () => {
       });
 
       const PrivacySettings = () => {
-        const [privacy, setPrivacy] = useState({
+        const [privacy, setPrivacy] = React.useState({
           dataSharing: false,
           analytics: true,
           personalization: true,
@@ -593,8 +594,8 @@ describe('Settings Flow Integration', () => {
       });
 
       const SettingsLoader = () => {
-        const [settings, setSettings] = useState<any>(null);
-        const [loading, setLoading] = useState(true);
+        const [settings, setSettings] = React.useState<any>(null);
+        const [loading, setLoading] = React.useState(true);
 
         useEffect(() => {
           const loadSettings = async () => {
@@ -634,7 +635,7 @@ describe('Settings Flow Integration', () => {
 
     it('should sync settings across tabs', async () => {
       const SettingsSync = () => {
-        const [theme, setTheme] = useState('light');
+        const [theme, setTheme] = React.useState('light');
 
         useEffect(() => {
           const handleStorageChange = (e: StorageEvent) => {

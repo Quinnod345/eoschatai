@@ -29,7 +29,7 @@ export const sheetComposer = new Composer<'sheet', Metadata>({
       }));
     }
   },
-  content: ({
+  Content: ({
     content,
     currentVersionIndex,
     isCurrentVersion,

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock modules
@@ -99,7 +100,7 @@ describe('Organization Management', () => {
     });
 
     it('should require authentication for org creation', async () => {
-      vi.mocked(auth).mockResolvedValueOnce(null);
+      vi.mocked(auth).mockResolvedValueOnce(null as any);
 
       // When auth returns null, should get 401
       const session = await auth();

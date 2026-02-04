@@ -42,7 +42,7 @@ export const imageComposer = new Composer({
       }));
     }
   },
-  content: ImageEditor,
+  Content: ImageEditor,
   actions: [
     {
       icon: <UndoIcon size={18} />,

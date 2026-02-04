@@ -30,7 +30,7 @@ export async function fetchComposersForMention(
 
     // Filter by kind if specified
     if (kind !== 'all') {
-      conditions.push(eq(document.kind, kind));
+      conditions.push(eq(document.kind, kind as typeof document.kind.enumValues[number]));
     }
 
     // Add search condition if search term provided

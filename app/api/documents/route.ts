@@ -152,7 +152,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         .where(
           and(
             eq(document.userId, session.user.id),
-            eq(document.kind, kind),
+            eq(document.kind, kind as 'text' | 'code' | 'image' | 'sheet' | 'chart' | 'vto' | 'accountability'),
             // Filter out RAG user notes
             sql`NOT "title" LIKE 'User Note:%'`,
           ),

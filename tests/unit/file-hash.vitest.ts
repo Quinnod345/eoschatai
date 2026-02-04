@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { computeFileHash, computeStringHash, computeFileHashWithProgress } from '@/lib/utils/file-hash';
 

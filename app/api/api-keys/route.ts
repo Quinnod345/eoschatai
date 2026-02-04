@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { apiKey } from '@/lib/db/schema';
-import { eq, and, isNull, desc } from 'drizzle-orm';
-import { generateApiKey, maskApiKey } from '@/lib/api-keys/utils';
-import { getEntitlements } from '@/lib/entitlements';
+import { eq, and, desc } from 'drizzle-orm';
+import { generateApiKey } from '@/lib/api-keys/utils';
+import { getUserEntitlements } from '@/lib/entitlements';
 
 // GET /api/api-keys - List all API keys for the current user
 export async function GET() {
@@ -15,22 +15,21 @@ export async function GET() {
     }
 
     // Check if user has API access
-    const entitlements = await getEntitlements(session.user.id);
-    if (!entitlements.api_access) {
+    const entitlements = await getUserEntitlements(session.user.id);
+    if (!entitlements.features.api_access) {
       return NextResponse.json(
         { error: 'API access is only available on Business plan' },
         { status: 403 }
       );
     }
 
-    // Fetch all non-revoked keys for the user
+    // Fetch all active keys for the user
     const keys = await db
       .select({
         id: apiKey.id,
         name: apiKey.name,
         keyPrefix: apiKey.keyPrefix,
-        lastFour: apiKey.lastFour,
-        requestCount: apiKey.requestCount,
+        usageCount: apiKey.usageCount,
         lastUsedAt: apiKey.lastUsedAt,
         createdAt: apiKey.createdAt,
         expiresAt: apiKey.expiresAt,
@@ -39,18 +38,12 @@ export async function GET() {
       .where(
         and(
           eq(apiKey.userId, session.user.id),
-          isNull(apiKey.revokedAt)
+          eq(apiKey.isActive, true)
         )
       )
       .orderBy(desc(apiKey.createdAt));
 
-    // Add masked key display
-    const keysWithMask = keys.map((key) => ({
-      ...key,
-      maskedKey: maskApiKey(key.keyPrefix, key.lastFour),
-    }));
-
-    return NextResponse.json({ keys: keysWithMask });
+    return NextResponse.json({ keys });
   } catch (error) {
     console.error('Error fetching API keys:', error);
     return NextResponse.json(
@@ -69,8 +62,8 @@ export async function POST(request: Request) {
     }
 
     // Check if user has API access
-    const entitlements = await getEntitlements(session.user.id);
-    if (!entitlements.api_access) {
+    const entitlements = await getUserEntitlements(session.user.id);
+    if (!entitlements.features.api_access) {
       return NextResponse.json(
         { error: 'API access is only available on Business plan' },
         { status: 403 }
@@ -101,7 +94,7 @@ export async function POST(request: Request) {
       .where(
         and(
           eq(apiKey.userId, session.user.id),
-          isNull(apiKey.revokedAt)
+          eq(apiKey.isActive, true)
         )
       );
 
@@ -113,7 +106,7 @@ export async function POST(request: Request) {
     }
 
     // Generate new API key
-    const { fullKey, keyHash, keyPrefix, lastFour } = generateApiKey();
+    const { fullKey, keyHash, keyPrefix } = generateApiKey();
 
     // Insert into database
     const [newKey] = await db
@@ -123,14 +116,12 @@ export async function POST(request: Request) {
         name: name.trim(),
         keyHash,
         keyPrefix,
-        lastFour,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       })
       .returning({
         id: apiKey.id,
         name: apiKey.name,
         keyPrefix: apiKey.keyPrefix,
-        lastFour: apiKey.lastFour,
         createdAt: apiKey.createdAt,
         expiresAt: apiKey.expiresAt,
       });
@@ -140,7 +131,6 @@ export async function POST(request: Request) {
       key: {
         ...newKey,
         fullKey, // Only returned on creation!
-        maskedKey: maskApiKey(keyPrefix, lastFour),
       },
       message: 'API key created. Save this key now - it will not be shown again.',
     });

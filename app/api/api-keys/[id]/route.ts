@@ -32,7 +32,7 @@ export async function DELETE(
         and(
           eq(apiKey.id, id),
           eq(apiKey.userId, session.user.id),
-          isNull(apiKey.revokedAt)
+          eq(apiKey.isActive, true)
         )
       );
 
@@ -43,10 +43,10 @@ export async function DELETE(
       );
     }
 
-    // Revoke the key by setting revokedAt
+    // Deactivate the key
     await db
       .update(apiKey)
-      .set({ revokedAt: new Date() })
+      .set({ isActive: false })
       .where(eq(apiKey.id, id));
 
     return NextResponse.json({ success: true, message: 'API key revoked' });
@@ -96,7 +96,7 @@ export async function PATCH(
         and(
           eq(apiKey.id, id),
           eq(apiKey.userId, session.user.id),
-          isNull(apiKey.revokedAt)
+          eq(apiKey.isActive, true)
         )
       );
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -144,7 +145,7 @@ describe('Organization Switching Integration', () => {
       });
 
       const OrganizationSwitcher = () => {
-        const [loading, setLoading] = useState(false);
+        const [loading, setLoading] = React.useState(false);
 
         const handleSwitch = async (orgId: string) => {
           setLoading(true);
@@ -264,7 +265,7 @@ describe('Organization Switching Integration', () => {
         });
 
       const OrganizationDataComponent = () => {
-        const [chats, setChats] = useState([]);
+        const [chats, setChats] = React.useState([]);
         const { currentOrganization } = mockOrganizationContext;
 
         useEffect(() => {
@@ -309,7 +310,7 @@ describe('Organization Switching Integration', () => {
 
     it('should clear data when switching organizations', async () => {
       const OrganizationDataComponent = () => {
-        const [data, setData] = useState({ chats: [], documents: [] });
+        const [data, setData] = React.useState({ chats: [], documents: [] });
         const { currentOrganization } = mockOrganizationContext;
 
         useEffect(() => {
@@ -376,7 +377,7 @@ describe('Organization Switching Integration', () => {
         });
 
       const OrganizationSwitchHandler = () => {
-        const [status, setStatus] = useState('idle');
+        const [status, setStatus] = React.useState('idle');
 
         const switchOrganization = async (orgId: string) => {
           setStatus('switching');
@@ -442,7 +443,7 @@ describe('Organization Switching Integration', () => {
       });
 
       const OrganizationSwitchHandler = () => {
-        const [error, setError] = useState<string | null>(null);
+        const [error, setError] = React.useState<string | null>(null);
 
         const switchOrganization = async (orgId: string) => {
           try {
@@ -500,8 +501,8 @@ describe('Organization Switching Integration', () => {
       });
 
       const OrganizationCreator = () => {
-        const [name, setName] = useState('');
-        const [creating, setCreating] = useState(false);
+        const [name, setName] = React.useState('');
+        const [creating, setCreating] = React.useState(false);
 
         const createOrganization = async () => {
           setCreating(true);

@@ -3,4 +3,5 @@ export type UpgradeFeature =
   | 'calendar_connect'
   | 'recordings'
   | 'deep_research'
-  | 'premium';
+  | 'premium'
+  | 'api_access';

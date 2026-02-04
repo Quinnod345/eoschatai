@@ -59,7 +59,7 @@ const LazyDitherInner = dynamic(
 );
 
 // Export with error boundary wrapper
-export const LazyDither = (props: Parameters<typeof LazyDitherInner>[0]) => (
+export const LazyDither = (props: React.ComponentProps<typeof LazyDitherInner>) => (
   <R3FErrorBoundary fallbackHeight={600}>
     <LazyDitherInner {...props} />
   </R3FErrorBoundary>
@@ -116,7 +116,7 @@ export const LazyCircularText = dynamic(
 
 // Voice mode components (heavy with audio processing)
 export const LazyVoiceMode = dynamic(
-  () => import('@/components/voice-mode').then(mod => ({ default: mod.VoiceMode })),
+  () => import('@/components/voice-mode'),
   {
     loading: () => <LoadingPlaceholder height={200} />,
     ssr: false,
@@ -124,7 +124,7 @@ export const LazyVoiceMode = dynamic(
 );
 
 export const LazyRecordingModal = dynamic(
-  () => import('@/components/recording-modal').then(mod => ({ default: mod.RecordingModal })),
+  () => import('@/components/recording-modal'),
   {
     loading: () => null,
     ssr: false,

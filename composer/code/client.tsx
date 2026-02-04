@@ -92,7 +92,7 @@ export const codeComposer = new Composer<'code', Metadata>({
       }));
     }
   },
-  content: ({ metadata, setMetadata, status, chatStatus, ...props }) => {
+  Content: ({ metadata, setMetadata, status, chatStatus, ...props }) => {
     return (
       <>
         <div className="relative px-1">

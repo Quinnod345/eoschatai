@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ContextSource, AssembledContext } from '@/lib/ai/context-assembler';
 

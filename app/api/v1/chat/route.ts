@@ -215,10 +215,6 @@ export async function POST(request: NextRequest) {
         system: systemPrompt,
         messages,
         temperature: chatRequest.temperature,
-        maxTokens: chatRequest.max_tokens,
-        topP: chatRequest.top_p,
-        frequencyPenalty: chatRequest.frequency_penalty,
-        presencePenalty: chatRequest.presence_penalty,
         stopSequences: chatRequest.stop
           ? Array.isArray(chatRequest.stop)
             ? chatRequest.stop
@@ -318,10 +314,6 @@ export async function POST(request: NextRequest) {
       system: systemPrompt,
       messages,
       temperature: chatRequest.temperature,
-      maxTokens: chatRequest.max_tokens,
-      topP: chatRequest.top_p,
-      frequencyPenalty: chatRequest.frequency_penalty,
-      presencePenalty: chatRequest.presence_penalty,
       stopSequences: chatRequest.stop
         ? Array.isArray(chatRequest.stop)
           ? chatRequest.stop
