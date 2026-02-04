@@ -4,20 +4,9 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from './skeleton';
 import { motion } from 'framer-motion';
 
-/**
- * Comprehensive skeleton components for consistent loading states
- * across the application.
- */
-
-// Animation variants for staggered loading
 const staggerContainer = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.05,
-    },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
 };
 
 const staggerItem = {
@@ -25,28 +14,10 @@ const staggerItem = {
   show: { opacity: 1, y: 0 },
 };
 
-/**
- * Message skeleton - mimics the chat message layout
- */
-export function MessageSkeleton({
-  isUser = false,
-  className,
-}: {
-  isUser?: boolean;
-  className?: string;
-}) {
+export function MessageSkeleton({ isUser = false, className }: { isUser?: boolean; className?: string }) {
   return (
-    <div
-      className={cn(
-        'flex gap-3 px-4 py-3',
-        isUser ? 'flex-row-reverse' : '',
-        className
-      )}
-    >
-      {/* Avatar */}
+    <div className={cn('flex gap-3 px-4 py-3', isUser ? 'flex-row-reverse' : '', className)}>
       <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
-      
-      {/* Content */}
       <div className={cn('flex flex-col gap-2 flex-1 max-w-[80%]', isUser ? 'items-end' : '')}>
         <Skeleton className="h-4 w-24" />
         <div className="space-y-2 w-full">
@@ -59,43 +30,19 @@ export function MessageSkeleton({
   );
 }
 
-/**
- * Messages list skeleton - shows multiple message skeletons
- */
-export function MessagesListSkeleton({
-  count = 3,
-  className,
-}: {
-  count?: number;
-  className?: string;
-}) {
+export function MessagesListSkeleton({ count = 3, className }: { count?: number; className?: string }) {
   return (
-    <motion.div
-      className={cn('space-y-4', className)}
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <motion.div className={cn('space-y-4', className)} variants={staggerContainer} initial="hidden" animate="show">
       {Array.from({ length: count }).map((_, i) => (
-        <motion.div key={i} variants={staggerItem}>
-          <MessageSkeleton isUser={i % 2 === 1} />
-        </motion.div>
+        <motion.div key={i} variants={staggerItem}><MessageSkeleton isUser={i % 2 === 1} /></motion.div>
       ))}
     </motion.div>
   );
 }
 
-/**
- * Document card skeleton - for document lists
- */
 export function DocumentCardSkeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        'rounded-xl border bg-card p-4 space-y-3',
-        className
-      )}
-    >
+    <div className={cn('rounded-xl border bg-card p-4 space-y-3', className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Skeleton className="h-10 w-10 rounded-lg flex-shrink-0" />
@@ -115,42 +62,20 @@ export function DocumentCardSkeleton({ className }: { className?: string }) {
   );
 }
 
-/**
- * Document list skeleton
- */
-export function DocumentListSkeleton({
-  count = 4,
-  className,
-}: {
-  count?: number;
-  className?: string;
-}) {
+export function DocumentListSkeleton({ count = 4, className }: { count?: number; className?: string }) {
   return (
-    <motion.div
-      className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3', className)}
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <motion.div className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3', className)} variants={staggerContainer} initial="hidden" animate="show">
       {Array.from({ length: count }).map((_, i) => (
-        <motion.div key={i} variants={staggerItem}>
-          <DocumentCardSkeleton />
-        </motion.div>
+        <motion.div key={i} variants={staggerItem}><DocumentCardSkeleton /></motion.div>
       ))}
     </motion.div>
   );
 }
 
-/**
- * Settings section skeleton
- */
 export function SettingsSectionSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-6', className)}>
-      {/* Section header */}
       <Skeleton className="h-7 w-40" />
-      
-      {/* Settings items */}
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex items-center justify-between gap-4 py-2">
@@ -166,205 +91,84 @@ export function SettingsSectionSkeleton({ className }: { className?: string }) {
   );
 }
 
-/**
- * Settings form skeleton - for form-based settings
- */
 export function SettingsFormSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-6', className)}>
       <Skeleton className="h-7 w-32" />
-      
       <div className="space-y-4">
-        {/* Input field */}
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-10 w-full rounded-md" />
-        </div>
-        
-        {/* Another input */}
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-10 w-full rounded-md" />
-        </div>
-        
-        {/* Textarea */}
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-24 w-full rounded-md" />
-        </div>
-        
-        {/* Button */}
+        <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full rounded-md" /></div>
+        <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-10 w-full rounded-md" /></div>
+        <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-24 w-full rounded-md" /></div>
         <Skeleton className="h-10 w-32 rounded-md" />
       </div>
     </div>
   );
 }
 
-/**
- * Sidebar chat item skeleton
- */
 export function SidebarChatItemSkeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        'rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30',
-        className
-      )}
-    >
+    <div className={cn('rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30', className)}>
       <Skeleton className="h-4 flex-1 max-w-[80%] bg-sidebar-accent-foreground/10" />
     </div>
   );
 }
 
-/**
- * Sidebar history skeleton with animated items
- */
-export function SidebarHistorySkeleton({
-  count = 5,
-  className,
-}: {
-  count?: number;
-  className?: string;
-}) {
+export function SidebarHistorySkeleton({ count = 5, className }: { count?: number; className?: string }) {
   const widths = [44, 32, 28, 64, 52, 40, 58, 35];
-  
   return (
-    <motion.div
-      className={cn('flex flex-col gap-2', className)}
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
-    >
+    <motion.div className={cn('flex flex-col gap-2', className)} variants={staggerContainer} initial="hidden" animate="show">
       {Array.from({ length: count }).map((_, i) => (
-        <motion.div
-          key={i}
-          variants={staggerItem}
-          className="rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30 border border-transparent"
-        >
-          <div
-            className="h-4 rounded-md flex-1 max-w-[--skeleton-width] bg-sidebar-accent-foreground/10 animate-pulse"
-            style={
-              {
-                '--skeleton-width': `${widths[i % widths.length]}%`,
-              } as React.CSSProperties
-            }
-          />
+        <motion.div key={i} variants={staggerItem} className="rounded-md h-9 flex gap-2 px-2 items-center bg-sidebar-accent/30 border border-transparent">
+          <div className="h-4 rounded-md flex-1 bg-sidebar-accent-foreground/10 animate-pulse" style={{ maxWidth: \`\${widths[i % widths.length]}%\` }} />
         </motion.div>
       ))}
     </motion.div>
   );
 }
 
-/**
- * Table row skeleton
- */
-export function TableRowSkeleton({
-  columns = 4,
-  className,
-}: {
-  columns?: number;
-  className?: string;
-}) {
+export function TableRowSkeleton({ columns = 4, className }: { columns?: number; className?: string }) {
   return (
     <div className={cn('flex items-center gap-4 py-3 px-4', className)}>
       {Array.from({ length: columns }).map((_, i) => (
-        <Skeleton
-          key={i}
-          className={cn(
-            'h-4',
-            i === 0 ? 'w-10' : i === columns - 1 ? 'w-20' : 'flex-1'
-          )}
-        />
+        <Skeleton key={i} className={cn('h-4', i === 0 ? 'w-10' : i === columns - 1 ? 'w-20' : 'flex-1')} />
       ))}
     </div>
   );
 }
 
-/**
- * Table skeleton
- */
-export function TableSkeleton({
-  rows = 5,
-  columns = 4,
-  className,
-}: {
-  rows?: number;
-  columns?: number;
-  className?: string;
-}) {
+export function TableSkeleton({ rows = 5, columns = 4, className }: { rows?: number; columns?: number; className?: string }) {
   return (
     <div className={cn('rounded-lg border divide-y', className)}>
-      {/* Header */}
       <div className="flex items-center gap-4 py-3 px-4 bg-muted/50">
         {Array.from({ length: columns }).map((_, i) => (
-          <Skeleton
-            key={i}
-            className={cn(
-              'h-4',
-              i === 0 ? 'w-10' : i === columns - 1 ? 'w-20' : 'flex-1'
-            )}
-          />
+          <Skeleton key={i} className={cn('h-4', i === 0 ? 'w-10' : i === columns - 1 ? 'w-20' : 'flex-1')} />
         ))}
       </div>
-      {/* Rows */}
-      <motion.div
-        variants={staggerContainer}
-        initial="hidden"
-        animate="show"
-        className="divide-y"
-      >
+      <motion.div variants={staggerContainer} initial="hidden" animate="show" className="divide-y">
         {Array.from({ length: rows }).map((_, i) => (
-          <motion.div key={i} variants={staggerItem}>
-            <TableRowSkeleton columns={columns} />
-          </motion.div>
+          <motion.div key={i} variants={staggerItem}><TableRowSkeleton columns={columns} /></motion.div>
         ))}
       </motion.div>
     </div>
   );
 }
 
-/**
- * Profile skeleton
- */
 export function ProfileSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-6', className)}>
-      {/* Avatar and name */}
       <div className="flex items-center gap-4">
         <Skeleton className="h-20 w-20 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-4 w-24" />
-        </div>
+        <div className="space-y-2"><Skeleton className="h-6 w-40" /><Skeleton className="h-4 w-24" /></div>
       </div>
-      
-      {/* Form fields */}
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-10 w-full rounded-md" />
-        </div>
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-10 w-full rounded-md" />
-        </div>
+        <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full rounded-md" /></div>
+        <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-10 w-full rounded-md" /></div>
       </div>
     </div>
   );
 }
 
-/**
- * Card skeleton with customizable content
- */
-export function CardSkeleton({
-  hasImage = false,
-  hasFooter = true,
-  className,
-}: {
-  hasImage?: boolean;
-  hasFooter?: boolean;
-  className?: string;
-}) {
+export function CardSkeleton({ hasImage = false, hasFooter = true, className }: { hasImage?: boolean; hasFooter?: boolean; className?: string }) {
   return (
     <div className={cn('rounded-xl border bg-card overflow-hidden', className)}>
       {hasImage && <Skeleton className="h-40 w-full" />}
@@ -373,19 +177,11 @@ export function CardSkeleton({
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-2/3" />
       </div>
-      {hasFooter && (
-        <div className="px-4 pb-4 flex items-center gap-2">
-          <Skeleton className="h-8 w-20 rounded-md" />
-          <Skeleton className="h-8 w-20 rounded-md" />
-        </div>
-      )}
+      {hasFooter && <div className="px-4 pb-4 flex items-center gap-2"><Skeleton className="h-8 w-20 rounded-md" /><Skeleton className="h-8 w-20 rounded-md" /></div>}
     </div>
   );
 }
 
-/**
- * Stats card skeleton
- */
 export function StatsCardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('rounded-xl border bg-card p-4 space-y-2', className)}>
@@ -396,28 +192,14 @@ export function StatsCardSkeleton({ className }: { className?: string }) {
   );
 }
 
-/**
- * Stats grid skeleton
- */
-export function StatsGridSkeleton({
-  count = 4,
-  className,
-}: {
-  count?: number;
-  className?: string;
-}) {
+export function StatsGridSkeleton({ count = 4, className }: { count?: number; className?: string }) {
   return (
     <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-4', className)}>
-      {Array.from({ length: count }).map((_, i) => (
-        <StatsCardSkeleton key={i} />
-      ))}
+      {Array.from({ length: count }).map((_, i) => <StatsCardSkeleton key={i} />)}
     </div>
   );
 }
 
-/**
- * Page header skeleton
- */
 export function PageHeaderSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn('space-y-2', className)}>
@@ -427,51 +209,23 @@ export function PageHeaderSkeleton({ className }: { className?: string }) {
   );
 }
 
-/**
- * Full page loading skeleton
- */
-export function PageSkeleton({
-  hasHeader = true,
-  hasStats = false,
-  className,
-}: {
-  hasHeader?: boolean;
-  hasStats?: boolean;
-  className?: string;
-}) {
+export function PageSkeleton({ hasHeader = true, hasStats = false, className }: { hasHeader?: boolean; hasStats?: boolean; className?: string }) {
   return (
     <div className={cn('space-y-6 p-6', className)}>
       {hasHeader && <PageHeaderSkeleton />}
       {hasStats && <StatsGridSkeleton />}
-      <div className="grid gap-4 md:grid-cols-2">
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
+      <div className="grid gap-4 md:grid-cols-2"><CardSkeleton /><CardSkeleton /></div>
       <TableSkeleton />
     </div>
   );
 }
 
-/**
- * Inline content skeleton for text areas
- */
-export function InlineContentSkeleton({
-  lines = 3,
-  className,
-}: {
-  lines?: number;
-  className?: string;
-}) {
+export function InlineContentSkeleton({ lines = 3, className }: { lines?: number; className?: string }) {
   const widths = ['100%', '85%', '70%', '90%', '60%', '80%'];
-  
   return (
     <div className={cn('space-y-2', className)}>
       {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton
-          key={i}
-          className="h-4"
-          style={{ width: widths[i % widths.length] }}
-        />
+        <Skeleton key={i} className="h-4" style={{ width: widths[i % widths.length] }} />
       ))}
     </div>
   );
