@@ -6,6 +6,7 @@ import type { User } from 'next-auth';
 import { useState, useEffect } from 'react';
 import { toast } from '@/lib/toast-system';
 import { motion } from 'framer-motion';
+import { DataErrorBoundary } from './error-boundary';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,7 +106,7 @@ export function getChatHistoryPaginationKey(
   return `/api/history?ending_before=${firstChatFromPage.id}&limit=${PAGE_SIZE}`;
 }
 
-export function SidebarHistory({
+function SidebarHistoryInner({
   user,
 }: {
   user: User | undefined;
@@ -549,5 +550,30 @@ export function SidebarHistory({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * SidebarHistory wrapped with error boundary for graceful data fetch error handling
+ */
+export function SidebarHistory(props: { user: User | undefined }) {
+  return (
+    <DataErrorBoundary
+      context="Chat History"
+      skeleton={
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <div className="flex flex-row items-center gap-2 text-sm p-2 text-muted-foreground">
+              <div className="animate-spin">
+                <LoaderIcon />
+              </div>
+              <div>Loading...</div>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      }
+    >
+      <SidebarHistoryInner {...props} />
+    </DataErrorBoundary>
   );
 }

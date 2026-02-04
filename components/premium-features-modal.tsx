@@ -239,7 +239,7 @@ export function PremiumFeaturesModal({
             <div className="mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
               <p className="text-sm text-green-900 dark:text-green-100">
                 <strong>Organization Subscription Active:</strong> Your
-                organization "{org.name}" has a {org.plan} subscription. All
+                organization &quot;{org.name}&quot; has a {org.plan} subscription. All
                 members have access to {org.plan} features.
               </p>
             </div>
@@ -249,7 +249,7 @@ export function PremiumFeaturesModal({
           {currentPlan === 'pro' && !org && (
             <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-900 dark:text-blue-100">
-                <strong>You're on the Pro plan.</strong> Upgrade to Business to
+                <strong>You&apos;re on the Pro plan.</strong> Upgrade to Business to
                 unlock Deep Research and advanced team features.
               </p>
             </div>

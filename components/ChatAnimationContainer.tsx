@@ -103,7 +103,7 @@ export default function ChatAnimationContainer() {
               step.
             </p>
             <p className="secondary-text-reveal text-lg">
-              Access comprehensive EOS resources, track your company's progress,
+              Access comprehensive EOS resources, track your company&apos;s progress,
               and get personalized recommendations for implementation success.
             </p>
           </div>

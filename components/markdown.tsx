@@ -6,6 +6,7 @@ import { ChartRenderer } from './chart-renderer';
 import { CitationButton } from './citation-button';
 import type { ChartData } from '@/composer/chart/client';
 import { motion } from 'framer-motion';
+import { ErrorBoundary } from './error-boundary';
 
 interface CitationReference {
   number: number;
@@ -793,9 +794,42 @@ const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
   );
 };
 
-export const Markdown = memo(
+const MemoizedMarkdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     JSON.stringify(prevProps.citations) === JSON.stringify(nextProps.citations),
 );
+
+/**
+ * Markdown component wrapped with error boundary to gracefully handle
+ * malformed markdown or rendering errors
+ */
+export const Markdown = memo(function MarkdownWithErrorBoundary(
+  props: Parameters<typeof NonMemoizedMarkdown>[0]
+) {
+  return (
+    <ErrorBoundary
+      context="Content"
+      variant="inline"
+      showRetry={true}
+      fallback={(error, reset) => (
+        <div className="p-3 rounded-lg bg-muted/50 border border-muted">
+          <p className="text-sm text-muted-foreground">
+            Failed to render content.{' '}
+            <button onClick={reset} className="text-primary underline">
+              Try again
+            </button>
+          </p>
+          {process.env.NODE_ENV === 'development' && (
+            <pre className="mt-2 text-xs text-destructive overflow-auto">
+              {error.message}
+            </pre>
+          )}
+        </div>
+      )}
+    >
+      <MemoizedMarkdown {...props} />
+    </ErrorBoundary>
+  );
+});

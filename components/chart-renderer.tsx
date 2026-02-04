@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChartData } from '@/composer/chart/client';
 import { Button } from './ui/button';
 import { ChartIcon, LineChartIcon } from './icons';
+import { ThirdPartyErrorBoundary } from './error-boundary';
 
 // Default color palette for better chart appearance
 const DEFAULT_COLORS = [
@@ -665,7 +666,7 @@ function renderChart(canvas: HTMLCanvasElement, chartData: ChartData) {
   }
 }
 
-export function ChartRenderer({
+function ChartRendererInner({
   chartData,
   onChangeChartType,
 }: {
@@ -813,5 +814,23 @@ export function ChartRenderer({
         <canvas ref={canvasRef} className="w-full" />
       </div>
     </div>
+  );
+}
+
+
+/**
+ * ChartRenderer wrapped with error boundary for graceful failure handling
+ */
+export function ChartRenderer(props: {
+  chartData: ChartData;
+  onChangeChartType?: (newType: string) => void;
+}) {
+  return (
+    <ThirdPartyErrorBoundary 
+      context="Chart" 
+      fallbackMessage="Failed to render chart. The data may be invalid."
+    >
+      <ChartRendererInner {...props} />
+    </ThirdPartyErrorBoundary>
   );
 }

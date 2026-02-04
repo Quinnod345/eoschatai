@@ -11,6 +11,8 @@ interface LazyVideoProps {
   playsInline?: boolean;
   preload?: 'auto' | 'metadata' | 'none';
   poster?: string;
+  /** Aspect ratio for skeleton placeholder (e.g., "16/9", "4/3"). Defaults to "16/9" */
+  aspectRatio?: string;
 }
 
 export default function LazyVideo({
@@ -22,6 +24,7 @@ export default function LazyVideo({
   playsInline = true,
   preload = 'none',
   poster,
+  aspectRatio = '16/9',
 }: LazyVideoProps) {
   const [isInView, setIsInView] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -103,7 +106,12 @@ export default function LazyVideo({
           <source src={src} type="video/mp4" />
         </video>
       ) : (
-        <div className="w-full aspect-video bg-gradient-to-br from-white/10 to-white/5 animate-pulse" />
+        <div
+          className="w-full bg-gradient-to-br from-white/10 to-white/5 animate-pulse rounded-lg"
+          style={{ aspectRatio }}
+          role="img"
+          aria-label="Loading video..."
+        />
       )}
     </div>
   );

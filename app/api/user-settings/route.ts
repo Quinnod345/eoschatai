@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getUserSettings, updateUserSettings } from '@/lib/db/queries';
+import { API_CACHE } from '@/lib/api/cache-headers';
 
 export async function GET() {
   const session = await auth();
@@ -12,7 +13,9 @@ export async function GET() {
 
   try {
     const settings = await getUserSettings({ userId: session.user.id });
-    return NextResponse.json(settings);
+    // Use private-short cache: 10s max-age with 30s stale-while-revalidate
+    // Settings may change when user updates preferences
+    return NextResponse.json(settings, { headers: API_CACHE.privateShort() });
   } catch (error) {
     console.error('Error getting user settings:', error);
     return NextResponse.json(
