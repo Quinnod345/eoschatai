@@ -812,12 +812,12 @@ function PendingInvitations({ orgId }: { orgId: string }) {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      sent: { label: 'Sent', className: 'bg-gray-100 text-gray-700' },
-      delivered: { label: 'Delivered', className: 'bg-blue-100 text-blue-700' },
-      opened: { label: 'Opened', className: 'bg-green-100 text-green-700' },
-      clicked: { label: 'Clicked', className: 'bg-purple-100 text-purple-700' },
-      bounced: { label: 'Bounced', className: 'bg-red-100 text-red-700' },
-      failed: { label: 'Failed', className: 'bg-red-100 text-red-700' },
+      sent: { label: 'Sent', className: 'bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-zinc-300' },
+      delivered: { label: 'Delivered', className: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' },
+      opened: { label: 'Opened', className: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' },
+      clicked: { label: 'Clicked', className: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' },
+      bounced: { label: 'Bounced', className: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' },
+      failed: { label: 'Failed', className: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' },
     };
     const badge = badges[status as keyof typeof badges] || badges.sent;
     return (

@@ -1405,7 +1405,7 @@ export default function VoiceModeBatchSave({
                                 ? 'bg-eos-orange text-white'
                                 : isNavigating || !hasMessagesRef.current
                                   ? 'bg-green-500 text-white'
-                                  : 'bg-gray-200 text-gray-500',
+                                  : 'bg-gray-200 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400',
                             )}
                           >
                             {isSaving ? (
@@ -1429,7 +1429,7 @@ export default function VoiceModeBatchSave({
                               'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
                               isNavigating
                                 ? 'bg-eos-orange text-white'
-                                : 'bg-gray-200 text-gray-500',
+                                : 'bg-gray-200 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400',
                             )}
                           >
                             {isNavigating ? (
