@@ -227,7 +227,7 @@ export async function searchWeb(
         // Check if it's a rate limit error
         const errorObj = error as { statusCode?: number; message?: string };
         if (errorObj.statusCode === 429 || errorObj.message?.includes('Rate limit')) {
-          const retryAfter = extractRetryAfter(error.message);
+          const retryAfter = extractRetryAfter(errorObj.message || '');
           console.log(
             `[Web Search] Rate limited. Waiting ${retryAfter}s before retry...`,
           );
@@ -275,7 +275,7 @@ export async function searchWeb(
 /**
  * Calculate relevance score based on position and content quality
  */
-function calculateRelevanceScore(position: number, result: SearchResult): number {
+function calculateRelevanceScore(position: number, result: Partial<SearchResult> & { markdown?: string; metadata?: { statusCode?: number }; links?: string[] }): number {
   let score = 100 - position * 10; // Base score from position
 
   // Boost score based on content quality
