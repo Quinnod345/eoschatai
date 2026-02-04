@@ -223,6 +223,7 @@ function MemoriesManager() {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialSection?: string;
 }
 
 interface UserSettings {
@@ -245,7 +246,7 @@ interface UserSettings {
   disableEosGradient?: boolean;
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModalProps) {
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -255,7 +256,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { settings: globalUserSettings, updateSettings: updateGlobalSettings } =
     useUserSettings();
 
-  const [activeSection, setActiveSection] = React.useState('profile');
+  const [activeSection, setActiveSection] = React.useState(initialSection || 'profile');
+  
+  // Update active section when initialSection prop changes (e.g., from URL param)
+  React.useEffect(() => {
+    if (initialSection && isOpen) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection, isOpen]);
   const [settings, setSettings] = React.useState<UserSettings>({
     displayName: '',
     profilePicture: '',

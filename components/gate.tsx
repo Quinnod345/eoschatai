@@ -42,6 +42,8 @@ const isFeatureEnabled = (
       return features.recordings.enabled;
     case 'deep_research':
       return features.deep_research.enabled;
+    case 'api_access':
+      return features.api_access;
     case 'premium':
       // For general premium, check if user has any premium features
       return (
