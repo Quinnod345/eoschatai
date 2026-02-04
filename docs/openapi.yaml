@@ -1,0 +1,549 @@
+openapi: 3.1.0
+info:
+  title: EOSAI API
+  description: API for EOSAI - Enterprise Operating System AI Assistant
+  version: 2.0.0
+  contact:
+    name: EOSAI Support
+    email: support@eosbot.ai
+  license:
+    name: MIT
+
+servers:
+  - url: https://eosbot.ai/api
+    description: Production
+  - url: http://localhost:3000/api
+    description: Development
+
+tags:
+  - name: Authentication
+  - name: Chat
+  - name: User
+  - name: Organizations
+  - name: Calendar
+  - name: Documents
+  - name: Personas
+  - name: Search
+  - name: Feedback
+  - name: Voice
+  - name: Composer
+
+paths:
+  /me:
+    get:
+      tags: [Authentication]
+      summary: Get current user info
+      responses:
+        '200':
+          description: User info retrieved
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /chat:
+    post:
+      tags: [Chat]
+      summary: Send chat message (streaming)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Streaming response
+        '429':
+          description: Rate limit exceeded
+
+  /chat/{id}:
+    get:
+      tags: [Chat]
+      summary: Get chat by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chat retrieved
+    delete:
+      tags: [Chat]
+      summary: Delete chat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chat deleted
+
+  /chat/{id}/stop:
+    post:
+      tags: [Chat]
+      summary: Stop streaming
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Stopped
+
+  /chats/messages:
+    get:
+      tags: [Chat]
+      summary: Get chat messages
+      parameters:
+        - name: chatId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Messages retrieved
+
+  /user-settings:
+    get:
+      tags: [User]
+      summary: Get settings
+      responses:
+        '200':
+          description: Settings retrieved
+    post:
+      tags: [User]
+      summary: Update settings
+      responses:
+        '200':
+          description: Settings updated
+
+  /user/clear-history:
+    post:
+      tags: [User]
+      summary: Clear chat history
+      responses:
+        '200':
+          description: History cleared
+
+  /user/delete-account:
+    delete:
+      tags: [User]
+      summary: Delete account
+      responses:
+        '200':
+          description: Account deleted
+
+  /user/export-data:
+    get:
+      tags: [User]
+      summary: Export all data
+      responses:
+        '200':
+          description: Data exported
+
+  /user/message-count:
+    get:
+      tags: [User]
+      summary: Get message count
+      responses:
+        '200':
+          description: Count retrieved
+
+  /organizations:
+    get:
+      tags: [Organizations]
+      summary: Get current org
+      responses:
+        '200':
+          description: Org retrieved
+    post:
+      tags: [Organizations]
+      summary: Create org
+      responses:
+        '200':
+          description: Org created
+
+  /organizations/join:
+    post:
+      tags: [Organizations]
+      summary: Join org
+      responses:
+        '200':
+          description: Joined
+
+  /organizations/leave:
+    post:
+      tags: [Organizations]
+      summary: Leave org
+      responses:
+        '200':
+          description: Left
+
+  /organizations/{orgId}/members:
+    get:
+      tags: [Organizations]
+      summary: Get members
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Members retrieved
+
+  /organizations/{orgId}/members/{userId}:
+    delete:
+      tags: [Organizations]
+      summary: Remove member
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Member removed
+
+  /calendar/status:
+    get:
+      tags: [Calendar]
+      summary: Get connection status
+      responses:
+        '200':
+          description: Status retrieved
+
+  /calendar/auth:
+    get:
+      tags: [Calendar]
+      summary: Initiate OAuth
+      responses:
+        '302':
+          description: Redirect to Google
+
+  /calendar/disconnect:
+    post:
+      tags: [Calendar]
+      summary: Disconnect
+      responses:
+        '200':
+          description: Disconnected
+
+  /calendar/events:
+    get:
+      tags: [Calendar]
+      summary: Get events
+      parameters:
+        - name: timeMin
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: timeMax
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: maxResults
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Events retrieved
+    post:
+      tags: [Calendar]
+      summary: Create event
+      responses:
+        '200':
+          description: Event created
+
+  /user-documents:
+    get:
+      tags: [Documents]
+      summary: List documents
+      responses:
+        '200':
+          description: Documents retrieved
+
+  /personas:
+    get:
+      tags: [Personas]
+      summary: List personas
+      responses:
+        '200':
+          description: Personas retrieved
+    post:
+      tags: [Personas]
+      summary: Create persona
+      responses:
+        '201':
+          description: Persona created
+    delete:
+      tags: [Personas]
+      summary: Delete persona
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Persona deleted
+
+  /personas/{id}:
+    get:
+      tags: [Personas]
+      summary: Get persona
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Persona retrieved
+    patch:
+      tags: [Personas]
+      summary: Update persona
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Persona updated
+
+  /personas/{id}/profiles:
+    get:
+      tags: [Personas]
+      summary: Get profiles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profiles retrieved
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Search content
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: types
+          in: query
+          schema:
+            type: string
+            default: chat,message,document,composer
+        - name: dateRange
+          in: query
+          schema:
+            type: string
+            enum: [all, today, week, month]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Results retrieved
+
+  /feedback:
+    get:
+      tags: [Feedback]
+      summary: Get feedback
+      responses:
+        '200':
+          description: Feedback retrieved
+    post:
+      tags: [Feedback]
+      summary: Submit feedback
+      responses:
+        '200':
+          description: Feedback submitted
+
+  /voice/recordings:
+    get:
+      tags: [Voice]
+      summary: List recordings
+      responses:
+        '200':
+          description: Recordings retrieved
+    post:
+      tags: [Voice]
+      summary: Upload recording
+      responses:
+        '200':
+          description: Recording uploaded
+
+  /voice/recordings/transcribe:
+    post:
+      tags: [Voice]
+      summary: Transcribe
+      responses:
+        '200':
+          description: Transcription result
+
+  /composer-documents/{id}/history:
+    get:
+      tags: [Composer]
+      summary: Get history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: History retrieved
+
+  /composer-documents/{id}/history/undo:
+    post:
+      tags: [Composer]
+      summary: Undo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Undo successful
+
+  /composer-documents/{id}/history/redo:
+    post:
+      tags: [Composer]
+      summary: Redo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Redo successful
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required: [id, message]
+      properties:
+        id:
+          type: string
+          format: uuid
+        message:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            role:
+              type: string
+              enum: [user, assistant, system]
+            parts:
+              type: array
+              items:
+                type: object
+        selectedPersonaId:
+          type: string
+        selectedProvider:
+          type: string
+          enum: [anthropic, openai]
+          default: anthropic
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: authjs.session-token
+
+security:
+  - sessionCookie: []

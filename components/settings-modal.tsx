@@ -50,6 +50,16 @@ import { useTheme } from 'next-themes';
 import { OrganizationSettings } from '@/components/organization-settings';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
+import {
+  ProfileSettingsSkeleton,
+  PersonalizationSettingsSkeleton,
+  OrganizationSettingsSkeleton,
+  IntegrationSettingsSkeleton,
+  UsageSettingsSkeleton,
+  PrivacySettingsSkeleton,
+  MemoriesSettingsSkeleton,
+  SettingsSectionLoading,
+} from '@/components/settings-skeleton';
 
 function MemoriesManager() {
   const [query, setQuery] = React.useState('');
@@ -132,12 +142,36 @@ function MemoriesManager() {
           </SelectContent>
         </Select>
         <Button onClick={load} disabled={loading} className="whitespace-nowrap">
-          {loading ? 'Loading...' : 'Refresh'}
+          {loading ? (
+            <>
+              <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+              Loading
+            </>
+          ) : 'Refresh'}
         </Button>
       </div>
 
       <div className="rounded-lg border divide-y">
-        {memories.length === 0 && (
+        {loading && memories.length === 0 && (
+          <div className="divide-y">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-4 flex items-start gap-3 animate-pulse">
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-48 bg-muted rounded" />
+                    <div className="h-5 w-16 bg-muted rounded-full" />
+                    <div className="h-5 w-12 bg-muted rounded-full" />
+                  </div>
+                  <div className="h-4 w-24 bg-muted rounded" />
+                  <div className="h-4 w-full bg-muted rounded" />
+                  <div className="h-3 w-36 bg-muted rounded" />
+                </div>
+                <div className="h-8 w-16 bg-muted rounded-md" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && memories.length === 0 && (
           <div className="p-6 text-sm text-muted-foreground">
             No memories found.
           </div>
@@ -687,6 +721,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <div className="max-w-xl mx-auto w-full">
                   {/* Profile Section */}
                   {activeSection === 'profile' && (
+                    loading ? (
+                      <ProfileSettingsSkeleton />
+                    ) : (
                     <div>
                       <h3 className="text-xl font-semibold mb-6">Profile</h3>
                       <div className="space-y-6">
@@ -814,6 +851,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         )}
                       </div>
                     </div>
+                    )
                   )}
 
                   {/* Appearance Section */}
@@ -1413,7 +1451,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   More Integrations Coming Soon
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  We're working on additional integrations to
+                                  We&apos;re working on additional integrations to
                                   make your workflow even more seamless.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -1681,7 +1719,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   Your Data Overview
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  Here's a summary of the data associated with
+                                  Here&apos;s a summary of the data associated with
                                   your account.
                                 </p>
 
@@ -2221,7 +2259,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   Cancel
                 </Button>
                 <Button onClick={handleSaveChanges} disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Changes'}
+                  {loading ? (
+                    <>
+                      <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                      Saving
+                    </>
+                  ) : 'Save Changes'}
                 </Button>
               </div>
             </div>

@@ -220,7 +220,7 @@ export function OrganizationSettings() {
           <CardHeader>
             <CardTitle>No Organization</CardTitle>
             <CardDescription>
-              You're not part of an organization yet. Join or create one to access
+              You&apos;re not part of an organization yet. Join or create one to access
               Business features.
             </CardDescription>
           </CardHeader>
@@ -393,7 +393,23 @@ export function OrganizationSettings() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading members...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 rounded-lg animate-pulse"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-muted" />
+                    <div className="space-y-1">
+                      <div className="h-4 w-32 bg-muted rounded" />
+                      <div className="h-3 w-40 bg-muted rounded" />
+                    </div>
+                  </div>
+                  <div className="h-6 w-16 bg-muted rounded-full" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="space-y-3">
               {members.map((member) => (
@@ -574,7 +590,7 @@ export function OrganizationSettings() {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Organization?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave {org.name}? You'll lose access to
+              Are you sure you want to leave {org.name}? You&apos;ll lose access to
               all organization resources and features.
               {isOwner && members.length > 1 && (
                 <span className="block mt-2 font-semibold text-destructive">
@@ -812,12 +828,12 @@ function PendingInvitations({ orgId }: { orgId: string }) {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      sent: { label: 'Sent', className: 'bg-gray-100 text-gray-700' },
-      delivered: { label: 'Delivered', className: 'bg-blue-100 text-blue-700' },
-      opened: { label: 'Opened', className: 'bg-green-100 text-green-700' },
-      clicked: { label: 'Clicked', className: 'bg-purple-100 text-purple-700' },
-      bounced: { label: 'Bounced', className: 'bg-red-100 text-red-700' },
-      failed: { label: 'Failed', className: 'bg-red-100 text-red-700' },
+      sent: { label: 'Sent', className: 'bg-gray-100 dark:bg-zinc-700 text-gray-700 dark:text-zinc-300' },
+      delivered: { label: 'Delivered', className: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' },
+      opened: { label: 'Opened', className: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' },
+      clicked: { label: 'Clicked', className: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' },
+      bounced: { label: 'Bounced', className: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' },
+      failed: { label: 'Failed', className: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' },
     };
     const badge = badges[status as keyof typeof badges] || badges.sent;
     return (
