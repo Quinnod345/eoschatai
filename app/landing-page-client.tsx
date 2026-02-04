@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { motion, LayoutGroup, useScroll, useTransform } from 'motion/react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import GradientBlinds from '@/components/GradientBlinds';
-import RotatingText from '@/components/RotatingText';
-import ScrollFloat from '@/components/ScrollFloat';
-import CircularText from '@/components/CircularText';
-import MagicBento from '@/components/MagicBento';
-import DotGrid from '@/components/DotGrid';
-import Dither from '@/components/Dither';
+// Lazy-loaded heavy components for better initial load time
+import {
+  LazyGradientBlinds as GradientBlinds,
+  LazyRotatingText as RotatingText,
+  LazyScrollFloat as ScrollFloat,
+  LazyCircularText as CircularText,
+  LazyMagicBento as MagicBento,
+  LazyDotGrid as DotGrid,
+  LazyDither as Dither,
+} from '@/components/marketing/lazy-marketing';
 import LazyVideo from '@/components/LazyVideo';
 import LandingNavbar from '@/components/marketing/landing-navbar';
 import LandingFooter from '@/components/marketing/landing-footer';
