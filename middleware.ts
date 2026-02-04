@@ -115,9 +115,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname === '/login' ||
     pathname === '/register' ||
-    pathname === '/calendar-test.html' || // Allow access to calendar test page
-    pathname === '/calendar-test' ||
-    pathname === '/calendar-debug' || // Allow access to the new debug page
     pathname === '/' || // Allow access to the landing page without auth
     pathname === '/home.html' || // Allow access to static home page
     pathname === '/privacy-policy' || // Allow access to privacy policy
