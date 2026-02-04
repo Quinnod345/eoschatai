@@ -14,13 +14,14 @@ import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
+import type { Attachment } from '@/components/multimodal-input/types';
 import { Suspense } from 'react';
 import { ChatLoading } from '@/components/chat-loading';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 
 // Silent logger to prevent errors from showing on screen during development
 const silentLog = {
-  debug: (message: string, ...args: any[]) => {
+  debug: (message: string, ...args: unknown[]) => {
     if (
       process.env.NODE_ENV !== 'production' &&
       process.env.SILENT_LOGS !== 'true'
@@ -62,11 +63,11 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
     return messages.map((message, index) => {
       // Convert attachments to file parts and merge with existing parts
       const attachmentParts = Array.isArray(message.attachments)
-        ? message.attachments.map((att: any) => ({
+        ? message.attachments.map((att: Attachment) => ({
             type: 'file' as const,
             url: att.url,
-            mediaType: att.contentType || att.mediaType,
-            name: att.name,
+            mediaType: att.contentType || '',
+            name: att.name || 'Unknown file',
           }))
         : [];
 
