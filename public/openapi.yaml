@@ -1,0 +1,1262 @@
+openapi: 3.0.3
+info:
+  title: EOSAI API
+  description: |
+    OpenAI-compatible API for EOS (Entrepreneurial Operating System) powered AI chat and document analysis.
+    
+    EOSAI provides intelligent chat completions with built-in EOS methodology knowledge, embeddings generation, 
+    persistent conversations, and document analysis capabilities.
+    
+    ## Authentication
+    
+    All API requests require authentication via API key. Include your API key in the request header:
+    
+    ```
+    Authorization: Bearer eos_your_api_key_here
+    ```
+    
+    Or use the `X-API-Key` header:
+    
+    ```
+    X-API-Key: eos_your_api_key_here
+    ```
+    
+    ## Rate Limits
+    
+    Rate limits are per API key and include:
+    - Requests per minute (RPM)
+    - Requests per day (RPD)
+    
+    Rate limit headers are included in all responses:
+    - `X-RateLimit-Limit-RPM`: Your RPM limit
+    - `X-RateLimit-Remaining-RPM`: Remaining requests this minute
+    - `X-RateLimit-Limit-RPD`: Your RPD limit
+    - `X-RateLimit-Remaining-RPD`: Remaining requests today
+    
+    ## EOS Knowledge Base
+    
+    EOSAI has access to comprehensive EOS methodology content including:
+    - Vision/Traction Organizer (V/TO)
+    - Accountability Charts
+    - Scorecards and Measurables
+    - Rocks (90-day priorities)
+    - Level 10 Meetings
+    - IDS (Identify, Discuss, Solve)
+    - And more...
+    
+  version: 1.0.0
+  contact:
+    name: EOSAI Support
+    url: https://eosbot.ai
+  license:
+    name: Proprietary
+    url: https://eosbot.ai/terms
+
+servers:
+  - url: https://eosbot.ai/api/v1
+    description: Production server
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+tags:
+  - name: Chat
+    description: Chat completions endpoints
+  - name: Conversations
+    description: Persistent conversation management
+  - name: Embeddings
+    description: Text embedding generation
+  - name: Documents
+    description: Document analysis
+  - name: Models
+    description: Available models
+  - name: Usage
+    description: Usage and rate limit information
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /chat:
+    post:
+      tags:
+        - Chat
+      summary: Create chat completion
+      description: |
+        Generate an AI response to a conversation. Supports both streaming and non-streaming responses.
+        
+        This endpoint is OpenAI-compatible and can be used as a drop-in replacement for OpenAI's 
+        chat completions API with EOS-specific enhancements.
+        
+        The response includes EOS methodology knowledge when `include_eos_context` is true (default).
+      operationId: createChatCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+            examples:
+              simple:
+                summary: Simple question
+                value:
+                  messages:
+                    - role: user
+                      content: "What is the Vision/Traction Organizer?"
+                  model: eosai-v1
+              withHistory:
+                summary: Multi-turn conversation
+                value:
+                  messages:
+                    - role: user
+                      content: "What are Rocks in EOS?"
+                    - role: assistant
+                      content: "Rocks are the 3-7 most important priorities for the next 90 days..."
+                    - role: user
+                      content: "How do I set good Rocks for my team?"
+                  model: eosai-v1
+                  stream: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events stream for streaming responses
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Chat
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /embeddings:
+    post:
+      tags:
+        - Embeddings
+      summary: Create embeddings
+      description: |
+        Generate vector embeddings for text input(s). Uses OpenAI's text-embedding-ada-002 model.
+        
+        Useful for semantic search, clustering, and RAG applications.
+      operationId: createEmbeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbeddingsRequest'
+            examples:
+              single:
+                summary: Single text
+                value:
+                  input: "What is the Entrepreneurial Operating System?"
+              batch:
+                summary: Multiple texts
+                value:
+                  input:
+                    - "What are EOS Rocks?"
+                    - "How does Level 10 Meeting work?"
+                    - "Explain the Accountability Chart"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddingsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Embeddings
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /models:
+    get:
+      tags:
+        - Models
+      summary: List available models
+      description: |
+        Returns a list of available EOSAI models and EOS knowledge namespaces.
+        
+        Models may be restricted based on your API key's configuration.
+      operationId: listModels
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Models
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /usage:
+    get:
+      tags:
+        - Usage
+      summary: Get usage statistics
+      description: |
+        Returns usage statistics and rate limit information for your API key.
+        
+        Useful for monitoring consumption and remaining quota.
+      operationId: getUsage
+      parameters:
+        - name: days
+          in: query
+          description: Number of days of history to include (1-90)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Usage
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /conversations:
+    post:
+      tags:
+        - Conversations
+      summary: Create conversation
+      description: |
+        Create a new persistent conversation. Conversations maintain message history
+        and can be used for multi-turn interactions without sending full history each time.
+      operationId: createConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+            examples:
+              basic:
+                summary: Basic conversation
+                value:
+                  title: "EOS Implementation Questions"
+              withModel:
+                summary: With specific model
+                value:
+                  title: "Complex Analysis"
+                  model: "eosai-v1-pro"
+                  system_prompt: "You are an EOS expert helping with quarterly planning."
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Conversations
+      summary: List conversations
+      description: Returns a list of conversations for the current API key.
+      operationId: listConversations
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of conversations to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of conversations to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Conversations
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /conversations/{id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation
+      description: Retrieve a conversation with all its messages.
+      operationId: getConversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationWithMessages'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Conversations
+      summary: Delete conversation
+      description: Delete a conversation and all its messages.
+      operationId: deleteConversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Conversations
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /conversations/{id}/messages:
+    post:
+      tags:
+        - Conversations
+      summary: Send message
+      description: |
+        Send a message to a conversation and get an AI response.
+        
+        The conversation's message history is automatically included for context.
+        Supports both streaming and non-streaming responses.
+      operationId: createConversationMessage
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationMessageRequest'
+            examples:
+              simple:
+                summary: Simple message
+                value:
+                  content: "How do I run an effective Level 10 Meeting?"
+              streaming:
+                summary: With streaming
+                value:
+                  content: "What makes a good Rock?"
+                  stream: true
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events stream for streaming responses
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Conversations
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+  /documents/analyze:
+    post:
+      tags:
+        - Documents
+      summary: Analyze document
+      description: |
+        Analyze a document and answer questions about it.
+        
+        Supports two input methods:
+        1. **JSON**: Send document text directly in the request body
+        2. **Form Data**: Upload a file (PDF, DOCX, XLSX, PPTX, TXT, MD, or images)
+        
+        The document is chunked and semantically searched to find relevant sections
+        for answering your question.
+      operationId: analyzeDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentAnalyzeRequest'
+            examples:
+              textDocument:
+                summary: Analyze text
+                value:
+                  document: "Our company values are: 1. Customer First - We prioritize customer needs above all else..."
+                  question: "What are the company's core values?"
+                  model: eosai-v1
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentAnalyzeFormRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAnalyzeResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events stream for streaming responses
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    options:
+      tags:
+        - Documents
+      summary: CORS preflight
+      responses:
+        '204':
+          description: CORS preflight response
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Use your API key with the Bearer scheme.
+        Example: `Authorization: Bearer eos_your_api_key_here`
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Alternatively, pass your API key in the X-API-Key header.
+        Example: `X-API-Key: eos_your_api_key_here`
+
+  parameters:
+    ConversationId:
+      name: id
+      in: path
+      required: true
+      description: Unique conversation identifier
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # Chat Completions
+    ChatCompletionRequest:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Message'
+          description: A list of messages comprising the conversation so far.
+        model:
+          type: string
+          default: eosai-v1
+          enum:
+            - eosai-v1
+            - eosai-v1-fast
+            - eosai-v1-pro
+          description: |
+            Model to use for completion.
+            - `eosai-v1`: Default model, best balance of speed and quality
+            - `eosai-v1-fast`: Optimized for quick responses
+            - `eosai-v1-pro`: Enhanced reasoning for complex scenarios
+        stream:
+          type: boolean
+          default: false
+          description: If true, returns a stream of server-sent events.
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+          description: Sampling temperature (0-2). Higher values make output more random.
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 16384
+          default: 4096
+          description: Maximum number of tokens to generate.
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Nucleus sampling parameter.
+        frequency_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          description: Penalty for token frequency.
+        presence_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+          description: Penalty for token presence.
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Sequences where the API will stop generating.
+        include_eos_context:
+          type: boolean
+          default: true
+          description: Whether to include EOS knowledge base context in the response.
+        eos_namespace:
+          type: string
+          default: eos-implementer
+          description: EOS knowledge namespace to search for context.
+
+    Message:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum:
+            - system
+            - user
+            - assistant
+          description: The role of the message author.
+        content:
+          type: string
+          description: The content of the message.
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this completion.
+          example: "req_abc123"
+        object:
+          type: string
+          enum: [chat.completion]
+          description: Object type.
+        created:
+          type: integer
+          description: Unix timestamp of when the completion was created.
+          example: 1706140800
+        model:
+          type: string
+          description: Model used for the completion.
+          example: "eosai-v1"
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+                description: Index of this choice.
+              message:
+                $ref: '#/components/schemas/Message'
+              finish_reason:
+                type: string
+                enum: [stop, length, content_filter]
+                description: Reason the model stopped generating.
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    # Embeddings
+    EmbeddingsRequest:
+      type: object
+      required:
+        - input
+      properties:
+        input:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 32000
+            - type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                type: string
+                minLength: 1
+                maxLength: 32000
+          description: Input text(s) to embed.
+        model:
+          type: string
+          default: text-embedding-ada-002
+          description: Model to use (currently only text-embedding-ada-002 is supported).
+        encoding_format:
+          type: string
+          enum: [float, base64]
+          default: float
+          description: Format for returned embeddings.
+
+    EmbeddingsResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              object:
+                type: string
+                enum: [embedding]
+              index:
+                type: integer
+              embedding:
+                oneOf:
+                  - type: array
+                    items:
+                      type: number
+                  - type: string
+                    description: Base64-encoded embedding (if encoding_format=base64)
+        model:
+          type: string
+          example: "text-embedding-ada-002"
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    # Models
+    ModelsResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+        eos_namespaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/EOSNamespace'
+
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Model identifier.
+          example: "eosai-v1"
+        object:
+          type: string
+          enum: [model]
+        created:
+          type: integer
+          description: Unix timestamp of model creation.
+        owned_by:
+          type: string
+          example: "eosai"
+        description:
+          type: string
+          description: Human-readable description.
+        context_window:
+          type: integer
+          description: Maximum context window size in tokens.
+          example: 200000
+        max_output_tokens:
+          type: integer
+          description: Maximum output tokens.
+          example: 4096
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Model capabilities.
+          example: ["chat", "eos_rag"]
+
+    EOSNamespace:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "eos-implementer"
+        name:
+          type: string
+          example: "EOS Implementer"
+        description:
+          type: string
+          example: "General EOS implementation knowledge"
+
+    # Usage
+    UsageResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [usage]
+        api_key:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            prefix:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            expires_at:
+              type: string
+              format: date-time
+              nullable: true
+            is_active:
+              type: boolean
+            scopes:
+              type: array
+              items:
+                type: string
+        rate_limits:
+          type: object
+          properties:
+            requests_per_minute:
+              type: integer
+            requests_per_day:
+              type: integer
+            remaining_rpm:
+              type: integer
+            remaining_rpd:
+              type: integer
+            reset_rpm:
+              type: string
+              format: date-time
+            reset_rpd:
+              type: string
+              format: date-time
+        usage:
+          type: object
+          properties:
+            period_days:
+              type: integer
+            total_requests:
+              type: integer
+            total_tokens:
+              type: integer
+            average_response_time_ms:
+              type: number
+            error_rate:
+              type: number
+            lifetime_requests:
+              type: integer
+            lifetime_tokens:
+              type: integer
+        usage_by_day:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        usage_by_endpoint:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    # Conversations
+    CreateConversationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 256
+          description: Optional title for the conversation.
+        model:
+          type: string
+          default: eosai-v1
+          description: Model to use for this conversation.
+        system_prompt:
+          type: string
+          maxLength: 4096
+          description: Optional custom system prompt.
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Optional metadata to store with the conversation.
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        object:
+          type: string
+          enum: [conversation]
+        title:
+          type: string
+          nullable: true
+        model:
+          type: string
+        system_prompt:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        message_count:
+          type: integer
+        total_tokens:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ConversationList:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+        has_more:
+          type: boolean
+
+    ConversationWithMessages:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConversationMessage'
+
+    ConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        token_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ConversationMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 32000
+          description: The message content.
+        stream:
+          type: boolean
+          default: false
+          description: If true, returns a stream of server-sent events.
+        include_eos_context:
+          type: boolean
+          default: true
+          description: Whether to include EOS knowledge base context.
+        eos_namespace:
+          type: string
+          default: eos-implementer
+          description: EOS knowledge namespace to search.
+
+    ConversationMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [conversation.message]
+        conversation_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [assistant]
+        content:
+          type: string
+        token_count:
+          type: integer
+        finish_reason:
+          type: string
+          enum: [stop, length]
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    # Documents
+    DocumentAnalyzeRequest:
+      type: object
+      required:
+        - document
+        - question
+      properties:
+        document:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: The document text to analyze.
+        question:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: The question to answer about the document.
+        model:
+          type: string
+          default: eosai-v1
+          description: Model to use for analysis.
+        stream:
+          type: boolean
+          default: false
+          description: If true, returns a stream of server-sent events.
+        include_eos_context:
+          type: boolean
+          default: false
+          description: Whether to include EOS knowledge base context.
+        eos_namespace:
+          type: string
+          default: eos-implementer
+          description: EOS knowledge namespace to search.
+        max_chunks:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Maximum number of document chunks to analyze.
+
+    DocumentAnalyzeFormRequest:
+      type: object
+      required:
+        - file
+        - question
+      properties:
+        file:
+          type: string
+          format: binary
+          description: |
+            File to analyze. Supported formats:
+            - Documents: PDF, DOCX, XLSX, PPTX, TXT, MD
+            - Images: JPEG, PNG, GIF, WebP, BMP
+            
+            Maximum file size: 10MB
+        question:
+          type: string
+          description: The question to answer about the file.
+        model:
+          type: string
+          description: Model to use (default: eosai-v1).
+        stream:
+          type: string
+          description: Set to "true" for streaming response.
+        include_eos_context:
+          type: string
+          description: Set to "true" to include EOS context.
+        eos_namespace:
+          type: string
+          description: EOS knowledge namespace.
+        max_chunks:
+          type: string
+          description: Maximum chunks to analyze (1-20).
+
+    DocumentAnalyzeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [document.analysis]
+        answer:
+          type: string
+          description: The AI's answer to the question.
+        model:
+          type: string
+        chunks_analyzed:
+          type: integer
+          description: Number of document chunks used.
+        total_chunks:
+          type: integer
+          description: Total chunks in the document.
+        finish_reason:
+          type: string
+          enum: [stop, length]
+        file:
+          type: object
+          description: Present for file uploads
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+              enum: [document, image]
+        image_analysis:
+          type: object
+          description: Present for image uploads
+          properties:
+            description:
+              type: string
+            extracted_text:
+              type: string
+              nullable: true
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    # Common
+    Usage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+          description: Number of tokens in the prompt.
+        completion_tokens:
+          type: integer
+          description: Number of tokens in the completion.
+        total_tokens:
+          type: integer
+          description: Total tokens used.
+
+    DeletedObject:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          example: "conversation.deleted"
+        deleted:
+          type: boolean
+          example: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Human-readable error message.
+            type:
+              type: string
+              enum:
+                - invalid_request_error
+                - authentication_error
+                - permission_error
+                - rate_limit_error
+                - server_error
+            code:
+              type: string
+              description: Machine-readable error code.
+            param:
+              type: string
+              nullable: true
+              description: The parameter that caused the error.
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid parameters or request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Invalid request: messages is required"
+              type: "invalid_request_error"
+              code: "invalid_param"
+              param: "messages"
+
+    Unauthorized:
+      description: Unauthorized - Invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Invalid API key"
+              type: "authentication_error"
+              code: "invalid_api_key"
+              param: null
+
+    Forbidden:
+      description: Forbidden - API key lacks required permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Model 'eosai-v1-pro' is not allowed for this API key"
+              type: "invalid_request_error"
+              code: "model_not_allowed"
+              param: "model"
+
+    NotFound:
+      description: Not found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Conversation not found"
+              type: "invalid_request_error"
+              code: "not_found"
+              param: "id"
+
+    RateLimited:
+      description: Too many requests - Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "Rate limit exceeded. Please retry after 60 seconds."
+              type: "rate_limit_error"
+              code: "rate_limit_exceeded"
+              param: null
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              message: "An internal error occurred"
+              type: "server_error"
+              code: "internal_error"
+              param: null

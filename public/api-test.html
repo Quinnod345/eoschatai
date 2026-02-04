@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOSAI API Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e5e5e5;
+    }
+    h1 { color: #fff; margin-bottom: 8px; }
+    h2 { color: #fff; margin-top: 0; font-size: 18px; }
+    .subtitle { color: #888; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 6px; font-weight: 500; color: #ccc; }
+    input, textarea, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 14px;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    textarea { min-height: 100px; resize: vertical; font-family: inherit; }
+    button {
+      padding: 12px 24px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .btn-secondary {
+      background: #333;
+      margin-left: 8px;
+    }
+    .btn-secondary:hover { background: #444; }
+    .btn-small {
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+    .btn-danger {
+      background: #dc2626;
+    }
+    .btn-danger:hover { background: #b91c1c; }
+    .response-area {
+      margin-top: 16px;
+      padding: 16px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      min-height: 150px;
+      white-space: pre-wrap;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+    .response-area.streaming { border-color: #3b82f6; }
+    .stats {
+      margin-top: 12px;
+      padding: 12px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #888;
+    }
+    .stats span { margin-right: 20px; }
+    .error { color: #ef4444; }
+    .success { color: #22c55e; }
+    .row { display: flex; gap: 16px; }
+    .row > * { flex: 1; }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox-group input { width: auto; }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 12px;
+    }
+    .tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      color: #888;
+      font-size: 14px;
+    }
+    .tab:hover { background: #1a1a1a; color: #fff; }
+    .tab.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .config-section {
+      background: #1a1a1a;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+    .conversation-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .conversation-item {
+      padding: 12px;
+      border-bottom: 1px solid #333;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .conversation-item:last-child { border-bottom: none; }
+    .conversation-item:hover { background: #222; }
+    .conversation-item.selected { background: #1e3a5f; }
+    .conversation-info { flex: 1; }
+    .conversation-title { font-weight: 500; }
+    .conversation-meta { font-size: 12px; color: #888; margin-top: 4px; }
+    code {
+      background: #2a2a2a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .endpoint-list {
+      background: #1a1a1a;
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 24px;
+    }
+    .endpoint {
+      padding: 8px 0;
+      border-bottom: 1px solid #333;
+    }
+    .endpoint:last-child { border-bottom: none; }
+    .method {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+    .method.post { background: #22c55e; color: #000; }
+    .method.get { background: #3b82f6; color: #fff; }
+    .method.delete { background: #dc2626; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>EOSAI API Test Console</h1>
+  <p class="subtitle">Test all EOSAI public API endpoints</p>
+
+  <!-- Global Config -->
+  <div class="config-section">
+    <div class="row">
+      <div class="form-group">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="eosai_sk_..." />
+      </div>
+      <div class="form-group">
+        <label for="baseUrl">Base URL</label>
+        <input type="text" id="baseUrl" value="http://localhost:3000" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('chat')">Chat</button>
+    <button class="tab" onclick="switchTab('conversations')">Conversations</button>
+    <button class="tab" onclick="switchTab('embeddings')">Embeddings</button>
+    <button class="tab" onclick="switchTab('documents')">Document Q&A</button>
+  </div>
+
+  <!-- Chat Tab -->
+  <div id="tab-chat" class="tab-content active">
+    <h2>Chat Completions</h2>
+    <div class="row">
+      <div class="form-group">
+        <label for="chatModel">Model</label>
+        <select id="chatModel">
+          <option value="eosai-v1">eosai-v1 (Claude Sonnet)</option>
+          <option value="eosai-v1-fast">eosai-v1-fast (Claude Haiku)</option>
+          <option value="eosai-v1-pro">eosai-v1-pro (Claude Sonnet Pro)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="chatTemp">Temperature</label>
+        <input type="number" id="chatTemp" value="0.7" min="0" max="2" step="0.1" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="chatMessage">Message</label>
+      <textarea id="chatMessage" placeholder="What is EOS?">What is EOS?</textarea>
+    </div>
+    <div class="form-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="chatStream" checked />
+        <label for="chatStream" style="margin: 0;">Enable Streaming</label>
+      </div>
+    </div>
+    <div>
+      <button onclick="sendChat()">Send</button>
+      <button onclick="clearResponse('chatResponse')" class="btn-secondary">Clear</button>
+    </div>
+    <div class="response-area" id="chatResponse">Response will appear here...</div>
+    <div class="stats" id="chatStats" style="display: none;"></div>
+  </div>
+
+  <!-- Conversations Tab -->
+  <div id="tab-conversations" class="tab-content">
+    <h2>Persistent Conversations</h2>
+    
+    <div class="row" style="margin-bottom: 16px;">
+      <div>
+        <button onclick="createConversation()" class="btn-small">+ New Conversation</button>
+        <button onclick="loadConversations()" class="btn-small btn-secondary">Refresh List</button>
+      </div>
+    </div>
+
+    <div class="conversation-list" id="conversationList">
+      <div style="padding: 20px; text-align: center; color: #666;">
+        Click "Refresh List" to load conversations
+      </div>
+    </div>
+
+    <div id="conversationChat" style="display: none;">
+      <div class="form-group">
+        <label>Selected: <span id="selectedConvTitle">-</span></label>
+      </div>
+      <div class="form-group">
+        <label for="convMessage">Message</label>
+        <textarea id="convMessage" placeholder="Type your message..."></textarea>
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="convStream" checked />
+          <label for="convStream" style="margin: 0;">Enable Streaming</label>
+        </div>
+      </div>
+      <div>
+        <button onclick="sendConversationMessage()">Send Message</button>
+        <button onclick="viewConversation()" class="btn-secondary btn-small">View History</button>
+        <button onclick="deleteConversation()" class="btn-danger btn-small">Delete</button>
+      </div>
+    </div>
+
+    <div class="response-area" id="convResponse">Select or create a conversation to begin...</div>
+  </div>
+
+  <!-- Embeddings Tab -->
+  <div id="tab-embeddings" class="tab-content">
+    <h2>Text Embeddings</h2>
+    <div class="form-group">
+      <label for="embedInput">Text to Embed (one per line for batch)</label>
+      <textarea id="embedInput" placeholder="Enter text to generate embeddings...">What is the Entrepreneurial Operating System?</textarea>
+    </div>
+    <div>
+      <button onclick="generateEmbeddings()">Generate Embeddings</button>
+      <button onclick="clearResponse('embedResponse')" class="btn-secondary">Clear</button>
+    </div>
+    <div class="response-area" id="embedResponse">Embeddings will appear here...</div>
+    <div class="stats" id="embedStats" style="display: none;"></div>
+  </div>
+
+  <!-- Document Q&A Tab -->
+  <div id="tab-documents" class="tab-content">
+    <h2>Document Analysis</h2>
+    
+    <!-- Input Mode Toggle -->
+    <div class="form-group">
+      <label>Input Mode</label>
+      <div style="display: flex; gap: 16px; margin-top: 8px;">
+        <div class="checkbox-group">
+          <input type="radio" name="docInputMode" id="docModeText" checked onchange="toggleDocInputMode('text')" />
+          <label for="docModeText" style="margin: 0;">Paste Text</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="radio" name="docInputMode" id="docModeFile" onchange="toggleDocInputMode('file')" />
+          <label for="docModeFile" style="margin: 0;">Upload File</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Input -->
+    <div id="docTextInput">
+      <div class="form-group">
+        <label for="docContent">Document Content</label>
+        <textarea id="docContent" style="min-height: 150px;" placeholder="Paste your document content here...">EOS (Entrepreneurial Operating System) is a complete set of simple concepts and practical tools that has helped thousands of entrepreneurs get what they want from their businesses.
+
+The EOS Model consists of Six Key Components:
+1. Vision - Getting everyone in your organization 100% on the same page
+2. People - Surrounding yourself with great people
+3. Data - Cutting through all the feelings, personalities, and opinions
+4. Issues - Becoming great at solving problems
+5. Process - Systematizing your business
+6. Traction - Bringing discipline and accountability into the organization
+
+EOS provides tools like the Vision/Traction Organizer (V/TO), Accountability Chart, Scorecard, Rock Sheet, Meeting Pulse, and the Issues List.</textarea>
+      </div>
+    </div>
+
+    <!-- File Upload -->
+    <div id="docFileInput" style="display: none;">
+      <div class="form-group">
+        <label for="docFile">Upload Document or Image</label>
+        <input type="file" id="docFile" accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.md,.jpg,.jpeg,.png,.gif,.webp,.bmp" />
+        <p style="font-size: 12px; color: #666; margin-top: 8px;">
+          Supported: PDF, DOCX, XLSX, PPTX, TXT, MD | Images: JPG, PNG, GIF, WebP (OCR enabled)
+          <br/>Max size: 10MB
+        </p>
+      </div>
+      <div id="docFilePreview" style="display: none; padding: 12px; background: #1a1a1a; border-radius: 8px; margin-bottom: 16px;">
+        <strong>Selected:</strong> <span id="docFileName"></span> (<span id="docFileSize"></span>)
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="docQuestion">Question</label>
+      <input type="text" id="docQuestion" placeholder="What would you like to know about this document?" value="What are the Six Key Components of EOS?" />
+    </div>
+    <div class="row">
+      <div class="form-group">
+        <label for="docModel">Model</label>
+        <select id="docModel">
+          <option value="eosai-v1">eosai-v1</option>
+          <option value="eosai-v1-fast">eosai-v1-fast</option>
+          <option value="eosai-v1-pro">eosai-v1-pro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="docMaxChunks">Max Chunks</label>
+        <input type="number" id="docMaxChunks" value="5" min="1" max="20" />
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="docStream" checked />
+        <label for="docStream" style="margin: 0;">Enable Streaming</label>
+      </div>
+    </div>
+    <div>
+      <button onclick="analyzeDocument()">Analyze Document</button>
+      <button onclick="clearResponse('docResponse')" class="btn-secondary">Clear</button>
+    </div>
+    <div class="response-area" id="docResponse">Analysis will appear here...</div>
+    <div class="stats" id="docStats" style="display: none;"></div>
+  </div>
+
+  <!-- API Reference -->
+  <div class="endpoint-list">
+    <h3 style="margin-top: 0;">API Endpoints</h3>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <code>/api/v1/chat</code> - Chat completions (OpenAI-compatible)
+    </div>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <code>/api/v1/conversations</code> - Create new conversation
+    </div>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <code>/api/v1/conversations</code> - List conversations
+    </div>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <code>/api/v1/conversations/:id</code> - Get conversation with messages
+    </div>
+    <div class="endpoint">
+      <span class="method delete">DELETE</span>
+      <code>/api/v1/conversations/:id</code> - Delete conversation
+    </div>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <code>/api/v1/conversations/:id/messages</code> - Send message to conversation
+    </div>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <code>/api/v1/embeddings</code> - Generate text embeddings
+    </div>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <code>/api/v1/documents/analyze</code> - Analyze document and answer questions
+    </div>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <code>/api/v1/models</code> - List available models
+    </div>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <code>/api/v1/usage</code> - Get API key usage statistics
+    </div>
+  </div>
+
+  <script>
+    let selectedConversationId = null;
+
+    function getConfig() {
+      return {
+        apiKey: document.getElementById('apiKey').value.trim(),
+        baseUrl: document.getElementById('baseUrl').value.trim(),
+      };
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add('active');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    function clearResponse(elementId) {
+      document.getElementById(elementId).textContent = 'Response will appear here...';
+      const statsId = elementId.replace('Response', 'Stats');
+      const statsEl = document.getElementById(statsId);
+      if (statsEl) statsEl.style.display = 'none';
+    }
+
+    async function sendChat() {
+      const config = getConfig();
+      if (!config.apiKey) return alert('Please enter your API key');
+
+      const responseEl = document.getElementById('chatResponse');
+      const statsEl = document.getElementById('chatStats');
+      responseEl.textContent = '';
+      responseEl.classList.add('streaming');
+      statsEl.style.display = 'none';
+
+      const stream = document.getElementById('chatStream').checked;
+      const startTime = Date.now();
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: document.getElementById('chatMessage').value }],
+            model: document.getElementById('chatModel').value,
+            temperature: parseFloat(document.getElementById('chatTemp').value),
+            stream,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          responseEl.innerHTML = `<span class="error">Error ${response.status}: ${error.error?.message || JSON.stringify(error)}</span>`;
+          return;
+        }
+
+        if (stream) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+              if (line.startsWith('data: ') && line.slice(6) !== '[DONE]') {
+                try {
+                  const content = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content;
+                  if (content) {
+                    fullText += content;
+                    responseEl.textContent = fullText;
+                  }
+                } catch {}
+              }
+            }
+          }
+        } else {
+          const data = await response.json();
+          responseEl.textContent = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2);
+          statsEl.innerHTML = `Tokens: ${data.usage?.total_tokens || 0}`;
+          statsEl.style.display = 'block';
+        }
+
+        const elapsed = Date.now() - startTime;
+        statsEl.innerHTML = `${elapsed}ms`;
+        statsEl.style.display = 'block';
+      } catch (err) {
+        responseEl.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      } finally {
+        responseEl.classList.remove('streaming');
+      }
+    }
+
+    async function loadConversations() {
+      const config = getConfig();
+      if (!config.apiKey) return alert('Please enter your API key');
+
+      const listEl = document.getElementById('conversationList');
+      listEl.innerHTML = '<div style="padding: 20px; text-align: center;">Loading...</div>';
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/conversations`, {
+          headers: { 'Authorization': `Bearer ${config.apiKey}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load conversations');
+
+        const data = await response.json();
+        if (data.data.length === 0) {
+          listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No conversations yet. Create one!</div>';
+        } else {
+          listEl.innerHTML = data.data.map(c => `
+            <div class="conversation-item ${c.id === selectedConversationId ? 'selected' : ''}" onclick="selectConversation('${c.id}', '${c.title || 'Untitled'}')">
+              <div class="conversation-info">
+                <div class="conversation-title">${c.title || 'Untitled'}</div>
+                <div class="conversation-meta">${c.message_count} messages - ${new Date(c.created_at).toLocaleDateString()}</div>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        listEl.innerHTML = `<div style="padding: 20px; color: #ef4444;">${err.message}</div>`;
+      }
+    }
+
+    async function createConversation() {
+      const config = getConfig();
+      if (!config.apiKey) return alert('Please enter your API key');
+
+      const title = prompt('Conversation title (optional):');
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/conversations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({ title: title || undefined }),
+        });
+
+        if (!response.ok) throw new Error('Failed to create conversation');
+
+        const data = await response.json();
+        selectConversation(data.id, data.title || 'Untitled');
+        loadConversations();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function selectConversation(id, title) {
+      selectedConversationId = id;
+      document.getElementById('selectedConvTitle').textContent = title;
+      document.getElementById('conversationChat').style.display = 'block';
+      document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('selected'));
+      document.querySelector(`[onclick="selectConversation('${id}', '${title}')"]`)?.classList.add('selected');
+    }
+
+    async function sendConversationMessage() {
+      if (!selectedConversationId) return alert('Select a conversation first');
+      const config = getConfig();
+
+      const responseEl = document.getElementById('convResponse');
+      const message = document.getElementById('convMessage').value.trim();
+      if (!message) return alert('Enter a message');
+
+      responseEl.textContent = '';
+      responseEl.classList.add('streaming');
+
+      const stream = document.getElementById('convStream').checked;
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/conversations/${selectedConversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({ content: message, stream }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          responseEl.innerHTML = `<span class="error">Error: ${error.error?.message || JSON.stringify(error)}</span>`;
+          return;
+        }
+
+        if (stream) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+              if (line.startsWith('data: ') && line.slice(6) !== '[DONE]') {
+                try {
+                  const content = JSON.parse(line.slice(6)).delta?.content;
+                  if (content) {
+                    fullText += content;
+                    responseEl.textContent = fullText;
+                  }
+                } catch {}
+              }
+            }
+          }
+        } else {
+          const data = await response.json();
+          responseEl.textContent = data.content || JSON.stringify(data, null, 2);
+        }
+
+        document.getElementById('convMessage').value = '';
+        loadConversations();
+      } catch (err) {
+        responseEl.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      } finally {
+        responseEl.classList.remove('streaming');
+      }
+    }
+
+    async function viewConversation() {
+      if (!selectedConversationId) return;
+      const config = getConfig();
+      const responseEl = document.getElementById('convResponse');
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/conversations/${selectedConversationId}`, {
+          headers: { 'Authorization': `Bearer ${config.apiKey}` }
+        });
+
+        const data = await response.json();
+        responseEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        responseEl.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      }
+    }
+
+    async function deleteConversation() {
+      if (!selectedConversationId) return;
+      if (!confirm('Delete this conversation?')) return;
+
+      const config = getConfig();
+
+      try {
+        await fetch(`${config.baseUrl}/api/v1/conversations/${selectedConversationId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${config.apiKey}` }
+        });
+
+        selectedConversationId = null;
+        document.getElementById('conversationChat').style.display = 'none';
+        document.getElementById('convResponse').textContent = 'Conversation deleted.';
+        loadConversations();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function generateEmbeddings() {
+      const config = getConfig();
+      if (!config.apiKey) return alert('Please enter your API key');
+
+      const responseEl = document.getElementById('embedResponse');
+      const statsEl = document.getElementById('embedStats');
+      const input = document.getElementById('embedInput').value.trim();
+      if (!input) return alert('Enter text to embed');
+
+      responseEl.textContent = 'Generating embeddings...';
+
+      const lines = input.split('\n').filter(l => l.trim());
+      const inputData = lines.length === 1 ? lines[0] : lines;
+
+      const startTime = Date.now();
+
+      try {
+        const response = await fetch(`${config.baseUrl}/api/v1/embeddings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({ input: inputData }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          responseEl.innerHTML = `<span class="error">Error: ${error.error?.message}</span>`;
+          return;
+        }
+
+        const data = await response.json();
+        const elapsed = Date.now() - startTime;
+
+        // Show summary instead of full vectors
+        const summary = {
+          model: data.model,
+          embeddings_count: data.data.length,
+          dimensions: data.data[0]?.embedding?.length || 0,
+          usage: data.usage,
+          first_embedding_preview: data.data[0]?.embedding?.slice(0, 10).map(n => n.toFixed(4)),
+        };
+
+        responseEl.textContent = JSON.stringify(summary, null, 2);
+        statsEl.innerHTML = `${elapsed}ms - ${data.data.length} embedding(s) generated`;
+        statsEl.style.display = 'block';
+      } catch (err) {
+        responseEl.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      }
+    }
+
+    function toggleDocInputMode(mode) {
+      document.getElementById('docTextInput').style.display = mode === 'text' ? 'block' : 'none';
+      document.getElementById('docFileInput').style.display = mode === 'file' ? 'block' : 'none';
+    }
+
+    // File input change handler
+    document.addEventListener('DOMContentLoaded', function() {
+      const fileInput = document.getElementById('docFile');
+      if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+          const file = e.target.files[0];
+          const previewEl = document.getElementById('docFilePreview');
+          if (file) {
+            document.getElementById('docFileName').textContent = file.name;
+            document.getElementById('docFileSize').textContent = formatFileSize(file.size);
+            previewEl.style.display = 'block';
+          } else {
+            previewEl.style.display = 'none';
+          }
+        });
+      }
+    });
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    async function analyzeDocument() {
+      const config = getConfig();
+      if (!config.apiKey) return alert('Please enter your API key');
+
+      const responseEl = document.getElementById('docResponse');
+      const statsEl = document.getElementById('docStats');
+      const question = document.getElementById('docQuestion').value.trim();
+      
+      if (!question) return alert('Enter a question');
+
+      const isFileMode = document.getElementById('docModeFile').checked;
+      const stream = document.getElementById('docStream').checked;
+      const model = document.getElementById('docModel').value;
+      const maxChunks = parseInt(document.getElementById('docMaxChunks').value);
+
+      responseEl.textContent = '';
+      responseEl.classList.add('streaming');
+      statsEl.style.display = 'none';
+
+      const startTime = Date.now();
+
+      try {
+        let response;
+
+        if (isFileMode) {
+          // File upload mode - use FormData
+          const fileInput = document.getElementById('docFile');
+          const file = fileInput.files[0];
+          
+          if (!file) return alert('Please select a file');
+          
+          // Check file size (10MB limit)
+          if (file.size > 10 * 1024 * 1024) {
+            return alert('File too large. Maximum size is 10MB.');
+          }
+
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('question', question);
+          formData.append('model', model);
+          formData.append('stream', stream.toString());
+          formData.append('max_chunks', maxChunks.toString());
+
+          responseEl.textContent = 'Uploading and processing file...';
+
+          response = await fetch(`${config.baseUrl}/api/v1/documents/analyze`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${config.apiKey}`
+            },
+            body: formData,
+          });
+        } else {
+          // Text mode - use JSON
+          const document_content = document.getElementById('docContent').value.trim();
+          if (!document_content) return alert('Enter document content');
+
+          response = await fetch(`${config.baseUrl}/api/v1/documents/analyze`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`
+            },
+            body: JSON.stringify({
+              document: document_content,
+              question,
+              model,
+              stream,
+              max_chunks: maxChunks,
+            }),
+          });
+        }
+
+        if (!response.ok) {
+          const error = await response.json();
+          responseEl.innerHTML = `<span class="error">Error: ${error.error?.message || JSON.stringify(error)}</span>`;
+          return;
+        }
+
+        if (stream) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+              if (line.startsWith('data: ') && line.slice(6) !== '[DONE]') {
+                try {
+                  const content = JSON.parse(line.slice(6)).delta?.content;
+                  if (content) {
+                    fullText += content;
+                    responseEl.textContent = fullText;
+                  }
+                } catch {}
+              }
+            }
+          }
+        } else {
+          const data = await response.json();
+          let resultText = data.answer || '';
+          
+          // Show file info if present
+          if (data.file) {
+            resultText = `[File: ${data.file.name} (${data.file.type})]\n\n` + resultText;
+          }
+          
+          // Show image analysis if present
+          if (data.image_analysis) {
+            resultText += `\n\n--- Image Analysis ---\nDescription: ${data.image_analysis.description}\nExtracted Text: ${data.image_analysis.extracted_text || '(none)'}`;
+          }
+          
+          responseEl.textContent = resultText || JSON.stringify(data, null, 2);
+          statsEl.innerHTML = `Chunks: ${data.chunks_analyzed}/${data.total_chunks} | Tokens: ${data.usage?.total_tokens || 0}`;
+          statsEl.style.display = 'block';
+        }
+
+        const elapsed = Date.now() - startTime;
+        if (statsEl.style.display === 'none') {
+          statsEl.innerHTML = `${elapsed}ms`;
+        } else {
+          statsEl.innerHTML += ` | ${elapsed}ms`;
+        }
+        statsEl.style.display = 'block';
+      } catch (err) {
+        responseEl.innerHTML = `<span class="error">Error: ${err.message}</span>`;
+      } finally {
+        responseEl.classList.remove('streaming');
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        const activeTab = document.querySelector('.tab-content.active').id;
+        if (activeTab === 'tab-chat') sendChat();
+        else if (activeTab === 'tab-conversations') sendConversationMessage();
+        else if (activeTab === 'tab-embeddings') generateEmbeddings();
+        else if (activeTab === 'tab-documents') analyzeDocument();
+      }
+    });
+  </script>
+</body>
+</html>
