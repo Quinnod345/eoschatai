@@ -1413,7 +1413,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   More Integrations Coming Soon
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  We're working on additional integrations to
+                                  We&apos;re working on additional integrations to
                                   make your workflow even more seamless.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -1681,7 +1681,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   Your Data Overview
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  Here's a summary of the data associated with
+                                  Here&apos;s a summary of the data associated with
                                   your account.
                                 </p>
 

@@ -98,12 +98,12 @@ export default function ChatAnimationContainer() {
           </h3>
           <div className="space-y-6 text-gray-600 dark:text-gray-300 leading-relaxed">
             <p className="secondary-text-reveal text-lg">
-              Whether you're preparing for Level 10 meetings or planning your
+              Whether you&apos;re preparing for Level 10 meetings or planning your
               next quarterly session, our AI provides expert guidance at every
               step.
             </p>
             <p className="secondary-text-reveal text-lg">
-              Access comprehensive EOS resources, track your company's progress,
+              Access comprehensive EOS resources, track your company&apos;s progress,
               and get personalized recommendations for implementation success.
             </p>
           </div>
