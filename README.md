@@ -1,5 +1,7 @@
 # EOSAI - Enterprise Operating System AI Assistant
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Quinnod345/eoschatai/ci.yml?branch=main&style=flat-square)](https://github.com/Quinnod345/eoschatai/actions) [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE) [![Node](https://img.shields.io/badge/node-18+-brightgreen?style=flat-square)](https://nodejs.org) [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md) [![Version](https://img.shields.io/badge/version-3.0.19-orange?style=flat-square)](package.json)
+
 <div align="center">
   <img alt="EOSAI - Advanced AI chatbot for Enterprise Operating System implementation" src="app/(chat)/opengraph-image.png">
   <h1>🚀 EOSAI</h1>
