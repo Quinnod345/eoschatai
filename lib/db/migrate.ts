@@ -790,6 +790,89 @@ const runMigrate = async () => {
           console.error('Error adding reasoning column:', error);
         }
 
+        // Create ApiKey table for public API access
+        try {
+          const apiKeyTableExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_name = 'ApiKey'
+            ) as "exists"
+          `;
+
+          if (!apiKeyTableExists[0].exists) {
+            await connection`
+              CREATE TABLE "ApiKey" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "keyHash" VARCHAR(64) NOT NULL,
+                "keyPrefix" VARCHAR(12) NOT NULL,
+                "userId" UUID REFERENCES "User"("id") ON DELETE CASCADE,
+                "orgId" UUID REFERENCES "Org"("id") ON DELETE CASCADE,
+                "name" VARCHAR(128) NOT NULL,
+                "description" TEXT,
+                "isActive" BOOLEAN NOT NULL DEFAULT true,
+                "rateLimitRpm" INTEGER NOT NULL DEFAULT 60,
+                "rateLimitRpd" INTEGER NOT NULL DEFAULT 1000,
+                "usageCount" INTEGER NOT NULL DEFAULT 0,
+                "usageTokens" INTEGER NOT NULL DEFAULT 0,
+                "lastUsedAt" TIMESTAMP,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "expiresAt" TIMESTAMP,
+                "allowedModels" JSONB,
+                "scopes" JSONB NOT NULL DEFAULT '["chat"]'::jsonb,
+                "metadata" JSONB
+              )
+            `;
+            await connection`CREATE UNIQUE INDEX "api_key_hash_idx" ON "ApiKey"("keyHash")`;
+            await connection`CREATE INDEX "api_key_prefix_idx" ON "ApiKey"("keyPrefix")`;
+            await connection`CREATE INDEX "api_key_user_idx" ON "ApiKey"("userId")`;
+            await connection`CREATE INDEX "api_key_org_idx" ON "ApiKey"("orgId")`;
+            await connection`CREATE INDEX "api_key_active_idx" ON "ApiKey"("isActive")`;
+            await connection`CREATE INDEX "api_key_expires_idx" ON "ApiKey"("expiresAt")`;
+            console.log('Created ApiKey table with indexes');
+          } else {
+            console.log('ApiKey table already exists');
+          }
+        } catch (error) {
+          console.error('Error creating ApiKey table:', error);
+        }
+
+        // Create ApiKeyUsage table for tracking API usage
+        try {
+          const apiKeyUsageTableExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_name = 'ApiKeyUsage'
+            ) as "exists"
+          `;
+
+          if (!apiKeyUsageTableExists[0].exists) {
+            await connection`
+              CREATE TABLE "ApiKeyUsage" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                "apiKeyId" UUID NOT NULL REFERENCES "ApiKey"("id") ON DELETE CASCADE,
+                "endpoint" VARCHAR(64) NOT NULL,
+                "method" VARCHAR(10) NOT NULL,
+                "promptTokens" INTEGER DEFAULT 0,
+                "completionTokens" INTEGER DEFAULT 0,
+                "totalTokens" INTEGER DEFAULT 0,
+                "statusCode" INTEGER,
+                "responseTimeMs" INTEGER,
+                "model" VARCHAR(64),
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+                "errorMessage" TEXT
+              )
+            `;
+            await connection`CREATE INDEX "api_key_usage_key_idx" ON "ApiKeyUsage"("apiKeyId")`;
+            await connection`CREATE INDEX "api_key_usage_created_idx" ON "ApiKeyUsage"("createdAt")`;
+            await connection`CREATE INDEX "api_key_usage_endpoint_idx" ON "ApiKeyUsage"("endpoint")`;
+            console.log('Created ApiKeyUsage table with indexes');
+          } else {
+            console.log('ApiKeyUsage table already exists');
+          }
+        } catch (error) {
+          console.error('Error creating ApiKeyUsage table:', error);
+        }
+
         const end = Date.now();
         console.log('✅ Migrations completed in', end - start, 'ms');
 
