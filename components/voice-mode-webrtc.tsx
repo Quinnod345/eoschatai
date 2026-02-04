@@ -115,7 +115,7 @@ export default function VoiceModeWebRTC({
       dataChannelRef.current = dataChannel;
 
       dataChannel.onopen = () => {
-        console.log('Data channel opened');
+        
         setConnectionStatus('connected');
 
         // Send initial configuration
@@ -239,7 +239,7 @@ export default function VoiceModeWebRTC({
         break;
 
       default:
-        console.log('Voice event:', event.type);
+        
     }
   }, []);
 

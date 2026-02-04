@@ -1,3 +1,32 @@
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Reset Password - EOS AI',
+  description: 'Forgot your EOS AI password? Reset it here to regain access to your AI-powered assistant for EOS implementation and business tools.',
+  keywords: [
+    'reset password', 'forgot password', 'EOS AI password recovery', 'account recovery',
+    'password reset', 'login help', 'account access'
+  ],
+  openGraph: {
+    title: 'Reset Password - EOS AI',
+    description: 'Reset your EOS AI password to regain access to your AI-powered business assistant.',
+    url: 'https://eosbot.ai/forgot-password',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Reset Password - EOS AI',
+    description: 'Reset your EOS AI password to regain access to your AI-powered business assistant.',
+  },
+  robots: {
+    index: false,
+    follow: true,
+  },
+  alternates: {
+    canonical: 'https://eosbot.ai/forgot-password',
+  },
+};
+
 'use client';
 
 import Link from 'next/link';
@@ -84,7 +113,7 @@ export default function ForgotPasswordPage() {
             Reset your password
           </h3>
           <p className="text-sm text-gray-500 dark:text-zinc-400">
-            Enter your email and we'll send you a link to reset your password
+            Enter your email and we&apos;ll send you a link to reset your password
           </p>
         </div>
 
@@ -172,7 +201,7 @@ export default function ForgotPasswordPage() {
                 </h4>
 
                 <p className="text-sm text-gray-600 dark:text-zinc-400 mb-6">
-                  We've sent a password reset link to{' '}
+                  We&apos;ve sent a password reset link to{' '}
                   <span className="font-medium text-gray-800 dark:text-zinc-200">
                     {email}
                   </span>
@@ -180,7 +209,7 @@ export default function ForgotPasswordPage() {
 
                 <div className="bg-muted rounded-lg p-4 mb-6">
                   <p className="text-xs text-gray-600 dark:text-zinc-400">
-                    Didn't receive the email? Check your spam folder or click
+                    Didn&apos;t receive the email? Check your spam folder or click
                     below to resend.
                   </p>
                 </div>

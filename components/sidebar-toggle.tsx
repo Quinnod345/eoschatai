@@ -32,10 +32,13 @@ export function SidebarToggle({
           onClick={toggleSidebar}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
+          aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="sidebar-toggle-btn w-8 h-8 flex items-center justify-center rounded-[10px] cursor-pointer 
                      bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 
                      border border-black/10 dark:border-white/15
-                     transition-colors duration-150 overflow-visible"
+                     transition-colors duration-150 overflow-visible
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {/* Icon container */}
           <div className="relative w-7 h-7 flex items-center justify-center overflow-visible">

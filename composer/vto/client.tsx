@@ -892,7 +892,7 @@ export const vtoComposer = new Composer<'vto', Metadata>({
       }));
     }
   },
-  content: ({
+  Content: ({
     content,
     onSaveContent,
     metadata,

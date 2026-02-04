@@ -172,7 +172,7 @@ export default function VoiceModeFixed({
           !chatCreatedRef.current
         ) {
           chatCreatedRef.current = true;
-          console.log('[Voice Mode] New chat created:', responseData.chatId);
+          
 
           // Update session chat ID
           setSessionChatId(responseData.chatId);
@@ -192,7 +192,7 @@ export default function VoiceModeFixed({
           // Handle navigation if requested
           if (navigateToChat && !hasNavigatedRef.current) {
             hasNavigatedRef.current = true;
-            console.log('[Voice Mode] Will navigate after modal closes');
+            
             // We'll navigate when modal closes to prevent issues
           }
         }
@@ -261,7 +261,7 @@ export default function VoiceModeFixed({
     setConnectionStatus(VOICE_STATES.CONNECTION.CONNECTING);
 
     const chatId = getSessionChatId();
-    console.log('[Voice Mode] Initializing with chat ID:', chatId);
+    
 
     try {
       // Get ephemeral token
@@ -299,7 +299,7 @@ export default function VoiceModeFixed({
       audioElementRef.current.autoplay = true;
 
       pc.ontrack = (event) => {
-        console.log('[Voice Mode] Received remote audio track');
+        
         if (audioElementRef.current) {
           audioElementRef.current.srcObject = event.streams[0];
         }
@@ -330,7 +330,7 @@ export default function VoiceModeFixed({
       dataChannelRef.current = dataChannel;
 
       dataChannel.onopen = () => {
-        console.log('[Voice Mode] Data channel opened');
+        
         setConnectionStatus(VOICE_STATES.CONNECTION.CONNECTED);
         setSessionState(VOICE_STATES.SESSION.READY);
         customToast.success('Voice mode ready');
@@ -370,7 +370,7 @@ export default function VoiceModeFixed({
       };
 
       dataChannel.onclose = () => {
-        console.log('[Voice Mode] Data channel closed');
+        
         handleDisconnection();
       };
 
@@ -400,7 +400,7 @@ export default function VoiceModeFixed({
         sdp: answerSdp,
       });
 
-      console.log('[Voice Mode] WebRTC connection established');
+      
     } catch (error: any) {
       console.error('[Voice Mode] Connection error:', error);
       setConnectionStatus(VOICE_STATES.CONNECTION.ERROR);
@@ -429,7 +429,7 @@ export default function VoiceModeFixed({
       switch (event.type) {
         case VOICE_EVENTS.SESSION_CREATED:
         case VOICE_EVENTS.SESSION_UPDATE:
-          console.log('[Voice Mode] Session event:', event.type);
+          
           setSessionState(VOICE_STATES.SESSION.ACTIVE);
           break;
 
@@ -441,7 +441,7 @@ export default function VoiceModeFixed({
             !pendingAssistantMessageRef.current.isComplete &&
             pendingAssistantMessageRef.current.content?.trim()
           ) {
-            console.log('[Voice Mode] User interrupted assistant');
+            
             const interrupted = {
               ...pendingAssistantMessageRef.current,
               content: `${pendingAssistantMessageRef.current.content} [interrupted]`,
@@ -473,7 +473,7 @@ export default function VoiceModeFixed({
           break;
 
         case VOICE_EVENTS.RESPONSE_CREATED: {
-          console.log('[Voice Mode] Response created');
+          
           const newAssistant: VoiceMessage = {
             id: generateUUID(),
             role: 'assistant',
@@ -516,7 +516,7 @@ export default function VoiceModeFixed({
           break;
 
         case VOICE_EVENTS.RESPONSE_DONE:
-          console.log('[Voice Mode] Response done');
+          
           if (pendingAssistantMessageRef.current?.content?.trim()) {
             const completed = {
               ...pendingAssistantMessageRef.current,
@@ -568,7 +568,7 @@ export default function VoiceModeFixed({
 
   // Stop voice session
   const stopVoiceSession = useCallback(() => {
-    console.log('[Voice Mode] Stopping session');
+    
     setSessionState(VOICE_STATES.SESSION.ENDING);
 
     // Clean up resources
@@ -616,7 +616,7 @@ export default function VoiceModeFixed({
 
     // Handle navigation after cleanup if needed
     if (navigateToChat && hasNavigatedRef.current && sessionChatId) {
-      console.log('[Voice Mode] Navigating to chat after cleanup');
+      
       router.push(`/chat/${sessionChatId}`);
     }
   }, [navigateToChat, sessionChatId, router]);
@@ -638,7 +638,7 @@ export default function VoiceModeFixed({
   // Handle modal lifecycle
   useEffect(() => {
     if (isOpen && connectionStatus === VOICE_STATES.CONNECTION.DISCONNECTED) {
-      console.log('[Voice Mode] Opening modal');
+      
       // Reset flags
       hasNavigatedRef.current = false;
       chatCreatedRef.current = false;

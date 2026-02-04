@@ -1,5 +1,6 @@
-import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
+// Dynamic imports for heavy libraries
+const getXLSX = async () => (await import('xlsx')).default;
+const getJSZip = async () => (await import('jszip')).default;
 
 /**
  * Extract text content from various document formats
@@ -43,6 +44,7 @@ For best results:
     fileExt === 'xls'
   ) {
     try {
+      const XLSX = await getXLSX();
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
@@ -86,6 +88,7 @@ For best results:
     try {
       // For DOCX, use JSZip to extract content
       if (fileExt === 'docx') {
+        const JSZip = await getJSZip();
         const arrayBuffer = await file.arrayBuffer();
         const zip = new JSZip();
         const content = await zip.loadAsync(arrayBuffer);
