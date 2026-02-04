@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'motion/react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { 
   Book, 
@@ -117,11 +119,23 @@ const features = [
 export default function DocsPage() {
   const [activeTab, setActiveTab] = useState<'curl' | 'javascript' | 'python'>('curl');
   const [copied, setCopied] = useState(false);
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
   const copyCode = () => {
     navigator.clipboard.writeText(codeExamples[activeTab]);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleGetApiKey = () => {
+    if (session?.user) {
+      // User is logged in - go to settings with API keys tab
+      router.push('/chat?settings=api-keys');
+    } else {
+      // User is not logged in - go to login
+      router.push('/login?redirect=/chat?settings=api-keys');
+    }
   };
 
   return (
@@ -151,11 +165,9 @@ export default function DocsPage() {
                 Try Chat
               </Button>
             </Link>
-            <Link href="/login">
-              <Button size="sm" className="bg-eos-orange hover:bg-eos-orange/90">
-                Get API Key
-              </Button>
-            </Link>
+            <Button size="sm" className="bg-eos-orange hover:bg-eos-orange/90" onClick={handleGetApiKey}>
+              Get API Key
+            </Button>
           </div>
         </div>
       </header>
@@ -184,7 +196,7 @@ export default function DocsPage() {
               Add EOS expertise to any application in minutes.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2">
+              <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2" onClick={handleGetApiKey}>
                 <Key className="w-4 h-4" />
                 Get Your API Key
               </Button>
@@ -476,12 +488,10 @@ curl https://eosbot.ai/api/v1/chat \\
             Get your API key and start integrating EOS intelligence into your applications today.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/login">
-              <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2">
-                Get Started
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            <Button size="lg" className="bg-eos-orange hover:bg-eos-orange/90 gap-2" onClick={handleGetApiKey}>
+              Get Started
+              <ArrowRight className="w-4 h-4" />
+            </Button>
             <Link href="/chat">
               <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 gap-2">
                 <MessageSquare className="w-4 h-4" />

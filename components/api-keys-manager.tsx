@@ -232,7 +232,7 @@ export function ApiKeysManager() {
   };
 
   return (
-    <Gate feature="api_access" fallback={<UpgradePrompt feature="api_access" />}>
+    <Gate feature="api_access" fallback={<UpgradePrompt feature="api_access" cta="Unlock with Business" />}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

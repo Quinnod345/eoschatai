@@ -52,6 +52,7 @@ export function SidebarUserNav({
 
   // Modal states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<string | undefined>(undefined);
   const [showDocumentContextModal, setShowDocumentContextModal] =
     useState(false);
   const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
@@ -109,13 +110,26 @@ export function SidebarUserNav({
 
   // No longer need to fetch user settings - using context
 
-  // Check for URL parameters related to calendar integration
+  // Check for URL parameters related to calendar integration and settings
   useEffect(() => {
     const calendarSuccess = searchParams.get('calendar_success');
     const calendarError = searchParams.get('calendar_error');
     const success = searchParams.get('success');
     const error = searchParams.get('error');
     const openSettings = searchParams.get('open_settings');
+    const settingsSection = searchParams.get('settings');
+    
+    // Handle settings section param (e.g., ?settings=api-keys)
+    if (settingsSection) {
+      setSettingsInitialSection(settingsSection);
+      setShowSettingsModal(true);
+      
+      // Clear the URL param
+      const url = new URL(window.location.href);
+      url.searchParams.delete('settings');
+      window.history.replaceState({}, '', url);
+      return; // Don't process other params if we're opening settings
+    }
 
     // Check if we're returning from a Google Calendar authorization
     // and need to restore the original tab
@@ -339,7 +353,11 @@ export function SidebarUserNav({
       {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => {
+          setShowSettingsModal(false);
+          setSettingsInitialSection(undefined);
+        }}
+        initialSection={settingsInitialSection}
       />
 
       {/* Document Context Modal */}
