@@ -4082,7 +4082,7 @@ function PureAttachmentsButton({
   return (
     <Button
       data-testid="attachments-button"
-      className="rounded-xl p-2 h-9 w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200"
+      className="rounded-xl p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 touch-target-sm"
       onClick={(event) => {
         event.preventDefault();
         fileInputRef.current?.click();

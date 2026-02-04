@@ -690,7 +690,7 @@ export default function Home() {
                 text="VISION • PEOPLE • DATA • ISSUES • PROCESS • TRACTION • "
                 spinDuration={100}
                 onHover="speedUp"
-                className="w-[450px] h-[450px] md:w-[600px] md:h-[600px] lg:w-[750px] lg:h-[750px]"
+                className="w-[min(450px,90vw)] h-[min(450px,90vw)] md:w-[600px] md:h-[600px] lg:w-[750px] lg:h-[750px]"
               />
             </div>
           </div>
