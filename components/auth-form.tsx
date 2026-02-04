@@ -135,8 +135,13 @@ export function AuthForm({
           name="password"
           className="bg-muted text-md md:text-sm"
           type="password"
+          autoComplete="current-password"
           required
+          aria-describedby="password-requirements"
         />
+        <span id="password-requirements" className="sr-only">
+          Password must be at least 6 characters
+        </span>
       </div>
 
       <input type="hidden" name="callbackUrl" value={callbackUrl} />

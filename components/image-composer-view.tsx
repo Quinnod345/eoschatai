@@ -413,7 +413,7 @@ export function ImageComposerView({
                   Create New Image
                 </DialogTitle>
                 <DialogDescription>
-                  Describe what you'd like to create. Be specific about style,
+                  Describe what you&apos;d like to create. Be specific about style,
                   colors, and composition.
                 </DialogDescription>
               </DialogHeader>
@@ -571,7 +571,7 @@ export function ImageComposerView({
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">No image yet</div>
               <div className="text-xs text-muted-foreground">
-                Click "New Image" to create one
+                Click &quot;New Image&quot; to create one
               </div>
             </div>
           </motion.div>

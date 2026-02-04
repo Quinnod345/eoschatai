@@ -147,7 +147,7 @@ export default function CourseActivationClient({
                   Course Not Found
                 </h2>
                 <p className="text-muted-foreground mb-6">
-                  This course hasn't been synced to our AI knowledge base yet.
+                  This course hasn&apos;t been synced to our AI knowledge base yet.
                   Please contact your administrator to sync course ID:{' '}
                   <code className="bg-muted px-2 py-1 rounded">{courseId}</code>
                 </p>
@@ -230,11 +230,11 @@ export default function CourseActivationClient({
                   )}
                 </div>
 
-                {/* What You'll Get */}
+                {/* What You&apos;ll Get */}
                 <div className="bg-gradient-to-br from-green-500/5 to-emerald-500/5 border border-green-500/20 rounded-xl p-6 mb-6">
                   <h3 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
                     <SparklesIcon size={16} />
-                    What You'll Get
+                    What You&apos;ll Get
                   </h3>
                   <ul className="space-y-2">
                     <li className="flex items-start gap-2 text-sm text-foreground">
@@ -279,7 +279,7 @@ export default function CourseActivationClient({
                     <strong className="text-blue-600">Note:</strong> This will
                     be added as a system persona. You can use it and remove it
                     from your personas, but you cannot edit the AI instructions
-                    (they're optimized for this course).
+                    (they&apos;re optimized for this course).
                   </p>
                 </div>
 
