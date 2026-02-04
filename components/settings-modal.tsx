@@ -697,21 +697,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           >
             {/* Sidebar - horizontal scrolling tabs on mobile, vertical on desktop */}
             <div className="bg-muted/30 p-2 sm:p-4 border-b sm:border-b-0 sm:border-r overflow-x-auto sm:overflow-x-visible overflow-y-auto">
-              <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4 hidden sm:block">Settings</h2>
-              <nav className="flex sm:flex-col gap-1 sm:gap-1 sm:space-y-1">
+              <h2 id="settings-nav-heading" className="text-base sm:text-lg font-semibold mb-2 sm:mb-4 hidden sm:block">Settings</h2>
+              <nav 
+                aria-labelledby="settings-nav-heading"
+                role="tablist"
+                aria-orientation="vertical"
+                className="flex sm:flex-col gap-1 sm:gap-1 sm:space-y-1"
+              >
                 {navigationItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
+                    role="tab"
+                    id={`settings-tab-${item.id}`}
+                    aria-selected={activeSection === item.id}
+                    aria-controls={`settings-panel-${item.id}`}
+                    tabIndex={activeSection === item.id ? 0 : -1}
                     onClick={() => setActiveSection(item.id)}
                     className={cn(
                       'flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-md text-xs sm:text-sm transition-colors whitespace-nowrap sm:whitespace-normal sm:w-full flex-shrink-0',
+                      'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                       activeSection === item.id
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-muted',
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-4 w-4" aria-hidden="true" />
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -721,7 +732,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Content */}
             <div className="flex flex-col min-w-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6">
-                <div className="max-w-xl mx-auto w-full">
+                <div 
+                  className="max-w-xl mx-auto w-full"
+                  role="tabpanel"
+                  id={`settings-panel-${activeSection}`}
+                  aria-labelledby={`settings-tab-${activeSection}`}
+                  tabIndex={0}
+                >
                   {/* Profile Section */}
                   {activeSection === 'profile' && (
                     loading ? (

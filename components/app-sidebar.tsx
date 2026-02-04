@@ -287,6 +287,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
         <div className="flex flex-col h-full">
           {/* Composer Section Header - Fades out */}
           <div
+            id="composer-nav-heading"
             className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90"
             style={getHeaderFadeStyle()}
           >
@@ -294,7 +295,8 @@ export function AppSidebar({ user }: { user: User | undefined }) {
           </div>
 
           {/* Composer Menu Items - Using plain buttons to avoid SidebarMenuButton's collapsible padding changes */}
-          <div 
+          <nav 
+            aria-labelledby="composer-nav-heading"
             className={cn(
               "pb-2 flex flex-col gap-1.5",
               isCollapsed ? "px-2 items-center" : "px-2"
@@ -311,11 +313,15 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                     <button
                       type="button"
                       onClick={() => handleComposerClick(item.kind, item.label)}
+                      aria-current={isActive ? 'page' : undefined}
+                      aria-label={isCollapsed ? item.tooltip : undefined}
                       className={cn(
                         // Base styles
                         'rounded-lg text-[14px] leading-6 font-normal text-sidebar-foreground',
                         'relative',
                         'transition-all duration-200',
+                        // Focus styles for keyboard navigation
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                         // Collapsed: square button, centered icon
                         // Expanded: full width, left-aligned
                         isCollapsed 
@@ -352,10 +358,11 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                 </Tooltip>
               );
             })}
-          </div>
+          </nav>
 
           {/* Chats Section Header - Fades out */}
           <div
+            id="chats-nav-heading"
             className="pl-3 pr-2 py-1.5 text-sm font-semibold leading-5 text-sidebar-foreground/90"
             style={getHeaderFadeStyle()}
           >
