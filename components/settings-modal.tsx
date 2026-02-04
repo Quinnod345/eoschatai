@@ -40,6 +40,7 @@ import {
   AlertTriangle,
   Building2,
   BarChart,
+  Key,
 } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -48,6 +49,7 @@ import { useUISettings } from '@/components/ui-settings-provider';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useTheme } from 'next-themes';
 import { OrganizationSettings } from '@/components/organization-settings';
+import { ApiKeysManager } from '@/components/api-keys-manager';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
 
@@ -278,6 +280,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'personalization', label: 'Personalization', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'integrations', label: 'Integrations', icon: Zap },
+    { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'organization', label: 'Organization', icon: Building2 },
     { id: 'billing', label: 'Billing', icon: Database },
     { id: 'usage', label: 'Usage', icon: BarChart },
@@ -1435,6 +1438,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* API Keys Section */}
+                  {activeSection === 'api-keys' && (
+                    <div>
+                      <ApiKeysManager />
                     </div>
                   )}
 

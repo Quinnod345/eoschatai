@@ -1534,3 +1534,60 @@ export const contextUsageLog = pgTable(
 );
 
 export type ContextUsageLog = InferSelectModel<typeof contextUsageLog>;
+
+// API Keys table for public API access
+export const apiKey = pgTable(
+  'ApiKey',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    // Store hashed key for security - only show full key once on creation
+    keyHash: varchar('keyHash', { length: 128 }).notNull(),
+    // Store prefix for display (e.g., "eos_...abc1")
+    keyPrefix: varchar('keyPrefix', { length: 20 }).notNull(),
+    // Last 4 characters for identification
+    lastFour: varchar('lastFour', { length: 4 }).notNull(),
+    // Usage tracking
+    requestCount: integer('requestCount').notNull().default(0),
+    lastUsedAt: timestamp('lastUsedAt'),
+    // Timestamps
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt'),
+    // Revocation
+    revokedAt: timestamp('revokedAt'),
+  },
+  (table) => ({
+    userIdx: index('api_key_user_idx').on(table.userId),
+    keyHashIdx: uniqueIndex('api_key_hash_idx').on(table.keyHash),
+    prefixIdx: index('api_key_prefix_idx').on(table.keyPrefix),
+  }),
+);
+
+export type ApiKey = InferSelectModel<typeof apiKey>;
+
+// API Key Usage Log for detailed tracking
+export const apiKeyUsageLog = pgTable(
+  'ApiKeyUsageLog',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    apiKeyId: uuid('apiKeyId')
+      .notNull()
+      .references(() => apiKey.id, { onDelete: 'cascade' }),
+    endpoint: varchar('endpoint', { length: 255 }).notNull(),
+    method: varchar('method', { length: 10 }).notNull(),
+    statusCode: integer('statusCode'),
+    responseTimeMs: integer('responseTimeMs'),
+    tokensUsed: integer('tokensUsed'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    apiKeyIdx: index('api_key_usage_key_idx').on(table.apiKeyId),
+    createdIdx: index('api_key_usage_created_idx').on(table.createdAt),
+  }),
+);
+
+export type ApiKeyUsageLog = InferSelectModel<typeof apiKeyUsageLog>;
