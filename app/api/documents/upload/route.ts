@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth } from '@/app/(auth)/auth';
+import { withErrorHandler } from '@/lib/errors/api-wrapper';
 import { userDocuments, userDocumentVersion } from '@/lib/db/schema';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
@@ -343,11 +344,11 @@ async function extractTextFromFile(
   return `File type ${fileType} (${fileName}) is not fully supported for text extraction. Please upload a PDF, TXT, DOCX, XLSX, or PPTX file for better results.`;
 }
 
-export async function POST(request: Request) {
+export const POST = withErrorHandler(async (request: Request) => {
   const session = await auth();
 
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Authentication required to upload documents' }, { status: 401 });
   }
 
   const accessContext = await getAccessContext(session.user.id);
@@ -757,10 +758,8 @@ export async function POST(request: Request) {
       throw uploadError;
     }
   } catch (error) {
-    console.error('Error uploading document:', error);
-    return NextResponse.json(
-      { error: 'Failed to upload document' },
-      { status: 500 },
-    );
+    console.error('[Documents Upload] Error uploading document:', error);
+    // Let the error handler wrapper handle the error
+    throw error;
   }
-}
+});

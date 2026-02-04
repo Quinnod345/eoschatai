@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod/v3';
 import { auth } from '@/app/(auth)/auth';
+import { withErrorHandler } from '@/lib/errors/api-wrapper';
 import { validateInviteCode } from '@/lib/organizations/invite-codes';
 import { db } from '@/lib/db';
 import {
@@ -16,8 +17,7 @@ const paramsSchema = z.object({
   email: z.string().email().optional(),
 });
 
-export async function GET(request: Request) {
-  try {
+export const GET = withErrorHandler(async (request: Request) => {
     const session = await auth();
     if (!session?.user?.id) {
       // Not logged in; send them to login with redirect back here
@@ -185,11 +185,4 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       new URL('/chat?invite=accepted', url.origin).toString(),
     );
-  } catch (error) {
-    console.error('[org:accept] Failed to accept invitation', error);
-    return NextResponse.json(
-      { error: 'Failed to accept invitation' },
-      { status: 500 },
-    );
-  }
-}
+});
