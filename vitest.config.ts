@@ -8,7 +8,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['tests/setup.ts'],
-    include: ['tests/**/*.vitest.ts'],
+    include: ['tests/**/*.vitest.ts', 'tests/**/*.vitest.tsx'],
     coverage: {
       reporter: ['text', 'html'],
       reportsDirectory: 'coverage/unit',
