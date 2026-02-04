@@ -19,19 +19,80 @@ export interface RelevantMemory {
 }
 
 /**
+ * Configuration for memory retrieval
+ */
+export interface MemorySearchConfig {
+  limit?: number;
+  threshold?: number;
+  fallbackThreshold?: number;
+  minConfidence?: number;
+  boostRecent?: boolean;
+  recencyBoostDays?: number;
+}
+
+const DEFAULT_CONFIG: Required<MemorySearchConfig> = {
+  limit: 10,
+  threshold: 0.4,
+  fallbackThreshold: 0.2,
+  minConfidence: 40,
+  boostRecent: true,
+  recencyBoostDays: 30,
+};
+
+/**
+ * Calculate a combined relevance score considering similarity, confidence, and recency
+ * @param similarity - Vector similarity score (0-1)
+ * @param confidence - Memory confidence score (0-100)
+ * @param createdAt - When the memory was created
+ * @param config - Search configuration
+ * @returns Combined relevance score (0-1)
+ */
+function calculateCombinedRelevance(
+  similarity: number,
+  confidence: number,
+  createdAt: Date,
+  config: Required<MemorySearchConfig>,
+): number {
+  // Normalize confidence to 0-1 scale
+  const normalizedConfidence = (confidence || 60) / 100;
+
+  // Calculate recency boost (memories from last N days get a slight boost)
+  let recencyBoost = 0;
+  if (config.boostRecent) {
+    const ageInDays =
+      (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (ageInDays <= config.recencyBoostDays) {
+      // Linear decay from 0.1 to 0 over recencyBoostDays
+      recencyBoost = 0.1 * (1 - ageInDays / config.recencyBoostDays);
+    }
+  }
+
+  // Weighted combination: 70% similarity, 20% confidence, 10% recency
+  const combinedScore =
+    similarity * 0.7 + normalizedConfidence * 0.2 + recencyBoost;
+
+  return Math.min(1, combinedScore);
+}
+
+/**
  * Find relevant memories from the user's memory bank using vector similarity search
  * @param userId - The user's ID
  * @param query - The search query
- * @param limit - Maximum number of memories to return (default: 10)
+ * @param limitOrConfig - Maximum number of memories OR config object
  * @param threshold - Minimum similarity threshold 0-1 (default: 0.4, more lenient than documents)
  * @returns Array of relevant memories with relevance scores
  */
 export async function findRelevantMemories(
   userId: string,
   query: string,
-  limit = 10,
+  limitOrConfig: number | MemorySearchConfig = 10,
   threshold = 0.4,
 ): Promise<RelevantMemory[]> {
+  // Support both old (limit, threshold) and new (config) signatures
+  const config: Required<MemorySearchConfig> =
+    typeof limitOrConfig === 'number'
+      ? { ...DEFAULT_CONFIG, limit: limitOrConfig, threshold }
+      : { ...DEFAULT_CONFIG, ...limitOrConfig };
   try {
     console.log(
       `Memory RAG: Searching for user ${userId} with query: "${query}"`,
@@ -72,7 +133,7 @@ export async function findRelevantMemories(
             eq(userMemory.status, 'active'),
           ),
         )
-        .limit(limit);
+        .limit(config.limit);
 
       if (allMemories.length > 0) {
         console.log(
@@ -105,7 +166,7 @@ export async function findRelevantMemories(
     });
 
     // Search for similar memories using pgvector cosine similarity
-    // Only include active memories with confidence > 40
+    // Only include active memories with confidence above minimum
     const results = await db
       .select({
         id: userMemory.id,
@@ -126,25 +187,25 @@ export async function findRelevantMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
-          sql`${userMemory.confidence} > 40`,
-          sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${threshold}`,
+          sql`${userMemory.confidence} > ${config.minConfidence}`,
+          sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.threshold}`,
         ),
       )
       .orderBy(
         sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) DESC`,
       )
-      .limit(limit);
+      .limit(config.limit);
 
     console.log(
-      `Memory RAG: Found ${results.length} relevant memories for user (threshold: ${threshold})`,
+      `Memory RAG: Found ${results.length} relevant memories for user (threshold: ${config.threshold})`,
     );
 
     if (results.length === 0) {
       console.log(
-        `Memory RAG: No memories above threshold ${threshold}, trying lower threshold...`,
+        `Memory RAG: No memories above threshold ${config.threshold}, trying fallback threshold ${config.fallbackThreshold}...`,
       );
 
-      // Try again with much lower threshold (0.2)
+      // Try again with lower fallback threshold
       const lowerResults = await db
         .select({
           id: userMemory.id,
@@ -165,20 +226,20 @@ export async function findRelevantMemories(
           and(
             eq(userMemory.userId, userId),
             eq(userMemory.status, 'active'),
-            sql`${userMemory.confidence} > 40`,
-            sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > 0.2`,
+            sql`${userMemory.confidence} > ${config.minConfidence}`,
+            sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.fallbackThreshold}`,
           ),
         )
         .orderBy(
           sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) DESC`,
         )
-        .limit(limit);
+        .limit(config.limit);
 
       console.log(
-        `Memory RAG: Found ${lowerResults.length} memories with lower threshold`,
+        `Memory RAG: Found ${lowerResults.length} memories with fallback threshold ${config.fallbackThreshold}`,
       );
 
-      // Return formatted memory objects
+      // Return formatted memory objects with combined relevance scoring
       return lowerResults.map((result) => ({
         id: result.id,
         summary: result.summary,
@@ -186,12 +247,17 @@ export async function findRelevantMemories(
         memoryType: result.memoryType || 'other',
         confidence: result.confidence || 60,
         topic: result.topic,
-        relevance: result.similarity,
+        relevance: calculateCombinedRelevance(
+          result.similarity,
+          result.confidence || 60,
+          result.createdAt,
+          config,
+        ),
         createdAt: result.createdAt,
       }));
     }
 
-    // Return formatted memory objects
+    // Return formatted memory objects with combined relevance scoring
     return results.map((result) => ({
       id: result.id,
       summary: result.summary,
@@ -199,7 +265,12 @@ export async function findRelevantMemories(
       memoryType: result.memoryType || 'other',
       confidence: result.confidence || 60,
       topic: result.topic,
-      relevance: result.similarity,
+      relevance: calculateCombinedRelevance(
+        result.similarity,
+        result.confidence || 60,
+        result.createdAt,
+        config,
+      ),
       createdAt: result.createdAt,
     }));
   } catch (error) {
