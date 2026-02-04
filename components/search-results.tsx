@@ -57,7 +57,7 @@ export function SearchResults({ results, query }: SearchResultsProps) {
             </span>
             {query && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate block mt-0.5">
-                "{query}"
+                &quot;{query}&quot;
               </span>
             )}
           </div>

@@ -231,7 +231,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                   <Button
                     variant="ghost"
                     type="button"
-                    className="p-2 h-8 w-8 rounded-lg hover:bg-sidebar-accent/60"
+                    className="p-2 h-10 w-10 md:h-8 md:w-8 rounded-lg hover:bg-sidebar-accent/60"
                     onClick={() => {
                       setOpenMobile(false);
                       setSelectedComposerKind(null);
@@ -266,7 +266,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
               <Button
                 variant="ghost"
                 type="button"
-                className="p-2 h-9 w-9 rounded-lg hover:bg-sidebar-accent/60"
+                className="p-2 h-10 w-10 md:h-9 md:w-9 rounded-lg hover:bg-sidebar-accent/60"
                 onClick={() => {
                   setOpenMobile(false);
                   setSelectedComposerKind(null);

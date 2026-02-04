@@ -40,6 +40,7 @@ import {
   AlertTriangle,
   Building2,
   BarChart,
+  Key,
 } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -48,6 +49,7 @@ import { useUISettings } from '@/components/ui-settings-provider';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useTheme } from 'next-themes';
 import { OrganizationSettings } from '@/components/organization-settings';
+import { ApiKeysManager } from '@/components/api-keys-manager';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
 import {
@@ -312,6 +314,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'personalization', label: 'Personalization', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'integrations', label: 'Integrations', icon: Zap },
+    { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'organization', label: 'Organization', icon: Building2 },
     { id: 'billing', label: 'Billing', icon: Database },
     { id: 'usage', label: 'Usage', icon: BarChart },
@@ -1468,7 +1471,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   More Integrations Coming Soon
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  We're working on additional integrations to
+                                  We&apos;re working on additional integrations to
                                   make your workflow even more seamless.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -1490,6 +1493,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* API Keys Section */}
+                  {activeSection === 'api-keys' && (
+                    <div>
+                      <ApiKeysManager />
                     </div>
                   )}
 
@@ -1736,7 +1746,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                   Your Data Overview
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  Here's a summary of the data associated with
+                                  Here&apos;s a summary of the data associated with
                                   your account.
                                 </p>
 

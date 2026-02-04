@@ -9,6 +9,7 @@ import {
   convertToModelMessages,
 } from 'ai';
 import { auth } from '@/app/(auth)/auth';
+import { withErrorHandler, handleApiError } from '@/lib/errors/api-wrapper';
 import { isAdminEmail } from '@/lib/auth/admin';
 import {
   type RequestHints,
@@ -64,7 +65,6 @@ import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
-// import { documentHandlersByComposerKind } from '@/lib/composer/server';
 
 export const maxDuration = 60;
 
@@ -3797,10 +3797,8 @@ ${
       return createUIMessageStreamResponse({ stream: responseStream });
     }
   } catch (error) {
-    console.error('Unhandled error in chat POST route:', error);
-    return new Response('An error occurred while processing your request!', {
-      status: 500,
-    });
+    console.error('[Chat API] Unhandled error in POST route:', error);
+    return handleApiError(error, request);
   }
 }
 
@@ -3985,34 +3983,43 @@ export async function GET(request: Request) {
   );
 }
 
-export async function DELETE(request: Request) {
+export const DELETE = withErrorHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
   if (!id) {
-    return new Response('Not Found', { status: 404 });
+    return new Response(JSON.stringify({ error: 'Chat ID is required' }), { 
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   const session = await auth();
 
   if (!session?.user?.id) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  try {
-    const chat = await getChatById({ id });
-
-    if (chat.userId !== session.user.id) {
-      return new Response('Forbidden', { status: 403 });
-    }
-
-    const deletedChat = await deleteChatById({ id });
-
-    return Response.json(deletedChat, { status: 200 });
-  } catch (error) {
-    console.error(error);
-    return new Response('An error occurred while processing your request!', {
-      status: 500,
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
-}
+
+  const chat = await getChatById({ id });
+
+  if (!chat) {
+    return new Response(JSON.stringify({ error: 'Chat not found' }), { 
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (chat.userId !== session.user.id) {
+    return new Response(JSON.stringify({ error: 'You do not have permission to delete this chat' }), { 
+      status: 403,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const deletedChat = await deleteChatById({ id });
+
+  return Response.json(deletedChat, { status: 200 });
+});

@@ -401,7 +401,7 @@ export function CourseAssistantModal({
                       Course Not Found in Knowledge Base
                     </p>
                     <p className="text-sm text-muted-foreground mb-4">
-                      This course hasn't been synced to our AI knowledge base yet. 
+                      This course hasn&apos;t been synced to our AI knowledge base yet. 
                       The course data needs to be prepared before you can activate the assistant.
                     </p>
                     <div className="bg-orange-500/5 rounded-lg p-4 space-y-2">
