@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "NODE_OPTIONS=\"--max-old-space-size=4096\" next dev --turbo",
     "build": "tsx lib/db/migrate && NODE_OPTIONS=\"--max-old-space-size=4096\" next build",
+    "analyze": "ANALYZE=true pnpm build",
     "start": "next start",
     "lint": "next lint && biome lint --write --unsafe",
     "lint:fix": "next lint --fix && biome lint --write --unsafe",
@@ -29,6 +30,7 @@
     "test-blob": "npx tsx scripts/test-blob.ts",
     "test": "export PLAYWRIGHT=True && pnpm exec playwright test",
     "test:unit": "pnpm exec vitest run",
+    "test:coverage": "pnpm exec vitest run --coverage",
     "test:components": "pnpm exec vitest run --config vitest.component.config.ts",
     "db:seed": "tsx drizzle/seed.ts",
     "upload-docs": "tsx scripts/upload-documents.ts",
@@ -186,6 +188,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@next/bundle-analyzer": "^16.1.6",
     "@playwright/test": "^1.58.1",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/dom": "^10.4.1",
@@ -202,6 +205,8 @@
     "@types/react-dom": "^18",
     "@types/three": "^0.182.0",
     "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^5.1.3",
+    "@vitest/coverage-v8": "^2.1.9",
     "baseline-browser-mapping": "^2.9.19",
     "drizzle-kit": "^0.25.0",
     "eslint": "^8.57.0",
