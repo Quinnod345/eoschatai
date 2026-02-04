@@ -3802,19 +3802,25 @@ ${
   }
 }
 
-export async function GET(request: Request) {
+export const GET = withErrorHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const chatId = searchParams.get('chatId');
   const fromSeq = searchParams.get('fromSeq');
 
   if (!chatId) {
-    return new Response('chatId is required', { status: 400 });
+    return new Response(JSON.stringify({ error: 'Chat ID is required' }), { 
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   const session = await auth();
 
   if (!session?.user) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   let chat: Chat | null = null;
@@ -3844,13 +3850,19 @@ export async function GET(request: Request) {
         );
         retryCount++;
       } else {
-        return new Response('Not found', { status: 404 });
+        return new Response(JSON.stringify({ error: 'Chat not found or temporarily unavailable' }), { 
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
     }
   }
 
   if (!chat) {
-    return new Response('Not found', { status: 404 });
+    return new Response(JSON.stringify({ error: 'Chat not found' }), { 
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   // Allow admin users to access any chat
@@ -3861,7 +3873,10 @@ export async function GET(request: Request) {
     chat.userId !== session.user.id &&
     !isAdminUser
   ) {
-    return new Response('Forbidden', { status: 403 });
+    return new Response(JSON.stringify({ error: 'You do not have permission to access this chat' }), { 
+      status: 403,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   // Import required functions for stream recovery
@@ -3981,7 +3996,7 @@ export async function GET(request: Request) {
     },
     { status: 200 },
   );
-}
+});
 
 export const DELETE = withErrorHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url);
