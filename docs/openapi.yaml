@@ -1,13 +1,19 @@
 openapi: 3.1.0
 info:
   title: EOSAI API
-  description: API for EOSAI - Enterprise Operating System AI Assistant
-  version: 2.0.0
+  description: |
+    Complete API for EOSAI - Enterprise Operating System AI Assistant.
+    
+    ## API Types
+    
+    - **Public API (`/v1/*`)**: OpenAI-compatible endpoints for external integrations. Requires API key authentication.
+    - **Internal API**: Web app endpoints requiring session authentication.
+  version: 3.0.19
   contact:
     name: EOSAI Support
-    email: support@eosbot.ai
+    email: api@eosbot.ai
   license:
-    name: MIT
+    name: Proprietary
 
 servers:
   - url: https://eosbot.ai/api
@@ -16,33 +22,189 @@ servers:
     description: Development
 
 tags:
+  - name: Public API - Chat
+    description: OpenAI-compatible chat completions
+  - name: Public API - Models
+    description: Available models and namespaces
+  - name: Public API - Usage
+    description: API key usage statistics
   - name: Authentication
+    description: User authentication and info
   - name: Chat
+    description: Chat sessions and messages
   - name: User
+    description: User settings and data
   - name: Organizations
+    description: Team management
   - name: Calendar
+    description: Google Calendar integration
   - name: Documents
+    description: Document management
   - name: Personas
+    description: AI personas and assistants
   - name: Search
+    description: Content search
   - name: Feedback
+    description: User feedback
   - name: Voice
+    description: Voice recordings and transcription
   - name: Composer
+    description: Document composer
+  - name: API Keys
+    description: API key management
+  - name: Billing
+    description: Subscription and billing
 
 paths:
+  # ============================================
+  # PUBLIC API (v1) - OpenAI Compatible
+  # ============================================
+  
+  /v1/chat:
+    post:
+      tags: [Public API - Chat]
+      summary: Create chat completion
+      description: |
+        OpenAI-compatible chat completions endpoint powered by EOS methodology.
+        Supports streaming and non-streaming responses.
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicChatRequest'
+            example:
+              messages:
+                - role: user
+                  content: "How do I set up a Level 10 Meeting?"
+              model: eosai-v1
+              stream: false
+              temperature: 0.7
+              include_eos_context: true
+              eos_namespace: eos-implementer
+      responses:
+        '200':
+          description: Chat completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicChatResponse'
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream for streaming responses
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/ApiKeyUnauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    options:
+      tags: [Public API - Chat]
+      summary: CORS preflight
+      responses:
+        '204':
+          description: No content
+
+  /v1/models:
+    get:
+      tags: [Public API - Models]
+      summary: List available models
+      description: Returns available models and EOS knowledge namespaces
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Models list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+        '401':
+          $ref: '#/components/responses/ApiKeyUnauthorized'
+    options:
+      tags: [Public API - Models]
+      summary: CORS preflight
+      responses:
+        '204':
+          description: No content
+
+  /v1/usage:
+    get:
+      tags: [Public API - Usage]
+      summary: Get API key usage
+      description: Returns usage statistics for the authenticated API key
+      security:
+        - apiKey: []
+      parameters:
+        - name: days
+          in: query
+          description: Number of days to include (1-90)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '401':
+          $ref: '#/components/responses/ApiKeyUnauthorized'
+    options:
+      tags: [Public API - Usage]
+      summary: CORS preflight
+      responses:
+        '204':
+          description: No content
+
+  # ============================================
+  # INTERNAL API - Authentication
+  # ============================================
+
   /me:
     get:
       tags: [Authentication]
       summary: Get current user info
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: User info retrieved
+          description: User info and entitlements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /me/plan:
+    get:
+      tags: [Authentication]
+      summary: Get user's current plan
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Plan details
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================
+  # INTERNAL API - Chat
+  # ============================================
 
   /chat:
     post:
       tags: [Chat]
       summary: Send chat message (streaming)
+      security:
+        - sessionCookie: []
       requestBody:
         required: true
         content:
@@ -51,7 +213,9 @@ paths:
               $ref: '#/components/schemas/ChatRequest'
       responses:
         '200':
-          description: Streaming response
+          description: Streaming response (SSE)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '429':
           description: Rate limit exceeded
 
@@ -59,26 +223,22 @@ paths:
     get:
       tags: [Chat]
       summary: Get chat by ID
+      security:
+        - sessionCookie: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ChatId'
       responses:
         '200':
           description: Chat retrieved
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       tags: [Chat]
       summary: Delete chat
+      security:
+        - sessionCookie: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ChatId'
       responses:
         '200':
           description: Chat deleted
@@ -86,22 +246,43 @@ paths:
   /chat/{id}/stop:
     post:
       tags: [Chat]
-      summary: Stop streaming
+      summary: Stop streaming response
+      security:
+        - sessionCookie: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ChatId'
       responses:
         '200':
-          description: Stopped
+          description: Streaming stopped
+
+  /chat/{id}/verify:
+    get:
+      tags: [Chat]
+      summary: Verify chat ownership
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '200':
+          description: Verification result
+
+  /chat/save-message:
+    post:
+      tags: [Chat]
+      summary: Save message to chat
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Message saved
 
   /chats/messages:
     get:
       tags: [Chat]
       summary: Get chat messages
+      security:
+        - sessionCookie: []
       parameters:
         - name: chatId
           in: query
@@ -114,25 +295,43 @@ paths:
           schema:
             type: integer
             default: 50
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
       responses:
         '200':
           description: Messages retrieved
 
+  /chats/by-document:
+    get:
+      tags: [Chat]
+      summary: Get chats by document
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Chats retrieved
+
+  # ============================================
+  # INTERNAL API - User
+  # ============================================
+
   /user-settings:
     get:
       tags: [User]
-      summary: Get settings
+      summary: Get user settings
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: Settings retrieved
     post:
       tags: [User]
-      summary: Update settings
+      summary: Update user settings
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSettings'
       responses:
         '200':
           description: Settings updated
@@ -141,6 +340,8 @@ paths:
     post:
       tags: [User]
       summary: Clear chat history
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: History cleared
@@ -148,7 +349,9 @@ paths:
   /user/delete-account:
     delete:
       tags: [User]
-      summary: Delete account
+      summary: Delete account permanently
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: Account deleted
@@ -156,76 +359,328 @@ paths:
   /user/export-data:
     get:
       tags: [User]
-      summary: Export all data
+      summary: Export all user data
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: Data exported
+          description: Data exported as JSON
+
+  /user/data-stats:
+    get:
+      tags: [User]
+      summary: Get storage statistics
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Stats retrieved
 
   /user/message-count:
     get:
       tags: [User]
-      summary: Get message count
+      summary: Get message usage count
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: Count retrieved
 
+  /user/profile-picture:
+    post:
+      tags: [User]
+      summary: Upload profile picture
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Picture uploaded
+
+  /user/switch-organization:
+    post:
+      tags: [User]
+      summary: Switch organization
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Switched
+
+  /user/organizations:
+    get:
+      tags: [User]
+      summary: List user's organizations
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Organizations listed
+
+  # ============================================
+  # INTERNAL API - Organizations
+  # ============================================
+
   /organizations:
     get:
       tags: [Organizations]
-      summary: Get current org
+      summary: Get current organization
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: Org retrieved
+          description: Organization retrieved
     post:
       tags: [Organizations]
-      summary: Create org
+      summary: Create organization
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
       responses:
         '200':
-          description: Org created
+          description: Organization created
 
   /organizations/join:
     post:
       tags: [Organizations]
-      summary: Join org
+      summary: Join with invite code
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inviteCode]
+              properties:
+                inviteCode:
+                  type: string
       responses:
         '200':
-          description: Joined
+          description: Joined organization
 
   /organizations/leave:
     post:
       tags: [Organizations]
-      summary: Leave org
+      summary: Leave organization
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: Left
+          description: Left organization
+
+  /organizations/accept:
+    post:
+      tags: [Organizations]
+      summary: Accept email invitation
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Invitation accepted
 
   /organizations/{orgId}/members:
     get:
       tags: [Organizations]
-      summary: Get members
+      summary: List members
+      security:
+        - sessionCookie: []
       parameters:
-        - name: orgId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/OrgId'
       responses:
         '200':
-          description: Members retrieved
+          description: Members listed
 
   /organizations/{orgId}/members/{userId}:
     delete:
       tags: [Organizations]
       summary: Remove member
+      security:
+        - sessionCookie: []
       parameters:
-        - name: orgId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: userId
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Member removed
+
+  /organizations/{orgId}/members/{userId}/role:
+    patch:
+      tags: [Organizations]
+      summary: Update member role
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [owner, admin, member]
+      responses:
+        '200':
+          description: Role updated
+
+  /organizations/{orgId}/invitations:
+    get:
+      tags: [Organizations]
+      summary: List pending invitations
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Invitations listed
+
+  /organizations/{orgId}/email-invite:
+    post:
+      tags: [Organizations]
+      summary: Send email invitation
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [admin, member]
+                  default: member
+      responses:
+        '200':
+          description: Invitation sent
+
+  /organizations/{orgId}/invite-code:
+    get:
+      tags: [Organizations]
+      summary: Get or regenerate invite code
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Invite code
+
+  /organizations/{orgId}/seats:
+    get:
+      tags: [Organizations]
+      summary: Get seat usage
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Seat information
+
+  /organizations/{orgId}/transfer-ownership:
+    post:
+      tags: [Organizations]
+      summary: Transfer ownership
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Ownership transferred
+
+  /organizations/{orgId}/delete:
+    delete:
+      tags: [Organizations]
+      summary: Delete organization
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Organization deleted
+
+  # ============================================
+  # INTERNAL API - API Keys
+  # ============================================
+
+  /api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Keys listed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeysList'
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Key created (includes full key - save immediately!)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreated'
+
+  /api-keys/{id}:
+    get:
+      tags: [API Keys]
+      summary: Get API key details
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
           in: path
           required: true
           schema:
@@ -233,12 +688,363 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Member removed
+          description: Key details
+    delete:
+      tags: [API Keys]
+      summary: Revoke API key
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Key revoked
+
+  /api-keys/{id}/usage:
+    get:
+      tags: [API Keys]
+      summary: Get API key usage
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usage statistics
+
+  # ============================================
+  # INTERNAL API - Documents
+  # ============================================
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List documents
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [Scorecard, VTO, Rocks, A/C, Core Process, Other]
+        - name: composerKind
+          in: query
+          schema:
+            type: string
+            enum: [text, code, image, sheet, chart, vto, accountability]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 25
+            default: 10
+      responses:
+        '200':
+          description: Documents listed
+
+  /documents/upload:
+    post:
+      tags: [Documents]
+      summary: Upload document
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                category:
+                  type: string
+      responses:
+        '200':
+          description: Document uploaded
+
+  /documents/bulk-upload:
+    post:
+      tags: [Documents]
+      summary: Bulk upload documents
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Documents uploaded
+
+  /documents/bulk-delete:
+    post:
+      tags: [Documents]
+      summary: Bulk delete documents
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Documents deleted
+
+  /documents/toggle-context:
+    post:
+      tags: [Documents]
+      summary: Toggle document in AI context
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Context toggled
+
+  /user-documents:
+    get:
+      tags: [Documents]
+      summary: List uploaded documents (legacy)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Documents listed
+
+  # ============================================
+  # INTERNAL API - Personas
+  # ============================================
+
+  /personas:
+    get:
+      tags: [Personas]
+      summary: List all personas
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Personas listed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonasList'
+    post:
+      tags: [Personas]
+      summary: Create persona
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePersona'
+      responses:
+        '201':
+          description: Persona created
+    delete:
+      tags: [Personas]
+      summary: Delete persona
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Persona deleted
+
+  /personas/{id}:
+    get:
+      tags: [Personas]
+      summary: Get persona
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Persona retrieved
+    patch:
+      tags: [Personas]
+      summary: Update persona
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Persona updated
+
+  /personas/{id}/icon:
+    post:
+      tags: [Personas]
+      summary: Upload persona icon
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Icon uploaded
+
+  /personas/{id}/profiles:
+    get:
+      tags: [Personas]
+      summary: Get persona profiles
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profiles retrieved
+
+  # ============================================
+  # INTERNAL API - Voice
+  # ============================================
+
+  /voice/recordings:
+    get:
+      tags: [Voice]
+      summary: List recordings
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Recordings listed
+    post:
+      tags: [Voice]
+      summary: Upload recording
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                duration:
+                  type: integer
+                meetingType:
+                  type: string
+                tags:
+                  type: string
+      responses:
+        '200':
+          description: Recording uploaded
+
+  /voice/recordings/{id}:
+    get:
+      tags: [Voice]
+      summary: Get recording
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording retrieved
+    delete:
+      tags: [Voice]
+      summary: Delete recording
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recording deleted
+
+  /voice/recordings/transcribe:
+    post:
+      tags: [Voice]
+      summary: Transcribe recording
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Transcription started
+
+  /voice/recordings/status:
+    get:
+      tags: [Voice]
+      summary: Get transcription status
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Status retrieved
+
+  /voice/recordings/generate-summary:
+    post:
+      tags: [Voice]
+      summary: Generate AI summary
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Summary generated
+
+  /voice/recordings/send-to-chat:
+    post:
+      tags: [Voice]
+      summary: Send to chat for analysis
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Sent to chat
+
+  # ============================================
+  # INTERNAL API - Calendar
+  # ============================================
 
   /calendar/status:
     get:
       tags: [Calendar]
       summary: Get connection status
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: Status retrieved
@@ -246,7 +1052,9 @@ paths:
   /calendar/auth:
     get:
       tags: [Calendar]
-      summary: Initiate OAuth
+      summary: Initiate Google OAuth
+      security:
+        - sessionCookie: []
       responses:
         '302':
           description: Redirect to Google
@@ -254,7 +1062,9 @@ paths:
   /calendar/disconnect:
     post:
       tags: [Calendar]
-      summary: Disconnect
+      summary: Disconnect calendar
+      security:
+        - sessionCookie: []
       responses:
         '200':
           description: Disconnected
@@ -262,7 +1072,9 @@ paths:
   /calendar/events:
     get:
       tags: [Calendar]
-      summary: Get events
+      summary: List events
+      security:
+        - sessionCookie: []
       parameters:
         - name: timeMin
           in: query
@@ -281,98 +1093,35 @@ paths:
             default: 10
       responses:
         '200':
-          description: Events retrieved
+          description: Events listed
     post:
       tags: [Calendar]
       summary: Create event
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalendarEvent'
       responses:
         '200':
           description: Event created
 
-  /user-documents:
-    get:
-      tags: [Documents]
-      summary: List documents
-      responses:
-        '200':
-          description: Documents retrieved
-
-  /personas:
-    get:
-      tags: [Personas]
-      summary: List personas
-      responses:
-        '200':
-          description: Personas retrieved
-    post:
-      tags: [Personas]
-      summary: Create persona
-      responses:
-        '201':
-          description: Persona created
-    delete:
-      tags: [Personas]
-      summary: Delete persona
-      parameters:
-        - name: id
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Persona deleted
-
-  /personas/{id}:
-    get:
-      tags: [Personas]
-      summary: Get persona
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Persona retrieved
-    patch:
-      tags: [Personas]
-      summary: Update persona
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Persona updated
-
-  /personas/{id}/profiles:
-    get:
-      tags: [Personas]
-      summary: Get profiles
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Profiles retrieved
+  # ============================================
+  # INTERNAL API - Search
+  # ============================================
 
   /search:
     get:
       tags: [Search]
-      summary: Search content
+      summary: Search all content
+      security:
+        - sessionCookie: []
       parameters:
         - name: q
           in: query
+          required: true
           schema:
             type: string
         - name: types
@@ -397,48 +1146,124 @@ paths:
             default: 0
       responses:
         '200':
-          description: Results retrieved
+          description: Results returned
+
+  /search/filters:
+    get:
+      tags: [Search]
+      summary: Get available filters
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Filters returned
+
+  # ============================================
+  # INTERNAL API - Feedback
+  # ============================================
 
   /feedback:
     get:
       tags: [Feedback]
-      summary: Get feedback
+      summary: Get feedback history
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: Feedback retrieved
+          description: Feedback listed
     post:
       tags: [Feedback]
       summary: Submit feedback
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Feedback'
       responses:
         '200':
           description: Feedback submitted
 
-  /voice/recordings:
-    get:
-      tags: [Voice]
-      summary: List recordings
-      responses:
-        '200':
-          description: Recordings retrieved
+  /context-feedback:
     post:
-      tags: [Voice]
-      summary: Upload recording
+      tags: [Feedback]
+      summary: Submit context quality feedback
+      security:
+        - sessionCookie: []
       responses:
         '200':
-          description: Recording uploaded
+          description: Feedback submitted
 
-  /voice/recordings/transcribe:
-    post:
-      tags: [Voice]
-      summary: Transcribe
+  # ============================================
+  # INTERNAL API - Billing
+  # ============================================
+
+  /billing/prices:
+    get:
+      tags: [Billing]
+      summary: Get pricing plans
       responses:
         '200':
-          description: Transcription result
+          description: Prices returned
+
+  /billing/checkout:
+    post:
+      tags: [Billing]
+      summary: Create checkout session
+      security:
+        - sessionCookie: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan, billing]
+              properties:
+                plan:
+                  type: string
+                  enum: [pro, business]
+                billing:
+                  type: string
+                  enum: [monthly, annual]
+                seats:
+                  type: integer
+                  minimum: 1
+                orgId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+
+  /billing/portal:
+    post:
+      tags: [Billing]
+      summary: Get customer portal URL
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Portal URL
+
+  # ============================================
+  # INTERNAL API - Composer
+  # ============================================
 
   /composer-documents/{id}/history:
     get:
       tags: [Composer]
-      summary: Get history
+      summary: Get document history
+      security:
+        - sessionCookie: []
       parameters:
         - name: id
           in: path
@@ -453,7 +1278,9 @@ paths:
   /composer-documents/{id}/history/undo:
     post:
       tags: [Composer]
-      summary: Undo
+      summary: Undo edit
+      security:
+        - sessionCookie: []
       parameters:
         - name: id
           in: path
@@ -468,7 +1295,9 @@ paths:
   /composer-documents/{id}/history/redo:
     post:
       tags: [Composer]
-      summary: Redo
+      summary: Redo edit
+      security:
+        - sessionCookie: []
       parameters:
         - name: id
           in: path
@@ -482,6 +1311,186 @@ paths:
 
 components:
   schemas:
+    # Public API Schemas
+    PublicChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant]
+              content:
+                type: string
+          minItems: 1
+        model:
+          type: string
+          enum: [eosai-v1, eosai-v1-fast, eosai-v1-pro]
+          default: eosai-v1
+        stream:
+          type: boolean
+          default: false
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.7
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 16384
+          default: 4096
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+        frequency_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+        presence_penalty:
+          type: number
+          minimum: -2
+          maximum: 2
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        include_eos_context:
+          type: boolean
+          default: true
+        eos_namespace:
+          type: string
+          default: eos-implementer
+
+    PublicChatResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+          enum: [chat.completion]
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
+                type: object
+                properties:
+                  role:
+                    type: string
+                  content:
+                    type: string
+              finish_reason:
+                type: string
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    ModelsResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          enum: [list]
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              object:
+                type: string
+              created:
+                type: integer
+              owned_by:
+                type: string
+              description:
+                type: string
+              context_window:
+                type: integer
+              max_output_tokens:
+                type: integer
+              capabilities:
+                type: array
+                items:
+                  type: string
+        eos_namespaces:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+
+    UsageResponse:
+      type: object
+      properties:
+        object:
+          type: string
+        api_key:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            prefix:
+              type: string
+            is_active:
+              type: boolean
+            scopes:
+              type: array
+              items:
+                type: string
+        rate_limits:
+          type: object
+          properties:
+            requests_per_minute:
+              type: integer
+            requests_per_day:
+              type: integer
+            remaining_rpm:
+              type: integer
+            remaining_rpd:
+              type: integer
+        usage:
+          type: object
+          properties:
+            period_days:
+              type: integer
+            total_requests:
+              type: integer
+            total_tokens:
+              type: integer
+
+    # Internal API Schemas
     ChatRequest:
       type: object
       required: [id, message]
@@ -504,10 +1513,169 @@ components:
                 type: object
         selectedPersonaId:
           type: string
-        selectedProvider:
+        selectedChatModel:
           type: string
-          enum: [anthropic, openai]
-          default: anthropic
+
+    UserInfo:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+            name:
+              type: string
+        entitlements:
+          type: object
+
+    UserSettings:
+      type: object
+      properties:
+        defaultModel:
+          type: string
+        theme:
+          type: string
+          enum: [light, dark, system]
+        showSuggestions:
+          type: boolean
+
+    PersonasList:
+      type: object
+      properties:
+        systemPersonas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Persona'
+        userPersonas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Persona'
+        sharedPersonas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Persona'
+
+    Persona:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        isDefault:
+          type: boolean
+        isSystemPersona:
+          type: boolean
+        isShared:
+          type: boolean
+
+    CreatePersona:
+      type: object
+      required: [name, instructions]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        instructions:
+          type: string
+        documentIds:
+          type: array
+          items:
+            type: string
+        composerDocumentIds:
+          type: array
+          items:
+            type: string
+        isShared:
+          type: boolean
+          default: false
+
+    CalendarEvent:
+      type: object
+      required: [summary, start, end]
+      properties:
+        summary:
+          type: string
+        description:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        attendees:
+          type: array
+          items:
+            type: string
+            format: email
+
+    Feedback:
+      type: object
+      required: [messageId, rating]
+      properties:
+        messageId:
+          type: string
+        rating:
+          type: string
+          enum: [positive, negative]
+        category:
+          type: string
+          enum: [accuracy, helpfulness, tone, length, clarity, other]
+        comment:
+          type: string
+
+    ApiKeysList:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              keyPrefix:
+                type: string
+              usageCount:
+                type: integer
+              lastUsedAt:
+                type: string
+                format: date-time
+              createdAt:
+                type: string
+                format: date-time
+              expiresAt:
+                type: string
+                format: date-time
+
+    ApiKeyCreated:
+      type: object
+      properties:
+        key:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            keyPrefix:
+              type: string
+            fullKey:
+              type: string
+              description: Full API key - only shown once!
+        message:
+          type: string
 
     Error:
       type: object
@@ -518,6 +1686,46 @@ components:
           type: string
         code:
           type: string
+        requiredPlan:
+          type: string
+        feature:
+          type: string
+
+    OpenAIError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+            code:
+              type: string
+
+  parameters:
+    ChatId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   responses:
     Unauthorized:
@@ -526,8 +1734,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    ApiKeyUnauthorized:
+      description: Invalid or missing API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenAIError'
     Forbidden:
-      description: Insufficient permissions
+      description: Insufficient permissions or feature locked
       content:
         application/json:
           schema:
@@ -538,12 +1752,38 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenAIError'
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenAIError'
 
   securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      description: API key (eosai_sk_...)
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key via header
     sessionCookie:
       type: apiKey
       in: cookie
       name: authjs.session-token
+      description: Auth.js session cookie
 
 security:
   - sessionCookie: []
