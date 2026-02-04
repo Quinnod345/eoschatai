@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { useSession } from 'next-auth/react';
 import { toast } from '@/lib/toast-system';
 
 interface UserSettings {
@@ -35,6 +36,15 @@ interface UserSettingsContextType {
   refreshSettings: () => Promise<void>;
 }
 
+const defaultSettings: UserSettings = {
+  autocompleteEnabled: true,
+  notificationsEnabled: true,
+  language: 'english',
+  fontSize: 'medium',
+  disableGlassEffects: true,
+  disableEosGradient: true,
+};
+
 const UserSettingsContext = createContext<UserSettingsContextType | undefined>(
   undefined,
 );
@@ -42,17 +52,17 @@ const UserSettingsContext = createContext<UserSettingsContextType | undefined>(
 export function UserSettingsProvider({
   children,
 }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<UserSettings>({
-    autocompleteEnabled: true,
-    notificationsEnabled: true,
-    language: 'english',
-    fontSize: 'medium',
-    disableGlassEffects: true,
-    disableEosGradient: true,
-  });
+  const { status } = useSession();
+  const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
+    // Only fetch if user is authenticated
+    if (status !== 'authenticated') {
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/user-settings');
       if (response.ok) {
@@ -60,15 +70,22 @@ export function UserSettingsProvider({
         console.log('Fetched user settings:', data);
         setSettings(data);
       }
+      // Silently ignore 401 errors - user is not authenticated
     } catch (error) {
       console.error('Failed to fetch user settings:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [status]);
 
   const updateSettings = useCallback(
     async (newSettings: Partial<UserSettings>) => {
+      // Don't allow updates if not authenticated
+      if (status !== 'authenticated') {
+        console.warn('Cannot update settings: user not authenticated');
+        return;
+      }
+
       try {
         // Optimistically update local state
         setSettings((prev) => ({ ...prev, ...newSettings }));
@@ -94,12 +111,16 @@ export function UserSettingsProvider({
         throw error;
       }
     },
-    [fetchSettings],
+    [fetchSettings, status],
   );
 
   useEffect(() => {
+    // Wait until session status is determined before fetching
+    if (status === 'loading') {
+      return;
+    }
     fetchSettings();
-  }, [fetchSettings]);
+  }, [fetchSettings, status]);
 
   return (
     <UserSettingsContext.Provider

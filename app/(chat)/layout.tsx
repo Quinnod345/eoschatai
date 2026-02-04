@@ -6,6 +6,7 @@ import { FeaturesProvider } from '@/components/features-provider';
 import { AccountProvider } from '@/components/account-provider';
 import { AccountInitializer } from '@/components/account-initializer';
 import { AccountForceLoader } from '@/components/account-force-loader';
+import { SkipLink } from '@/components/skip-link';
 import { auth } from '../(auth)/auth';
 import Script from 'next/script';
 
@@ -25,13 +26,18 @@ export default async function Layout({
         src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"
         strategy="beforeInteractive"
       />
+      <SkipLink />
       <AccountProvider>
         <AccountForceLoader />
         <AccountInitializer />
         <FeaturesProvider user={session?.user}>
           <SidebarProvider defaultOpen={!isCollapsed}>
             <AppSidebar user={session?.user} />
-            <SidebarInset>{children}</SidebarInset>
+            <SidebarInset>
+              <main id="main-content" tabIndex={-1} className="outline-none">
+                {children}
+              </main>
+            </SidebarInset>
           </SidebarProvider>
         </FeaturesProvider>
       </AccountProvider>

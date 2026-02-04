@@ -3502,6 +3502,8 @@ function PureMultimodalInput({
                 <Textarea
                   data-testid="multimodal-input"
                   ref={textareaRef}
+                  aria-label="Message input - Type your message here, press Enter to send"
+                  aria-describedby="input-hint"
                   placeholder={
                     selectedMentions.length > 0
                       ? 'Continue your message...'
@@ -4082,15 +4084,16 @@ function PureAttachmentsButton({
   return (
     <Button
       data-testid="attachments-button"
-      className="rounded-xl p-2 h-9 w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200"
+      className="rounded-xl p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 touch-target-sm"
       onClick={(event) => {
         event.preventDefault();
         fileInputRef.current?.click();
       }}
       disabled={status !== 'ready'}
       variant="ghost"
+      aria-label="Attach files"
     >
-      <Paperclip className="size-4 text-muted-foreground" />
+      <Paperclip className="size-4 text-muted-foreground" aria-hidden="true" />
     </Button>
   );
 }
@@ -4189,6 +4192,7 @@ function PureStopButton({
       onClick={handleStop}
       disabled={isStopping}
       title="Stop generation"
+      aria-label={isStopping ? 'Stopping response' : 'Stop response generation'}
     >
       {isStopping ? (
         <div className="size-4 animate-spin text-zinc-500">
@@ -4252,6 +4256,15 @@ function PureSendButton({
         }
       }}
       disabled={isDisabled}
+      aria-label={
+        audioProcessing
+          ? 'Waiting for audio transcription'
+          : uploadQueue.length > 0
+            ? 'Waiting for uploads'
+            : nothingToSend
+              ? 'Send message (empty)'
+              : 'Send message'
+      }
       title={
         audioProcessing
           ? 'Waiting for audio transcription to complete...'

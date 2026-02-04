@@ -2,6 +2,69 @@ import { Index } from '@upstash/vector';
 import { openai } from '@ai-sdk/openai';
 import { embed } from 'ai';
 
+// ============================================================================
+// In-memory cache for system RAG results
+// System knowledge changes infrequently, so we can cache results for longer
+// ============================================================================
+type SystemRagResult = {
+  content: string;
+  title: string;
+  relevance: number;
+  metadata?: any;
+};
+
+type CachedRagResult = {
+  createdAtMs: number;
+  results: SystemRagResult[];
+};
+
+const SYSTEM_RAG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SYSTEM_RAG_CACHE_MAX_SIZE = 100;
+const systemRagCache: Map<string, CachedRagResult> = new Map();
+
+function buildCacheKey(query: string, namespace: string, limit: number, threshold: number): string {
+  // Normalize query for better cache hits
+  const normalizedQuery = query.toLowerCase().trim();
+  return `${namespace}:${normalizedQuery}:${limit}:${threshold}`;
+}
+
+function getCachedRagResult(key: string): SystemRagResult[] | null {
+  const cached = systemRagCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAtMs > SYSTEM_RAG_CACHE_TTL_MS) {
+    systemRagCache.delete(key);
+    return null;
+  }
+  return cached.results;
+}
+
+function setCachedRagResult(key: string, results: SystemRagResult[]) {
+  // Evict oldest if at capacity
+  if (systemRagCache.size >= SYSTEM_RAG_CACHE_MAX_SIZE) {
+    const firstKey = systemRagCache.keys().next().value as string | undefined;
+    if (firstKey) systemRagCache.delete(firstKey);
+  }
+  systemRagCache.set(key, { createdAtMs: Date.now(), results });
+}
+
+/**
+ * Clear the system RAG cache (useful after content updates)
+ */
+export function clearSystemRagCache(namespace?: string) {
+  if (namespace) {
+    // Clear only entries for a specific namespace
+    for (const key of systemRagCache.keys()) {
+      if (key.startsWith(`${namespace}:`)) {
+        systemRagCache.delete(key);
+      }
+    }
+    console.log(`Upstash System RAG: Cleared cache for namespace "${namespace}"`);
+  } else {
+    systemRagCache.clear();
+    console.log('Upstash System RAG: Cleared entire cache');
+  }
+}
+
 // Initialize Upstash Vector client for system RAG
 const getUpstashSystemClient = () => {
   const url = process.env.UPSTASH_USER_RAG_REST_URL;
@@ -39,8 +102,18 @@ export async function findUpstashSystemContent(
   }>
 > {
   try {
+    // Check cache first
+    const cacheKey = buildCacheKey(query, namespace, limit, threshold);
+    const cachedResults = getCachedRagResult(cacheKey);
+    if (cachedResults) {
+      console.log(
+        `Upstash System RAG: Cache hit for namespace "${namespace}" (${cachedResults.length} results)`,
+      );
+      return cachedResults;
+    }
+
     console.log(
-      `Upstash System RAG: Searching namespace "${namespace}" for: "${query}"`,
+      `Upstash System RAG: Cache miss, searching namespace "${namespace}" for: "${query}"`,
     );
 
     const client = getUpstashSystemClient();
@@ -72,7 +145,7 @@ export async function findUpstashSystemContent(
       );
     }
 
-    return results
+    const transformedResults = results
       .filter((result) => result.score >= threshold)
       .map((result) => ({
         content: (result.metadata?.content as string) || '',
@@ -80,6 +153,11 @@ export async function findUpstashSystemContent(
         relevance: result.score,
         metadata: result.metadata,
       }));
+
+    // Cache the results
+    setCachedRagResult(cacheKey, transformedResults);
+
+    return transformedResults;
   } catch (error) {
     console.error('Upstash System RAG: Error finding system content:', error);
     return [];
@@ -224,6 +302,9 @@ export async function clearUpstashSystemNamespace(
 ): Promise<void> {
   try {
     console.log(`Upstash System RAG: Clearing namespace "${namespace}"`);
+
+    // Clear cache for this namespace first
+    clearSystemRagCache(namespace);
 
     const client = getUpstashSystemClient();
     const namespaceClient = client.namespace(namespace);

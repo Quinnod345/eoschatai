@@ -326,6 +326,10 @@ function PureMessages({
   return (
     <div
       ref={messagesContainerRef}
+      role="log"
+      aria-label="Chat messages"
+      aria-live="polite"
+      aria-relevant="additions"
       className={`${meshClasses} flex flex-col min-w-0 gap-4 md:gap-6 flex-1 overflow-y-scroll pt-4 pb-32 md:pb-64 relative bg-transparent`}
     >
       {/* Spacer (like SwiftUI Spacer()) */}

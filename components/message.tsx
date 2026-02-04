@@ -518,8 +518,9 @@ const PurePreviewMessage = ({
   // The getMessageAttachments helper handles both formats for backward compatibility
   return (
     <AnimatePresence>
-      <motion.div
+      <motion.article
         data-testid={`message-${message.role}`}
+        aria-label={`${message.role === 'assistant' ? 'AI' : 'Your'} message`}
         className="w-full mx-auto max-w-3xl px-3 md:px-4 group/message"
         initial={{ y: 5, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -927,7 +928,7 @@ const PurePreviewMessage = ({
             )}
           </div>
         </div>
-      </motion.div>
+      </motion.article>
     </AnimatePresence>
   );
 };
@@ -1155,6 +1156,9 @@ export const ThinkingMessage = ({
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       data-role={role}
+      role="status"
+      aria-live="polite"
+      aria-label={displayMessage}
     >
       <div className="flex gap-4 w-full">
         {/* AI Icon */}

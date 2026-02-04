@@ -105,7 +105,7 @@ function Toast(props: ToastProps) {
         data-testid="toast"
         key={id}
         className={cn(
-          'bg-zinc-100 p-3 rounded-lg w-full toast-mobile:w-fit flex flex-row gap-3',
+          'bg-zinc-100 dark:bg-zinc-800 p-3 rounded-lg w-full toast-mobile:w-fit flex flex-row gap-3',
           multiLine ? 'items-start' : 'items-center',
         )}
         variants={toastVariants}
@@ -121,7 +121,7 @@ function Toast(props: ToastProps) {
         <motion.div
           data-type={type}
           className={cn(
-            'data-[type=error]:text-red-600 data-[type=success]:text-green-600',
+            'data-[type=error]:text-red-600 data-[type=success]:text-green-600 dark:data-[type=error]:text-red-400 dark:data-[type=success]:text-green-400',
             { 'pt-1': multiLine },
           )}
           variants={iconVariants}
@@ -130,7 +130,7 @@ function Toast(props: ToastProps) {
         </motion.div>
         <motion.div
           ref={descriptionRef}
-          className="text-zinc-950 text-sm"
+          className="text-zinc-950 dark:text-zinc-100 text-sm"
           variants={textVariants}
         >
           {description}

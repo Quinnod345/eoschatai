@@ -657,7 +657,7 @@ function RecordingModalInner({
                     No recordings yet
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Click "New Recording" to start
+                    Click &quot;New Recording&quot; to start
                   </p>
                 </div>
               ) : (

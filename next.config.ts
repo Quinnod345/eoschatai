@@ -19,17 +19,6 @@ const nextConfig: NextConfig = {
       'prosemirror-*',
       'chart.js',
       'react-data-grid',
-      'framer-motion',
-      'motion',
-      '@iconify/react',
-      'xlsx',
-      'jszip',
-      'three',
-      '@react-three/fiber',
-      'gsap',
-      'natural',
-      'marked',
-      'diff-match-patch',
     ],
   },
   images: {
@@ -57,51 +46,6 @@ const nextConfig: NextConfig = {
         : false,
   },
   productionBrowserSourceMaps: false,
-  webpack: (config, { isServer }) => {
-    // Bundle size optimizations
-    if (!isServer) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          ...config.optimization.splitChunks,
-          chunks: 'all',
-          cacheGroups: {
-            ...config.optimization.splitChunks.cacheGroups,
-            // Separate heavy animation libraries
-            animations: {
-              test: /[\\/]node_modules[\\/](motion|gsap|lottie-react|three|@react-three)[\\/]/,
-              name: 'animations',
-              chunks: 'all',
-              priority: 10,
-            },
-            // Separate document processing libraries  
-            documents: {
-              test: /[\\/]node_modules[\\/](xlsx|jszip|mammoth|pdf-parse|prosemirror-)[\\/]/,
-              name: 'documents',
-              chunks: 'all',
-              priority: 10,
-            },
-            // Separate charting libraries
-            charts: {
-              test: /[\\/]node_modules[\\/](chart\.js|react-data-grid)[\\/]/,
-              name: 'charts',
-              chunks: 'all', 
-              priority: 10,
-            },
-            // AI/ML libraries
-            ai: {
-              test: /[\\/]node_modules[\\/](openai|@anthropic-ai|natural|tiktoken)[\\/]/,
-              name: 'ai',
-              chunks: 'all',
-              priority: 10,
-            },
-          },
-        },
-      };
-    }
-    
-    return config;
-  },
   async headers() {
     return [
       {
@@ -143,6 +87,12 @@ export default withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
+  // Automatically annotate React components to show their full name in breadcrumbs and session replay
+  // Note: R3F (react-three-fiber) components are excluded to prevent annotation errors
+  reactComponentAnnotation: {
+    enabled: true,
+  },
+
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
@@ -155,17 +105,12 @@ export default withSentryConfig(nextConfig, {
     deleteSourcemapsAfterUpload: true,
   },
 
-  // Webpack configuration - new recommended format to replace deprecated options
-  webpack: {
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    treeshake: {
-      removeDebugLogging: true,
-    },
-    // Automatically annotate React components to show their full name in breadcrumbs and session replay
-    reactComponentAnnotation: {
-      enabled: true,
-    },
-    // Enables automatic instrumentation of Vercel Cron Monitors
-    automaticVercelMonitors: true,
-  },
+  // Automatically tree-shake Sentry logger statements to reduce bundle size
+  disableLogger: true,
+
+  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+  // See the following for more information:
+  // https://docs.sentry.io/product/crons/
+  // https://vercel.com/docs/cron-jobs
+  automaticVercelMonitors: true,
 });
