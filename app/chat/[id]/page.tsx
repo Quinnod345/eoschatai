@@ -14,6 +14,7 @@ import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
+import type { Attachment } from '@/components/multimodal-input/types';
 import { Suspense } from 'react';
 import { ChatLoading } from '@/components/chat-loading';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
