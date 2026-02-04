@@ -327,7 +327,15 @@ export const document = pgTable(
     title: text('title').notNull(),
     content: text('content'),
     kind: varchar('kind', {
-      enum: ['text', 'code', 'image', 'sheet', 'chart', 'vto', 'accountability'],
+      enum: [
+        'text',
+        'code',
+        'image',
+        'sheet',
+        'chart',
+        'vto',
+        'accountability',
+      ],
     })
       .notNull()
       .default('text'),
@@ -393,7 +401,9 @@ export const composerRelationship = pgTable(
   }),
 );
 
-export type ComposerRelationship = InferSelectModel<typeof composerRelationship>;
+export type ComposerRelationship = InferSelectModel<
+  typeof composerRelationship
+>;
 
 // Composer Mention table for tracking where composers are mentioned
 export const composerMention = pgTable(
@@ -837,9 +847,7 @@ export const documentShareOrg = pgTable(
   (table) => ({
     documentIdx: index('document_share_org_document_idx').on(table.documentId),
     orgIdx: index('document_share_org_org_idx').on(table.orgId),
-    sharedByIdx: index('document_share_org_shared_by_idx').on(
-      table.sharedById,
-    ),
+    sharedByIdx: index('document_share_org_shared_by_idx').on(table.sharedById),
     uniqueOrgShareIdx: unique('document_share_org_unique').on(
       table.documentId,
       table.orgId,
@@ -1620,3 +1628,54 @@ export const apiKeyUsage = pgTable(
 );
 
 export type ApiKeyUsage = InferSelectModel<typeof apiKeyUsage>;
+
+// API Conversations table for persistent multi-turn conversations via public API
+export const apiConversation = pgTable(
+  'ApiConversation',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    apiKeyId: uuid('apiKeyId')
+      .notNull()
+      .references(() => apiKey.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    model: varchar('model', { length: 64 }).default('eosai-v1'),
+    systemPrompt: text('systemPrompt'),
+    metadata: jsonb('metadata'),
+    messageCount: integer('messageCount').notNull().default(0),
+    totalTokens: integer('totalTokens').notNull().default(0),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    apiKeyIdx: index('api_conversation_key_idx').on(table.apiKeyId),
+    createdIdx: index('api_conversation_created_idx').on(table.createdAt),
+    updatedIdx: index('api_conversation_updated_idx').on(table.updatedAt),
+  }),
+);
+
+export type ApiConversation = InferSelectModel<typeof apiConversation>;
+
+// API Conversation Messages table for storing messages within API conversations
+export const apiConversationMessage = pgTable(
+  'ApiConversationMessage',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    conversationId: uuid('conversationId')
+      .notNull()
+      .references(() => apiConversation.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 16 }).notNull(),
+    content: text('content').notNull(),
+    tokenCount: integer('tokenCount').default(0),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    conversationIdx: index('api_conv_message_conv_idx').on(
+      table.conversationId,
+    ),
+    createdIdx: index('api_conv_message_created_idx').on(table.createdAt),
+  }),
+);
+
+export type ApiConversationMessage = InferSelectModel<
+  typeof apiConversationMessage
+>;
