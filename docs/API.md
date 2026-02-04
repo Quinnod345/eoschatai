@@ -158,6 +158,8 @@ curl -X POST https://eosbot.ai/api/chat \
 
 ---
 
-## OpenAPI Specification
+## Related Documentation
 
-Full OpenAPI 3.1 spec available at [`docs/openapi.yaml`](./openapi.yaml).
+- **[Chat API Reference](./CHAT_API.md)** - Detailed chat endpoint documentation with streaming protocols, message formats, tools, and examples
+- **[Public API Reference](./PUBLIC-API.md)** - OpenAI-compatible v1 API for external integrations
+- **[OpenAPI Specification](./openapi.yaml)** - Full OpenAPI 3.1 spec

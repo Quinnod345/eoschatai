@@ -50,9 +50,12 @@ export default function LandingFooter() {
                 </Link>
               </li>
               <li>
-                <span className="font-montserrat text-sm text-white/60 cursor-default">
-                  Documentation
-                </span>
+                <Link
+                  href="/docs"
+                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                >
+                  API Documentation
+                </Link>
               </li>
             </ul>
           </nav>

@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Globe, Sparkles } from 'lucide-react';
+import { User, Globe, Sparkles, Code } from 'lucide-react';
 import type { User as NextAuthUser } from 'next-auth';
 import { useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
@@ -300,6 +300,14 @@ export function SidebarUserNav({
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  window.open('/docs', '_blank')
+                }
+              >
+                <Code className="mr-2 h-4 w-4" />
+                <span>API Documentation</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() =>

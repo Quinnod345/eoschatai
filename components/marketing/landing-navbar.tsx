@@ -103,6 +103,11 @@ export default function LandingNavbar({ darkeningCoefficient = 0.6 }: LandingNav
                   textColor: '#fff',
                   links: [
                     {
+                      label: 'API Documentation',
+                      href: '/docs',
+                      ariaLabel: 'API Documentation',
+                    },
+                    {
                       label: 'All Features',
                       href: '/features',
                       ariaLabel: 'View All Features',
