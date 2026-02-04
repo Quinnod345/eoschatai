@@ -1,6 +1,5 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
-import bundleAnalyzer from '@next/bundle-analyzer';
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -20,6 +19,17 @@ const nextConfig: NextConfig = {
       'prosemirror-*',
       'chart.js',
       'react-data-grid',
+      'framer-motion',
+      'motion',
+      '@iconify/react',
+      'xlsx',
+      'jszip',
+      'three',
+      '@react-three/fiber',
+      'gsap',
+      'natural',
+      'marked',
+      'diff-match-patch',
     ],
   },
   images: {
@@ -47,6 +57,51 @@ const nextConfig: NextConfig = {
         : false,
   },
   productionBrowserSourceMaps: false,
+  webpack: (config, { isServer }) => {
+    // Bundle size optimizations
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          ...config.optimization.splitChunks,
+          chunks: 'all',
+          cacheGroups: {
+            ...config.optimization.splitChunks.cacheGroups,
+            // Separate heavy animation libraries
+            animations: {
+              test: /[\\/]node_modules[\\/](motion|gsap|lottie-react|three|@react-three)[\\/]/,
+              name: 'animations',
+              chunks: 'all',
+              priority: 10,
+            },
+            // Separate document processing libraries  
+            documents: {
+              test: /[\\/]node_modules[\\/](xlsx|jszip|mammoth|pdf-parse|prosemirror-)[\\/]/,
+              name: 'documents',
+              chunks: 'all',
+              priority: 10,
+            },
+            // Separate charting libraries
+            charts: {
+              test: /[\\/]node_modules[\\/](chart\.js|react-data-grid)[\\/]/,
+              name: 'charts',
+              chunks: 'all', 
+              priority: 10,
+            },
+            // AI/ML libraries
+            ai: {
+              test: /[\\/]node_modules[\\/](openai|@anthropic-ai|natural|tiktoken)[\\/]/,
+              name: 'ai',
+              chunks: 'all',
+              priority: 10,
+            },
+          },
+        },
+      };
+    }
+    
+    return config;
+  },
   async headers() {
     return [
       {
@@ -71,14 +126,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Bundle analyzer configuration
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
-});
-
-// Wrap with both bundle analyzer and Sentry configuration
-const configWithAnalyzer = withBundleAnalyzer(nextConfig);
-export default withSentryConfig(configWithAnalyzer, {
+// Wrap with Sentry configuration
+export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
