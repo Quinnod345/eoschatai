@@ -220,7 +220,7 @@ export function OrganizationSettings() {
           <CardHeader>
             <CardTitle>No Organization</CardTitle>
             <CardDescription>
-              You're not part of an organization yet. Join or create one to access
+              You&apos;re not part of an organization yet. Join or create one to access
               Business features.
             </CardDescription>
           </CardHeader>
@@ -590,7 +590,7 @@ export function OrganizationSettings() {
           <AlertDialogHeader>
             <AlertDialogTitle>Leave Organization?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to leave {org.name}? You'll lose access to
+              Are you sure you want to leave {org.name}? You&apos;ll lose access to
               all organization resources and features.
               {isOwner && members.length > 1 && (
                 <span className="block mt-2 font-semibold text-destructive">

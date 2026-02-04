@@ -133,7 +133,7 @@ export function OrganizationSwitcher({ onClose }: OrganizationSwitcherProps) {
               <div className="text-center py-8">
                 <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground mb-4">
-                  You're not part of any organization yet
+                  You&apos;re not part of any organization yet
                 </p>
                 <Button onClick={() => setShowCreateModal(true)}>
                   <Plus className="w-4 h-4 mr-2" />
