@@ -1534,3 +1534,89 @@ export const contextUsageLog = pgTable(
 );
 
 export type ContextUsageLog = InferSelectModel<typeof contextUsageLog>;
+
+// Public API Keys table for external API access
+export const apiKey = pgTable(
+  'ApiKey',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    // The key is stored hashed (SHA-256) for security
+    keyHash: varchar('keyHash', { length: 64 }).notNull(),
+    // Key prefix for identification (first 8 chars of the original key)
+    keyPrefix: varchar('keyPrefix', { length: 12 }).notNull(),
+    // User who owns this API key (nullable for org-level keys)
+    userId: uuid('userId').references(() => user.id, { onDelete: 'cascade' }),
+    // Organization that owns this API key (for org-level keys)
+    orgId: uuid('orgId').references(() => org.id, { onDelete: 'cascade' }),
+    // Human-readable name for the key
+    name: varchar('name', { length: 128 }).notNull(),
+    // Description of what this key is used for
+    description: text('description'),
+    // Whether the key is currently active
+    isActive: boolean('isActive').notNull().default(true),
+    // Rate limiting - requests per minute
+    rateLimitRpm: integer('rateLimitRpm').notNull().default(60),
+    // Rate limiting - requests per day
+    rateLimitRpd: integer('rateLimitRpd').notNull().default(1000),
+    // Usage tracking
+    usageCount: integer('usageCount').notNull().default(0),
+    usageTokens: integer('usageTokens').notNull().default(0),
+    // Timestamps
+    lastUsedAt: timestamp('lastUsedAt'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt'),
+    // Allowed models (null = all models)
+    allowedModels: jsonb('allowedModels').$type<string[]>(),
+    // Scopes/permissions for this key
+    scopes: jsonb('scopes')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'["chat"]'::jsonb`),
+    // Metadata for additional configuration
+    metadata: jsonb('metadata'),
+  },
+  (table) => ({
+    keyHashIdx: uniqueIndex('api_key_hash_idx').on(table.keyHash),
+    keyPrefixIdx: index('api_key_prefix_idx').on(table.keyPrefix),
+    userIdx: index('api_key_user_idx').on(table.userId),
+    orgIdx: index('api_key_org_idx').on(table.orgId),
+    activeIdx: index('api_key_active_idx').on(table.isActive),
+    expiresIdx: index('api_key_expires_idx').on(table.expiresAt),
+  }),
+);
+
+export type ApiKey = InferSelectModel<typeof apiKey>;
+
+// API Key Usage tracking for rate limiting and analytics
+export const apiKeyUsage = pgTable(
+  'ApiKeyUsage',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    apiKeyId: uuid('apiKeyId')
+      .notNull()
+      .references(() => apiKey.id, { onDelete: 'cascade' }),
+    // Request details
+    endpoint: varchar('endpoint', { length: 64 }).notNull(),
+    method: varchar('method', { length: 10 }).notNull(),
+    // Token usage for this request
+    promptTokens: integer('promptTokens').default(0),
+    completionTokens: integer('completionTokens').default(0),
+    totalTokens: integer('totalTokens').default(0),
+    // Response metadata
+    statusCode: integer('statusCode'),
+    responseTimeMs: integer('responseTimeMs'),
+    // Model used
+    model: varchar('model', { length: 64 }),
+    // Request timestamp
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    // Error message if the request failed
+    errorMessage: text('errorMessage'),
+  },
+  (table) => ({
+    apiKeyIdx: index('api_key_usage_key_idx').on(table.apiKeyId),
+    createdAtIdx: index('api_key_usage_created_idx').on(table.createdAt),
+    endpointIdx: index('api_key_usage_endpoint_idx').on(table.endpoint),
+  }),
+);
+
+export type ApiKeyUsage = InferSelectModel<typeof apiKeyUsage>;
