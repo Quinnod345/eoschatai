@@ -127,7 +127,7 @@
     "motion": "^12.23.24",
     "nanoid": "^5.0.8",
     "natural": "^6.11.4",
-    "next": "15.5.9",
+    "next": "15.5.10",
     "next-auth": "5.0.0-beta.25",
     "next-themes": "^0.3.0",
     "node-fetch": "2",

@@ -9,6 +9,16 @@
   <p>
     Built with Next.js 15, AI SDK, PostgreSQL, and cutting-edge AI technologies
   </p>
+
+  <!-- Badges -->
+  <p>
+    <a href="https://github.com/your-org/eoschatai/actions"><img src="https://img.shields.io/github/actions/workflow/status/your-org/eoschatai/ci.yml?branch=main&style=flat-square&label=build" alt="Build Status"></a>
+    <img src="https://img.shields.io/badge/version-3.0.19-blue?style=flat-square" alt="Version">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="License"></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square" alt="Node.js">
+    <img src="https://img.shields.io/badge/pnpm-%3E%3D9.12-orange?style=flat-square" alt="pnpm">
+    <a href="https://eosbot.ai"><img src="https://img.shields.io/badge/demo-live-brightgreen?style=flat-square" alt="Live Demo"></a>
+  </p>
   
   <p align="center">
     <a href="#-core-chat-features"><strong>Core Features</strong></a> ·
@@ -611,6 +621,60 @@ EOSAI is a revolutionary, enterprise-ready AI platform specifically designed for
 
 ---
 
+## 🏗️ Architecture
+
+EOSAI follows a modern, scalable architecture designed for enterprise reliability:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Client Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │   Next.js    │  │   React 19   │  │   Tailwind + GSAP    │  │
+│  │  App Router  │  │  Components  │  │    Animations        │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         API Layer                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │   Chat API   │  │  Documents   │  │   Calendar/OAuth     │  │
+│  │  (Streaming) │  │     API      │  │    Integration       │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       AI/RAG Layer                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │   Vercel AI  │  │  Embeddings  │  │  Context Assembler   │  │
+│  │     SDK      │  │   (OpenAI)   │  │  (Token Budget Mgmt) │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       Data Layer                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │  PostgreSQL  │  │   Upstash    │  │       Redis          │  │
+│  │  + pgvector  │  │    Vector    │  │  (Stream Buffer)     │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| **Context Assembler** | Intelligently manages token budgets across multiple RAG sources |
+| **Embedding Pipeline** | Generates and caches 1536-dimensional embeddings for semantic search |
+| **Stream Buffer** | Enables resumable AI response streams via Redis |
+| **Persona System** | Provides specialized AI behaviors with isolated knowledge bases |
+
+For detailed API documentation, see [docs/API.md](docs/API.md).
+
+---
+
 ## 🛠 Technology Stack
 
 ### Frontend Technologies
@@ -639,10 +703,10 @@ EOSAI is a revolutionary, enterprise-ready AI platform specifically designed for
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js 18+**
-- **pnpm 9.12+** 
-- **PostgreSQL** database
-- **OpenAI API key**
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **pnpm 9.12+** - Install with `npm install -g pnpm`
+- **PostgreSQL 15+** with pgvector extension
+- **OpenAI API key** - [Get one here](https://platform.openai.com/api-keys)
 
 ### Quick Setup
 
@@ -656,12 +720,36 @@ EOSAI is a revolutionary, enterprise-ready AI platform specifically designed for
 2. **Configure environment**
    ```bash
    cp .env.example .env.local
-   # Add your API keys and database URLs
+   ```
+   
+   Edit `.env.local` with your credentials:
+   ```env
+   # Required
+   DATABASE_URL="postgresql://user:pass@localhost:5432/eosai"
+   OPENAI_API_KEY="sk-..."
+   AUTH_SECRET="generate-with-openssl-rand-base64-32"
+   
+   # For RAG/Document Intelligence
+   UPSTASH_VECTOR_REST_URL="https://..."
+   UPSTASH_VECTOR_REST_TOKEN="..."
+   
+   # For Resumable Streams (optional but recommended)
+   REDIS_URL="redis://localhost:6379"
+   
+   # For Google Calendar Integration (optional)
+   GOOGLE_CLIENT_ID="..."
+   GOOGLE_CLIENT_SECRET="..."
+   
+   # For File Uploads (optional)
+   BLOB_READ_WRITE_TOKEN="..."
    ```
 
 3. **Setup database**
    ```bash
+   # Run migrations
    pnpm db:migrate
+   
+   # Enable pgvector extension (for RAG)
    pnpm db:pgvector
    ```
 
@@ -674,12 +762,23 @@ Visit [http://localhost:3000](http://localhost:3000) to start using EOSAI!
 
 ### Essential Commands
 ```bash
-pnpm dev              # Start development server
+pnpm dev              # Start development server (with Turbopack)
 pnpm build            # Build for production
-pnpm db:studio        # Open database GUI
-pnpm upload-docs      # Upload knowledge base
-pnpm test             # Run E2E tests
+pnpm start            # Start production server
+pnpm lint             # Run linting
+pnpm db:studio        # Open Drizzle Studio (database GUI)
+pnpm db:migrate       # Run database migrations
+pnpm test             # Run E2E tests with Playwright
 ```
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Database connection error | Ensure PostgreSQL is running and `DATABASE_URL` is correct |
+| pgvector not found | Run `CREATE EXTENSION vector;` in your database |
+| OpenAI rate limits | Check your API key has sufficient quota |
+| Build failures | Clear `.next` folder and run `pnpm install` again |
 
 ---
 
@@ -743,13 +842,28 @@ pnpm test             # Run E2E tests
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed guidelines.
 
-### Development Process
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Submit a pull request
+### Quick Start for Contributors
+
+1. **Fork** the repository
+2. **Clone** your fork and create a branch:
+   ```bash
+   git checkout -b feature/your-feature
+   ```
+3. **Make changes** following our [coding standards](CONTRIBUTING.md#coding-standards)
+4. **Test** your changes:
+   ```bash
+   pnpm lint && pnpm test
+   ```
+5. **Submit** a pull request
+
+### Code Quality
+
+- All code must pass linting (`pnpm lint`)
+- New features should include tests
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
+- Add JSDoc comments to exported functions
 
 ---
 
