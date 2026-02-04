@@ -19,17 +19,28 @@ import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://eosbot.ai'),
-  title: 'EOS AI',
-  description: 'AI-powered chat assistant for EOS Worldwide.',
+  title: {
+    default: 'EOS AI - AI-Powered Assistant for EOS Implementation',
+    template: '%s | EOS AI',
+  },
+  description:
+    'AI-powered assistant for EOS Worldwide. Transform your business with intelligent V/TO management, Scorecard analysis, and Level 10 Meeting support.',
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',
     apple: '/favicon.ico',
   },
-  verification: {
-    google: 'google-site-verification-code-replace-this',
-  },
-  keywords: ['AI', 'chatbot', 'EOS', 'assistant', 'artificial intelligence'],
+  keywords: [
+    'EOS AI',
+    'EOS Worldwide',
+    'Entrepreneurial Operating System',
+    'V/TO',
+    'Scorecard',
+    'Level 10 Meetings',
+    'Traction',
+    'business AI',
+    'AI assistant',
+  ],
   authors: [{ name: 'EOS AI Team' }],
   creator: 'EOS AI',
   publisher: 'EOS AI',
@@ -112,10 +123,6 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{
             __html: THEME_COLOR_SCRIPT,
           }}
-        />
-        <meta
-          name="google-site-verification"
-          content="google-site-verification-code-replace-this"
         />
       </head>
       <body
