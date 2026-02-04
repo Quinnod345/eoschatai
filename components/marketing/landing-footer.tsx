@@ -6,7 +6,7 @@ import Image from 'next/image';
 
 export default function LandingFooter() {
   return (
-    <footer className="relative z-40 bg-black pointer-events-auto border-t border-white/10">
+    <footer className="relative z-40 bg-black pointer-events-auto border-t border-white/10" role="contentinfo" aria-label="Site footer">
       <div className="container mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
@@ -28,7 +28,7 @@ export default function LandingFooter() {
             </p>
           </div>
 
-          <div>
+          <nav aria-label="Product links">
             <h3 className="font-montserrat font-semibold text-white mb-4">
               Product
             </h3>
@@ -55,9 +55,9 @@ export default function LandingFooter() {
                 </span>
               </li>
             </ul>
-          </div>
+          </nav>
 
-          <div>
+          <nav aria-label="Company links">
             <h3 className="font-montserrat font-semibold text-white mb-4">
               Company
             </h3>
@@ -84,9 +84,9 @@ export default function LandingFooter() {
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
 
-          <div>
+          <nav aria-label="Get started links">
             <h3 className="font-montserrat font-semibold text-white mb-4">
               Get Started
             </h3>
@@ -116,7 +116,7 @@ export default function LandingFooter() {
                 </Link>
               </li>
             </ul>
-          </div>
+          </nav>
         </div>
 
         <div className="pt-8 border-t border-white/10">
