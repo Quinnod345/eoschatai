@@ -441,14 +441,9 @@ function PureChatHeader({
         onSave={handlePersonaSave}
       />
 
-      {/* Profile Modal - TODO: Create ProfileWizard component */}
-      {/* <ProfileWizard
-        isOpen={isProfileModalOpen}
-        onClose={handleProfileModalClose}
-        profile={editingProfile}
-        personaId={selectedPersonaId}
-        onSave={handleProfileSave}
-      /> */}
+      {/* Profile management is handled through ProfilesDropdown for system personas (EOS Implementer).
+          User persona profile editing is not yet implemented - profiles are currently read-only
+          and managed by system administrators. The modal state hooks remain in place for future use. */}
     </>
   );
 }
