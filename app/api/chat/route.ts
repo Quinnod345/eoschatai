@@ -319,7 +319,10 @@ export async function POST(request: Request) {
         JSON.stringify((error as any).issues, null, 2),
       );
     }
-    return new Response('Invalid request body', { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'Invalid request body', code: 'invalid_request' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -358,7 +361,10 @@ export async function POST(request: Request) {
     const session = await auth();
 
     if (!session?.user) {
-      return new Response('Unauthorized', { status: 401 });
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', code: 'unauthorized' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const accessContext = await getAccessContext(session.user.id);
@@ -370,8 +376,8 @@ export async function POST(request: Request) {
     ) {
       return new Response(
         JSON.stringify({
-          error: 'DAILY_LIMIT_REACHED',
-          message: 'You have reached your daily message limit.',
+          error: 'You have reached your daily message limit.',
+          code: 'daily_limit_reached',
           limit: chatLimit,
           used: accessContext.user.usageCounters.chats_today,
           plan: accessContext.user.plan,

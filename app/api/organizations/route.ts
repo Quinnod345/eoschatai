@@ -9,12 +9,13 @@ import {
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getOrCreateInviteCode } from '@/lib/organizations/invite-codes';
+import { ApiErrors, logApiError } from '@/lib/api/error-response';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // Get user's current organization if any
@@ -30,11 +31,8 @@ export async function GET(request: NextRequest) {
       organization: userWithOrg?.org || null,
     });
   } catch (error) {
-    console.error('[api/organizations] GET error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch organization' },
-      { status: 500 },
-    );
+    logApiError('api/organizations GET', error);
+    return ApiErrors.internalError('Failed to fetch organization');
   }
 }
 
@@ -42,41 +40,35 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
-    const body = await request.json();
+    let body: { name?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return ApiErrors.invalidJson();
+    }
+
     const { name } = body;
 
     // Validate organization name
     if (!name || typeof name !== 'string') {
-      return NextResponse.json(
-        { error: 'Organization name is required' },
-        { status: 400 },
-      );
+      return ApiErrors.missingField('name');
     }
 
     const trimmedName = name.trim();
 
     if (trimmedName.length === 0) {
-      return NextResponse.json(
-        { error: 'Organization name cannot be empty' },
-        { status: 400 },
-      );
+      return ApiErrors.invalidField('name', 'Organization name cannot be empty');
     }
 
     if (trimmedName.length > 100) {
-      return NextResponse.json(
-        { error: 'Organization name must be 100 characters or less' },
-        { status: 400 },
-      );
+      return ApiErrors.invalidField('name', 'Organization name must be 100 characters or less');
     }
 
     if (trimmedName.length < 2) {
-      return NextResponse.json(
-        { error: 'Organization name must be at least 2 characters' },
-        { status: 400 },
-      );
+      return ApiErrors.invalidField('name', 'Organization name must be at least 2 characters');
     }
 
     // Use transaction to prevent race condition where user joins org while creating one
@@ -88,7 +80,7 @@ export async function POST(request: NextRequest) {
         .where(eq(userTable.id, session.user.id));
 
       if (existingUser?.orgId) {
-        throw new Error('You already belong to an organization');
+        throw new Error('ALREADY_IN_ORG');
       }
 
       // Create the organization with the user as owner
@@ -135,10 +127,11 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error creating organization:', error);
-    return NextResponse.json(
-      { error: 'Failed to create organization' },
-      { status: 500 },
-    );
+    // Handle specific error cases
+    if (error instanceof Error && error.message === 'ALREADY_IN_ORG') {
+      return ApiErrors.validationFailed('You already belong to an organization');
+    }
+    logApiError('api/organizations POST', error);
+    return ApiErrors.internalError('Failed to create organization');
   }
 }
