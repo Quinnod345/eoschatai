@@ -4,19 +4,19 @@ import DocsPage from './docs-client';
 export const metadata: Metadata = {
   title: 'API Documentation - EOSAI',
   description:
-    'Complete API documentation for EOSAI. Build integrations with our OpenAI-compatible REST API for EOS methodology guidance.',
+    'Complete API documentation for EOSAI. Build integrations with our Claude-powered REST API for EOS methodology guidance.',
   keywords: [
     'EOSAI API',
     'API documentation',
     'REST API',
-    'OpenAI compatible',
+    'Claude powered',
     'EOS integration',
     'developer docs',
   ],
   openGraph: {
     title: 'API Documentation - EOSAI',
     description:
-      'Build integrations with EOSAI\'s OpenAI-compatible REST API for EOS methodology guidance.',
+      "Build integrations with EOSAI's Claude-powered REST API for EOS methodology guidance.",
     url: 'https://eosbot.ai/docs',
     siteName: 'EOS AI',
     type: 'website',
