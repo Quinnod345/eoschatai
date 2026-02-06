@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { googleCalendarToken } from '@/lib/db/schema';
 import { getAccessContext } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
+import { ApiErrors, logApiError, apiErrorResponse, ErrorCodes } from '@/lib/api/error-response';
 
 /**
  * Handler for GET requests - Retrieves calendar events
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     // Get authenticated session
     const session = await auth();
     if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // Check entitlements
@@ -29,13 +30,10 @@ export async function GET(request: NextRequest) {
         status: 403,
       });
 
-      return NextResponse.json(
-        {
-          code: 'ENTITLEMENT_BLOCK',
-          feature: 'calendar_connect',
-          reason: 'not_enabled',
-        },
-        { status: 403 },
+      return apiErrorResponse(
+        'Calendar connect feature is not enabled for your plan',
+        403,
+        ErrorCodes.ENTITLEMENT_BLOCKED
       );
     }
 
@@ -57,9 +55,10 @@ export async function GET(request: NextRequest) {
       .where(eq(googleCalendarToken.userId, session.user.id));
 
     if (tokens.length === 0 || !tokens[0].token) {
-      return NextResponse.json(
-        { error: 'Google Calendar is not connected' },
-        { status: 401 },
+      return apiErrorResponse(
+        'Google Calendar is not connected',
+        401,
+        'calendar_not_connected'
       );
     }
 
@@ -104,11 +103,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formattedEvents);
   } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch calendar events' },
-      { status: 500 },
-    );
+    logApiError('api/calendar/events GET', error);
+    return ApiErrors.externalServiceError('Google Calendar');
   }
 }
 
@@ -120,7 +116,7 @@ export async function POST(request: NextRequest) {
     // Get authenticated session
     const session = await auth();
     if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // Check entitlements
@@ -134,17 +130,28 @@ export async function POST(request: NextRequest) {
         status: 403,
       });
 
-      return NextResponse.json(
-        {
-          code: 'ENTITLEMENT_BLOCK',
-          feature: 'calendar_connect',
-          reason: 'not_enabled',
-        },
-        { status: 403 },
+      return apiErrorResponse(
+        'Calendar connect feature is not enabled for your plan',
+        403,
+        ErrorCodes.ENTITLEMENT_BLOCKED
       );
     }
 
     // Get event data from request body
+    let body: {
+      summary?: string;
+      description?: string;
+      location?: string;
+      startDateTime?: string;
+      endDateTime?: string;
+      attendees?: string[];
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return ApiErrors.invalidJson();
+    }
+
     const {
       summary,
       description,
@@ -152,14 +159,17 @@ export async function POST(request: NextRequest) {
       startDateTime,
       endDateTime,
       attendees,
-    } = await request.json();
+    } = body;
 
     // Validate required fields
-    if (!summary || !startDateTime || !endDateTime) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 },
-      );
+    if (!summary) {
+      return ApiErrors.missingField('summary');
+    }
+    if (!startDateTime) {
+      return ApiErrors.missingField('startDateTime');
+    }
+    if (!endDateTime) {
+      return ApiErrors.missingField('endDateTime');
     }
 
     // Get the token directly from the database
@@ -169,9 +179,10 @@ export async function POST(request: NextRequest) {
       .where(eq(googleCalendarToken.userId, session.user.id));
 
     if (tokens.length === 0 || !tokens[0].token) {
-      return NextResponse.json(
-        { error: 'Google Calendar is not connected' },
-        { status: 401 },
+      return apiErrorResponse(
+        'Google Calendar is not connected',
+        401,
+        'calendar_not_connected'
       );
     }
 
@@ -230,10 +241,7 @@ export async function POST(request: NextRequest) {
       updated: data.updated,
     });
   } catch (error) {
-    console.error('Error creating calendar event:', error);
-    return NextResponse.json(
-      { error: 'Failed to create calendar event' },
-      { status: 500 },
-    );
+    logApiError('api/calendar/events POST', error);
+    return ApiErrors.externalServiceError('Google Calendar');
   }
 }

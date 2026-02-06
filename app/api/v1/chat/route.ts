@@ -18,6 +18,7 @@ import {
   type ApiContext,
 } from '@/lib/api/middleware';
 import { logApiKeyUsage } from '@/lib/api/keys';
+import { requestLogger } from '@/lib/logger';
 import { createCustomProvider } from '@/lib/ai/providers';
 import { findUpstashSystemContent } from '@/lib/ai/upstash-system-rag';
 
@@ -110,8 +111,8 @@ The following relevant EOS content has been retrieved to help answer this query:
 ${contextText}
 
 Use this context to provide accurate, EOS-specific guidance. Cite specific concepts when relevant.`;
-  } catch (error) {
-    console.error('[API v1] Error fetching EOS context:', error);
+  } catch {
+    // Context fetch failed, fall back to base prompt
     return EOS_SYSTEM_PROMPT;
   }
 }
@@ -123,7 +124,10 @@ Use this context to provide accurate, EOS-specific guidance. Cite specific conce
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
   const startTime = Date.now();
+  const log = requestLogger(requestId, { endpoint: '/v1/chat' });
   let context: ApiContext | undefined;
+
+  log.info('Chat request started', { method: 'POST' });
 
   try {
     // Validate API key and rate limits
@@ -281,8 +285,10 @@ export async function POST(request: NextRequest) {
               responseTimeMs: responseTime,
               model: chatRequest.model,
             });
-          } catch (error) {
-            console.error('[API v1] Stream error:', error);
+          } catch (streamError) {
+            log.error('Stream error', {
+              error: streamError instanceof Error ? streamError.message : String(streamError),
+            });
             const errorData = {
               error: {
                 message: 'An error occurred during streaming',
@@ -344,6 +350,13 @@ export async function POST(request: NextRequest) {
       model: chatRequest.model,
     });
 
+    log.info('Chat request completed', {
+      model: chatRequest.model,
+      promptTokens,
+      completionTokens,
+      durationMs: responseTime,
+    });
+
     // Build OpenAI-compatible response
     const responseBody = {
       id: requestId,
@@ -375,7 +388,11 @@ export async function POST(request: NextRequest) {
 
     return addRateLimitHeaders(response, context);
   } catch (error) {
-    console.error('[API v1] Chat error:', error);
+    const durationMs = Date.now() - startTime;
+    log.error('Chat request failed', {
+      error: error instanceof Error ? error.message : String(error),
+      durationMs,
+    });
 
     // Log error
     if (context) {
@@ -384,7 +401,7 @@ export async function POST(request: NextRequest) {
         endpoint: '/v1/chat',
         method: 'POST',
         statusCode: 500,
-        responseTimeMs: Date.now() - startTime,
+        responseTimeMs: durationMs,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
       });
     }

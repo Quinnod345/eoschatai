@@ -5,22 +5,20 @@ import { apiKey } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { generateApiKey } from '@/lib/api-keys/utils';
 import { getUserEntitlements } from '@/lib/entitlements';
+import { ApiErrors, logApiError } from '@/lib/api/error-response';
 
 // GET /api/api-keys - List all API keys for the current user
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // Check if user has API access
     const entitlements = await getUserEntitlements(session.user.id);
     if (!entitlements.features.api_access) {
-      return NextResponse.json(
-        { error: 'API access is only available on Business plan' },
-        { status: 403 }
-      );
+      return ApiErrors.planRequired('API access', 'Business');
     }
 
     // Fetch all active keys for the user
@@ -45,11 +43,8 @@ export async function GET() {
 
     return NextResponse.json({ keys });
   } catch (error) {
-    console.error('Error fetching API keys:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch API keys' },
-      { status: 500 }
-    );
+    logApiError('api/api-keys GET', error);
+    return ApiErrors.internalError('Failed to fetch API keys');
   }
 }
 
@@ -58,33 +53,30 @@ export async function POST(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     // Check if user has API access
     const entitlements = await getUserEntitlements(session.user.id);
     if (!entitlements.features.api_access) {
-      return NextResponse.json(
-        { error: 'API access is only available on Business plan' },
-        { status: 403 }
-      );
+      return ApiErrors.planRequired('API access', 'Business');
     }
 
-    const body = await request.json();
+    let body: { name?: string; expiresAt?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return ApiErrors.invalidJson();
+    }
+
     const { name, expiresAt } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Key name is required' },
-        { status: 400 }
-      );
+      return ApiErrors.missingField('name');
     }
 
     if (name.length > 100) {
-      return NextResponse.json(
-        { error: 'Key name must be 100 characters or less' },
-        { status: 400 }
-      );
+      return ApiErrors.invalidField('name', 'Key name must be 100 characters or less');
     }
 
     // Check existing key count (limit to 10 active keys per user)
@@ -99,10 +91,7 @@ export async function POST(request: Request) {
       );
 
     if (existingKeys.length >= 10) {
-      return NextResponse.json(
-        { error: 'Maximum of 10 active API keys allowed' },
-        { status: 400 }
-      );
+      return ApiErrors.validationFailed('Maximum of 10 active API keys allowed');
     }
 
     // Generate new API key
@@ -135,10 +124,7 @@ export async function POST(request: Request) {
       message: 'API key created. Save this key now - it will not be shown again.',
     });
   } catch (error) {
-    console.error('Error creating API key:', error);
-    return NextResponse.json(
-      { error: 'Failed to create API key' },
-      { status: 500 }
-    );
+    logApiError('api/api-keys POST', error);
+    return ApiErrors.internalError('Failed to create API key');
   }
 }

@@ -1,216 +1,207 @@
+/**
+ * Standardized API Error Response Utilities
+ * 
+ * Provides consistent error response format across all API routes.
+ * 
+ * Standard format: { error: string, code?: string, details?: string }
+ * - error: Human-readable error message
+ * - code: Machine-readable error code for client handling
+ * - details: Additional context (only in development)
+ */
+
 import { NextResponse } from 'next/server';
 
-/**
- * Standard error codes for API responses
- */
-export const ErrorCodes = {
-  // Authentication & Authorization
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-  FEATURE_LOCKED: 'FEATURE_LOCKED',
-
-  // Validation
-  INVALID_REQUEST: 'INVALID_REQUEST',
-  MISSING_FIELD: 'MISSING_FIELD',
-  INVALID_FIELD: 'INVALID_FIELD',
-
-  // Resource errors
-  NOT_FOUND: 'NOT_FOUND',
-  ALREADY_EXISTS: 'ALREADY_EXISTS',
-  CONFLICT: 'CONFLICT',
-
-  // Rate limiting & quotas
-  RATE_LIMITED: 'RATE_LIMITED',
-  LIMIT_REACHED: 'LIMIT_REACHED',
-  QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
-
-  // Server errors
-  INTERNAL_ERROR: 'INTERNAL_ERROR',
-  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
-  EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR',
-
-  // Organization-specific
-  ORG_SEAT_LIMIT: 'ORG_SEAT_LIMIT',
-  ORG_ALREADY_MEMBER: 'ORG_ALREADY_MEMBER',
-  ORG_OWNER_REQUIRED: 'ORG_OWNER_REQUIRED',
-
-  // Billing-specific
-  SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
-  PAYMENT_REQUIRED: 'PAYMENT_REQUIRED',
-} as const;
-
-export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
-
-/**
- * Standard error response structure
- */
 export interface ApiErrorResponse {
   error: string;
-  code: ErrorCode;
-  details?: Record<string, unknown>;
-  requiredPlan?: 'pro' | 'business';
-  feature?: string;
+  code?: string;
+  details?: string;
 }
 
 /**
- * Create a standardized error response
+ * Standard error codes for internal API routes
  */
-export function createErrorResponse(
+export const ErrorCodes = {
+  // Auth errors (401)
+  UNAUTHORIZED: 'unauthorized',
+  SESSION_EXPIRED: 'session_expired',
+  INVALID_TOKEN: 'invalid_token',
+  
+  // Permission errors (403)
+  FORBIDDEN: 'forbidden',
+  INSUFFICIENT_PERMISSIONS: 'insufficient_permissions',
+  PLAN_REQUIRED: 'plan_required',
+  ENTITLEMENT_BLOCKED: 'entitlement_blocked',
+  
+  // Validation errors (400)
+  INVALID_REQUEST: 'invalid_request',
+  INVALID_JSON: 'invalid_json',
+  MISSING_FIELD: 'missing_field',
+  INVALID_FIELD: 'invalid_field',
+  VALIDATION_FAILED: 'validation_failed',
+  
+  // Not found errors (404)
+  NOT_FOUND: 'not_found',
+  RESOURCE_NOT_FOUND: 'resource_not_found',
+  
+  // Conflict errors (409)
+  CONFLICT: 'conflict',
+  ALREADY_EXISTS: 'already_exists',
+  
+  // Rate limit errors (429)
+  RATE_LIMITED: 'rate_limited',
+  DAILY_LIMIT_REACHED: 'daily_limit_reached',
+  
+  // Server errors (500)
+  INTERNAL_ERROR: 'internal_error',
+  DATABASE_ERROR: 'database_error',
+  EXTERNAL_SERVICE_ERROR: 'external_service_error',
+} as const;
+
+export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
+
+/**
+ * Create a standardized API error response
+ * 
+ * @param message - Human-readable error message
+ * @param status - HTTP status code
+ * @param code - Machine-readable error code
+ * @param details - Additional details (only included in development)
+ */
+export function apiErrorResponse(
   message: string,
-  code: ErrorCode,
   status: number,
-  details?: Record<string, unknown>,
+  code?: ErrorCode | string,
+  details?: string
 ): NextResponse<ApiErrorResponse> {
-  const body: ApiErrorResponse = {
+  const response: ApiErrorResponse = {
     error: message,
-    code,
-    ...(details && { details }),
   };
 
-  return NextResponse.json(body, { status });
+  if (code) {
+    response.code = code;
+  }
+
+  // Only include details in development to avoid leaking sensitive info
+  if (details && process.env.NODE_ENV === 'development') {
+    response.details = details;
+  }
+
+  return NextResponse.json(response, { status });
 }
 
 /**
  * Common error response helpers
  */
 export const ApiErrors = {
-  unauthorized: (message = 'Authentication required') =>
-    createErrorResponse(message, ErrorCodes.UNAUTHORIZED, 401),
+  /** 401 - User not authenticated */
+  unauthorized: (message = 'Unauthorized') => 
+    apiErrorResponse(message, 401, ErrorCodes.UNAUTHORIZED),
 
-  forbidden: (message = 'Access denied') =>
-    createErrorResponse(message, ErrorCodes.FORBIDDEN, 403),
+  /** 403 - User lacks permission */
+  forbidden: (message = 'Forbidden') => 
+    apiErrorResponse(message, 403, ErrorCodes.FORBIDDEN),
 
-  featureLocked: (
-    feature: string,
-    requiredPlan: 'pro' | 'business' = 'pro',
-    message?: string,
-  ) =>
-    NextResponse.json(
-      {
-        error: message || `${feature} is a ${requiredPlan} feature`,
-        code: ErrorCodes.FEATURE_LOCKED,
-        requiredPlan,
-        feature,
-      },
-      { status: 403 },
-    ),
-
-  notFound: (resource: string) =>
-    createErrorResponse(`${resource} not found`, ErrorCodes.NOT_FOUND, 404),
-
-  invalidRequest: (message: string, details?: Record<string, unknown>) =>
-    createErrorResponse(message, ErrorCodes.INVALID_REQUEST, 400, details),
-
-  missingField: (fieldName: string) =>
-    createErrorResponse(
-      `${fieldName} is required`,
-      ErrorCodes.MISSING_FIELD,
-      400,
-      { field: fieldName },
-    ),
-
-  invalidField: (fieldName: string, reason: string) =>
-    createErrorResponse(
-      `Invalid ${fieldName}: ${reason}`,
-      ErrorCodes.INVALID_FIELD,
-      400,
-      { field: fieldName, reason },
-    ),
-
-  alreadyExists: (resource: string) =>
-    createErrorResponse(
-      `${resource} already exists`,
-      ErrorCodes.ALREADY_EXISTS,
-      409,
-    ),
-
-  conflict: (message: string) =>
-    createErrorResponse(message, ErrorCodes.CONFLICT, 409),
-
-  limitReached: (
-    limitName: string,
-    limit: number,
-    used: number,
-    requiredPlan?: 'pro' | 'business',
-  ) =>
-    NextResponse.json(
-      {
-        error: `You've reached your ${limitName} limit (${limit})`,
-        code: ErrorCodes.LIMIT_REACHED,
-        details: { limit, used },
-        ...(requiredPlan && { requiredPlan }),
-      },
-      { status: 403 },
-    ),
-
-  rateLimited: (retryAfterSeconds?: number) =>
-    NextResponse.json(
-      {
-        error: 'Too many requests, please try again later',
-        code: ErrorCodes.RATE_LIMITED,
-        ...(retryAfterSeconds && { details: { retryAfter: retryAfterSeconds } }),
-      },
-      {
-        status: 429,
-        headers: retryAfterSeconds
-          ? { 'Retry-After': String(retryAfterSeconds) }
-          : undefined,
-      },
-    ),
-
-  internalError: (message = 'An unexpected error occurred') =>
-    createErrorResponse(message, ErrorCodes.INTERNAL_ERROR, 500),
-
-  serviceUnavailable: (service: string) =>
-    createErrorResponse(
-      `${service} is temporarily unavailable`,
-      ErrorCodes.SERVICE_UNAVAILABLE,
-      503,
-    ),
-
-  // Organization-specific errors
-  orgSeatLimit: () =>
-    createErrorResponse(
-      'Organization has reached its seat limit',
-      ErrorCodes.ORG_SEAT_LIMIT,
+  /** 403 - Feature requires specific plan */
+  planRequired: (feature: string, requiredPlan: string) =>
+    apiErrorResponse(
+      `${feature} is only available on ${requiredPlan} plan`,
       403,
+      ErrorCodes.PLAN_REQUIRED
     ),
 
-  orgAlreadyMember: () =>
-    createErrorResponse(
-      'You already belong to an organization',
-      ErrorCodes.ORG_ALREADY_MEMBER,
+  /** 400 - Invalid request body */
+  invalidRequest: (message = 'Invalid request', details?: string) =>
+    apiErrorResponse(message, 400, ErrorCodes.INVALID_REQUEST, details),
+
+  /** 400 - Invalid JSON in request body */
+  invalidJson: () =>
+    apiErrorResponse('Invalid JSON in request body', 400, ErrorCodes.INVALID_JSON),
+
+  /** 400 - Missing required field */
+  missingField: (field: string) =>
+    apiErrorResponse(`Missing required field: ${field}`, 400, ErrorCodes.MISSING_FIELD),
+
+  /** 400 - Invalid field value */
+  invalidField: (field: string, message?: string) =>
+    apiErrorResponse(
+      message || `Invalid value for field: ${field}`,
       400,
+      ErrorCodes.INVALID_FIELD
     ),
 
-  orgOwnerRequired: () =>
-    createErrorResponse(
-      'Only organization owners can perform this action',
-      ErrorCodes.ORG_OWNER_REQUIRED,
-      403,
+  /** 400 - Validation failed */
+  validationFailed: (message: string) =>
+    apiErrorResponse(message, 400, ErrorCodes.VALIDATION_FAILED),
+
+  /** 404 - Resource not found */
+  notFound: (resource = 'Resource') =>
+    apiErrorResponse(`${resource} not found`, 404, ErrorCodes.NOT_FOUND),
+
+  /** 409 - Resource already exists */
+  alreadyExists: (resource = 'Resource') =>
+    apiErrorResponse(`${resource} already exists`, 409, ErrorCodes.ALREADY_EXISTS),
+
+  /** 429 - Rate limit exceeded */
+  rateLimited: (message = 'Rate limit exceeded', retryAfter?: number) => {
+    const response = apiErrorResponse(message, 429, ErrorCodes.RATE_LIMITED);
+    if (retryAfter) {
+      response.headers.set('Retry-After', String(retryAfter));
+    }
+    return response;
+  },
+
+  /** 429 - Daily limit reached */
+  dailyLimitReached: (limit: number, used: number) =>
+    apiErrorResponse(
+      `Daily limit reached. Used ${used} of ${limit} allowed.`,
+      429,
+      ErrorCodes.DAILY_LIMIT_REACHED
+    ),
+
+  /** 500 - Internal server error */
+  internalError: (message = 'An internal error occurred', details?: string) =>
+    apiErrorResponse(message, 500, ErrorCodes.INTERNAL_ERROR, details),
+
+  /** 500 - Database error */
+  databaseError: (details?: string) =>
+    apiErrorResponse('A database error occurred', 500, ErrorCodes.DATABASE_ERROR, details),
+
+  /** 500 - External service error */
+  externalServiceError: (service: string, details?: string) =>
+    apiErrorResponse(
+      `Failed to communicate with ${service}`,
+      500,
+      ErrorCodes.EXTERNAL_SERVICE_ERROR,
+      details
     ),
 };
 
 /**
- * Wrap an async route handler with error handling
+ * Safe error logging - logs error without exposing sensitive data
  */
-export function withErrorHandling<T>(
-  handler: () => Promise<NextResponse<T>>,
-  context?: string,
-): Promise<NextResponse<T | ApiErrorResponse>> {
-  return handler().catch((error: unknown) => {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[${context || 'api'}] Error:`, errorMessage, error);
+export function logApiError(
+  context: string,
+  error: unknown,
+  additionalInfo?: Record<string, unknown>
+): void {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : undefined;
 
-    // Check for known error patterns
-    if (errorMessage.includes('already belong to an organization')) {
-      return ApiErrors.orgAlreadyMember();
-    }
-    if (errorMessage.includes('seat limit')) {
-      return ApiErrors.orgSeatLimit();
-    }
-
-    return ApiErrors.internalError();
+  console.error(`[${context}] Error:`, {
+    message: errorMessage,
+    ...(process.env.NODE_ENV === 'development' && errorStack ? { stack: errorStack } : {}),
+    ...additionalInfo,
   });
+}
+
+/**
+ * Parse JSON body with error handling
+ */
+export async function parseJsonBody<T>(request: Request): Promise<{ data: T } | { error: NextResponse<ApiErrorResponse> }> {
+  try {
+    const data = await request.json() as T;
+    return { data };
+  } catch {
+    return { error: ApiErrors.invalidJson() };
+  }
 }

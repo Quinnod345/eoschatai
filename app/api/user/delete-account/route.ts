@@ -4,12 +4,13 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
+import { ApiErrors, logApiError } from '@/lib/api/error-response';
 
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const userId = session.user.id;
@@ -21,7 +22,7 @@ export async function DELETE(request: NextRequest) {
       .where(eq(schema.user.id, userId));
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return ApiErrors.notFound('User');
     }
 
     // Check if user owns an organization
@@ -39,12 +40,8 @@ export async function DELETE(request: NextRequest) {
           .where(eq(schema.user.orgId, user.orgId));
 
         if (memberCount.length > 1) {
-          return NextResponse.json(
-            {
-              error:
-                'You must transfer organization ownership or remove all members before deleting your account',
-            },
-            { status: 400 },
+          return ApiErrors.validationFailed(
+            'You must transfer organization ownership or remove all members before deleting your account'
           );
         }
 
@@ -226,10 +223,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Account deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting account:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete account' },
-      { status: 500 },
-    );
+    logApiError('api/user/delete-account DELETE', error);
+    return ApiErrors.internalError('Failed to delete account');
   }
 }
