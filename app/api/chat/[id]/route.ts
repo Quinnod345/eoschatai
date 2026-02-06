@@ -6,18 +6,19 @@ import { eq, and } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isAdminEmail } from '@/lib/auth/admin';
+import { ApiErrors, logApiError } from '@/lib/api/error-response';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return ApiErrors.unauthorized();
+    }
+
     const { id } = await params;
 
     // Fetch the chat
@@ -28,7 +29,7 @@ export async function GET(
       .limit(1);
 
     if (existingChat.length === 0) {
-      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+      return ApiErrors.notFound('Chat');
     }
 
     const foundChat = existingChat[0];
@@ -42,7 +43,7 @@ export async function GET(
       foundChat.visibility !== 'public' &&
       !isAdminUser
     ) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return ApiErrors.forbidden();
     }
 
     return NextResponse.json({
@@ -50,11 +51,8 @@ export async function GET(
       title: getDisplayTitle(foundChat.title),
     });
   } catch (error) {
-    console.error('Error fetching chat:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch chat' },
-      { status: 500 },
-    );
+    logApiError('api/chat/[id] GET', error);
+    return ApiErrors.internalError('Failed to fetch chat');
   }
 }
 
@@ -62,23 +60,20 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    console.log('PERSONA_SWITCH: Unauthorized - no session user');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      console.log('PERSONA_SWITCH: Unauthorized - no session user');
+      return ApiErrors.unauthorized();
+    }
+
     const { id } = await params;
-    let body;
+    let body: { personaId?: string; profileId?: string };
     try {
       body = await request.json();
-    } catch (jsonError) {
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 },
-      );
+    } catch {
+      return ApiErrors.invalidJson();
     }
     const { personaId, profileId } = body;
 
@@ -108,7 +103,7 @@ export async function PATCH(
         chatId: id,
         userId: session.user.id,
       });
-      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+      return ApiErrors.notFound('Chat');
     }
 
     const foundChat = existingChat[0];
@@ -120,7 +115,7 @@ export async function PATCH(
         chatUserId: foundChat.userId,
         requestUserId: session.user.id,
       });
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return ApiErrors.forbidden();
     }
 
     console.log(
@@ -255,7 +250,7 @@ export async function PATCH(
         chatId: id,
         userId: session.user.id,
       });
-      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+      return ApiErrors.notFound('Chat');
     }
 
     console.log('PERSONA_SWITCH: Successfully updated chat persona/profile', {
@@ -267,16 +262,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedChat);
   } catch (error) {
-    const { id: chatId } = await params;
-    console.error('PERSONA_SWITCH: Error updating chat:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      chatId,
-      userId: session.user.id,
-    });
-    return NextResponse.json(
-      { error: 'Failed to update chat' },
-      { status: 500 },
-    );
+    logApiError('api/chat/[id] PATCH', error, { params: await params });
+    return ApiErrors.internalError('Failed to update chat');
   }
 }

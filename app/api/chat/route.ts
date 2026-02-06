@@ -319,7 +319,10 @@ export async function POST(request: Request) {
         JSON.stringify((error as any).issues, null, 2),
       );
     }
-    return new Response('Invalid request body', { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'Invalid request body', code: 'invalid_request' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -358,7 +361,10 @@ export async function POST(request: Request) {
     const session = await auth();
 
     if (!session?.user) {
-      return new Response('Unauthorized', { status: 401 });
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', code: 'unauthorized' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const accessContext = await getAccessContext(session.user.id);
@@ -370,8 +376,8 @@ export async function POST(request: Request) {
     ) {
       return new Response(
         JSON.stringify({
-          error: 'DAILY_LIMIT_REACHED',
-          message: 'You have reached your daily message limit.',
+          error: 'You have reached your daily message limit.',
+          code: 'daily_limit_reached',
           limit: chatLimit,
           used: accessContext.user.usageCounters.chats_today,
           plan: accessContext.user.plan,
@@ -3789,8 +3795,10 @@ ${
       }
     }
 
-    // AI SDK 5: Bypass resumable streams - they use incompatible text/v1 protocol
-    // TODO: Update resumable-stream integration for AI SDK 5 UIMessage protocol
+    // AI SDK 6: Bypass resumable streams - they use text/v1 protocol while AI SDK 6 uses UIMessage
+    // The resumable-stream library (v2.x) is designed for the older text streaming protocol.
+    // When resumable-stream is updated for UIMessage protocol, we can re-enable it here.
+    // For now, direct UIMessage streaming works correctly without resumability.
     else {
       console.log('Using direct UI message stream response (AI SDK 5)');
       // AI SDK 5: Use createUIMessageStreamResponse for proper streaming

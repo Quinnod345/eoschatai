@@ -173,10 +173,10 @@ export async function searchWeb(
             const formattedResult: SearchResult = {
               title: result.title || 'Untitled',
               url: result.url || '',
-              snippet: result.description || (result as any).snippet || '',
+              snippet: result.description || ('snippet' in result ? (result as { snippet: string }).snippet : '') || '',
               // Full content from scraping
               markdown: result.markdown || undefined,
-              content: result.markdown || (result as any).content || undefined,
+              content: result.markdown || ('content' in result ? (result as { content: string }).content : undefined) || undefined,
               html: result.html || undefined,
               // Additional metadata
               links: result.links || [],
@@ -223,10 +223,11 @@ export async function searchWeb(
         });
 
         return formattedResults;
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if it's a rate limit error
-        if (error.statusCode === 429 || error.message?.includes('Rate limit')) {
-          const retryAfter = extractRetryAfter(error.message);
+        const errorObj = error as { statusCode?: number; message?: string };
+        if (errorObj.statusCode === 429 || errorObj.message?.includes('Rate limit')) {
+          const retryAfter = extractRetryAfter(errorObj.message || '');
           console.log(
             `[Web Search] Rate limited. Waiting ${retryAfter}s before retry...`,
           );
@@ -274,7 +275,7 @@ export async function searchWeb(
 /**
  * Calculate relevance score based on position and content quality
  */
-function calculateRelevanceScore(position: number, result: any): number {
+function calculateRelevanceScore(position: number, result: Partial<SearchResult> & { markdown?: string; metadata?: { statusCode?: number }; links?: string[] }): number {
   let score = 100 - position * 10; // Base score from position
 
   // Boost score based on content quality

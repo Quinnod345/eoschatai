@@ -1,7 +1,96 @@
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
+import React from 'react';
+import { cleanup } from '@testing-library/react';
+
+// Make React available globally for jsdom environment
+(globalThis as any).React = React;
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+});
+
+// Mock framer-motion to avoid animations in tests
+vi.mock('framer-motion', async () => {
+  const actual = await vi.importActual('framer-motion');
+  return {
+    ...actual,
+    motion: {
+      div: ({ children, ...props }: any) => React.createElement('div', props, children),
+      span: ({ children, ...props }: any) => React.createElement('span', props, children),
+      button: ({ children, ...props }: any) => React.createElement('button', props, children),
+      form: ({ children, ...props }: any) => React.createElement('form', props, children),
+    },
+    AnimatePresence: ({ children }: any) => children,
+  };
+});
+
+// Mock next/navigation
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+  redirect: vi.fn(),
+}));
+
+// Mock next-auth
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ 
+    data: { user: { id: 'test-user', email: 'test@test.com' } }, 
+    status: 'authenticated' 
+  })),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  SessionProvider: ({ children }: any) => children,
+}));
+
+// Mock lucide-react icons
+vi.mock('lucide-react', () => {
+  const createIcon = (name: string, symbol: string) => 
+    (props: any) => React.createElement('span', { 'data-testid': `${name}-icon`, ...props }, symbol);
+  
+  return {
+    Check: createIcon('check', '✓'),
+    X: createIcon('x', '✕'),
+    Loader2: createIcon('loader', '⟳'),
+    ChevronDown: createIcon('chevron-down', '▼'),
+    ChevronUp: createIcon('chevron-up', '▲'),
+    Search: createIcon('search', '🔍'),
+    Eye: createIcon('eye', '👁'),
+    EyeOff: createIcon('eye-off', '👁'),
+    AlertCircle: createIcon('alert-circle', '⚠'),
+    Info: createIcon('info', 'ℹ'),
+    AlertTriangle: createIcon('alert-triangle', '⚠'),
+    CheckCircle: createIcon('check-circle', '✓'),
+    XCircle: createIcon('x-circle', '✕'),
+  };
+});
 
 vi.mock('server-only', () => ({}));
+
+// Mock missing modules
+vi.mock('@/lib/file-processing', () => ({
+  processFile: vi.fn().mockResolvedValue({ text: 'Processed content', metadata: {} }),
+  extractText: vi.fn().mockResolvedValue('Extracted text'),
+  validateFile: vi.fn().mockReturnValue(true),
+}));
+
+vi.mock('@/lib/vector-store', () => ({
+  storeEmbeddings: vi.fn().mockResolvedValue({ success: true }),
+  searchDocuments: vi.fn().mockResolvedValue([]),
+  deleteDocumentEmbeddings: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+// Note: @/lib/ai/token-counter is NOT mocked here.
+// The token-counter.vitest.ts tests have their own tiktoken mock.
 
 vi.mock('@/lib/analytics', () => ({
   trackEntitlementsUpdated: vi.fn(),

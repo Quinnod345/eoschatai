@@ -11,6 +11,7 @@ Complete REST API documentation for EOSAI - Enterprise Operating System AI Assis
 - [Authentication](#authentication)
 - [Rate Limits](#rate-limits)
 - [Error Handling](#error-handling)
+- [Health Checks](#health-checks)
 - [Public API (v1)](#public-api-v1)
 - [Internal API](#internal-api)
   - [Chat](#chat)
@@ -133,6 +134,125 @@ Rate limit headers included in responses:
 | 404 | `NOT_FOUND` | Resource not found |
 | 429 | `rate_limit_exceeded` | Too many requests |
 | 500 | `INTERNAL_ERROR` | Server error |
+
+---
+
+# Health Checks
+
+Health check endpoints for monitoring application status. These endpoints do not require authentication.
+
+## GET /api/health
+
+Comprehensive health check that returns application status, version, uptime, and dependency checks.
+
+### Response
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-02-04T21:50:00.000Z",
+  "version": "3.0.19",
+  "uptime_seconds": 86400,
+  "checks": [
+    {
+      "name": "database",
+      "status": "healthy",
+      "latency_ms": 12
+    },
+    {
+      "name": "redis",
+      "status": "healthy",
+      "latency_ms": 5
+    }
+  ]
+}
+```
+
+### Status Values
+
+| Status | HTTP Code | Description |
+|--------|-----------|-------------|
+| `healthy` | 200 | All systems operational |
+| `degraded` | 200 | Non-critical component issues |
+| `unhealthy` | 503 | Critical system failure |
+
+### Individual Check Statuses
+
+- `healthy` - Component is working normally
+- `degraded` - Component has issues but not critical (e.g., Redis down)
+- `unhealthy` - Critical failure (e.g., database unreachable)
+
+---
+
+## GET /api/health/ready
+
+Kubernetes-style readiness probe. Returns 200 when the application is ready to receive traffic.
+
+### Response (Ready)
+
+```json
+{
+  "status": "ready",
+  "timestamp": "2026-02-04T21:50:00.000Z"
+}
+```
+
+### Response (Not Ready)
+
+```json
+{
+  "status": "not_ready",
+  "reason": "Database not available",
+  "timestamp": "2026-02-04T21:50:00.000Z"
+}
+```
+
+| Status | HTTP Code |
+|--------|-----------|
+| Ready | 200 |
+| Not Ready | 503 |
+
+**Use Case:** Configure load balancers or Kubernetes to check this endpoint before routing traffic.
+
+---
+
+## GET /api/health/live
+
+Kubernetes-style liveness probe. Returns 200 as long as the process is running.
+
+### Response
+
+```json
+{
+  "status": "alive",
+  "timestamp": "2026-02-04T21:50:00.000Z",
+  "uptime_seconds": 86400
+}
+```
+
+| Status | HTTP Code |
+|--------|-----------|
+| Alive | 200 |
+
+**Use Case:** Configure Kubernetes to restart the container if this endpoint fails.
+
+### Kubernetes Configuration Example
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /api/health/live
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  
+readinessProbe:
+  httpGet:
+    path: /api/health/ready
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
 
 ---
 

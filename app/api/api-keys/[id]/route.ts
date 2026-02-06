@@ -3,6 +3,7 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { apiKey } from '@/lib/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
+import { ApiErrors, logApiError } from '@/lib/api/error-response';
 
 // DELETE /api/api-keys/[id] - Revoke an API key
 export async function DELETE(
@@ -12,16 +13,13 @@ export async function DELETE(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'API key ID is required' },
-        { status: 400 }
-      );
+      return ApiErrors.missingField('id');
     }
 
     // Check that the key belongs to the user and is not already revoked
@@ -37,10 +35,7 @@ export async function DELETE(
       );
 
     if (!existingKey) {
-      return NextResponse.json(
-        { error: 'API key not found' },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('API key');
     }
 
     // Deactivate the key
@@ -51,11 +46,8 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'API key revoked' });
   } catch (error) {
-    console.error('Error revoking API key:', error);
-    return NextResponse.json(
-      { error: 'Failed to revoke API key' },
-      { status: 500 }
-    );
+    logApiError('api/api-keys/[id] DELETE', error);
+    return ApiErrors.internalError('Failed to revoke API key');
   }
 }
 
@@ -67,25 +59,26 @@ export async function PATCH(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return ApiErrors.unauthorized();
     }
 
     const { id } = await params;
-    const body = await request.json();
+    
+    let body: { name?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return ApiErrors.invalidJson();
+    }
+    
     const { name } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'API key ID is required' },
-        { status: 400 }
-      );
+      return ApiErrors.missingField('id');
     }
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Key name is required' },
-        { status: 400 }
-      );
+      return ApiErrors.missingField('name');
     }
 
     // Check that the key belongs to the user and is not revoked
@@ -101,10 +94,7 @@ export async function PATCH(
       );
 
     if (!existingKey) {
-      return NextResponse.json(
-        { error: 'API key not found' },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('API key');
     }
 
     // Update the name
@@ -116,10 +106,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, name: updatedKey.name });
   } catch (error) {
-    console.error('Error updating API key:', error);
-    return NextResponse.json(
-      { error: 'Failed to update API key' },
-      { status: 500 }
-    );
+    logApiError('api/api-keys/[id] PATCH', error);
+    return ApiErrors.internalError('Failed to update API key');
   }
 }

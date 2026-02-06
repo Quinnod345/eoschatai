@@ -28,8 +28,10 @@ export interface NotificationPayload {
  * Send a subscription notification to a user
  * This is a centralized notification system that supports:
  * - Email (via Resend)
- * - In-app notifications (TODO: Future implementation)
- * - Webhooks (TODO: Future implementation)
+ *
+ * Future enhancements (tracked as GitHub issues):
+ * - In-app notifications: Real-time notification bell/toast system
+ * - Webhooks: Allow external systems to subscribe to billing events
  */
 export async function sendSubscriptionNotification(
   payload: NotificationPayload,
