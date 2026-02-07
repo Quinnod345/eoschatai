@@ -280,6 +280,41 @@ export async function findRelevantMemories(
 }
 
 /**
+ * Retrieve the N most recently created active memories for a user.
+ * These are always included in context regardless of query similarity,
+ * ensuring recent context is never lost (like reading today's notes).
+ */
+export async function getRecentMemories(
+  userId: string,
+  limit = 5,
+): Promise<RelevantMemory[]> {
+  try {
+    const results = await db
+      .select()
+      .from(userMemory)
+      .where(
+        and(eq(userMemory.userId, userId), eq(userMemory.status, 'active')),
+      )
+      .orderBy(sql`${userMemory.createdAt} DESC`)
+      .limit(limit);
+
+    return results.map((memory) => ({
+      id: memory.id,
+      summary: memory.summary,
+      content: memory.content,
+      memoryType: memory.memoryType || 'other',
+      confidence: memory.confidence || 60,
+      topic: memory.topic,
+      relevance: 0.7, // Default relevance for recency-based retrieval
+      createdAt: memory.createdAt,
+    }));
+  } catch (error) {
+    console.error('Memory RAG: Error fetching recent memories:', error);
+    return [];
+  }
+}
+
+/**
  * Format memories into a structured prompt section
  * @param memories - Array of relevant memories
  * @returns Formatted prompt string
@@ -315,7 +350,7 @@ export function formatMemoriesForPrompt(memories: RelevantMemory[]): string {
 
   // Build the formatted output
   let output = `## USER MEMORIES
-The following are facts this user has explicitly asked you to remember:
+The following are facts remembered about this user from previous conversations:
 
 `;
 
@@ -362,12 +397,11 @@ The following are facts this user has explicitly asked you to remember:
     }
   }
 
-  output += `**CRITICAL MEMORY INSTRUCTIONS:**
-1. These are facts the user explicitly asked you to remember
-2. Treat these as VERIFIED user preferences and information
-3. Reference these memories naturally in your responses
-4. If a memory contradicts current conversation, acknowledge and ask for clarification
-5. Use memories to personalize responses and show continuity
+  output += `**MEMORY INSTRUCTIONS:**
+1. These facts were learned from previous conversations with this user
+2. Reference them naturally — do NOT announce "I remember that..." unprompted
+3. If a memory contradicts the current conversation, follow what the user says now
+4. Use memories to personalize responses and maintain continuity
 
 `;
 

@@ -396,6 +396,11 @@ export function Chat({
                 setMetadata,
               });
             }
+          } else if (data.type === 'memory-saved') {
+            // Show a subtle indicator when memories are saved
+            toast.success('Remembered', {
+              duration: 2000,
+            });
           }
         }
       },

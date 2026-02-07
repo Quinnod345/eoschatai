@@ -169,6 +169,8 @@ async function decideModelWithHaiku(args: {
   enableThinking: boolean;
   maxOutputTokens: number;
   thinkingBudget?: number;
+  requiresDocumentCreation: boolean;
+  suggestedDocumentKind: string | null;
 }> {
   const {
     provider,
@@ -263,11 +265,19 @@ MODE CONTEXT:
 - composer_open: ${hasComposerOpen}
 If mode is nexus, use high budgets (16000+). If composer_open is true, allocate AT LEAST 8000 tokens for document editing tasks.
 
-Return STRICT JSON: {"enable_thinking":true|false,"max_tokens":<integer 1000..64000>,"thinking_budget":<integer 0|16000|32000|50000|64000>}. 
-If enable_thinking is false, thinking_budget should be 0. 
-If enable_thinking is true, choose appropriate thinking_budget based on complexity. No commentary.`,
+DOCUMENT CREATION DETECTION (requires_document_creation: true/false):
+Set to true when the user is EXPLICITLY asking to create, build, generate, draft, or make a document, artifact, template, chart, spreadsheet, V/TO, accountability chart, scorecard, or any structured content output.
+Set to false for questions, explanations, discussions, or edits to existing documents.
+When true, also set suggested_document_kind to one of: "text", "code", "image", "sheet", "chart", "vto", "accountability".
+When false, suggested_document_kind should be null.
+
+Return STRICT JSON: {"enable_thinking":true|false,"max_tokens":<integer 1000..64000>,"thinking_budget":<integer 0|16000|32000|50000|64000>,"requires_document_creation":true|false,"suggested_document_kind":<string|null>}.
+If enable_thinking is false, thinking_budget should be 0.
+If enable_thinking is true, choose appropriate thinking_budget based on complexity.
+If requires_document_creation is true, suggested_document_kind must be one of: text, code, image, sheet, chart, vto, accountability.
+If requires_document_creation is false, suggested_document_kind must be null. No commentary.`,
     prompt: `task: ${queryText}\ncode_or_math: ${hasCodeOrMath}\ndeep_analysis_detected: ${hasDeepAnalysis}\nhas_file_uploads: ${hasFileUploads}\nfile_upload_count: ${fileUploadCount}\ninput_character_count: ${inputCharacterCount}\ncomposer_open: ${hasComposerOpen}`,
-    maxOutputTokens: 128,
+    maxOutputTokens: 256,
     temperature: 0,
   });
 
@@ -292,15 +302,37 @@ If enable_thinking is true, choose appropriate thinking_budget based on complexi
   if (!Number.isFinite(maxTokens)) {
     throw new Error('Haiku preflight returned invalid max_tokens');
   }
+
+  const validDocumentKinds = new Set([
+    'text',
+    'code',
+    'image',
+    'sheet',
+    'chart',
+    'vto',
+    'accountability',
+  ]);
+  const requiresDocumentCreation = parsed.requires_document_creation === true;
+  const suggestedDocumentKind =
+    requiresDocumentCreation &&
+    parsed.suggested_document_kind &&
+    validDocumentKinds.has(String(parsed.suggested_document_kind))
+      ? String(parsed.suggested_document_kind)
+      : null;
+
   console.log('[PREFLIGHT] Decision', {
     enableThinking,
     maxOutputTokens: maxTokens,
     thinkingBudget: enableThinking ? thinkingBudget : 0,
+    requiresDocumentCreation,
+    suggestedDocumentKind,
   });
   return {
     enableThinking,
     maxOutputTokens: Math.max(200, Math.floor(maxTokens)),
     thinkingBudget: enableThinking ? thinkingBudget : undefined,
+    requiresDocumentCreation,
+    suggestedDocumentKind,
   };
 }
 
@@ -930,7 +962,7 @@ export async function POST(request: Request) {
           })()
         : Promise.resolve(''),
 
-      // Memory RAG (User Memories)
+      // Memory RAG (User Memories) — similarity-based + recency-based, merged and deduplicated
       session.user.id && queryText && !shouldSkipRAG
         ? (() => {
             const memoryRagStart = Date.now();
@@ -939,35 +971,60 @@ export async function POST(request: Request) {
             );
 
             return import('@/lib/ai/memory-rag')
-              .then(({ findRelevantMemories, formatMemoriesForPrompt }) =>
-                findRelevantMemories(
-                  session.user.id,
-                  ragQueryText,
-                  10,
-                  0.75, // Raised from 0.5 to 0.75 - only include highly relevant memories
-                ).then((memories) => {
-                  const memoryRagTime = Date.now() - memoryRagStart;
-                  console.log(
-                    `Memory RAG: Retrieved ${memories.length} relevant memories in ${memoryRagTime}ms`,
-                  );
+              .then(
+                ({
+                  findRelevantMemories,
+                  getRecentMemories,
+                  formatMemoriesForPrompt,
+                }) =>
+                  Promise.all([
+                    findRelevantMemories(
+                      session.user.id,
+                      ragQueryText,
+                      15, // Increased from 10
+                      0.55, // Lowered from 0.75 for better recall
+                    ),
+                    getRecentMemories(session.user.id, 5),
+                  ]).then(([similarMemories, recentMemories]) => {
+                    // Merge and deduplicate by memory ID
+                    const seenIds = new Set<string>();
+                    const merged = [];
+                    for (const m of similarMemories) {
+                      if (!seenIds.has(m.id)) {
+                        seenIds.add(m.id);
+                        merged.push(m);
+                      }
+                    }
+                    for (const m of recentMemories) {
+                      if (!seenIds.has(m.id)) {
+                        seenIds.add(m.id);
+                        merged.push(m);
+                      }
+                    }
 
-                  if (memories.length > 0) {
+                    const memoryRagTime = Date.now() - memoryRagStart;
                     console.log(
-                      `Memory RAG: Top memory: "${memories[0].summary.substring(0, 100)}..." (relevance: ${(memories[0].relevance * 100).toFixed(1)}%)`,
+                      `Memory RAG: Retrieved ${merged.length} memories (${similarMemories.length} similar + ${recentMemories.length} recent, deduplicated) in ${memoryRagTime}ms`,
                     );
-                  }
 
-                  // Format memories into prompt
-                  const formattedMemories = formatMemoriesForPrompt(memories);
+                    if (merged.length > 0) {
+                      console.log(
+                        `Memory RAG: Top memory: "${merged[0].summary.substring(0, 100)}..." (relevance: ${(merged[0].relevance * 100).toFixed(1)}%)`,
+                      );
+                    }
 
-                  if (formattedMemories.length > 0) {
-                    console.log(
-                      `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
-                    );
-                  }
+                    // Format memories into prompt
+                    const formattedMemories =
+                      formatMemoriesForPrompt(merged);
 
-                  return formattedMemories;
-                }),
+                    if (formattedMemories.length > 0) {
+                      console.log(
+                        `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
+                      );
+                    }
+
+                    return formattedMemories;
+                  }),
               )
               .catch((error) => {
                 const memoryRagTime = Date.now() - memoryRagStart;
@@ -1860,6 +1917,8 @@ Always prioritize the user's document content over generic information. If speci
         let preflightEnableThinking = false;
         let preflightMaxTokens = 2000;
         let preflightThinkingBudget: number | undefined = undefined;
+        let preflightRequiresDocumentCreation = false;
+        let preflightSuggestedDocumentKind: string | null = null;
 
         // If the user supplied URLs, instruct the model to fetch them via searchWeb before answering
         const urlRegex = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/gi;
@@ -1914,11 +1973,15 @@ Always prioritize the user's document content over generic information. If speci
           preflightEnableThinking = decision.enableThinking;
           preflightMaxTokens = decision.maxOutputTokens;
           preflightThinkingBudget = decision.thinkingBudget;
+          preflightRequiresDocumentCreation = decision.requiresDocumentCreation;
+          preflightSuggestedDocumentKind = decision.suggestedDocumentKind;
 
           console.log('[PREFLIGHT] Final decision:', {
             enableThinking: preflightEnableThinking,
             maxOutputTokens: preflightMaxTokens,
             thinkingBudget: preflightThinkingBudget,
+            requiresDocumentCreation: preflightRequiresDocumentCreation,
+            suggestedDocumentKind: preflightSuggestedDocumentKind,
             mode: isNexusMode ? 'nexus' : 'standard',
           });
         } catch (e) {
@@ -1960,40 +2023,6 @@ Always prioritize the user's document content over generic information. If speci
             queryText &&
             !nexusResearchContext,
         });
-
-        // Auto-create composers when the user explicitly requests it and the model might ignore tools
-        // This prevents failures like "I've created..." without actually opening the composer.
-        const lowerQuery = (queryText || '').toLowerCase();
-        const wantsCreate =
-          /\b(create|build|make|start|open|generate|draft)\b/.test(lowerQuery);
-        // More flexible detection for accountability charts - handle misspellings and variations
-        const wantsAccountability =
-          /accountab\w*\s*chart/i.test(lowerQuery) || // Matches accountability/accountibility chart
-          /ac\s+chart/i.test(lowerQuery) || // Matches "AC chart"
-          /accountability\s+ch/i.test(lowerQuery) || // Partial match
-          /accountab\w*\s+org\s*chart/i.test(lowerQuery); // Matches "accountability org chart"
-
-        let preCreatedComposerNote = '';
-        console.log('[AUTO-CREATE] Check:', {
-          wantsCreate,
-          wantsAccountability,
-          lowerQuery,
-        });
-
-        // Instead of auto-creating, we'll enhance the prompt to ensure the AI uses the tool
-        if (wantsCreate && wantsAccountability) {
-          console.log('[TOOL-HINT] User wants to create accountability chart');
-
-          // Extract title if provided
-          const titleMatch =
-            (queryText || '').match(/titled\s+["""']([^"""']+)["""']?/i) ||
-            (queryText || '').match(/called\s+["""']([^"""']+)["""']?/i) ||
-            (queryText || '').match(/title\s+is\s+["""']([^"""']+)["""']?/i);
-          const suggestedTitle = titleMatch?.[1] || 'Accountability Chart';
-
-          // Add a strong hint to the system prompt to use the createDocument tool
-          preCreatedComposerNote = `\n\nCRITICAL: The user is asking to create an Accountability Chart (they may have misspelled it). You MUST use the createDocument tool with kind="accountability" and title="${suggestedTitle}". DO NOT just say you created it - actually call the createDocument tool to open the composer panel.`;
-        }
 
         writer.write({
           type: 'data-custom',
@@ -2061,7 +2090,7 @@ Always prioritize the user's document content over generic information. If speci
         try {
           const result = streamText({
             model: provider.languageModel(finalChatModel),
-            system: `${finalSystemPrompt}${preCreatedComposerNote}`,
+            system: finalSystemPrompt,
             messages: await convertToModelMessages(modifiedMessages),
             stopWhen: stepCountIs(isNexusMode ? 30 : 20), // Increased: Nexus needs more steps for comprehensive research
             experimental_activeTools: [
@@ -2082,6 +2111,17 @@ Always prioritize the user's document content over generic information. If speci
               'parseNaturalLanguageEvent',
               'findSmartAvailability',
             ],
+            prepareStep: ({ stepNumber }) => {
+              if (preflightRequiresDocumentCreation && stepNumber === 0) {
+                return {
+                  toolChoice: {
+                    type: 'tool' as const,
+                    toolName: 'createDocument' as const,
+                  },
+                };
+              }
+              return {};
+            },
             // Removed smoothStream transform - frontend handles smoothing with useSmoothStream hook
             // This allows immediate character-by-character streaming without word buffering
             // AI SDK 5: experimental_generateMessageId removed - use generateId in toUIMessageStreamResponse
@@ -3099,6 +3139,71 @@ Always prioritize the user's document content over generic information. If speci
                       },
                     ],
                   });
+
+                  // Automatic memory extraction - fire and forget
+                  // Silently extracts facts/preferences from the conversation
+                  try {
+                    const assistantText = finalText?.trim() || '';
+                    const userText = queryText?.trim() || '';
+
+                    if (
+                      userText &&
+                      assistantText &&
+                      userText.length > 20
+                    ) {
+                      import('@/lib/ai/memory-extractor').then(
+                        ({ extractAndSaveMemories }) => {
+                          extractAndSaveMemories({
+                            userId: session.user.id,
+                            chatId: id,
+                            userMessage: userText,
+                            assistantMessage: assistantText,
+                            existingMemories: memoryContext,
+                          })
+                            .then((memResult) => {
+                              if (
+                                memResult.saved > 0 ||
+                                memResult.updated > 0
+                              ) {
+                                console.log(
+                                  `[AutoMemory] Extracted ${memResult.saved} new, ${memResult.updated} updated memories`,
+                                );
+                                // Send transient indicator to client
+                                try {
+                                  writer.write({
+                                    type: 'data-custom',
+                                    id: generateUUID(),
+                                    transient: true,
+                                    data: {
+                                      type: 'memory-saved',
+                                      count:
+                                        memResult.saved + memResult.updated,
+                                    },
+                                  });
+                                } catch {
+                                  // Writer may be closed - that's fine
+                                }
+                              }
+                            })
+                            .catch((err) =>
+                              console.error(
+                                '[AutoMemory] Extraction failed:',
+                                err,
+                              ),
+                            );
+                        },
+                      );
+                    }
+                  } catch (memoryError) {
+                    // Never let memory extraction break the chat flow
+                    console.error(
+                      '[AutoMemory] Failed to start extraction:',
+                      memoryError,
+                    );
+                  }
+
+                  // Trigger background summary update for long conversations
+                  triggerBackgroundSummary(id);
 
                   // Link the stream to the assistant message for recovery purposes
                   try {

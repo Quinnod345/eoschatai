@@ -24,87 +24,104 @@ export const createDocument = ({
 }: CreateDocumentProps) =>
   tool({
     description:
-      'Create a document for a writing or content creation activities. This tool will call other functions that will generate the contents of the document based on the title and kind.',
+      'Create a document, artifact, or composer for content creation. ' +
+      'MANDATORY: Use this tool WHENEVER the user asks to create, build, generate, ' +
+      'draft, or make any document, template, chart, spreadsheet, V/TO, accountability chart, ' +
+      'scorecard, or structured content. NEVER say you created a document without calling this tool. ' +
+      'The tool call is what opens the composer for the user.',
     inputSchema: z.object({
       title: z.string(),
       kind: z.enum(composerKinds),
     }),
     execute: async ({ title, kind }) => {
-      const id = generateUUID();
+      try {
+        const id = generateUUID();
 
-      console.log(`[createDocument] Starting document creation with kind: ${kind}, title: ${title}`);
+        console.log(`[createDocument] Starting document creation with kind: ${kind}, title: ${title}`);
 
-      console.log(`[createDocument] Writing kind to dataStream: ${kind}`);
-      dataStream.write({
-        type: 'data-tool',
-        id: generateId(),
-        data: {
-          type: 'kind',
-          content: kind,
-        },
-      });
+        console.log(`[createDocument] Writing kind to dataStream: ${kind}`);
+        dataStream.write({
+          type: 'data-tool',
+          id: generateId(),
+          data: {
+            type: 'kind',
+            content: kind,
+          },
+        });
 
-      dataStream.write({
-        type: 'data-tool',
-        id: generateId(),
-        data: {
-          type: 'id',
-          content: id,
-        },
-      });
+        dataStream.write({
+          type: 'data-tool',
+          id: generateId(),
+          data: {
+            type: 'id',
+            content: id,
+          },
+        });
 
-      dataStream.write({
-        type: 'data-tool',
-        id: generateId(),
-        data: {
-          type: 'title',
-          content: title,
-        },
-      });
+        dataStream.write({
+          type: 'data-tool',
+          id: generateId(),
+          data: {
+            type: 'title',
+            content: title,
+          },
+        });
 
-      dataStream.write({
-        type: 'data-tool',
-        id: generateId(),
-        data: {
-          type: 'clear',
-          content: '',
-        },
-      });
+        dataStream.write({
+          type: 'data-tool',
+          id: generateId(),
+          data: {
+            type: 'clear',
+            content: '',
+          },
+        });
 
-      const documentHandler = documentHandlersByComposerKind.find(
-        (documentHandlerByComposerKind) =>
-          documentHandlerByComposerKind.kind === kind,
-      );
+        const documentHandler = documentHandlersByComposerKind.find(
+          (documentHandlerByComposerKind) =>
+            documentHandlerByComposerKind.kind === kind,
+        );
 
-      if (!documentHandler) {
-        throw new Error(`No document handler found for kind: ${kind}`);
+        if (!documentHandler) {
+          throw new Error(`No document handler found for kind: ${kind}`);
+        }
+
+        console.log(`Document handler found for kind: ${kind}, executing...`);
+
+        await documentHandler.onCreateDocument({
+          id,
+          title,
+          dataStream,
+          session,
+          maxOutputTokens: artifactMaxTokens,
+          // Pass through chat context so the handler can respect explicit user instructions
+          context,
+        });
+
+        console.log(`Document creation complete for kind: ${kind}`);
+
+        dataStream.write({
+          type: 'data-tool',
+          id: generateId(),
+          data: { type: 'finish', content: '' },
+        });
+
+        return {
+          id,
+          title,
+          kind,
+          content: `A document titled "${title}" has been created.`,
+        };
+      } catch (error) {
+        console.error(
+          `[createDocument] FAILED for kind=${kind}, title=${title}:`,
+          error,
+        );
+        return {
+          id: '',
+          title,
+          kind,
+          content: `Failed to create document: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        };
       }
-
-      console.log(`Document handler found for kind: ${kind}, executing...`);
-
-      await documentHandler.onCreateDocument({
-        id,
-        title,
-        dataStream,
-        session,
-        maxOutputTokens: artifactMaxTokens,
-        // Pass through chat context so the handler can respect explicit user instructions
-        context,
-      });
-
-      console.log(`Document creation complete for kind: ${kind}`);
-
-      dataStream.write({
-        type: 'data-tool',
-        id: generateId(),
-        data: { type: 'finish', content: '' },
-      });
-
-      return {
-        id,
-        title,
-        kind,
-        content: `I've created a document titled "${title}" for you in the right panel. You can review and interact with it there.`,
-      };
     },
   });

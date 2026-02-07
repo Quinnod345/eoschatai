@@ -83,7 +83,7 @@ export function ContextSourcesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm">
+      <DialogContent size="default">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-purple-500" />
@@ -94,7 +94,7 @@ export function ContextSourcesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[400px] pr-4">
+        <ScrollArea className="max-h-[60vh] pr-4">
           {loading ? (
             <div className="space-y-4">
               <Skeleton className="h-16 w-full" />
@@ -122,7 +122,7 @@ export function ContextSourcesDialog({
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">
+                          <div className="font-medium text-sm">
                             {source.label}
                           </div>
                           {source.description && (
@@ -146,7 +146,7 @@ export function ContextSourcesDialog({
                           >
                             <div className="text-muted-foreground flex items-center gap-2">
                               <span className="w-1 h-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
-                              <span className="truncate flex-1 font-medium">
+                              <span className="break-words flex-1 font-medium">
                                 {item.name}
                               </span>
                               {item.category && (

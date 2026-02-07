@@ -26,23 +26,38 @@ export function ContextIndicatorBadge({
   const [sources, setSources] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const fetchContextInfo = React.useCallback(async () => {
+  const fetchContextInfo = React.useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch(`/api/messages/${messageId}/context-sources`);
       if (response.ok) {
         const data = await response.json();
         setHasContext(data.hasContext);
         setSources(data.sources || []);
+        return data.hasContext && (data.sources || []).length > 0;
       }
     } catch (error) {
       console.error('Error checking context:', error);
     } finally {
       setLoading(false);
     }
+    return false;
   }, [messageId]);
 
   React.useEffect(() => {
-    fetchContextInfo();
+    let retryTimeout: NodeJS.Timeout | undefined;
+
+    fetchContextInfo().then((found) => {
+      if (!found) {
+        // Context data may not be written yet — retry once after 3s
+        retryTimeout = setTimeout(() => {
+          fetchContextInfo();
+        }, 3000);
+      }
+    });
+
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
   }, [fetchContextInfo]);
 
   if (loading || !hasContext || sources.length === 0) {
