@@ -454,7 +454,7 @@ export function PersonaModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent size="lg" className="overflow-hidden">
+      <DialogContent size="lg">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -547,7 +547,7 @@ export function PersonaModal({
                     />
                     <div className="relative">
                       <div
-                        className="h-16 w-16 rounded-full overflow-hidden border-2 border-border transition-all duration-200 hover:shadow-md flex items-center justify-center bg-muted/20 dark:border-muted"
+                        className="h-16 w-16 rounded-full overflow-hidden border border-border/40 transition-all duration-200 hover:shadow-md flex items-center justify-center bg-muted/20"
                         style={{
                           objectFit: 'cover',
                           borderRadius: '50%',
@@ -692,7 +692,7 @@ export function PersonaModal({
                   </p>
                 </motion.div>
 
-                <Separator className="bg-border/50" />
+                <Separator className="bg-border/20" />
 
                 {/* Associated Documents */}
                 <motion.div
@@ -719,14 +719,14 @@ export function PersonaModal({
                       </span>
                     </div>
                   ) : documents.length === 0 ? (
-                    <div className="text-center py-8 px-4 border-2 border-dashed border-border/50 rounded-lg">
+                    <div className="text-center py-8 px-4 border border-dashed border-border/30 rounded-lg">
                       <p className="text-sm text-muted-foreground">
                         No documents available. Upload documents in your account
                         settings to associate them with personas.
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3 max-h-48 overflow-y-auto border border-border/50 rounded-lg p-3">
+                    <div className="space-y-3 max-h-64 overflow-y-auto border border-border/30 rounded-lg p-3">
                       <AnimatePresence>
                         {documents.map((doc, index) => (
                           <motion.div
@@ -749,8 +749,8 @@ export function PersonaModal({
                               htmlFor={doc.id}
                               className="flex-1 cursor-pointer"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-foreground group-hover:text-eos-orange transition-colors">
+                              <div className="flex items-center justify-between min-w-0">
+                                <span className="font-medium text-foreground group-hover:text-eos-orange transition-colors break-words min-w-0" title={doc.fileName}>
                                   {doc.fileName}
                                 </span>
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
@@ -783,7 +783,7 @@ export function PersonaModal({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.45 }}
                 >
-                  <div className="rounded-lg border bg-card p-4">
+                  <div className="rounded-lg border border-border/30 bg-card p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <Label className="text-sm font-semibold text-foreground">
@@ -877,7 +877,7 @@ export function PersonaModal({
                                   >
                                     <span className="text-lg">{icon}</span>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium truncate">
+                                      <p className="text-sm font-medium break-words" title={doc.title || 'Untitled'}>
                                         {doc.title || 'Untitled'}
                                       </p>
                                       <p className="text-xs text-muted-foreground">

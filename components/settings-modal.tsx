@@ -153,7 +153,7 @@ function MemoriesManager() {
         </Button>
       </div>
 
-      <div className="rounded-lg border divide-y">
+      <div className="rounded-lg border border-border/30 divide-y divide-border/20">
         {loading && memories.length === 0 && (
           <div className="divide-y">
             {[1, 2, 3].map((i) => (
@@ -182,7 +182,7 @@ function MemoriesManager() {
           <div key={m.id} className="p-4 flex items-start gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <div className="font-medium truncate">{m.summary}</div>
+                <div className="font-medium truncate" title={m.summary}>{m.summary}</div>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground uppercase">
                   {m.memoryType}
                 </span>
@@ -196,7 +196,7 @@ function MemoriesManager() {
                 </div>
               )}
               {m.content && (
-                <div className="text-sm text-muted-foreground mt-2 line-clamp-3 whitespace-pre-wrap">
+                <div className="text-sm text-muted-foreground mt-2 line-clamp-5 whitespace-pre-wrap">
                   {m.content}
                 </div>
               )}
@@ -698,13 +698,13 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
     <>
       <AnimatedModal isOpen={isOpen} onClose={onClose} unstyled size="custom" title="Settings">
         <div
-          className="relative bg-background rounded-xl sm:rounded-2xl border border-border/50 shadow-xl settings-modal w-[calc(100vw-1rem)] sm:w-[min(1100px,95vw)] h-[calc(100vh-2rem)] sm:h-[min(80vh,700px)]"
+          className="relative bg-background rounded-xl sm:rounded-2xl border border-border/30 shadow-xl settings-modal w-[calc(100vw-1rem)] sm:w-[min(1100px,95vw)] h-[calc(100vh-2rem)] sm:h-[min(80vh,700px)]"
         >
           <div
             className="absolute inset-0 settings-modal-grid overflow-hidden grid grid-rows-[auto_1fr] sm:grid-rows-none sm:grid-cols-[minmax(180px,224px)_minmax(300px,1fr)]"
           >
             {/* Sidebar - horizontal scrolling tabs on mobile, vertical on desktop */}
-            <div className="bg-muted/30 p-2 sm:p-4 border-b sm:border-b-0 sm:border-r overflow-x-auto sm:overflow-x-visible overflow-y-auto">
+            <div className="bg-muted/30 p-2 sm:p-4 border-b border-border/20 sm:border-b-0 sm:border-r sm:border-border/20 overflow-x-auto sm:overflow-x-visible overflow-y-auto">
               <h2 id="settings-nav-heading" className="text-base sm:text-lg font-semibold mb-2 sm:mb-4 hidden sm:block">Settings</h2>
               <nav 
                 aria-labelledby="settings-nav-heading"
@@ -741,7 +741,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
             <div className="flex flex-col min-w-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6">
                 <div 
-                  className="max-w-xl mx-auto w-full"
+                  className="max-w-2xl mx-auto w-full"
                   role="tabpanel"
                   id={`settings-panel-${activeSection}`}
                   aria-labelledby={`settings-tab-${activeSection}`}
@@ -841,7 +841,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
 
                         {/* Password */}
                         {session?.user?.type !== 'guest' && (
-                          <div className="space-y-4 pt-4 border-t">
+                          <div className="space-y-4 pt-4 border-t border-border/20">
                             <h4 className="text-sm font-medium">
                               Change Password
                             </h4>
@@ -939,7 +939,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                           >
                             <SelectTrigger
                               id="fontSize"
-                              className="w-full max-w-xs"
+                              className="w-full max-w-sm"
                             >
                               <SelectValue />
                             </SelectTrigger>
@@ -965,7 +965,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                           >
                             <SelectTrigger
                               id="language"
-                              className="w-full max-w-xs"
+                              className="w-full max-w-sm"
                             >
                               <SelectValue />
                             </SelectTrigger>
@@ -1018,7 +1018,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                       </h3>
                       <div className="space-y-6">
                         {/* Predictive suggestions toggle */}
-                        <div className="rounded-xl border bg-card p-4">
+                        <div className="rounded-xl border border-border/30 bg-card p-4">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1">
                               <div className="font-medium">
@@ -1046,7 +1046,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Glass Effects toggle */}
-                        <div className="rounded-xl border bg-card p-4">
+                        <div className="rounded-xl border border-border/30 bg-card p-4">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1">
                               <div className="font-medium">
@@ -1080,7 +1080,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* EOS Gradient toggle */}
-                        <div className="rounded-xl border bg-card p-4">
+                        <div className="rounded-xl border border-border/30 bg-card p-4">
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex-1">
                               <div className="font-medium">
@@ -1113,7 +1113,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                           </div>
                         </div>
 
-                        <Separator className="my-4" />
+                        <Separator className="my-4 bg-border/20" />
 
                         <h4 className="text-lg font-medium">Company</h4>
                         <div className="space-y-4">
@@ -1354,7 +1354,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                       </h3>
                       <div className="space-y-6">
                         {/* Google Calendar Integration */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1466,7 +1466,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Future Integrations Preview */}
-                        <div className="rounded-lg border bg-muted/30 opacity-60">
+                        <div className="rounded-lg border border-border/30 bg-muted/30 opacity-60">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1520,7 +1520,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                       <div className="space-y-6">
                         {/* Personal Subscription */}
                         {session?.user && !org && (
-                          <div className="rounded-lg border bg-card p-6">
+                          <div className="rounded-lg border border-border/30 bg-card p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-semibold mb-2">
@@ -1570,7 +1570,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
 
                         {/* Organization Subscription Notice */}
                         {org && (
-                          <div className="rounded-lg border bg-card p-6">
+                          <div className="rounded-lg border border-border/30 bg-card p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-semibold mb-2">
@@ -1602,7 +1602,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                           </div>
                         )}
 
-                        <div className="rounded-lg border bg-muted/30 p-6">
+                        <div className="rounded-lg border border-border/30 bg-muted/30 p-6">
                           <h4 className="font-semibold mb-2">
                             Testing Controls (local/dev)
                           </h4>
@@ -1741,7 +1741,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                       </h3>
                       <div className="space-y-6">
                         {/* Data Overview */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1817,7 +1817,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Data Export */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1866,7 +1866,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Data Management */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1907,7 +1907,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Privacy Information */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -1949,7 +1949,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                                   </div>
                                 </div>
 
-                                <div className="mt-4 pt-4 border-t">
+                                <div className="mt-4 pt-4 border-t border-border/20">
                                   <div className="flex flex-wrap gap-2">
                                     <Button
                                       variant="outline"
@@ -2067,7 +2067,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </p>
 
                         {/* Chat Usage */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -2173,7 +2173,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Upload Usage */}
-                        <div className="rounded-lg border bg-card">
+                        <div className="rounded-lg border border-border/30 bg-card">
                           <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className="flex-shrink-0 mt-1">
@@ -2250,7 +2250,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         </div>
 
                         {/* Plan Information */}
-                        <div className="rounded-lg border bg-muted/30">
+                        <div className="rounded-lg border border-border/30 bg-muted/30">
                           <div className="p-6">
                             <h4 className="font-semibold mb-2">Your Plan</h4>
                             <p className="text-lg font-bold capitalize mb-2">
@@ -2289,7 +2289,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
               </div>
 
               {/* Footer */}
-              <div className="border-t p-4 flex justify-end gap-2">
+              <div className="border-t border-border/20 p-4 flex justify-end gap-2">
                 <Button variant="outline" onClick={onClose}>
                   Cancel
                 </Button>

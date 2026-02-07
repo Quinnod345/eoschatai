@@ -116,7 +116,7 @@ export function ContextSourcesDialog({
                 return (
                   <div
                     key={index}
-                    className="rounded-lg border bg-card p-3 space-y-2 hover:bg-accent/50 transition-colors"
+                    className="rounded-lg border border-border/30 bg-card p-3 space-y-2 hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -173,7 +173,7 @@ export function ContextSourcesDialog({
               })}
 
               {stats && stats.totalChunks > 0 && (
-                <div className="mt-4 pt-3 border-t text-xs text-muted-foreground space-y-1">
+                <div className="mt-4 pt-3 border-t border-border/20 text-xs text-muted-foreground space-y-1">
                   <div className="flex justify-between">
                     <span>Total context chunks:</span>
                     <span className="font-medium">{stats.totalChunks}</span>

@@ -102,7 +102,7 @@ export function FeedbackModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 rounded-2xl shadow-2xl z-modal-content"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl bg-background/90 backdrop-blur-[12px] border border-white/20 dark:border-zinc-700/30 rounded-2xl shadow-2xl z-modal-content"
           >
             <div className="p-6">
               {/* Header */}
@@ -152,7 +152,7 @@ export function FeedbackModal({
                         'px-3 py-2 text-sm rounded-md border transition-colors',
                         selectedCategory === category.id
                           ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-input hover:bg-accent hover:text-accent-foreground',
+                          : 'border-border/40 hover:bg-accent hover:text-accent-foreground',
                       )}
                     >
                       {category.label}

@@ -991,7 +991,7 @@ export function PersonaWizard({
 
                 {/* Shared Persona option - only show if user has org permissions */}
                 {canCreateSharedPersona && (
-                  <div className="pt-4 border-t">
+                  <div className="pt-4 border-t border-border/20">
                     <div className="flex items-start space-x-3">
                       <Checkbox
                         id="isShared"
@@ -1004,7 +1004,7 @@ export function PersonaWizard({
                         }
                         className="mt-0.5"
                       />
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <Label
                           htmlFor="isShared"
                           className="text-sm font-medium cursor-pointer"
@@ -1037,21 +1037,21 @@ export function PersonaWizard({
                   <Label className="text-sm font-medium mb-2 block">
                     Choose a Template
                   </Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {PERSONALITY_TEMPLATES.map((template) => (
                       <button
                         type="button"
                         key={template.id}
-                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                        className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                           selectedTemplate === template.id
                             ? 'border-primary bg-primary/5 shadow-sm'
-                            : 'border-border hover:border-primary/50 hover:shadow-sm'
+                            : 'border-border/40 hover:border-primary/50 hover:shadow-sm'
                         }`}
                         onClick={() => handleTemplateSelect(template)}
                       >
-                        <div className="flex items-start gap-2">
+                        <div className="flex items-start gap-3">
                           <div
-                            className={`w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 ${
+                            className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${
                               selectedTemplate === template.id
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted'
@@ -1063,11 +1063,11 @@ export function PersonaWizard({
                               <BrainIcon size={16} />
                             )}
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-medium mb-0.5">
                               {template.name}
                             </h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
+                            <p className="text-xs text-muted-foreground leading-relaxed break-words">
                               {template.description}
                             </p>
                           </div>
@@ -1098,8 +1098,8 @@ export function PersonaWizard({
                         setSelectedTemplate('custom');
                     }}
                     placeholder="Detailed instructions for how this AI persona should behave..."
-                    rows={6}
-                    className={`resize-none transition-colors ${
+                    rows={8}
+                    className={`resize-y transition-colors ${
                       errors.instructions ? 'border-destructive' : ''
                     }`}
                   />
@@ -1148,13 +1148,13 @@ export function PersonaWizard({
                       )}
                     </div>
 
-                    <div className="border rounded-lg bg-muted/20 p-1">
-                      <ScrollArea className="h-32">
-                        <div className="space-y-1 p-2">
+                    <div className="border border-border/30 rounded-lg bg-muted/10 p-2">
+                      <ScrollArea className="h-48">
+                        <div className="space-y-2 p-2">
                           {documents.map((doc) => (
                             <div
                               key={doc.id}
-                              className="flex items-center space-x-2 p-2 rounded-md hover:bg-background/60 transition-colors"
+                              className="flex items-center space-x-3 p-2 rounded-md hover:bg-background/60 transition-colors"
                             >
                               <Checkbox
                                 id={doc.id}
@@ -1166,15 +1166,15 @@ export function PersonaWizard({
                               />
                               <Label
                                 htmlFor={doc.id}
-                                className="flex-1 cursor-pointer text-sm"
+                                className="flex-1 cursor-pointer text-sm min-w-0"
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="truncate font-medium">
+                                <div className="flex items-center justify-between gap-2 min-w-0">
+                                  <span className="font-medium break-words min-w-0">
                                     {doc.fileName}
                                   </span>
                                   <Badge
                                     variant="outline"
-                                    className="text-xs ml-2"
+                                    className="text-xs shrink-0"
                                   >
                                     {doc.category}
                                   </Badge>
@@ -1205,7 +1205,7 @@ export function PersonaWizard({
 
                   <button
                     type="button"
-                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-all duration-200 group w-full"
+                    className="border border-dashed border-border/40 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/10 transition-all duration-200 group w-full"
                     onClick={() => documentFileInputRef.current?.click()}
                   >
                     <div className="mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors">
@@ -1222,7 +1222,7 @@ export function PersonaWizard({
                   {/* Uploaded Files List */}
                   {uploadedFiles.length > 0 && (
                     <div className="mt-3">
-                      <div className="space-y-1 max-h-24 overflow-y-auto">
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
                         {uploadedFiles.map((file) => (
                           <div
                             key={file.name}
@@ -1232,7 +1232,7 @@ export function PersonaWizard({
                               <div className="text-primary">
                                 <FileTextIcon size={14} />
                               </div>
-                              <span className="truncate text-xs font-medium">
+                              <span className="break-words text-xs font-medium min-w-0">
                                 {file.name}
                               </span>
                             </div>
@@ -1287,9 +1287,9 @@ export function PersonaWizard({
                 </div>
 
                 {/* Composer Documents for Persona RAG */}
-                <div className="rounded-lg border bg-card p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
+                <div className="rounded-lg border border-border/30 bg-card p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div className="min-w-0">
                       <Label className="text-sm font-medium">
                         Composer Documents
                       </Label>
@@ -1301,12 +1301,13 @@ export function PersonaWizard({
                     <Button
                       size="sm"
                       onClick={() => setShowComposerPicker(true)}
+                      className="shrink-0 self-start sm:self-auto"
                     >
                       Choose Composers
                     </Button>
                   </div>
 
-                  <div className="mb-3 p-3 bg-muted/30 rounded-md flex items-center justify-between">
+                  <div className="mb-3 p-3 bg-muted/30 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <label className="text-xs flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1314,7 +1315,7 @@ export function PersonaWizard({
                         onChange={(e) =>
                           setUsePrimaryDocsForPersona(e.target.checked)
                         }
-                        className="w-4 h-4"
+                        className="w-4 h-4 shrink-0"
                       />
                       Use primary composers automatically for this persona
                     </label>
@@ -1322,6 +1323,7 @@ export function PersonaWizard({
                       variant="outline"
                       size="sm"
                       onClick={savePersonaComposerSettings}
+                      className="shrink-0 self-end sm:self-auto"
                     >
                       Save Composer Context
                     </Button>
@@ -1335,7 +1337,7 @@ export function PersonaWizard({
                         <p className="text-xs text-muted-foreground">
                           Selected composers:
                         </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {Object.entries(composerContext)
                             .filter(([, v]) => v)
                             .map(([docId]) => {
@@ -1382,7 +1384,7 @@ export function PersonaWizard({
                                 >
                                   <span className="text-lg">{icon}</span>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">
+                                    <p className="text-sm font-medium break-words">
                                       {doc.title || 'Untitled'}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
@@ -1427,7 +1429,7 @@ export function PersonaWizard({
                     className="hidden"
                   />
                   <div className="relative group">
-                    <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-border flex items-center justify-center bg-muted/30 group-hover:border-primary/50 transition-colors">
+                    <div className="h-20 w-20 rounded-full overflow-hidden border border-border/40 flex items-center justify-center bg-muted/20 group-hover:border-primary/50 transition-colors">
                       {tempIconUrl || formData.iconUrl ? (
                         <Image
                           src={tempIconUrl || formData.iconUrl}
@@ -1489,9 +1491,9 @@ export function PersonaWizard({
 
             <div className="space-y-4">
               {/* Persona Preview */}
-              <div className="border rounded-lg p-4 bg-muted/10">
+              <div className="border border-border/30 rounded-lg p-4 bg-muted/5">
                 <div className="flex items-start gap-3">
-                  <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-border flex items-center justify-center bg-background">
+                  <div className="h-12 w-12 rounded-full overflow-hidden border border-border/40 flex items-center justify-center bg-background">
                     {tempIconUrl || formData.iconUrl ? (
                       <Image
                         src={tempIconUrl || formData.iconUrl}
@@ -1542,7 +1544,7 @@ export function PersonaWizard({
                   <Label className="text-sm font-medium mb-2 block">
                     Instructions
                   </Label>
-                  <div className="bg-background/50 rounded-md p-3 max-h-32 overflow-y-auto border">
+                  <div className="bg-background/50 rounded-md p-3 max-h-48 overflow-y-auto border border-border/20">
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                       {formData.instructions}
                     </p>
@@ -1593,9 +1595,9 @@ export function PersonaWizard({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent size="xl" className="h-[calc(100vh-2rem)] sm:h-[85vh] p-0 flex flex-col overflow-hidden">
+      <DialogContent size="xl" className="h-[calc(100vh-2rem)] sm:h-[85vh] p-0 flex flex-col overflow-hidden border-border/30">
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b bg-muted/30">
+        <DialogHeader className="px-4 sm:px-6 py-4 shrink-0">
           <DialogTitle className="text-lg">
             {isEditing ? 'Edit Persona' : 'Create New Persona'}
           </DialogTitle>
@@ -1607,7 +1609,7 @@ export function PersonaWizard({
         </DialogHeader>
 
         {/* Progress Steps */}
-        <div className="px-6 py-3 border-b bg-background">
+        <div className="px-4 sm:px-6 py-2 shrink-0 border-b border-border/20">
           <div className="flex items-center justify-between">
             {WIZARD_STEPS.map((step, index) => {
               const status = getStepStatus(index);
@@ -1617,7 +1619,7 @@ export function PersonaWizard({
                     type="button"
                     onClick={() => handleStepClick(index)}
                     disabled={status === 'upcoming' && index > currentStep + 1}
-                    className={`flex items-center gap-2 p-2 rounded-lg transition-all duration-200 ${
+                    className={`flex items-center gap-1.5 px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-lg transition-all duration-200 ${
                       status === 'active'
                         ? 'text-primary bg-primary/10'
                         : status === 'completed'
@@ -1630,7 +1632,7 @@ export function PersonaWizard({
                     }`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-200 ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-200 shrink-0 ${
                         status === 'active'
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : status === 'completed'
@@ -1644,16 +1646,13 @@ export function PersonaWizard({
                         index + 1
                       )}
                     </div>
-                    <div className="hidden md:block text-left">
-                      <div className="text-sm font-medium">{step.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {step.description}
-                      </div>
-                    </div>
+                    <span className="hidden sm:inline text-xs font-medium whitespace-nowrap">
+                      {step.title}
+                    </span>
                   </button>
                   {index < WIZARD_STEPS.length - 1 && (
                     <div
-                      className={`w-8 h-px mx-2 transition-colors ${
+                      className={`w-3 sm:w-6 h-px mx-0.5 sm:mx-1.5 transition-colors shrink-0 ${
                         completedSteps.has(index)
                           ? 'bg-primary/20'
                           : 'bg-border'
@@ -1667,7 +1666,7 @@ export function PersonaWizard({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 bg-background">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -1682,7 +1681,7 @@ export function PersonaWizard({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t bg-muted/30 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 border-t border-border/20 flex items-center justify-between shrink-0">
           <Button
             type="button"
             variant="outline"

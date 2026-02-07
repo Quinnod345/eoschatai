@@ -554,7 +554,7 @@ export function DocumentContextModal({
         /* Enhanced modal styling with shadows */
         .${styles.enhancedModal} {
           background-color: hsl(var(--background));
-          border: 1px solid var(--color-border);
+          border: 1px solid hsl(var(--border) / 0.3);
           width: 100%;
           max-width: 1024px;
           display: flex;
@@ -587,7 +587,7 @@ export function DocumentContextModal({
 
         /* Drag and drop zone */
         .document-upload-zone {
-          border: 2px dashed hsl(var(--border));
+          border: 1px dashed hsl(var(--border) / 0.4);
           border-radius: 0.5rem;
           padding: 1.5rem;
           text-align: center;
@@ -616,7 +616,7 @@ export function DocumentContextModal({
           justify-content: space-between;
           padding: 0.75rem;
           border-radius: 0.375rem;
-          border: 1px solid hsl(var(--border));
+          border: 1px solid hsl(var(--border) / 0.3);
           margin-bottom: 0.5rem;
           transition: all 0.2s;
         }
@@ -632,7 +632,7 @@ export function DocumentContextModal({
           background-color: hsl(var(--background));
           padding-top: 0.75rem;
           margin-top: 0.75rem;
-          border-top: 1px solid hsl(var(--border) / 0.5);
+          border-top: 1px solid hsl(var(--border) / 0.2);
           z-index: 10;
         }
       `;
@@ -1003,7 +1003,7 @@ export function DocumentContextModal({
           </div>
 
           {/* Upload Documents Section */}
-          <div className="rounded-lg border bg-card p-4 sm:p-6 mb-6">
+          <div className="rounded-lg border border-border/30 bg-card p-4 sm:p-6 mb-6">
             <div className="mb-4">
               <div className="text-base font-semibold">Upload Documents</div>
               <div className="text-sm text-muted-foreground mt-1">
@@ -1115,7 +1115,7 @@ export function DocumentContextModal({
           </div>
 
           {/* Recordings Context Section */}
-          <div className="rounded-lg border bg-card p-4 sm:p-6 mb-6">
+          <div className="rounded-lg border border-border/30 bg-card p-4 sm:p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-base font-semibold">Recordings</div>
@@ -1138,10 +1138,10 @@ export function DocumentContextModal({
                 recordings.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between p-2 rounded-md border"
+                    className="flex items-center justify-between p-2 rounded-md border border-border/30"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate" title={r.title}>
                         {r.title}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -1176,7 +1176,7 @@ export function DocumentContextModal({
           </div>
 
           {/* Composer Picker Section */}
-          <div className="rounded-lg border bg-card p-4 sm:p-6 mb-6">
+          <div className="rounded-lg border border-border/30 bg-card p-4 sm:p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-base font-semibold">
@@ -1263,7 +1263,7 @@ export function DocumentContextModal({
                           >
                             <span className="text-lg">{getIcon()}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
+                              <p className="text-sm font-medium truncate" title={doc.title || 'Untitled'}>
                                 {doc.title || 'Untitled'}
                               </p>
                               <p className="text-xs text-muted-foreground">
@@ -1384,7 +1384,7 @@ export function DocumentContextModal({
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-auto pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[70vh] overflow-auto pr-2">
               {composerLoading ? (
                 <div className="col-span-full flex items-center justify-center py-12">
                   <div className="text-center">
