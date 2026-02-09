@@ -212,19 +212,21 @@ export function Dropdown({
           backgroundOpacity={0.25}
           blur={11}
           isButton={true}
-          className="h-10 flex items-center gap-2 px-4 text-sm font-medium cursor-pointer"
+          className="h-10 cursor-pointer"
         >
-          <Archive className="h-4 w-4" />
-          <span>Saved Content</span>
-          {totalSaved > 0 && (
-            <Badge
-              variant="secondary"
-              className="ml-1 h-5 px-1.5 text-[10px] bg-muted-foreground/20"
-            >
-              {totalSaved}
-            </Badge>
-          )}
-          <ChevronDown className="h-4 w-4 ml-1 text-muted-foreground" />
+          <div className="flex items-center gap-3 px-2 text-sm font-medium">
+            <Archive className="h-4 w-4 shrink-0" />
+            <span>Saved Content</span>
+            {totalSaved > 0 && (
+              <Badge
+                variant="secondary"
+                className="h-5 px-1.5 text-[10px] bg-muted-foreground/20"
+              >
+                {totalSaved}
+              </Badge>
+            )}
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
         </GlassSurface>
       </DropdownMenuTrigger>
 
@@ -235,8 +237,8 @@ export function Dropdown({
         avoidCollisions={true}
         collisionPadding={{ top: 8, right: 8, bottom: 80, left: 8 }}
       >
-        <div className="p-4 pb-2">
-          <div className="flex items-center justify-between mb-3">
+        <div className="p-4 pb-3">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-sm">Saved Content</h3>
             <Button
               variant="ghost"
@@ -249,17 +251,17 @@ export function Dropdown({
           </div>
 
           {/* Summary and Search */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+              <Badge variant="secondary" className="h-5 px-2 text-[10px]">
                 Pins {chatPinsCount + globalPinsCount}
               </Badge>
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="secondary" className="h-5 px-2 text-[10px]">
                 Bookmarks {bookmarksCount}
               </Badge>
             </div>
           </div>
-          <div className="relative mb-3">
+          <div className="relative mb-4">
             <Input
               ref={searchInputRef}
               placeholder="Search saved content..."
@@ -297,27 +299,27 @@ export function Dropdown({
               </TabsTrigger>
             </TabsList>
 
-            <ScrollArea className="h-[50vh] max-h-[320px] mt-3">
+            <ScrollArea className="h-[50vh] max-h-[320px] mt-4">
               {/* Pinned Messages Tab */}
               <TabsContent value="pinned" className="mt-0 space-y-2">
                 {/* Scope Toggle */}
-                <div className="flex items-center gap-2 mb-3 p-2 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-3 p-2.5 bg-muted/30 rounded-lg">
                   <Button
                     size="sm"
                     variant={pinScope === 'chat' ? 'default' : 'ghost'}
-                    className="h-7 text-xs"
+                    className="h-7 text-xs gap-1.5"
                     onClick={() => setPinScope('chat')}
                   >
-                    <MessageSquare className="h-3 w-3 mr-1" />
+                    <MessageSquare className="h-3 w-3" />
                     This Chat ({chatPinsCount})
                   </Button>
                   <Button
                     size="sm"
                     variant={pinScope === 'global' ? 'default' : 'ghost'}
-                    className="h-7 text-xs"
+                    className="h-7 text-xs gap-1.5"
                     onClick={() => setPinScope('global')}
                   >
-                    <Globe className="h-3 w-3 mr-1" />
+                    <Globe className="h-3 w-3" />
                     All Chats ({globalPinsCount})
                   </Button>
                 </div>
@@ -376,9 +378,9 @@ export function Dropdown({
                         }
                       }}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-start gap-2.5">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1.5">
                             {pinScope === 'global' && (
                               <Badge
                                 variant="outline"
@@ -493,7 +495,7 @@ export function Dropdown({
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate mb-1">
+                            <p className="text-sm font-medium break-words mb-1.5">
                               {getDisplayTitle(
                                 'title' in chat &&
                                   typeof chat.title === 'string'

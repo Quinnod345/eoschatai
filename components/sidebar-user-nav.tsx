@@ -251,11 +251,11 @@ export function SidebarUserNav({
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <div className="flex flex-col justify-center items-center gap-2 p-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+            <DropdownMenuContent className="w-64" align="start" side="right" sideOffset={8} forceMount>
+              <div className="flex flex-col justify-center items-center gap-2.5 px-3 py-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
                   {profilePicture ? (
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-9 w-9">
                       <AvatarImage src={profilePicture} alt={userName} />
                       <AvatarFallback>
                         <User className="h-4 w-4" />
@@ -265,9 +265,9 @@ export function SidebarUserNav({
                     <User className="h-4 w-4" />
                   )}
                 </div>
-                <div className="space-y-1 text-center">
-                  <p className="text-sm font-medium leading-none">{userName}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                <div className="space-y-1 text-center min-w-0 w-full">
+                  <p className="text-sm font-medium leading-none break-words">{userName}</p>
+                  <p className="text-xs leading-none text-muted-foreground break-words">
                     {user.email}
                   </p>
                 </div>

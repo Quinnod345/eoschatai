@@ -110,7 +110,7 @@ export function Chat({
   // Add loading state for research mode changes
   const [researchModeChanging, setResearchModeChanging] = useState(false);
 
-  // Simplified Nexus state - just track if we're researching and the current query
+  // Deep Research state - tracks multi-phase research progress
   const [isNexusResearching, setIsNexusResearching] = useState(false);
   const [currentNexusQuery, setCurrentNexusQuery] = useState<string | null>(
     null,
@@ -123,6 +123,11 @@ export function Chat({
       url: string;
     }>
   >([]);
+  // Deep research progress state
+  const [deepResearchPhase, setDeepResearchPhase] = useState<string | null>(null);
+  const [deepResearchMessage, setDeepResearchMessage] = useState<string | null>(null);
+  const [deepResearchProgress, setDeepResearchProgress] = useState<number>(0);
+  const [deepResearchSourceCount, setDeepResearchSourceCount] = useState<number>(0);
 
   // Add logging for research mode changes
   useEffect(() => {
@@ -831,17 +836,61 @@ export function Chat({
 
       const eventType = item.type as string;
 
-      // Handle simplified Nexus events
+      // Handle Nexus / Deep Research events
       switch (eventType) {
         case 'nexus-mode-active':
-          console.log('[Chat] Nexus mode activated');
+          console.log('[Chat] Deep research mode activated');
           setIsNexusResearching(true);
+          setDeepResearchPhase('planning');
+          setDeepResearchMessage('Starting deep research...');
+          setDeepResearchProgress(0);
+          setDeepResearchSourceCount(0);
           break;
+        case 'deep-research-progress': {
+          setIsNexusResearching(true);
+          const phase = item.phase || item.detail?.phase || 'searching';
+          const message = item.message || 'Researching...';
+          const progress = item.overallProgress || 0;
+          setDeepResearchPhase(phase);
+          setDeepResearchMessage(message);
+          setDeepResearchProgress(progress);
+          // Extract source count from detail
+          if (item.detail?.sourcesFound !== undefined) {
+            setDeepResearchSourceCount(item.detail.sourcesFound);
+          } else if (item.detail?.totalSources !== undefined) {
+            setDeepResearchSourceCount(item.detail.totalSources);
+          }
+          if (item.detail?.currentQuery) {
+            setCurrentNexusQuery(item.detail.currentQuery);
+          }
+          console.log('[Chat] Deep research progress:', { phase, message, progress });
+          break;
+        }
+        case 'deep-research-citations':
+          console.log('[Chat] Deep research citations received:', item.citations?.length);
+          if (item.citations) {
+            setNexusCitations(item.citations.map((c: any) => ({
+              number: c.index,
+              title: c.title,
+              url: c.url,
+            })));
+          }
+          break;
+        case 'deep-research-complete':
+          console.log('[Chat] Deep research complete:', item);
+          setDeepResearchPhase('complete');
+          setDeepResearchMessage(`Research complete: ${item.totalSources || 0} sources, ${item.totalSearches || 0} searches`);
+          setDeepResearchProgress(100);
+          break;
+        case 'deep-research-error':
+          console.error('[Chat] Deep research error:', item.error);
+          setDeepResearchPhase('error');
+          setDeepResearchMessage(`Research error: ${item.error}`);
+          break;
+        // Legacy nexus events (backward compat)
         case 'nexus-search-progress':
-          // Update the current search query for the progress indicator
           setIsNexusResearching(true);
           setCurrentNexusQuery(item.query || 'Searching...');
-          console.log('[Chat] Nexus search progress:', item.query);
           break;
         case 'nexus-followup-questions':
           console.log('[Chat] Follow-up questions received:', item.questions);
@@ -851,11 +900,19 @@ export function Chat({
     });
   }, [data]);
 
-  // Clear Nexus research state when streaming completes
+  // Clear Nexus / Deep Research state when streaming completes
   useEffect(() => {
     if (status === 'ready' || status === 'error') {
       setIsNexusResearching(false);
       setCurrentNexusQuery(null);
+      // Clear deep research state after a brief delay so the user sees the final status
+      const timer = setTimeout(() => {
+        setDeepResearchPhase(null);
+        setDeepResearchMessage(null);
+        setDeepResearchProgress(0);
+        setDeepResearchSourceCount(0);
+      }, 2000);
+      return () => clearTimeout(timer);
     }
   }, [status]);
 
@@ -2119,20 +2176,38 @@ export function Chat({
           </div>
         )}
 
-        {/* Simple Nexus research progress indicator */}
+        {/* Deep Research progress indicator */}
         <AnimatePresence>
-          {isNexusResearching && currentNexusQuery && (
+          {isNexusResearching && deepResearchPhase && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="absolute bottom-28 md:bottom-32 left-0 right-0 mx-auto px-3 md:px-4 w-full md:max-w-3xl z-20"
             >
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
-                <Telescope className="w-4 h-4 animate-pulse" />
-                <span className="text-sm font-medium">
-                  Researching: {currentNexusQuery}
-                </span>
+              <div className="flex flex-col gap-2 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                <div className="flex items-center gap-3">
+                  <Telescope className="w-4 h-4 animate-pulse flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium block truncate">
+                      {deepResearchMessage || 'Researching...'}
+                    </span>
+                    {deepResearchSourceCount > 0 && deepResearchPhase !== 'synthesizing' && deepResearchPhase !== 'complete' && (
+                      <span className="text-xs opacity-70">
+                        {deepResearchSourceCount} sources found
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Progress bar */}
+                {deepResearchProgress > 0 && deepResearchPhase !== 'complete' && (
+                  <div className="w-full bg-purple-500/20 rounded-full h-1.5">
+                    <div
+                      className="bg-purple-500 h-1.5 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${Math.min(deepResearchProgress, 100)}%` }}
+                    />
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

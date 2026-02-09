@@ -152,14 +152,14 @@ export function AppSidebar({ user }: { user: User | undefined }) {
   // ============================================================
   // SPRING ANIMATION - Smooth, satisfying feel
   // ============================================================
-  // Custom spring curve: fast start, gentle settle
-  const springCurve = 'cubic-bezier(0.4, 0.0, 0.2, 1)';
+  // Apple-style ease: quick acceleration, gentle deceleration
+  const springCurve = 'cubic-bezier(0.32, 0.72, 0, 1)';
   const fastEasing = springCurve;
 
   // Section headers (Composer, Chats) - consistent fade for both states
   const getHeaderFadeStyle = () => ({
     opacity: isCollapsed ? 0 : 1,
-    transition: `opacity 180ms ${springCurve}`,
+    transition: `opacity 120ms ${springCurve}`,
   });
 
   return (
@@ -180,7 +180,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
             style={{
               opacity: isCollapsed ? 1 : 0,
               pointerEvents: isCollapsed ? 'auto' : 'none',
-              transition: `opacity 150ms ${fastEasing}`,
+              transition: `opacity 120ms ${fastEasing}`,
             }}
           >
             <SidebarToggle />
@@ -192,7 +192,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
             style={{
               opacity: isCollapsed ? 0 : 1,
               pointerEvents: isCollapsed ? 'none' : 'auto',
-              transition: `opacity 150ms ${fastEasing}`,
+              transition: `opacity 120ms ${fastEasing}`,
             }}
           >
             {/* Logo */}
@@ -256,7 +256,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
         style={{
           maxHeight: isCollapsed ? '100px' : '0px',
           opacity: isCollapsed ? 1 : 0,
-          transition: `max-height 150ms ${fastEasing}, opacity 150ms ${fastEasing}`,
+          transition: `max-height 280ms ${fastEasing}, opacity 120ms ${fastEasing}`,
           pointerEvents: isCollapsed ? 'auto' : 'none',
         }}
       >
@@ -343,7 +343,7 @@ export function AppSidebar({ user }: { user: User | undefined }) {
                           className="absolute left-[calc(12px+16px+8px)] top-1/2 -translate-y-1/2 font-normal whitespace-nowrap pointer-events-none"
                           style={{
                             opacity: 1,
-                            transition: `opacity 150ms ${fastEasing}`,
+                            transition: `opacity 120ms ${fastEasing}`,
                           }}
                         >
                           {item.label}

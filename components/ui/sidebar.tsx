@@ -104,10 +104,10 @@ const SidebarProvider = React.forwardRef<
       // Add class to pause expensive effects during transition
       if (!isMobile) {
         document.documentElement.classList.add('sidebar-animating');
-        // Remove after transition completes (220ms + 30ms buffer)
+        // Remove after transition completes (280ms + 30ms buffer)
         setTimeout(() => {
           document.documentElement.classList.remove('sidebar-animating');
-        }, 250);
+        }, 310);
       }
 
       return isMobile
@@ -272,8 +272,8 @@ const Sidebar = React.forwardRef<
           style={{
             margin: 0,
             padding: 0,
-            transitionDuration: '220ms',
-            transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+            transitionDuration: '280ms',
+            transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
           }}
         />
         <div
@@ -290,8 +290,8 @@ const Sidebar = React.forwardRef<
             className,
           )}
           style={{
-            transitionDuration: '220ms',
-            transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+            transitionDuration: '280ms',
+            transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
           }}
           {...props}
         >
@@ -415,10 +415,10 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn('flex flex-col gap-2 p-2', 'transition-all', className)}
+      className={cn('flex flex-col gap-2 p-2', 'transition-[opacity]', className)}
       style={{
-        transitionDuration: '180ms',
-        transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transitionDuration: '120ms',
+        transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
       }}
       {...props}
     />
@@ -434,10 +434,10 @@ const SidebarFooter = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="footer"
-      className={cn('flex flex-col gap-2 p-2', 'transition-all', className)}
+      className={cn('flex flex-col gap-2 p-2', 'transition-[opacity]', className)}
       style={{
-        transitionDuration: '180ms',
-        transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transitionDuration: '120ms',
+        transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
       }}
       {...props}
     />
@@ -470,13 +470,13 @@ const SidebarContent = React.forwardRef<
       data-sidebar="content"
       className={cn(
         'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain',
-        'transition-all',
+        'transition-[opacity]',
         'group-data-[collapsible=offcanvas]:overflow-x-hidden',
         className,
       )}
       style={{
-        transitionDuration: '180ms',
-        transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transitionDuration: '120ms',
+        transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
       }}
       {...props}
     />
@@ -510,13 +510,13 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        'flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opacity] focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
+        'flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opacity] focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0 will-change-[margin,opacity]',
         'group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0',
         className,
       )}
       style={{
-        transitionDuration: '180ms',
-        transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transitionDuration: '120ms',
+        transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
       }}
       {...props}
     />

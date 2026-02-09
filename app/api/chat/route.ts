@@ -66,7 +66,7 @@ import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
 
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 minutes - deep research mode needs extended time
 
 let globalStreamContext: ResumableStreamContext | null = null;
 
@@ -2035,31 +2035,112 @@ Always prioritize the user's document content over generic information. If speci
           },
         });
 
-        // NEXUS AGENTIC RESEARCH MODE
-        // The AI handles planning and research autonomously through the nexusResearcherPrompt
-        // Phase 1: AI creates plan, may ask clarifying questions if needed
-        // Phase 2: AI searches autonomously using searchWeb tool
-        // No complex orchestration needed - AI SDK maxSteps handles multi-turn tool calling
+        // DEEP RESEARCH MODE (replaces old Nexus agentic research)
+        // When Nexus mode is active, delegate to the multi-phase deep research orchestrator
+        // instead of using the single streamText call with nexusResearcherPrompt.
         if (selectedResearchMode === 'nexus' && queryText) {
-          console.log('[NEXUS MODE] Agentic research mode enabled');
+          console.log('[DEEP RESEARCH] Deep research mode activated');
 
-          // Signal that we're in Nexus mode (transient)
+          // Signal deep research activation
           writer.write({
             type: 'data-custom',
             id: generateUUID(),
             transient: true,
             data: {
               type: 'nexus-mode-active',
-              message: 'Nexus Research Mode activated',
+              message: 'Deep Research Mode activated',
             },
-          });
+          } as any);
 
-          // The nexusResearcherPrompt is appended to the system prompt below
-          // The AI will autonomously:
-          // 1. Create a brief research plan
-          // 2. Ask clarifying questions if needed (as regular text output)
-          // 3. Begin autonomous research using searchWeb tool
-          // 4. Synthesize findings with citations
+          // Import and run the deep research orchestrator
+          const { runDeepResearch } = await import('@/lib/ai/deep-research/orchestrator');
+          const { DEFAULT_DEEP_RESEARCH_CONFIG } = await import('@/lib/ai/deep-research/types');
+
+          let deepResearchText = '';
+          const assistantId = generateUUID();
+
+          try {
+            await runDeepResearch(queryText, {
+              writeProgress(event) {
+                writer.write({
+                  type: 'data-custom',
+                  id: generateUUID(),
+                  transient: true,
+                  data: event,
+                } as any);
+              },
+              writeText(text) {
+                deepResearchText += text;
+                writer.write({
+                  type: 'text',
+                  text,
+                } as any);
+              },
+              writeCitations(citations) {
+                writer.write({
+                  type: 'data-custom',
+                  id: generateUUID(),
+                  data: {
+                    type: 'deep-research-citations',
+                    citations,
+                  },
+                } as any);
+              },
+              writeComplete(detail) {
+                writer.write({
+                  type: 'data-custom',
+                  id: generateUUID(),
+                  data: {
+                    type: 'deep-research-complete',
+                    ...detail,
+                  },
+                } as any);
+              },
+              writeError(error) {
+                writer.write({
+                  type: 'data-custom',
+                  id: generateUUID(),
+                  data: {
+                    type: 'deep-research-error',
+                    error,
+                  },
+                } as any);
+              },
+            }, DEFAULT_DEEP_RESEARCH_CONFIG);
+
+            // Save the deep research result as an assistant message
+            if (deepResearchText) {
+              await saveMessages({
+                messages: [
+                  {
+                    id: assistantId,
+                    chatId: id,
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: deepResearchText }],
+                    attachments: [],
+                    createdAt: new Date(),
+                    provider: selectedProvider,
+                    stoppedAt: null,
+                    reasoning: null,
+                  },
+                ],
+              });
+              console.log('[DEEP RESEARCH] Saved assistant message:', { assistantId, textLength: deepResearchText.length });
+            }
+          } catch (deepResearchError) {
+            console.error('[DEEP RESEARCH] Fatal error:', deepResearchError);
+            writer.write({
+              type: 'data-custom',
+              id: generateUUID(),
+              data: {
+                type: 'deep-research-error',
+                error: deepResearchError instanceof Error ? deepResearchError.message : 'Deep research failed',
+              },
+            } as any);
+          }
+
+          // Deep research handles its own completion — skip the normal streamText path
+          return;
         }
 
         // Set up a timeout variable
@@ -3784,123 +3865,12 @@ ${
       }
     }
 
-    // Get the stream context for resumable streams
-    const streamContext = getStreamContext();
-    console.log(`Stream context available: ${!!streamContext}`);
-    console.log('Stream context debug:', {
-      hasContext: !!streamContext,
-      contextType: typeof streamContext,
-      streamId: streamId,
-      redisUrl: process.env.REDIS_URL ? 'present' : 'missing',
-      isNexusMode: selectedResearchMode === 'nexus',
-    });
-
-    // Enhanced resumable stream handling for Nexus mode
-    if (streamContext && selectedResearchMode === 'nexus') {
-      try {
-        console.log(
-          `[NEXUS MODE] Using enhanced resumable stream with ID: ${streamId}`,
-        );
-
-        // Store nexus search state in Redis for resumability
-        const redisUrl = process.env.REDIS_URL?.replace(/^["'](.*)["']$/, '$1');
-        if (redisUrl) {
-          try {
-            const { createClient } = await import('redis');
-            const redis = createClient({ url: redisUrl });
-            await redis.connect();
-
-            // Store nexus search metadata
-            await redis.setEx(
-              `nexus:${streamId}:metadata`,
-              3600, // 1 hour expiry
-              JSON.stringify({
-                query: queryText,
-                startTime: Date.now(),
-                status: 'started',
-              }),
-            );
-
-            await redis.disconnect();
-          } catch (redisError) {
-            console.error(
-              '[NEXUS MODE] Failed to store search metadata:',
-              redisError,
-            );
-            // Continue without metadata storage
-          }
-        }
-
-        // Create resumable stream with enhanced error handling
-        // AI SDK 5: Stream type is now UIMessageChunk, cast to any for resumable-stream compatibility
-        const streamPromise = streamContext.resumableStream(streamId, () => {
-          console.log(
-            '[NEXUS MODE] Stream factory function called for streamId:',
-            streamId,
-          );
-
-          // Return the original response stream - it already has nexus handling
-          return responseStream as unknown as ReadableStream<string>;
-        });
-
-        // Create a timeout promise with longer duration for nexus searches
-        let timeoutId: NodeJS.Timeout | null = null;
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error('Nexus resumable stream creation timed out'));
-          }, 20000); // 20 second timeout for nexus mode
-        });
-
-        // Race the stream creation against the timeout
-        const resumableStream = await Promise.race([
-          streamPromise.finally(() => {
-            // Clean up timeout if stream resolves first
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-          }),
-          timeoutPromise.finally(() => {
-            // Clean up timeout if timeout resolves first
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-          }),
-        ]).catch((error) => {
-          // Ensure timeout is cleared on error
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-          console.error(
-            `[NEXUS MODE] Resumable stream error or timeout: ${error}`,
-          );
-          console.log('[NEXUS MODE] Falling back to direct response stream');
-          return responseStream as unknown as ReadableStream<string>;
-        });
-
-        // AI SDK 5: Resumable streams use incompatible protocol (text/v1 vs UIMessage)
-        // Always use createUIMessageStreamResponse for proper streaming
-        console.log('[NEXUS MODE] Using direct UI message stream response');
-        return createUIMessageStreamResponse({ stream: responseStream });
-      } catch (streamError) {
-        console.error(
-          `[NEXUS MODE] Error with resumable stream: ${streamError}`,
-        );
-        console.log('[NEXUS MODE] Falling back to direct response stream');
-        // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
-        return createUIMessageStreamResponse({ stream: responseStream });
-      }
-    }
-
-    // AI SDK 5: Bypass resumable streams - they use incompatible text/v1 protocol
-    // TODO: Update resumable-stream integration for AI SDK 5 UIMessage protocol
-    else {
-      console.log('Using direct UI message stream response (AI SDK 5)');
-      // AI SDK 5: Use createUIMessageStreamResponse for proper streaming
-      return createUIMessageStreamResponse({ stream: responseStream });
-    }
+    // AI SDK 5: Resumable streams use incompatible text/v1 protocol.
+    // Deep research saves its own messages and the resumable stream handler
+    // locks the ReadableStream (incompatible with AI SDK 5 UIMessage protocol).
+    // Standard mode also bypasses resumable streams for the same protocol reason.
+    console.log('Using direct UI message stream response (AI SDK 5)');
+    return createUIMessageStreamResponse({ stream: responseStream });
   } catch (error) {
     console.error('[Chat API] Unhandled error in POST route:', error);
     return handleApiError(error);

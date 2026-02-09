@@ -31,9 +31,9 @@ const researchModes: Array<{
   },
   {
     id: 'nexus',
-    label: 'Nexus',
+    label: 'Deep Research',
     description:
-      'AI-powered Nexus research with comprehensive web analysis and follow-ups',
+      'Multi-phase deep research: searches 200+ sources, analyzes gaps, produces comprehensive reports',
     icon: <Telescope className="size-4" />,
     color: 'text-purple-600 dark:text-purple-400',
   },

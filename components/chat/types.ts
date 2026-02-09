@@ -98,6 +98,29 @@ export interface NexusSearchState {
 }
 
 /**
+ * Deep research progress phase
+ */
+export type DeepResearchPhase =
+  | 'planning'
+  | 'searching'
+  | 'analyzing'
+  | 'follow-up-searching'
+  | 'synthesizing'
+  | 'complete'
+  | 'error';
+
+/**
+ * Deep research progress event from the server
+ */
+export interface DeepResearchProgressEvent {
+  type: 'deep-research-progress';
+  phase: DeepResearchPhase;
+  message: string;
+  overallProgress: number;
+  detail: Record<string, unknown>;
+}
+
+/**
  * Performance metrics for chat operations
  */
 export interface ChatPerformanceMetrics {

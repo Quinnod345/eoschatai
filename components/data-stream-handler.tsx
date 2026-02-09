@@ -32,7 +32,12 @@ export type DataStreamDelta = {
     | 'nexus-search-complete'
     | 'nexus-batch-delay'
     | 'nexus-phase-update'
-    | 'nexus-complete-response';
+    | 'nexus-complete-response'
+    // Deep Research events
+    | 'deep-research-progress'
+    | 'deep-research-citations'
+    | 'deep-research-complete'
+    | 'deep-research-error';
   content: string | any;
 };
 
@@ -139,8 +144,8 @@ export function DataStreamHandler({ id }: { id: string }) {
           content: data.content,
         };
 
-        // Skip Nexus search events (handled elsewhere)
-        if (delta.type?.startsWith('nexus-')) {
+        // Skip Nexus / Deep Research events (handled in chat.tsx)
+        if (delta.type?.startsWith('nexus-') || delta.type?.startsWith('deep-research-')) {
           continue;
         }
 

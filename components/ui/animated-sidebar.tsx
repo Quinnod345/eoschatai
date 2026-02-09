@@ -22,7 +22,9 @@ export function AnimatedSidebarWrapper({
       className={cn(className)}
       style={{
         opacity: isCollapsed ? 0 : 1,
-        transition: 'opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transition: isCollapsed
+          ? 'opacity 90ms cubic-bezier(0.4, 0, 1, 1)'
+          : 'opacity 180ms cubic-bezier(0, 0, 0.2, 1)',
         pointerEvents: isCollapsed ? 'none' : 'auto',
       }}
     >
@@ -58,7 +60,9 @@ export function AnimatedSidebarGroup({
       className={cn(className)}
       style={{
         opacity: isCollapsed ? 0 : 1,
-        transition: 'opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+        transition: isCollapsed
+          ? 'opacity 90ms cubic-bezier(0.4, 0, 1, 1)'
+          : 'opacity 180ms cubic-bezier(0, 0, 0.2, 1)',
       }}
     >
       {children}

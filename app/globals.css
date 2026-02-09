@@ -1147,13 +1147,23 @@ body.has-chat-mesh .eos-chat-mesh {
   transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Smooth sidebar transitions - Less bouncy animation */
+/* Smooth sidebar transitions */
 .sidebar-container,
 .glass-sidebar-container,
 [data-sidebar="sidebar"] {
   will-change: width;
-  /* Smooth curve: fast start, gentle settle without overshoot */
-  transition: width 220ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Opening: gentle ease-out settle */
+.group[data-state="expanded"] .glass-sidebar-container,
+.group[data-state="expanded"] > div:first-child {
+  transition: width 280ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+/* Closing: quick and decisive */
+.group[data-state="collapsed"] .glass-sidebar-container,
+.group[data-state="collapsed"] > div:first-child {
+  transition: width 150ms cubic-bezier(0.4, 0, 1, 1) !important;
 }
 
 /* Sidebar toggle button - bulb to icon transformation on hover */
@@ -1189,7 +1199,7 @@ html.sidebar-animating .eos-chat-mesh::after {
   filter: none !important; /* Completely disable blur during transition */
   animation: none !important;
   opacity: 0.3 !important; /* Fade it out so the change isn't jarring */
-  transition: opacity 100ms ease-out !important;
+  transition: opacity 120ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 /* Disable GradualBlur backdrop-filters during transition */
@@ -1223,18 +1233,21 @@ html.sidebar-animating [class*="gradient-mesh"] {
 /* Ensure the toggle button icons have smooth transitions */
 .sidebar-toggle-btn .sidebar-toggle-bulb,
 .sidebar-toggle-btn .sidebar-toggle-icon {
-  transition: opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1), 
-              transform 220ms cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: opacity 120ms cubic-bezier(0.32, 0.72, 0, 1), 
+              transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Content opacity transitions - Less bouncy animation */
+/* Content opacity transitions - asymmetric: fast out, gentle in */
 .group[data-state="collapsed"] [data-sidebar="header"],
 .group[data-state="collapsed"] [data-sidebar="content"],
-.group[data-state="collapsed"] [data-sidebar="footer"],
+.group[data-state="collapsed"] [data-sidebar="footer"] {
+  transition: opacity 90ms cubic-bezier(0.4, 0, 1, 1);
+}
+
 .group[data-state="expanded"] [data-sidebar="header"],
 .group[data-state="expanded"] [data-sidebar="content"],
 .group[data-state="expanded"] [data-sidebar="footer"] {
-  transition: opacity 180ms cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: opacity 180ms cubic-bezier(0, 0, 0.2, 1);
 }
 
 /* Ensure items in collapsed state stay visible */
@@ -1249,13 +1262,13 @@ html.sidebar-animating [class*="gradient-mesh"] {
   opacity: 0;
   width: 0;
   overflow: hidden;
-  transition: opacity 150ms cubic-bezier(0.4, 0.0, 0.2, 1), width 150ms cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: opacity 90ms cubic-bezier(0.4, 0, 1, 1), width 90ms cubic-bezier(0.4, 0, 1, 1);
 }
 
 /* Show icons in collapsed state */
 .group[data-state="collapsed"] [data-sidebar="menu-button"] > svg {
   margin-right: 0;
-  transition: margin 150ms cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: margin 90ms cubic-bezier(0.4, 0, 1, 1);
 }
 
 /* Content transitions removed - let flexbox handle layout naturally */
