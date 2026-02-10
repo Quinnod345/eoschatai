@@ -37,6 +37,7 @@ export function PureMessageActions({
   message,
   vote,
   isLoading,
+  chatStatus,
   onPin,
   onReply,
   isPinned,
@@ -48,6 +49,7 @@ export function PureMessageActions({
   message: UIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
+  chatStatus?: string;
   onPin?: (messageId: string) => void;
   onReply?: (messageId: string) => void;
   isPinned?: boolean;
@@ -344,6 +346,7 @@ export function PureMessageActions({
                     messageId={message.id}
                     variant="subtle"
                     onClick={() => setContextSourcesDialogOpen(true)}
+                    chatStatus={chatStatus}
                   />
                 </motion.div>
 
@@ -469,6 +472,7 @@ export const MessageActions = memo(
   (prevProps, nextProps) => {
     if (!equal(prevProps.vote, nextProps.vote)) return false;
     if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (prevProps.chatStatus !== nextProps.chatStatus) return false;
     if (prevProps.isPinned !== nextProps.isPinned) return false;
     if (prevProps.message.id !== nextProps.message.id) return false;
     // Don't compare function references as they may change

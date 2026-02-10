@@ -303,6 +303,7 @@ const PurePreviewMessage = ({
   message,
   vote,
   isLoading,
+  chatStatus,
   setMessages,
   reload,
   isReadonly,
@@ -318,6 +319,7 @@ const PurePreviewMessage = ({
   message: ExtendedUIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
+  chatStatus?: string;
   setMessages: ChatHelpers['setMessages'];
   reload: ReloadFunction;
   isReadonly: boolean;
@@ -919,6 +921,7 @@ const PurePreviewMessage = ({
                 message={message}
                 vote={vote}
                 isLoading={isLoading}
+                chatStatus={chatStatus}
                 onPin={onPin}
                 onReply={onReply}
                 onEdit={() => setMode('edit')}

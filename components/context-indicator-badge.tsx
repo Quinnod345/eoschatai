@@ -15,25 +15,32 @@ interface ContextIndicatorProps {
   messageId: string;
   variant?: 'subtle' | 'visible';
   onClick?: () => void;
+  chatStatus?: string;
 }
 
 export function ContextIndicatorBadge({
   messageId,
   variant = 'subtle',
   onClick,
+  chatStatus,
 }: ContextIndicatorProps) {
   const [hasContext, setHasContext] = React.useState(false);
   const [sources, setSources] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const hasContextRef = React.useRef(false);
 
   const fetchContextInfo = React.useCallback(async (): Promise<boolean> => {
+    // Skip if we already have context data
+    if (hasContextRef.current) return true;
     try {
       const response = await fetch(`/api/messages/${messageId}/context-sources`);
       if (response.ok) {
         const data = await response.json();
+        const found = data.hasContext && (data.sources || []).length > 0;
         setHasContext(data.hasContext);
         setSources(data.sources || []);
-        return data.hasContext && (data.sources || []).length > 0;
+        hasContextRef.current = found;
+        return found;
       }
     } catch (error) {
       console.error('Error checking context:', error);
@@ -43,22 +50,31 @@ export function ContextIndicatorBadge({
     return false;
   }, [messageId]);
 
+  // Reset ref when messageId changes so new messages fetch fresh
   React.useEffect(() => {
-    let retryTimeout: NodeJS.Timeout | undefined;
+    hasContextRef.current = false;
+    setHasContext(false);
+    setSources([]);
+    setLoading(true);
+    fetchContextInfo();
+  }, [messageId, fetchContextInfo]);
 
-    fetchContextInfo().then((found) => {
-      if (!found) {
-        // Context data may not be written yet — retry once after 3s
-        retryTimeout = setTimeout(() => {
-          fetchContextInfo();
-        }, 3000);
-      }
-    });
+  // When chat status transitions to 'ready' (stream just finished),
+  // fetch with delays to give the server time to write context data
+  React.useEffect(() => {
+    if (chatStatus !== 'ready' || hasContextRef.current) return;
 
+    const timer = setTimeout(() => {
+      fetchContextInfo();
+    }, 2000);
+    const safetyTimer = setTimeout(() => {
+      fetchContextInfo();
+    }, 5000);
     return () => {
-      if (retryTimeout) clearTimeout(retryTimeout);
+      clearTimeout(timer);
+      clearTimeout(safetyTimer);
     };
-  }, [fetchContextInfo]);
+  }, [chatStatus, fetchContextInfo]);
 
   if (loading || !hasContext || sources.length === 0) {
     return null;

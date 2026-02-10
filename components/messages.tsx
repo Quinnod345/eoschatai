@@ -347,6 +347,7 @@ function PureMessages({
               filteredMessages.length - 1 === index &&
               !shouldShowThinking
             }
+            chatStatus={status}
             vote={
               votes
                 ? votes.find((vote) => vote.messageId === message.id)
