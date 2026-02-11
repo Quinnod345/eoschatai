@@ -174,9 +174,11 @@ export function ApiKeysManager() {
       const res = await fetch('/api/api-keys');
       if (res.ok) {
         const data = await res.json();
-        const keyRows = Array.isArray(data.keys) ? data.keys : [];
+        const keyRows: unknown[] = Array.isArray(data?.keys) ? data.keys : [];
         const normalizedKeys = keyRows
-          .map((row) => normalizeApiKey(row as ApiKeyResponse))
+          .map((row: unknown) =>
+            normalizeApiKey((row ?? {}) as ApiKeyResponse),
+          )
           .filter((row): row is ApiKeyData => row !== null);
         setKeys(normalizedKeys);
       } else if (res.status === 403) {
