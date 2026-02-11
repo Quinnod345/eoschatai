@@ -46,7 +46,6 @@ function PureEditor({
   suggestions,
   status,
   documentId,
-  userId,
   title = '',
   kind = 'text',
   onHistoryChange,
@@ -55,56 +54,50 @@ function PureEditor({
   const editorRef = useRef<EditorView | null>(null);
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
-  // Initialize document history hook if we have documentId and userId
-  const documentHistory =
-    documentId && userId
-      ? useDocumentHistory({
-          documentId,
-          userId,
-          autoSave: true,
-          autoSaveDelay: 2000,
-          onHistoryChange: (state) => {
-            onHistoryChange?.(state.canUndo, state.canRedo);
-            // Store history state globally for action buttons
-            (window as any).__documentHistoryState = {
-              canUndo: state.canUndo,
-              canRedo: state.canRedo,
-            };
-          },
-        })
-      : null;
+  // Initialize document history hook when a document is available
+  const documentHistory = useDocumentHistory({
+    documentId,
+    autoSave: Boolean(documentId),
+    autoSaveDelay: 2000,
+    onHistoryChange: documentId
+      ? (state) => {
+          onHistoryChange?.(state.canUndo, state.canRedo);
+          // Store history state globally for action buttons
+          (window as any).__documentHistoryState = {
+            canUndo: state.canUndo,
+            canRedo: state.canRedo,
+          };
+        }
+      : undefined,
+  });
 
   // Handle undo/redo events
   useEffect(() => {
     const handleUndo = async () => {
-      if (documentHistory) {
-        const version = await documentHistory.undo();
-        if (version && editorRef.current) {
-          const newDocument = buildDocumentFromContent(version.content || '');
-          const transaction = editorRef.current.state.tr.replaceWith(
-            0,
-            editorRef.current.state.doc.content.size,
-            newDocument.content,
-          );
-          transaction.setMeta('no-save', true);
-          editorRef.current.dispatch(transaction);
-        }
+      const version = await documentHistory.undo();
+      if (version && editorRef.current) {
+        const newDocument = buildDocumentFromContent(version.content || '');
+        const transaction = editorRef.current.state.tr.replaceWith(
+          0,
+          editorRef.current.state.doc.content.size,
+          newDocument.content,
+        );
+        transaction.setMeta('no-save', true);
+        editorRef.current.dispatch(transaction);
       }
     };
 
     const handleRedo = async () => {
-      if (documentHistory) {
-        const version = await documentHistory.redo();
-        if (version && editorRef.current) {
-          const newDocument = buildDocumentFromContent(version.content || '');
-          const transaction = editorRef.current.state.tr.replaceWith(
-            0,
-            editorRef.current.state.doc.content.size,
-            newDocument.content,
-          );
-          transaction.setMeta('no-save', true);
-          editorRef.current.dispatch(transaction);
-        }
+      const version = await documentHistory.redo();
+      if (version && editorRef.current) {
+        const newDocument = buildDocumentFromContent(version.content || '');
+        const transaction = editorRef.current.state.tr.replaceWith(
+          0,
+          editorRef.current.state.doc.content.size,
+          newDocument.content,
+        );
+        transaction.setMeta('no-save', true);
+        editorRef.current.dispatch(transaction);
       }
     };
 

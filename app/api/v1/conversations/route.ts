@@ -4,7 +4,7 @@
  * Create and list persistent conversations for multi-turn interactions.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod/v3';
 import { db } from '@/lib/db';
 import { apiConversation } from '@/lib/db/schema';
@@ -150,11 +150,15 @@ export async function GET(request: NextRequest) {
 
   // Get query parameters
   const url = new URL(request.url);
-  const limit = Math.min(
-    parseInt(url.searchParams.get('limit') || '20', 10),
-    100,
+  const parsedLimit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+  const parsedOffset = Number.parseInt(
+    url.searchParams.get('offset') || '0',
+    10,
   );
-  const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 100)
+    : 20;
+  const offset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
 
   try {
     // Fetch conversations

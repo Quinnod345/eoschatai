@@ -15,8 +15,7 @@ export interface DocumentHistoryState {
 }
 
 export interface UseDocumentHistoryOptions {
-  documentId: string;
-  userId: string;
+  documentId?: string;
   /**
    * Enable auto-save when content changes via updateContent().
    * Set to false when using with main composer save flow to avoid conflicts.
@@ -34,7 +33,6 @@ export interface UseDocumentHistoryOptions {
 
 export function useDocumentHistory({
   documentId,
-  userId,
   autoSave = true,
   autoSaveDelay = 2000,
   onHistoryChange,
@@ -64,9 +62,11 @@ export function useDocumentHistory({
 
   // Fetch undo/redo state
   const fetchUndoRedoState = useCallback(async () => {
+    if (!documentId) return;
+
     try {
       const response = await fetch(
-        `/api/composer-documents/${documentId}/history/state?userId=${userId}`,
+        `/api/composer-documents/${documentId}/history/state`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -79,11 +79,13 @@ export function useDocumentHistory({
     } catch (error) {
       console.error('Failed to fetch undo/redo state:', error);
     }
-  }, [documentId, userId, onHistoryChange]);
+  }, [documentId, onHistoryChange]);
 
   // Save document version
   const saveVersion = useCallback(
     async (title: string, content: string, kind: string) => {
+      if (!documentId) return;
+
       setState((prev) => ({ ...prev, isSaving: true }));
 
       try {
@@ -93,7 +95,6 @@ export function useDocumentHistory({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userId,
               title,
               content,
               kind,
@@ -118,7 +119,7 @@ export function useDocumentHistory({
         setState((prev) => ({ ...prev, isSaving: false }));
       }
     },
-    [documentId, userId, fetchUndoRedoState, suppressToasts],
+    [documentId, fetchUndoRedoState, suppressToasts],
   );
 
   // Handle content changes
@@ -131,18 +132,18 @@ export function useDocumentHistory({
 
   // Auto-save when content changes
   useEffect(() => {
-    if (autoSave && debouncedContent) {
+    if (documentId && autoSave && debouncedContent) {
       saveVersion(
         debouncedContent.title,
         debouncedContent.content,
         debouncedContent.kind,
       );
     }
-  }, [debouncedContent, autoSave, saveVersion]);
+  }, [documentId, debouncedContent, autoSave, saveVersion]);
 
   // Undo operation
   const undo = useCallback(async () => {
-    if (!state.canUndo) return;
+    if (!documentId || !state.canUndo) return;
 
     setState((prev) => ({ ...prev, isLoading: true }));
 
@@ -151,8 +152,6 @@ export function useDocumentHistory({
         `/api/composer-documents/${documentId}/history/undo`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
         },
       );
 
@@ -175,11 +174,11 @@ export function useDocumentHistory({
     } finally {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, [documentId, userId, state.canUndo, fetchUndoRedoState, suppressToasts]);
+  }, [documentId, state.canUndo, fetchUndoRedoState, suppressToasts]);
 
   // Redo operation
   const redo = useCallback(async () => {
-    if (!state.canRedo) return;
+    if (!documentId || !state.canRedo) return;
 
     setState((prev) => ({ ...prev, isLoading: true }));
 
@@ -188,8 +187,6 @@ export function useDocumentHistory({
         `/api/composer-documents/${documentId}/history/redo`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
         },
       );
 
@@ -212,11 +209,13 @@ export function useDocumentHistory({
     } finally {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, [documentId, userId, state.canRedo, fetchUndoRedoState, suppressToasts]);
+  }, [documentId, state.canRedo, fetchUndoRedoState, suppressToasts]);
 
   // Get document history
   const getHistory = useCallback(
     async (limit = 50, offset = 0) => {
+      if (!documentId) return [];
+
       try {
         const response = await fetch(
           `/api/composer-documents/${documentId}/history?limit=${limit}&offset=${offset}`,
@@ -267,7 +266,7 @@ export function useDocumentHistory({
   // End edit session on unmount
   useEffect(() => {
     return () => {
-      if (editSessionRef.current) {
+      if (documentId && editSessionRef.current) {
         fetch(
           `/api/composer-documents/history/session/${editSessionRef.current}`,
           {
@@ -276,7 +275,7 @@ export function useDocumentHistory({
         ).catch(console.error);
       }
     };
-  }, []);
+  }, [documentId]);
 
   // Initial load
   useEffect(() => {

@@ -187,7 +187,8 @@ export function PureMessageActions({
         <div
           className={cn(
             'flex flex-row items-center gap-2',
-            // Show actions only on hover for user messages
+            // Right-align and show actions only on hover for user messages
+            message.role === 'user' && 'justify-end',
             message.role === 'user' &&
               'opacity-0 transition-opacity group-hover:opacity-100 group-hover/message:opacity-100',
           )}
@@ -344,6 +345,7 @@ export function PureMessageActions({
                 >
                   <ContextIndicatorBadge
                     messageId={message.id}
+                    chatId={chatId}
                     variant="subtle"
                     onClick={() => setContextSourcesDialogOpen(true)}
                     chatStatus={chatStatus}
@@ -459,6 +461,7 @@ export function PureMessageActions({
       {message.role === 'assistant' && (
         <ContextSourcesDialog
           messageId={message.id}
+          chatId={chatId}
           open={contextSourcesDialogOpen}
           onOpenChange={setContextSourcesDialogOpen}
         />

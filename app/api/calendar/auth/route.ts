@@ -13,7 +13,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    return initiateCalendarConnection(request.nextUrl.origin, session.user.id);
+    return initiateCalendarConnection(
+      request.nextUrl.origin,
+      session.user.id,
+      request.nextUrl.searchParams.get('returnTo'),
+    );
   } catch (error) {
     console.error('Error initiating Google Calendar auth:', error);
     return NextResponse.json(

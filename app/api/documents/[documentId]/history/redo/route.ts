@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { redoDocumentChange } from '@/lib/db/document-history';
+import { db } from '@/lib/db';
+import { document } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // POST /api/documents/[documentId]/history/redo - Redo to next version
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> },
 ) {
   try {
@@ -13,24 +16,24 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { userId } = body;
+    const { documentId } = await params;
+    const userId = session.user.id;
+    const [doc] = await db
+      .select({ id: document.id, userId: document.userId })
+      .from(document)
+      .where(eq(document.id, documentId));
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 },
-      );
+    if (!doc || doc.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { documentId } = await params;
     const version = await redoDocumentChange(documentId, userId);
 
     return NextResponse.json(version);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error performing redo:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to redo' },
+      { error: 'Failed to redo' },
       { status: 400 },
     );
   }

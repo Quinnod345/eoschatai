@@ -45,8 +45,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { name } = body;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { name } = body as { name?: unknown };
 
     // Validate organization name
     if (!name || typeof name !== 'string') {
@@ -136,6 +141,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating organization:', error);
+    if (
+      error instanceof Error &&
+      error.message.includes('already belong to an organization')
+    ) {
+      return NextResponse.json(
+        { error: 'You already belong to an organization' },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to create organization' },
       { status: 500 },

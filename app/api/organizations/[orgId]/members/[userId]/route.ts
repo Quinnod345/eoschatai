@@ -11,6 +11,7 @@ import {
   canManageUser,
   checkOrgPermission,
 } from '@/lib/organizations/permissions';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{
@@ -41,6 +42,19 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { orgId, userId: targetUserId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const validatedTargetUserId = validateUuidField(targetUserId, 'userId');
+    if (!validatedTargetUserId.ok) {
+      return NextResponse.json(
+        { error: validatedTargetUserId.error },
+        { status: 400 },
+      );
+    }
+    const orgIdValue = validatedOrgId.value;
+    const targetUserIdValue = validatedTargetUserId.value;
 
     // Verify current user belongs to the organization
     const [currentUser] = await db
@@ -48,7 +62,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       .from(userTable)
       .where(eq(userTable.id, session.user.id));
 
-    if (!currentUser || currentUser.orgId !== orgId) {
+    if (!currentUser || currentUser.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'You are not a member of this organization' },
         { status: 403 },
@@ -58,8 +72,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     // Check if current user can remove the target user
     const canRemove = await canManageUser(
       session.user.id,
-      targetUserId,
-      orgId,
+      targetUserIdValue,
+      orgIdValue,
       'remove',
     );
 
@@ -74,9 +88,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const [targetUser] = await db
       .select()
       .from(userTable)
-      .where(eq(userTable.id, targetUserId));
+      .where(eq(userTable.id, targetUserIdValue));
 
-    if (!targetUser || targetUser.orgId !== orgId) {
+    if (!targetUser || targetUser.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'User not found in this organization' },
         { status: 404 },
@@ -94,7 +108,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       ? await getUserIndividualSubscriptionPlan(
           targetUser.stripeCustomerId,
           stripe,
-          targetUserId,
+          targetUserIdValue,
         )
       : null;
     const newPlan = individualPlan || 'free';
@@ -106,15 +120,15 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         orgId: null,
         plan: newPlan,
       })
-      .where(eq(userTable.id, targetUserId));
+      .where(eq(userTable.id, targetUserIdValue));
 
     // Delete the OrgMemberRole record
     await db
       .delete(orgMemberRole)
       .where(
         and(
-          eq(orgMemberRole.userId, targetUserId),
-          eq(orgMemberRole.orgId, orgId),
+          eq(orgMemberRole.userId, targetUserIdValue),
+          eq(orgMemberRole.orgId, orgIdValue),
         ),
       );
 
@@ -128,9 +142,9 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
       // Force recomputation of entitlements with the new plan
       // CRITICAL: Invalidate cache FIRST to avoid serving stale data
-      await invalidateUserEntitlementsCache(targetUserId);
-      await getUserEntitlements(targetUserId);
-      await broadcastEntitlementsUpdated(targetUserId);
+      await invalidateUserEntitlementsCache(targetUserIdValue);
+      await getUserEntitlements(targetUserIdValue);
+      await broadcastEntitlementsUpdated(targetUserIdValue);
     } catch (error) {
       console.warn('[remove-member] Failed to update entitlements:', error);
     }
@@ -143,11 +157,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       const [org] = await db
         .select({ name: orgTable.name })
         .from(orgTable)
-        .where(eq(orgTable.id, orgId));
+        .where(eq(orgTable.id, orgIdValue));
 
       if (org) {
         await notifyMemberRemoval(
-          targetUserId,
+          targetUserIdValue,
           org.name || 'Organization',
           'admin',
         );
@@ -179,13 +193,28 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
 
     const { orgId, userId: targetUserId } = await params;
-    const body = await request.json();
-    const { role } = body;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const validatedTargetUserId = validateUuidField(targetUserId, 'userId');
+    if (!validatedTargetUserId.ok) {
+      return NextResponse.json(
+        { error: validatedTargetUserId.error },
+        { status: 400 },
+      );
+    }
+
+    try {
+      await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Check if current user has permission to edit member roles
     const hasPermission = await checkOrgPermission(
       session.user.id,
-      orgId,
+      validatedOrgId.value,
       'members.edit_role',
     );
 

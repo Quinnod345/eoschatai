@@ -5,7 +5,7 @@ import { updateContextFeedback } from '@/lib/db/context-tracking';
 export async function POST(request: Request) {
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -20,7 +20,11 @@ export async function POST(request: Request) {
     }
 
     const feedback = wasHelpful ? 'helpful' : 'not_helpful';
-    const success = await updateContextFeedback(messageId, feedback);
+    const success = await updateContextFeedback(
+      messageId,
+      session.user.id,
+      feedback,
+    );
 
     if (success) {
       return NextResponse.json({
@@ -29,8 +33,8 @@ export async function POST(request: Request) {
       });
     } else {
       return NextResponse.json(
-        { error: 'Failed to record feedback' },
-        { status: 500 },
+        { error: 'Context entry not found' },
+        { status: 404 },
       );
     }
   } catch (error) {

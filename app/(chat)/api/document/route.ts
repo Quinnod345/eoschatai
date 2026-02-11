@@ -12,6 +12,7 @@ import {
   getDocumentVersionsAsDocuments,
 } from '@/lib/db/document-service';
 import { isValidVtoContent } from '@/lib/composer/content-parsers';
+import { validateUuidField } from '@/lib/api/validation';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,6 +21,10 @@ export async function GET(request: Request) {
 
   if (!id) {
     return new Response('Missing id', { status: 400 });
+  }
+  const validatedId = validateUuidField(id, 'id');
+  if (!validatedId.ok) {
+    return new Response(validatedId.error, { status: 400 });
   }
 
   const session = await auth();
@@ -30,7 +35,7 @@ export async function GET(request: Request) {
 
   // Use new version-aware query if versions are requested
   if (includeVersions) {
-    const documents = await getDocumentVersionsAsDocuments(id);
+    const documents = await getDocumentVersionsAsDocuments(validatedId.value);
     if (documents.length === 0) {
       return new Response('Not found', { status: 404 });
     }
@@ -41,7 +46,7 @@ export async function GET(request: Request) {
   }
 
   // Default: use existing query for backwards compatibility
-  const documents = await getDocumentsById({ id });
+  const documents = await getDocumentsById({ id: validatedId.value });
 
   const [document] = documents;
 
@@ -64,6 +69,10 @@ export async function POST(request: Request) {
   if (!id) {
     return new Response('Missing id', { status: 400 });
   }
+  const validatedId = validateUuidField(id, 'id');
+  if (!validatedId.ok) {
+    return new Response(validatedId.error, { status: 400 });
+  }
 
   const session = await auth();
 
@@ -84,7 +93,7 @@ export async function POST(request: Request) {
   } = await request.json();
 
   // Check ownership for existing documents
-  const existingDocs = await getDocumentsById({ id });
+  const existingDocs = await getDocumentsById({ id: validatedId.value });
   if (existingDocs.length > 0) {
     const [existingDoc] = existingDocs;
     if (existingDoc.userId !== session.user.id) {
@@ -107,7 +116,7 @@ export async function POST(request: Request) {
   // Use unified service that creates versions atomically
   const isNewDocument = existingDocs.length === 0;
   const result = await saveDocumentWithVersion({
-    id,
+    id: validatedId.value,
     content,
     title,
     kind,
@@ -118,7 +127,7 @@ export async function POST(request: Request) {
   });
 
   // Return version history for compatibility
-  const versionHistory = await getDocumentVersionsAsDocuments(id);
+  const versionHistory = await getDocumentVersionsAsDocuments(validatedId.value);
   return Response.json(versionHistory, { status: 200 });
 }
 
@@ -131,6 +140,10 @@ export async function DELETE(request: Request) {
   if (!id) {
     return new Response('Missing id', { status: 400 });
   }
+  const validatedId = validateUuidField(id, 'id');
+  if (!validatedId.ok) {
+    return new Response(validatedId.error, { status: 400 });
+  }
 
   if (!deleteAll && !timestamp) {
     return new Response('Missing timestamp', { status: 400 });
@@ -142,21 +155,25 @@ export async function DELETE(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const documents = await getDocumentsById({ id });
+  const documents = await getDocumentsById({ id: validatedId.value });
 
   const [document] = documents;
+
+  if (!document) {
+    return new Response('Not found', { status: 404 });
+  }
 
   if (document.userId !== session.user.id) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   if (deleteAll) {
-    await db.delete(documentTable).where(eq(documentTable.id, id));
+    await db.delete(documentTable).where(eq(documentTable.id, validatedId.value));
     return Response.json({ deleted: 'all' }, { status: 200 });
   }
 
   const documentsDeleted = await deleteDocumentsByIdAfterTimestamp({
-    id,
+    id: validatedId.value,
     timestamp: new Date(timestamp as string),
   });
 
@@ -171,6 +188,10 @@ export async function PATCH(request: Request) {
   if (!id) {
     return new Response('Missing id', { status: 400 });
   }
+  const validatedId = validateUuidField(id, 'id');
+  if (!validatedId.ok) {
+    return new Response(validatedId.error, { status: 400 });
+  }
 
   const session = await auth();
   if (!session?.user?.id) {
@@ -183,7 +204,7 @@ export async function PATCH(request: Request) {
   }
 
   // Ensure ownership
-  const documents = await getDocumentsById({ id });
+  const documents = await getDocumentsById({ id: validatedId.value });
   const [doc] = documents;
   if (!doc) return new Response('Not found', { status: 404 });
   if (doc.userId !== session.user.id)
@@ -193,8 +214,11 @@ export async function PATCH(request: Request) {
     .update(documentTable)
     .set({ title })
     .where(
-      and(eq(documentTable.id, id), eq(documentTable.userId, session.user.id)),
+      and(
+        eq(documentTable.id, validatedId.value),
+        eq(documentTable.userId, session.user.id),
+      ),
     );
 
-  return Response.json({ id, title }, { status: 200 });
+  return Response.json({ id: validatedId.value, title }, { status: 200 });
 }

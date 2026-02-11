@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import {
@@ -7,7 +7,8 @@ import {
   documentShareOrg,
   user as userTable,
 } from '@/lib/db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
+import { eq, and } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,9 +27,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const documentId = searchParams.get('documentId');
 
-    if (!documentId) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
       return NextResponse.json(
-        { error: 'Document ID is required' },
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
     const [document] = await db
       .select()
       .from(userDocuments)
-      .where(eq(userDocuments.id, documentId));
+      .where(eq(userDocuments.id, validatedDocumentId.value));
 
     if (!document) {
       return NextResponse.json(
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
         .from(documentShareUser)
         .where(
           and(
-            eq(documentShareUser.documentId, documentId),
+            eq(documentShareUser.documentId, validatedDocumentId.value),
             eq(documentShareUser.sharedWithId, session.user.id),
           ),
         );
@@ -74,7 +76,7 @@ export async function GET(request: NextRequest) {
             .from(documentShareOrg)
             .where(
               and(
-                eq(documentShareOrg.documentId, documentId),
+                eq(documentShareOrg.documentId, validatedDocumentId.value),
                 eq(documentShareOrg.orgId, userOrgId),
               ),
             );

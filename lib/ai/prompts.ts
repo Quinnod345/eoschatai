@@ -637,6 +637,7 @@ export const systemPrompt = async ({
   requestHints,
   ragContext = [],
   userRagContext = '',
+  orgRagContext = '',
   personaRagContext = '',
   systemRagContext = '',
   memoryContext = '',
@@ -652,6 +653,7 @@ export const systemPrompt = async ({
   requestHints: RequestHints;
   ragContext?: { content: string; relevance: number }[];
   userRagContext?: string;
+  orgRagContext?: string;
   personaRagContext?: string;
   systemRagContext?: string;
   memoryContext?: string;
@@ -727,6 +729,10 @@ Adjust your responses to address:
     try {
       const { db } = await import('@/lib/db');
       const { persona, personaProfile } = await import('@/lib/db/schema');
+      const { canAccessPersona } = await import(
+        '@/lib/organizations/permissions'
+      );
+      const { getPersonaOverlayForUser } = await import('./persona-rag');
       const { eq, and } = await import('drizzle-orm');
 
       const [personaData] = await db
@@ -736,12 +742,29 @@ Adjust your responses to address:
         .limit(1);
 
       if (personaData) {
+        const access = await canAccessPersona(userId, personaData);
+        if (!access.canChat) {
+          console.warn('System Prompt: User lacks access to selected persona', {
+            userId,
+            selectedPersonaId,
+          });
+        } else {
+          let overlayInstructions = '';
+          if (personaData.allowUserOverlay) {
+            const overlay = await getPersonaOverlayForUser(selectedPersonaId, userId);
+            overlayInstructions = overlay?.additionalInstructions?.trim() || '';
+          }
+
         personaContext = `
 ## PERSONA: ${personaData.name}
 ${personaData.description ? `${personaData.description}` : ''}
 
 **Instructions:**
-${personaData.instructions}
+${personaData.instructions}${
+          overlayInstructions
+            ? `\n\n**Your Additional Instructions (Overlay):**\n${overlayInstructions}`
+            : ''
+        }
 `;
 
         // Fetch profile if selected
@@ -767,6 +790,7 @@ ${profileData.instructions}
 `;
           }
         }
+        }
       }
     } catch (error) {
       console.error('Error fetching persona:', error);
@@ -786,6 +810,13 @@ ${userRagContext}
       ? `
 ## SYSTEM KNOWLEDGE
 ${systemRagContext}
+`
+      : '';
+
+  const orgDocumentContext =
+    orgRagContext && orgRagContext.length > 0
+      ? `
+${orgRagContext}
 `
       : '';
 
@@ -814,6 +845,11 @@ ${conversationSummary}
       `System Prompt: Including user documents (${userDocumentContext.length} chars)`,
     );
   }
+  if (orgDocumentContext.length > 0) {
+    console.log(
+      `System Prompt: Including organization knowledge (${orgDocumentContext.length} chars)`,
+    );
+  }
   if (eosKnowledge.length > 0) {
     console.log(
       `System Prompt: Including EOS knowledge (${eosKnowledge.length} chars)`,
@@ -837,6 +873,8 @@ ${companyContext}
 
 ${userDocumentContext}
 
+${orgDocumentContext}
+
 ${systemDocumentContext}
 
 ${personaDocumentContext}
@@ -851,8 +889,9 @@ ${feedbackContext}
 
 ## Context Priority
 1. **User's company documents** - Their actual V/TO, A/C, Rocks, Scorecard
-2. **Persona expertise** - Your specialized knowledge and approach
-3. **EOS methodology** - Best practices and tools to support recommendations
+2. **Organization knowledge base** - Shared team context uploaded by organization admins
+3. **Persona expertise** - Your specialized knowledge and approach
+4. **EOS methodology** - Best practices and tools to support recommendations
 `;
   } else {
     // STANDARD MODE: Full base prompt with context
@@ -862,6 +901,8 @@ ${basePrompt}
 ${companyContext}
 
 ${userDocumentContext}
+
+${orgDocumentContext}
 
 ${eosKnowledge}
 
@@ -878,8 +919,9 @@ ${calendarInstructions}
 ## Context Priority
 When responding, prioritize information in this order:
 1. **User's Company Documents** - Their actual V/TO, Accountability Chart, Rocks, Scorecard, etc. This is the MOST important context.
-2. **EOS Methodology Knowledge** - Use to explain concepts, recommend tools, and provide best practices
-3. **General Guidance** - Only when specific context isn't available
+2. **Organization Knowledge Base** - Shared team context and standards uploaded by organization admins
+3. **EOS Methodology Knowledge** - Use to explain concepts, recommend tools, and provide best practices
+4. **General Guidance** - Only when specific context isn't available
 
 ### Key Behaviors:
 - When user asks about "my Rocks" or "our V/TO" → Reference their uploaded documents

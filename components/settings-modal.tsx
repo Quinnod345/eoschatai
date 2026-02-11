@@ -52,16 +52,8 @@ import { OrganizationSettings } from '@/components/organization-settings';
 import { ApiKeysManager } from '@/components/api-keys-manager';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
-import {
-  ProfileSettingsSkeleton,
-  PersonalizationSettingsSkeleton,
-  OrganizationSettingsSkeleton,
-  IntegrationSettingsSkeleton,
-  UsageSettingsSkeleton,
-  PrivacySettingsSkeleton,
-  MemoriesSettingsSkeleton,
-  SettingsSectionLoading,
-} from '@/components/settings-skeleton';
+import { useOrgRole } from '@/hooks/use-org-role';
+import { ProfileSettingsSkeleton } from '@/components/settings-skeleton';
 
 function MemoriesManager() {
   const [query, setQuery] = React.useState('');
@@ -300,6 +292,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
   const accountUser = useAccountStore((state) => state.user);
   const entitlements = useAccountStore((state) => state.entitlements);
   const usageCounters = useAccountStore((state) => state.usageCounters);
+  const { isOrgAdmin } = useOrgRole();
 
   // Privacy & Security state
   const [exportingData, setExportingData] = React.useState(false);
@@ -313,8 +306,8 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
     accountAge: number;
   } | null>(null);
 
-  // Check if user is admin
-  const isAdmin = session?.user?.email === 'quinn@upaway.dev';
+  // Organization role-based admin controls
+  const isAdmin = isOrgAdmin;
 
   // Navigation items
   const navigationItems = [
@@ -745,7 +738,6 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                   role="tabpanel"
                   id={`settings-panel-${activeSection}`}
                   aria-labelledby={`settings-tab-${activeSection}`}
-                  tabIndex={0}
                 >
                   {/* Profile Section */}
                   {activeSection === 'profile' && (
@@ -1543,6 +1535,9 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                                     try {
                                       const res = await fetch(
                                         '/api/billing/portal',
+                                        {
+                                          method: 'POST',
+                                        },
                                       );
                                       const data = await res
                                         .json()

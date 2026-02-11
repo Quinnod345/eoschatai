@@ -78,13 +78,13 @@ export async function buildVoicePrompt(params: {
     }
 
     // Add persona RAG context
-    const personaContext = await personaRagContextPrompt(
+    const personaRagResult = await personaRagContextPrompt(
       personaId,
       '',
       userId || '',
     );
-    if (personaContext) {
-      prompt += `\n\n## Persona Knowledge Base\n${personaContext}`;
+    if (personaRagResult.context) {
+      prompt += `\n\n## Persona Knowledge Base\n${personaRagResult.context}`;
     }
   }
 

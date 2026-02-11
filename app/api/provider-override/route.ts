@@ -1,8 +1,12 @@
 import { PROVIDERS } from '@/lib/ai/providers';
+import { requireAdmin } from '@/lib/auth/admin';
 import type { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const adminError = await requireAdmin();
+    if (adminError) return adminError;
+
     const { provider } = await request.json();
 
     // Validate the provider
@@ -41,6 +45,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   return Response.json({
     success: true,
     provider: PROVIDERS.OPENAI,

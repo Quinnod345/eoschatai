@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
@@ -6,6 +6,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import { del } from '@vercel/blob';
 import { deleteUserDocument } from '@/lib/ai/user-rag';
 import { updateUserStorage } from '@/lib/storage/tracking';
+import { uuidArraySchema } from '@/lib/api/validation';
 
 interface BulkDeleteResult {
   success: string[];
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let body;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -40,8 +41,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const validatedDocumentIds = uuidArraySchema.safeParse(documentIds);
+    if (!validatedDocumentIds.success) {
+      return NextResponse.json(
+        { error: 'documentIds must be an array of UUIDs' },
+        { status: 400 },
+      );
+    }
+    const uniqueDocumentIds = Array.from(new Set(validatedDocumentIds.data));
+
     // Limit bulk operations to prevent abuse
-    if (documentIds.length > 100) {
+    if (uniqueDocumentIds.length > 100) {
       return NextResponse.json(
         { error: 'Cannot delete more than 100 documents at once' },
         { status: 400 },
@@ -54,7 +64,7 @@ export async function POST(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          inArray(userDocuments.id, documentIds),
+          inArray(userDocuments.id, uniqueDocumentIds),
           eq(userDocuments.userId, session.user.id),
         ),
       );

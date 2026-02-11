@@ -625,6 +625,7 @@ export const userSettings = pgTable('UserSettings', {
     .references(() => user.id, { onDelete: 'cascade' }),
   notificationsEnabled: boolean('notificationsEnabled').default(true),
   language: varchar('language', { length: 32 }).default('english'),
+  timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
   fontSize: varchar('fontSize', { length: 16 }).default('medium'),
   displayName: varchar('displayName', { length: 64 }),
   // Company context fields
@@ -960,21 +961,38 @@ export const passwordResetToken = pgTable(
 export type PasswordResetToken = InferSelectModel<typeof passwordResetToken>;
 
 // EOS Personas table for AI personalities with custom instructions and documents
-export const persona = pgTable('Persona', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  userId: uuid('userId').references(() => user.id, { onDelete: 'cascade' }),
-  orgId: uuid('orgId').references(() => org.id, { onDelete: 'cascade' }), // For shared org personas
-  name: varchar('name', { length: 128 }).notNull(),
-  description: text('description'),
-  instructions: text('instructions').notNull(),
-  iconUrl: text('iconUrl'), // URL for persona icon stored in blob storage
-  isDefault: boolean('isDefault').default(false),
-  isSystemPersona: boolean('isSystemPersona').default(false), // System-provided personas (read-only)
-  isShared: boolean('isShared').default(false), // Whether this persona is shared with the org
-  knowledgeNamespace: varchar('knowledgeNamespace', { length: 128 }), // RAG namespace for this persona
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-});
+export const persona = pgTable(
+  'Persona',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId').references(() => user.id, { onDelete: 'cascade' }),
+    orgId: uuid('orgId').references(() => org.id, { onDelete: 'cascade' }), // For shared org personas
+    name: varchar('name', { length: 128 }).notNull(),
+    description: text('description'),
+    instructions: text('instructions').notNull(),
+    iconUrl: text('iconUrl'), // URL for persona icon stored in blob storage
+    isDefault: boolean('isDefault').default(false),
+    isSystemPersona: boolean('isSystemPersona').default(false), // System-provided personas (read-only)
+    isShared: boolean('isShared').default(false), // Legacy: derived from visibility === 'org'
+    visibility: varchar('visibility', { enum: ['private', 'org'] })
+      .notNull()
+      .default('private'),
+    lockInstructions: boolean('lockInstructions').notNull().default(false),
+    lockKnowledge: boolean('lockKnowledge').notNull().default(false),
+    allowUserOverlay: boolean('allowUserOverlay').notNull().default(false),
+    allowUserKnowledge: boolean('allowUserKnowledge').notNull().default(false),
+    publishedAt: timestamp('publishedAt'),
+    knowledgeNamespace: varchar('knowledgeNamespace', { length: 128 }), // RAG namespace for this persona
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    orgVisibilityIdx: index('persona_org_visibility_idx').on(
+      table.orgId,
+      table.visibility,
+    ),
+  }),
+);
 
 export type Persona = InferSelectModel<typeof persona>;
 
@@ -998,6 +1016,100 @@ export const personaDocument = pgTable(
 );
 
 export type PersonaDocument = InferSelectModel<typeof personaDocument>;
+
+export const personaUserOverlay = pgTable(
+  'PersonaUserOverlay',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    personaId: uuid('personaId')
+      .notNull()
+      .references(() => persona.id, { onDelete: 'cascade' }),
+    additionalInstructions: text('additionalInstructions'),
+    isActive: boolean('isActive').notNull().default(true),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    userPersonaUnique: uniqueIndex(
+      'persona_user_overlay_user_persona_unique',
+    ).on(table.userId, table.personaId),
+    userIdx: index('persona_user_overlay_user_idx').on(table.userId),
+    personaIdx: index('persona_user_overlay_persona_idx').on(table.personaId),
+  }),
+);
+
+export type PersonaUserOverlay = InferSelectModel<typeof personaUserOverlay>;
+
+export const personaUserOverlayDocument = pgTable(
+  'PersonaUserOverlayDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    overlayId: uuid('overlayId')
+      .notNull()
+      .references(() => personaUserOverlay.id, { onDelete: 'cascade' }),
+    documentId: uuid('documentId')
+      .notNull()
+      .references(() => userDocuments.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    overlayDocumentUnique: uniqueIndex(
+      'persona_user_overlay_document_overlay_doc_unique',
+    ).on(table.overlayId, table.documentId),
+    overlayIdx: index('persona_user_overlay_document_overlay_idx').on(
+      table.overlayId,
+    ),
+    documentIdx: index('persona_user_overlay_document_doc_idx').on(
+      table.documentId,
+    ),
+  }),
+);
+
+export type PersonaUserOverlayDocument = InferSelectModel<
+  typeof personaUserOverlayDocument
+>;
+
+export const orgDocument = pgTable(
+  'OrgDocument',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    orgId: uuid('orgId')
+      .notNull()
+      .references(() => org.id, { onDelete: 'cascade' }),
+    uploadedBy: uuid('uploadedBy').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    fileName: varchar('fileName', { length: 255 }).notNull(),
+    fileUrl: text('fileUrl').notNull(),
+    fileSize: integer('fileSize').notNull(),
+    fileType: varchar('fileType', { length: 255 }).notNull(),
+    content: text('content').notNull().default(''),
+    contentHash: varchar('contentHash', { length: 64 }),
+    processingStatus: varchar('processingStatus', {
+      enum: ['pending', 'processing', 'ready', 'failed'],
+    })
+      .notNull()
+      .default('pending'),
+    processingError: text('processingError'),
+    isActive: boolean('isActive').notNull().default(true),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    orgIdx: index('org_document_org_idx').on(table.orgId),
+    processingStatusIdx: index('org_document_processing_status_idx').on(
+      table.processingStatus,
+    ),
+    contentHashIdx: index('org_document_content_hash_idx').on(
+      table.contentHash,
+    ),
+  }),
+);
+
+export type OrgDocument = InferSelectModel<typeof orgDocument>;
 
 // Junction table for persona to composer-generated documents (Document table)
 export const personaComposerDocument = pgTable(

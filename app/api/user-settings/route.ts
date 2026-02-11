@@ -4,6 +4,35 @@ import { auth } from '@/app/(auth)/auth';
 import { getUserSettings, updateUserSettings } from '@/lib/db/queries';
 import { API_CACHE } from '@/lib/api/cache-headers';
 
+const normalizeSettingsPayload = (
+  payload: unknown,
+):
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string } => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { ok: false, error: 'Invalid settings payload' };
+  }
+
+  const normalized = {
+    ...(payload as Record<string, unknown>),
+  };
+
+  if (normalized.timezone !== undefined) {
+    if (typeof normalized.timezone !== 'string') {
+      return { ok: false, error: 'timezone must be a string' };
+    }
+
+    const timezone = normalized.timezone.trim();
+    if (timezone.length > 64) {
+      return { ok: false, error: 'timezone must be 64 characters or less' };
+    }
+
+    normalized.timezone = timezone || 'UTC';
+  }
+
+  return { ok: true, value: normalized };
+};
+
 export async function GET() {
   const session = await auth();
 
@@ -33,16 +62,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
+    const payload = normalizeSettingsPayload(rawBody);
+    if (!payload.ok) {
+      return NextResponse.json({ error: payload.error }, { status: 400 });
+    }
+
     console.log(
       '[POST /api/user-settings] Received body:',
-      JSON.stringify(body, null, 2),
+      JSON.stringify(payload.value, null, 2),
     );
     console.log('[POST /api/user-settings] User ID:', session.user.id);
 
     const settings = await updateUserSettings({
       userId: session.user.id,
-      settings: body,
+      settings: payload.value,
     });
 
     console.log('[POST /api/user-settings] Updated settings:', settings);
@@ -71,11 +105,15 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
+    const payload = normalizeSettingsPayload(rawBody);
+    if (!payload.ok) {
+      return NextResponse.json({ error: payload.error }, { status: 400 });
+    }
 
     const settings = await updateUserSettings({
       userId: session.user.id,
-      settings: body,
+      settings: payload.value,
     });
 
     return NextResponse.json(settings);

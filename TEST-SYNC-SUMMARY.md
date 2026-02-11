@@ -42,15 +42,15 @@ $ pnpm tsx scripts/sync-circle-course-to-upstash.ts 782928
 ### 1. Discover Courses
 ```bash
 curl -X GET "https://app.circle.so/api/v1/space_groups" \
-  -H "Authorization: Bearer DPxf7peTjwauC1LhLtzvDnLsXKXWYydv"
+  -H "Authorization: Bearer YOUR_CIRCLE_API_TOKEN"
 ```
 
 ### 2. Sync Course (First Time)
 ```bash
 export UPSTASH_USER_RAG_REST_URL="..."
 export UPSTASH_USER_RAG_REST_TOKEN="..."
-export CIRCLE_API_TOKEN="DPxf7peTjwauC1LhLtzvDnLsXKXWYydv"
-export CIRCLE_HEADLESS_AUTH_TOKEN="d6R3YAXeZwa7i9UAEjo7ftfjBZkikBjT"
+export CIRCLE_API_TOKEN="YOUR_CIRCLE_API_TOKEN"
+export CIRCLE_HEADLESS_AUTH_TOKEN="YOUR_CIRCLE_HEADLESS_AUTH_TOKEN"
 export CIRCLE_SPACE_ID="2310423"
 export OPENAI_API_KEY="sk-proj-..."
 
@@ -173,8 +173,8 @@ All required variables are in `.env.local`:
 ```bash
 UPSTASH_USER_RAG_REST_URL="https://fast-seasnail-12447-us1-vector.upstash.io"
 UPSTASH_USER_RAG_REST_TOKEN="..."
-CIRCLE_API_TOKEN="DPxf7peTjwauC1LhLtzvDnLsXKXWYydv"
-CIRCLE_HEADLESS_AUTH_TOKEN="d6R3YAXeZwa7i9UAEjo7ftfjBZkikBjT"
+CIRCLE_API_TOKEN="YOUR_CIRCLE_API_TOKEN"
+CIRCLE_HEADLESS_AUTH_TOKEN="YOUR_CIRCLE_HEADLESS_AUTH_TOKEN"
 CIRCLE_SPACE_ID="2310423"
 OPENAI_API_KEY="sk-proj-..."
 ```

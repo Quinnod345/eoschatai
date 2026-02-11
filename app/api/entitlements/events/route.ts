@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
 
+import { auth } from '@/app/(auth)/auth';
 import { FEATURE_FLAGS } from '@/lib/config/feature-flags';
 import { getRedisClient } from '@/lib/redis/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   if (!FEATURE_FLAGS.entitlements_ws) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('user_id');
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const userId = session.user.id;
 
   const redis = getRedisClient();
   if (!redis) {

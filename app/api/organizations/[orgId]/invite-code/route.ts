@@ -9,6 +9,7 @@ import {
   getOrganizationInviteCodes,
 } from '@/lib/organizations/invite-codes';
 import { checkOrgPermission } from '@/lib/organizations/permissions';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{
@@ -25,6 +26,11 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Verify user belongs to the organization
     const [user] = await db
@@ -32,7 +38,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .from(userTable)
       .where(eq(userTable.id, session.user.id));
 
-    if (!user || user.orgId !== orgId) {
+    if (!user || user.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'You are not a member of this organization' },
         { status: 403 },
@@ -43,7 +49,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const [org] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!org) {
       return NextResponse.json(
@@ -55,7 +61,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     // Check permission to manage invite codes using role-based permissions
     const hasPermission = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.invite'
     );
 
@@ -68,7 +74,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     // Get or create invite code
     const inviteCode = await getOrCreateInviteCode(
-      orgId,
+      orgIdValue,
       org.name || 'Organization',
       session.user.id,
     );
@@ -92,11 +98,16 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Check if user has permission to manage invites (owners only)
     const hasPermission = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.invite',
     );
 
@@ -111,7 +122,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const [org] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!org) {
       return NextResponse.json(
@@ -121,7 +132,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Revoke existing codes
-    const existingCodes = await getOrganizationInviteCodes(orgId);
+    const existingCodes = await getOrganizationInviteCodes(orgIdValue);
     for (const codeData of existingCodes) {
       // Extract the code from the data (we need to store the actual code in the response)
       // For now, we'll generate a new one
@@ -129,7 +140,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // Generate new invite code
     const inviteCode = await generateInviteCode(
-      orgId,
+      orgIdValue,
       org.name || 'Organization',
       session.user.id,
     );

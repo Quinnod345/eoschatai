@@ -35,8 +35,8 @@ describe('computeEntitlements', () => {
 
   it('applies overrides without mutating baseline definitions', () => {
     const override = computeEntitlements('free', {
-      recordings: { 
-        enabled: true, 
+      recordings: {
+        enabled: true,
         minutes_month: 45,
         transcription: true,
         speaker_diarization: true,
@@ -94,6 +94,16 @@ describe('usage counters', () => {
     const sql = __dbMock.executed.at(0) ?? '';
     expect(sql).toContain('chats_today');
     expect(sql).toContain('deep_runs_day');
+    expect(sql).toContain('"UserSettings"');
+    expect(sql).toContain('lastMessageCountReset');
+    expect(sql).toContain('effective_timezone');
+  });
+
+  it('returns the number of users reset from the SQL result', async () => {
+    __dbMock.execute.mockResolvedValueOnce([{ reset_count: '4' }]);
+
+    const resetCount = await resetDailyUsageCounters();
+    expect(resetCount).toBe(4);
   });
 
   it('emits the expected SQL when resetting monthly counters', async () => {

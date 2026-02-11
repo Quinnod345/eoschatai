@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { createCustomerPortalSession } from '@/lib/billing/stripe';
 import { FEATURE_FLAGS } from '@/lib/config/feature-flags';
 
-export async function GET() {
+export async function POST() {
   if (!FEATURE_FLAGS.stripe_mvp) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

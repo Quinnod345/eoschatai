@@ -13,6 +13,22 @@ import { eq, or, isNull, and, ne, inArray, desc } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { API_CACHE } from '@/lib/api/cache-headers';
+import {
+  canAccessPersona,
+  checkOrgPermission,
+} from '@/lib/organizations/permissions';
+
+type PersonaVisibility = 'private' | 'org';
+
+function resolvePersonaVisibility(input: {
+  visibility?: unknown;
+  isShared?: unknown;
+}): PersonaVisibility {
+  if (input.visibility === 'org' || input.isShared === true) {
+    return 'org';
+  }
+  return 'private';
+}
 
 export async function GET() {
   const session = await auth();
@@ -93,7 +109,13 @@ export async function GET() {
         iconUrl: null,
         isDefault: true,
         isSystemPersona: true,
-        isShared: null,
+        isShared: false,
+        visibility: 'private',
+        lockInstructions: false,
+        lockKnowledge: false,
+        allowUserOverlay: false,
+        allowUserKnowledge: false,
+        publishedAt: null,
         knowledgeNamespace: EOS_IMPLEMENTER_PERSONA.knowledgeNamespace,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -106,7 +128,7 @@ export async function GET() {
       .from(user)
       .where(eq(user.id, session.user.id));
 
-    // Get user-created personas (exclude system personas and shared personas)
+    // Get user-created private personas
     const userPersonas = await db
       .select()
       .from(persona)
@@ -117,21 +139,58 @@ export async function GET() {
             eq(persona.isSystemPersona, false),
             isNull(persona.isSystemPersona),
           ),
-          or(eq(persona.isShared, false), isNull(persona.isShared)),
+          or(
+            eq(persona.visibility, 'private'),
+            and(
+              isNull(persona.visibility),
+              or(eq(persona.isShared, false), isNull(persona.isShared)),
+            ),
+          ),
         ),
       )
       .orderBy(persona.createdAt);
 
     // Get shared org personas if user is in an org
-    let sharedPersonas: typeof userPersonas = [];
+    let sharedPersonas: Array<
+      typeof userPersonas[number] & {
+        canChat: boolean;
+        canViewSettings: boolean;
+        canEdit: boolean;
+      }
+    > = [];
     if (userRecord?.orgId) {
-      sharedPersonas = await db
+      const sharedPersonaRows = await db
         .select()
         .from(persona)
         .where(
-          and(eq(persona.orgId, userRecord.orgId), eq(persona.isShared, true)),
+          and(
+            eq(persona.orgId, userRecord.orgId),
+            or(eq(persona.visibility, 'org'), eq(persona.isShared, true)),
+          ),
         )
         .orderBy(desc(persona.createdAt));
+
+      const sharedWithAccess = await Promise.all(
+        sharedPersonaRows.map(async (sharedPersona) => {
+          const access = await canAccessPersona(session.user.id, sharedPersona);
+          const shouldHideInstructions =
+            sharedPersona.lockInstructions &&
+            sharedPersona.userId !== session.user.id &&
+            !access.canViewSettings;
+
+          return {
+            ...sharedPersona,
+            instructions: shouldHideInstructions
+              ? '[Instructions hidden by admin]'
+              : sharedPersona.instructions,
+            canChat: access.canChat,
+            canViewSettings: access.canViewSettings,
+            canEdit: access.canEdit,
+          };
+        }),
+      );
+
+      sharedPersonas = sharedWithAccess.filter((item) => item.canChat);
     }
 
     // Use private-medium cache: 60s max-age with 120s stale-while-revalidate
@@ -206,15 +265,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const {
-      name,
-      description,
-      instructions,
-      documentIds = [],
-      composerDocumentIds = [],
-      isShared = false,
-    } = body;
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const name =
+      typeof body.name === 'string' ? body.name.trim() : '';
+    const description =
+      typeof body.description === 'string' ? body.description.trim() : null;
+    const instructions =
+      typeof body.instructions === 'string' ? body.instructions.trim() : '';
+    const documentIds = Array.isArray(body.documentIds)
+      ? (body.documentIds as string[])
+      : [];
+    const composerDocumentIds = Array.isArray(body.composerDocumentIds)
+      ? (body.composerDocumentIds as string[])
+      : [];
+    const visibility = resolvePersonaVisibility({
+      visibility: body.visibility,
+      isShared: body.isShared,
+    });
+    const lockInstructions = body.lockInstructions === true;
+    const lockKnowledge = body.lockKnowledge === true;
+    const allowUserOverlay = body.allowUserOverlay === true;
+    const allowUserKnowledge = body.allowUserKnowledge === true;
 
     if (!name || !instructions) {
       return NextResponse.json(
@@ -223,9 +300,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If creating a shared persona, check permissions and entitlements
+    // If creating an org persona, check permissions and entitlements
     let orgId = null;
-    if (isShared) {
+    if (visibility === 'org') {
       // Check if shared personas are enabled
       if (!accessContext.entitlements.features.personas.shared) {
         return NextResponse.json(
@@ -258,9 +335,6 @@ export async function POST(request: NextRequest) {
       orgId = userRecord.orgId;
 
       // Check permissions
-      const { checkOrgPermission } = await import(
-        '@/lib/organizations/permissions'
-      );
       const hasPermission = await checkOrgPermission(
         session.user.id,
         orgId,
@@ -285,7 +359,13 @@ export async function POST(request: NextRequest) {
         description,
         instructions,
         isDefault: false,
-        isShared,
+        isShared: visibility === 'org',
+        visibility,
+        lockInstructions,
+        lockKnowledge,
+        allowUserOverlay,
+        allowUserKnowledge,
+        publishedAt: visibility === 'org' ? new Date() : null,
       })
       .returning();
 
@@ -333,7 +413,33 @@ export async function POST(request: NextRequest) {
 
     // Create composer document associations
     if (composerDocumentIds && composerDocumentIds.length > 0) {
-      const rows = composerDocumentIds.map((documentId: string) => ({
+      const uniqueComposerDocumentIds = Array.from(
+        new Set(composerDocumentIds as string[]),
+      );
+
+      const ownedComposerDocs = await db
+        .select({
+          id: document.id,
+          title: document.title,
+          content: document.content,
+          kind: document.kind,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.userId, session.user.id),
+            inArray(document.id, uniqueComposerDocumentIds),
+          ),
+        );
+
+      if (ownedComposerDocs.length !== uniqueComposerDocumentIds.length) {
+        return NextResponse.json(
+          { error: 'One or more composer documents are not accessible' },
+          { status: 403 },
+        );
+      }
+
+      const rows = uniqueComposerDocumentIds.map((documentId: string) => ({
         personaId: newPersona.id,
         documentId,
       }));
@@ -342,21 +448,19 @@ export async function POST(request: NextRequest) {
       // Process composer documents into persona namespace
       // Use Promise.allSettled for resilience - individual failures won't stop other documents
       const { processUserDocument } = await import('@/lib/ai/user-rag');
-      const docs = await db
-        .select()
-        .from(document)
-        .where(inArray(document.id, composerDocumentIds));
-      
+      const processableComposerDocs = ownedComposerDocs.filter(
+        (d): d is typeof d & { content: string } =>
+          typeof d.content === 'string' && d.content.length > 0,
+      );
+
       const results = await Promise.allSettled(
-        docs
-          .filter((d) => d.content)
-          .map((d) =>
-            processUserDocument(newPersona.id, d.id, d.content!, {
-              fileName: d.title || 'Composer Document',
-              category: (d.kind || 'text') as any,
-              fileType: d.kind,
-            })
-          )
+        processableComposerDocs.map((d) =>
+          processUserDocument(newPersona.id, d.id, d.content, {
+            fileName: d.title || 'Composer Document',
+            category: (d.kind || 'text') as any,
+            fileType: d.kind,
+          }),
+        ),
       );
 
       // Log any failures
@@ -483,11 +587,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
     }
 
-    // Verify ownership (allow null userId which means it's a system persona user can manage)
-    if (
-      personaToDelete.userId !== null &&
-      personaToDelete.userId !== session.user.id
-    ) {
+    let canDeletePersona = personaToDelete.userId === session.user.id;
+    const isOrgPersona =
+      personaToDelete.visibility === 'org' || personaToDelete.isShared === true;
+
+    if (!canDeletePersona && isOrgPersona && personaToDelete.orgId) {
+      canDeletePersona = await checkOrgPermission(
+        session.user.id,
+        personaToDelete.orgId,
+        'personas.delete',
+      );
+    }
+
+    if (!canDeletePersona) {
       return NextResponse.json(
         { error: 'You do not have permission to delete this persona' },
         { status: 403 },

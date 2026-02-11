@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { userMemory, userMemoryEmbedding } from '@/lib/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, sql } from 'drizzle-orm';
 import { openai } from '@ai-sdk/openai';
 import { embed } from 'ai';
 
@@ -98,7 +98,7 @@ export async function findRelevantMemories(
       `Memory RAG: Searching for user ${userId} with query: "${query}"`,
     );
 
-    // First, check if there are ANY memories with embeddings for this user
+    // First, check if there are ANY active, non-expired memories with embeddings for this user
     const memoriesWithEmbeddings = await db
       .select({ count: sql<number>`count(DISTINCT ${userMemory.id})` })
       .from(userMemory)
@@ -110,6 +110,7 @@ export async function findRelevantMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
+          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
         ),
       );
 
@@ -123,7 +124,7 @@ export async function findRelevantMemories(
         'Memory RAG: No memories with embeddings found. Checking for memories without embeddings...',
       );
 
-      // Fallback: Get all active memories (no vector search)
+      // Fallback: Get all active, non-expired memories (no vector search)
       const allMemories = await db
         .select()
         .from(userMemory)
@@ -131,6 +132,7 @@ export async function findRelevantMemories(
           and(
             eq(userMemory.userId, userId),
             eq(userMemory.status, 'active'),
+            or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
           ),
         )
         .limit(config.limit);
@@ -187,6 +189,7 @@ export async function findRelevantMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
+          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
           sql`${userMemory.confidence} > ${config.minConfidence}`,
           sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.threshold}`,
         ),
@@ -226,6 +229,7 @@ export async function findRelevantMemories(
           and(
             eq(userMemory.userId, userId),
             eq(userMemory.status, 'active'),
+            or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
             sql`${userMemory.confidence} > ${config.minConfidence}`,
             sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.fallbackThreshold}`,
           ),
@@ -293,7 +297,11 @@ export async function getRecentMemories(
       .select()
       .from(userMemory)
       .where(
-        and(eq(userMemory.userId, userId), eq(userMemory.status, 'active')),
+        and(
+          eq(userMemory.userId, userId),
+          eq(userMemory.status, 'active'),
+          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+        ),
       )
       .orderBy(sql`${userMemory.createdAt} DESC`)
       .limit(limit);
@@ -319,9 +327,9 @@ export async function getRecentMemories(
  * @param memories - Array of relevant memories
  * @returns Formatted prompt string
  */
-export function formatMemoriesForPrompt(memories: RelevantMemory[]): string {
+export function formatMemoriesForPrompt(memories: RelevantMemory[]): { formatted: string; chunkCount: number } {
   if (!memories || memories.length === 0) {
-    return '';
+    return { formatted: '', chunkCount: 0 };
   }
 
   // Group memories by type
@@ -405,6 +413,6 @@ The following are facts remembered about this user from previous conversations:
 
 `;
 
-  return output;
+  return { formatted: output, chunkCount: memories.length };
 }
 

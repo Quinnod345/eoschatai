@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,6 +19,7 @@ import {
   LoaderIcon,
   MessageIcon,
 } from '@/components/icons';
+import { useOrgRole } from '@/hooks/use-org-role';
 
 interface CourseAssistantModalProps {
   isOpen: boolean;
@@ -55,8 +55,8 @@ export function CourseAssistantModal({
   );
   const [showInstructions, setShowInstructions] = useState(false);
 
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.email === 'quinn@upaway.dev';
+  const { isOrgAdmin } = useOrgRole();
+  const isAdmin = isOrgAdmin;
 
   // Update sync status from courseData when modal opens
   useEffect(() => {
@@ -504,6 +504,7 @@ export function CourseAssistantModal({
           {isAdmin && personaInstructions && (
             <div className="mt-6 pt-6 border-t border-border">
               <button
+                type="button"
                 onClick={() => setShowInstructions(!showInstructions)}
                 className="flex items-center gap-2 text-sm font-medium text-eos-orange hover:text-eos-orangeLight transition-colors mb-3"
               >
@@ -526,6 +527,7 @@ export function CourseAssistantModal({
                   </pre>
                   <div className="mt-3 flex gap-2">
                     <button
+                      type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(personaInstructions);
                         alert('Instructions copied to clipboard!');

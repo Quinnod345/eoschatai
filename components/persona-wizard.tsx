@@ -34,6 +34,7 @@ import Image from 'next/image';
 import type { Persona, UserDocument } from '@/lib/db/schema';
 import { ComposerPickerModal } from '@/components/composer-picker-modal';
 import { useAccountStore } from '@/lib/stores/account-store';
+import { Lock, LockOpen, Shield } from 'lucide-react';
 
 interface PersonaWizardProps {
   isOpen: boolean;
@@ -69,6 +70,12 @@ const WIZARD_STEPS = [
     title: 'Knowledge',
     description: 'Add documents',
     icon: <FileTextIcon size={16} />,
+  },
+  {
+    id: 'access',
+    title: 'Access',
+    description: 'Sharing controls',
+    icon: <Shield size={16} />,
   },
   {
     id: 'customization',
@@ -135,6 +142,10 @@ export function PersonaWizard({
     documentIds: [] as string[],
     iconUrl: '',
     isShared: false,
+    lockInstructions: false,
+    lockKnowledge: false,
+    allowUserOverlay: false,
+    allowUserKnowledge: false,
   });
   const [documents, setDocuments] = useState<UserDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -344,6 +355,12 @@ export function PersonaWizard({
             instructions: formData.instructions,
             documentIds: formData.documentIds,
             composerDocumentIds: ids,
+            visibility: formData.isShared ? 'org' : 'private',
+            isShared: formData.isShared,
+            lockInstructions: formData.lockInstructions,
+            lockKnowledge: formData.lockKnowledge,
+            allowUserOverlay: formData.allowUserOverlay,
+            allowUserKnowledge: formData.allowUserKnowledge,
           }),
         });
         if (!res.ok) throw new Error('Failed to save composer selection');
@@ -400,6 +417,10 @@ export function PersonaWizard({
       documentIds: [],
       iconUrl: '',
       isShared: false,
+      lockInstructions: false,
+      lockKnowledge: false,
+      allowUserOverlay: false,
+      allowUserKnowledge: false,
     });
     setErrors({});
     setSelectedTemplate('');
@@ -434,8 +455,8 @@ export function PersonaWizard({
             'Instructions should be at least 20 characters';
         }
         break;
-      // Steps 2 and 3 are optional
-      // Step 4 is review, no validation needed
+      // Steps 2, 3, and 4 are optional
+      // Step 5 is review, no validation needed
     }
 
     setErrors(newErrors);
@@ -471,6 +492,10 @@ export function PersonaWizard({
           documentIds: data.documentIds || [],
           iconUrl: data.iconUrl || '',
           isShared: data.isShared || false,
+          lockInstructions: data.lockInstructions || false,
+          lockKnowledge: data.lockKnowledge || false,
+          allowUserOverlay: data.allowUserOverlay || false,
+          allowUserKnowledge: data.allowUserKnowledge || false,
         });
         // Load per-persona composer selections
         const ctxMap: { [key: string]: boolean } = {};
@@ -989,36 +1014,6 @@ export function PersonaWizard({
                   </div>
                 </div>
 
-                {/* Shared Persona option - only show if user has org permissions */}
-                {canCreateSharedPersona && (
-                  <div className="pt-4 border-t border-border/20">
-                    <div className="flex items-start space-x-3">
-                      <Checkbox
-                        id="isShared"
-                        checked={formData.isShared}
-                        onCheckedChange={(checked) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            isShared: checked as boolean,
-                          }))
-                        }
-                        className="mt-0.5"
-                      />
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="isShared"
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          Share with organization
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Make this persona available to all members of your
-                          organization
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1118,7 +1113,155 @@ export function PersonaWizard({
           </div>
         );
 
-      case 2: // Knowledge Base
+      case 2: // Access Control
+        return (
+          <div className="space-y-4">
+            <h3 className="text-base font-semibold mb-4">Access Control</h3>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/30 bg-card p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="isShared"
+                    checked={formData.isShared}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isShared: checked as boolean,
+                      }))
+                    }
+                    disabled={!canCreateSharedPersona}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <Label
+                      htmlFor="isShared"
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      Share with organization
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Publish this persona for your whole organization.
+                    </p>
+                    {!canCreateSharedPersona ? (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Only organization owners/admins can publish shared personas.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              {formData.isShared ? (
+                <div className="rounded-lg border border-border/30 bg-card p-4 space-y-3">
+                  <p className="text-sm font-medium">
+                    Shared Persona Access Rules
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="lockInstructions"
+                        checked={formData.lockInstructions}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            lockInstructions: checked as boolean,
+                          }))
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="lockInstructions" className="text-sm font-medium">
+                          Lock base instructions
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Members can use this persona but cannot view its base instructions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="lockKnowledge"
+                        checked={formData.lockKnowledge}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            lockKnowledge: checked as boolean,
+                          }))
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="lockKnowledge" className="text-sm font-medium">
+                          Lock base knowledge
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Members can chat with the persona but cannot inspect linked base documents.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="allowUserOverlay"
+                        checked={formData.allowUserOverlay}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            allowUserOverlay: checked as boolean,
+                          }))
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="allowUserOverlay" className="text-sm font-medium">
+                          Allow user instruction overlays
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Members can add personal instructions layered on top of the locked base.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="allowUserKnowledge"
+                        checked={formData.allowUserKnowledge}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            allowUserKnowledge: checked as boolean,
+                          }))
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="allowUserKnowledge" className="text-sm font-medium">
+                          Allow user overlay documents
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Members can attach their own private documents to this shared persona.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-md border border-border/30 bg-muted/20 p-3 text-xs text-muted-foreground flex items-start gap-2">
+                  <LockOpen size={14} className="mt-0.5 shrink-0" />
+                  This persona stays private to you. Enable sharing to configure org-wide access controls.
+                </div>
+              )}
+
+              {formData.isShared ? (
+                <div className="rounded-md border border-border/30 bg-muted/20 p-3 text-xs text-muted-foreground flex items-start gap-2">
+                  <Lock size={14} className="mt-0.5 shrink-0" />
+                  Shared personas apply base instructions first, then optional user overlay instructions.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+
+      case 3: // Knowledge Base
         return (
           <div className="space-y-4">
             <h3 className="text-base font-semibold mb-4">Knowledge Base</h3>
@@ -1410,7 +1553,7 @@ export function PersonaWizard({
           </div>
         );
 
-      case 3: // Customization
+      case 4: // Customization
         return (
           <div className="space-y-4">
             <h3 className="text-base font-semibold mb-4">Customization</h3>
@@ -1484,7 +1627,7 @@ export function PersonaWizard({
           </div>
         );
 
-      case 4: // Review
+      case 5: // Review
         return (
           <div className="space-y-4">
             <h3 className="text-base font-semibold mb-4">Review & Create</h3>
@@ -1521,6 +1664,19 @@ export function PersonaWizard({
                       <Badge variant="secondary" className="text-xs">
                         {formData.documentIds.length} documents
                       </Badge>
+                      <Badge variant={formData.isShared ? 'default' : 'outline'} className="text-xs">
+                        {formData.isShared ? 'Org Shared' : 'Private'}
+                      </Badge>
+                      {formData.isShared && formData.lockInstructions ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Instructions Locked
+                        </Badge>
+                      ) : null}
+                      {formData.isShared && formData.allowUserOverlay ? (
+                        <Badge variant="outline" className="text-xs">
+                          User Overlay Enabled
+                        </Badge>
+                      ) : null}
                       {uploadedFiles.length > 0 && (
                         <Badge variant="outline" className="text-xs">
                           +{uploadedFiles.length} pending

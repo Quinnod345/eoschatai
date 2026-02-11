@@ -46,6 +46,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { OrgKnowledgeManager } from '@/components/org-knowledge-manager';
+import { OrgUsageDashboard } from '@/components/org-usage-dashboard';
+import { OrgAdminPersonasPanel } from '@/components/org-admin-personas-panel';
 
 interface OrganizationMember {
   id: string;
@@ -60,6 +63,9 @@ export function OrganizationSettings() {
   const org = useAccountStore((state) => state.org);
   const user = useAccountStore((state) => state.user);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [memberUsageById, setMemberUsageById] = useState<
+    Record<string, { chats_today: number; uploads_total: number }>
+  >({});
   const [inviteCode, setInviteCode] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showOrgModal, setShowOrgModal] = useState(false);
@@ -97,6 +103,20 @@ export function OrganizationSettings() {
       if (inviteRes.ok) {
         const data = await inviteRes.json();
         setInviteCode(data.inviteCode);
+      }
+
+      // Fetch per-member usage summary for member management visibility
+      const usageRes = await fetch(`/api/organizations/${org.id}/usage`);
+      if (usageRes.ok) {
+        const usageData = await usageRes.json();
+        const usageMap: Record<string, { chats_today: number; uploads_total: number }> = {};
+        for (const memberUsage of usageData.members || []) {
+          usageMap[memberUsage.id] = {
+            chats_today: memberUsage.usageCounters?.chats_today || 0,
+            uploads_total: memberUsage.usageCounters?.uploads_total || 0,
+          };
+        }
+        setMemberUsageById(usageMap);
       }
     } catch (error) {
       console.error('Error fetching organization data:', error);
@@ -186,32 +206,60 @@ export function OrganizationSettings() {
     if (!org) return;
 
     try {
-      const response = await fetch(
-        `/api/organizations/${org.id}/members/${memberId}/role`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ role: newRole }),
+      const endpoint =
+        newRole === 'owner'
+          ? `/api/organizations/${org.id}/transfer-ownership`
+          : `/api/organizations/${org.id}/members/${memberId}/role`;
+      const payload =
+        newRole === 'owner'
+          ? { newOwnerId: memberId }
+          : { role: newRole };
+      const method = newRole === 'owner' ? 'POST' : 'PATCH';
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
         },
-      );
+        body: JSON.stringify(payload),
+      });
 
       if (response.ok) {
-        toast.success('Role updated successfully');
+        toast.success(
+          newRole === 'owner'
+            ? 'Ownership transferred successfully'
+            : 'Role updated successfully',
+        );
+        if (newRole === 'owner') {
+          const refreshEvent = new Event('account-refresh');
+          window.dispatchEvent(refreshEvent);
+        }
         fetchOrganizationData();
       } else {
         const data = await response.json();
-        toast.error(data.error || 'Failed to change role');
+        toast.error(
+          data.error ||
+            (newRole === 'owner'
+              ? 'Failed to transfer ownership'
+              : 'Failed to change role'),
+        );
       }
     } catch (error) {
-      toast.error('Failed to change role');
+      toast.error(
+        newRole === 'owner'
+          ? 'Failed to transfer ownership'
+          : 'Failed to change role',
+      );
     }
   };
 
   const currentUserRole =
     members.find((m) => m.id === user?.id)?.role || 'member';
   const isOwner = currentUserRole === 'owner';
+  const canDeleteOrgKnowledge =
+    currentUserRole === 'owner' || currentUserRole === 'admin';
+  const canManageSharedPersonas =
+    currentUserRole === 'owner' || currentUserRole === 'admin';
 
   if (!org) {
     return (
@@ -380,6 +428,13 @@ export function OrganizationSettings() {
       </Card>
 
       {/* Team Members */}
+      <OrgKnowledgeManager orgId={org.id} canDelete={canDeleteOrgKnowledge} />
+
+      <OrgUsageDashboard orgId={org.id} />
+
+      {canManageSharedPersonas ? <OrgAdminPersonasPanel orgId={org.id} /> : null}
+
+      {/* Team Members */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -432,6 +487,10 @@ export function OrganizationSettings() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {member.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Chats today: {memberUsageById[member.id]?.chats_today || 0} •
+                        Uploads: {memberUsageById[member.id]?.uploads_total || 0}
                       </p>
                     </div>
                   </div>
@@ -530,7 +589,9 @@ export function OrganizationSettings() {
                 className="w-full"
                 onClick={async () => {
                   try {
-                    const res = await fetch('/api/billing/portal');
+                    const res = await fetch('/api/billing/portal', {
+                      method: 'POST',
+                    });
                     const data = await res.json();
                     if (data.url) {
                       window.location.href = data.url;

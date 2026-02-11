@@ -3,7 +3,8 @@ import { put } from '@vercel/blob';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { persona } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { checkOrgPermission } from '@/lib/organizations/permissions';
 
 export async function POST(
   request: Request,
@@ -20,14 +21,35 @@ export async function POST(
     const userId = session.user.id;
     const { id: personaId } = await params;
 
-    // Verify the persona belongs to the user
+    // Verify the caller can edit this persona
     const [existingPersona] = await db
       .select()
       .from(persona)
-      .where(and(eq(persona.id, personaId), eq(persona.userId, userId)));
+      .where(eq(persona.id, personaId))
+      .limit(1);
 
     if (!existingPersona) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
+    }
+
+    let canEdit = existingPersona.userId === userId;
+    if (
+      !canEdit &&
+      existingPersona.orgId &&
+      (existingPersona.visibility === 'org' || existingPersona.isShared === true)
+    ) {
+      canEdit = await checkOrgPermission(
+        userId,
+        existingPersona.orgId,
+        'personas.edit',
+      );
+    }
+
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit this persona' },
+        { status: 403 },
+      );
     }
 
     // Parse form data

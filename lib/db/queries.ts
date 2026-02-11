@@ -60,6 +60,7 @@ export type FeedbackCategory =
 export interface UserSettingsUpdate {
   notificationsEnabled?: boolean;
   language?: string;
+  timezone?: string;
   fontSize?: string;
   displayName?: string;
   companyName?: string;
@@ -1148,6 +1149,7 @@ export async function getUserSettings({ userId }: { userId: string }) {
         userId: userSettings.userId,
         notificationsEnabled: userSettings.notificationsEnabled,
         language: userSettings.language,
+        timezone: userSettings.timezone,
         fontSize: userSettings.fontSize,
         displayName: userSettings.displayName,
         companyName: userSettings.companyName,
@@ -1208,6 +1210,7 @@ export async function updateUserSettings({
   settings: {
     notificationsEnabled?: boolean;
     language?: string;
+    timezone?: string;
     fontSize?: string;
     displayName?: string;
     companyName?: string;
@@ -1259,6 +1262,15 @@ export async function updateUserSettings({
       value: UserSettingsUpdate[K] | undefined,
     ) => {
       if (value !== undefined) {
+        if (key === 'timezone' && typeof value === 'string') {
+          const normalizedTimezone = value.trim() || 'UTC';
+          allowed[key] = normalizedTimezone as UserSettingsUpdate[K];
+          console.log(
+            `[updateUserSettings] Allowing: ${key} = ${normalizedTimezone}`,
+          );
+          return;
+        }
+
         // Convert empty strings to null for optional fields
         if (
           value === '' &&
@@ -1281,6 +1293,7 @@ export async function updateUserSettings({
 
     allow('notificationsEnabled', incoming.notificationsEnabled);
     allow('language', incoming.language);
+    allow('timezone', incoming.timezone);
     allow('fontSize', incoming.fontSize);
     allow('displayName', incoming.displayName);
     allow('companyName', incoming.companyName);

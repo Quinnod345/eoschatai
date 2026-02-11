@@ -64,6 +64,12 @@ import { z } from 'zod/v3';
 import { MentionProcessor } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
+import {
+  buildCalendarPromptAdditions,
+  dedupeMessagesById,
+  extractAssistantTextFromMessage,
+  extractPrimaryMessageText,
+} from '@/lib/ai/chat-route-helpers';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
 
 export const maxDuration = 300; // 5 minutes - deep research mode needs extended time
@@ -338,14 +344,24 @@ If requires_document_creation is false, suggested_document_kind must be null. No
 
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
+  let rawBody: unknown;
 
   try {
-    const json = await request.json();
-    requestBody = postRequestBodySchema.parse(json);
+    rawBody = await request.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      console.error('[CHAT] Malformed JSON request body:', error.message);
+    } else {
+      console.error('[CHAT] Failed to parse request body:', error);
+    }
+    return new Response('Invalid request body', { status: 400 });
+  }
+
+  try {
+    requestBody = postRequestBodySchema.parse(rawBody);
   } catch (error) {
     console.error('[CHAT] Request body validation failed:', error);
-    // Log more details for Zod validation errors
-    if (error instanceof Error && 'issues' in error) {
+    if (error && typeof error === 'object' && 'issues' in error) {
       console.error(
         '[CHAT] Validation issues:',
         JSON.stringify((error as any).issues, null, 2),
@@ -433,18 +449,7 @@ export async function POST(request: Request) {
       } catch (titleError) {
         console.error('Title generation failed, using fallback:', titleError);
         // Extract text from message for fallback title
-        const firstPart = message.parts?.[0];
-        let messageText = '';
-        if (typeof firstPart === 'string') {
-          messageText = firstPart;
-        } else if (
-          firstPart &&
-          typeof firstPart === 'object' &&
-          'text' in firstPart &&
-          typeof (firstPart as { text?: unknown }).text === 'string'
-        ) {
-          messageText = (firstPart as { text: string }).text || '';
-        }
+        const messageText = extractPrimaryMessageText(message);
         const fallbackTitle = messageText.substring(0, 50);
         title =
           fallbackTitle + (messageText.length > 50 ? '...' : '') || 'New Chat';
@@ -573,35 +578,29 @@ export async function POST(request: Request) {
       },
     );
 
-    // Manually append client message (appendClientMessage was removed in AI SDK 5)
-    const messages = [...normalizedPreviousMessages, message] as UIMessage[];
+    // Retry safety: if the current user message already exists in history, drop it
+    // before appending the client message again.
+    const dedupedPreviousMessages = dedupeMessagesById(
+      normalizedPreviousMessages,
+      message.id,
+    );
 
-    // Get the last user message to use for RAG context retrieval
-    const lastUserMessage = message.parts[0];
-    console.log('RAG: Processing chat request with query:', lastUserMessage);
+    // Manually append client message (appendClientMessage was removed in AI SDK 5)
+    const messages = [...dedupedPreviousMessages, message] as UIMessage[];
+
+    // Extract user text for RAG context retrieval
+    const firstPart = message.parts?.[0];
+    const queryText = extractPrimaryMessageText(message);
+    console.log('RAG: Processing chat request with query:', queryText);
     console.log('RAG: Message structure:', {
       messageId: message.id,
       messageRole: message.role,
       messageContent: message.content,
       messageParts: message.parts,
       partsLength: message.parts?.length,
-      firstPartType: typeof lastUserMessage,
-      firstPartValue: lastUserMessage,
+      firstPartType: typeof firstPart,
+      firstPartValue: firstPart,
     });
-
-    // Extract the actual text from the user message (handling different possible formats)
-    let queryText = '';
-    if (typeof lastUserMessage === 'string') {
-      queryText = lastUserMessage;
-    } else if (lastUserMessage && typeof lastUserMessage === 'object') {
-      // Handle text object format { text: string, type: string }
-      if (
-        'text' in lastUserMessage &&
-        typeof (lastUserMessage as { text?: unknown }).text === 'string'
-      ) {
-        queryText = (lastUserMessage as { text: string }).text;
-      }
-    }
 
     // Check if the message contains inline document uploads
     const hasInlineDocuments =
@@ -730,6 +729,8 @@ export async function POST(request: Request) {
     // Store document IDs for context tracking
     let userDocumentIds: string[] = [];
     let userDocumentNames: string[] = [];
+    let orgDocumentIds: string[] = [];
+    let orgDocumentNames: string[] = [];
 
     // Skip RAG for very short or generic queries (<= 12 chars)
     // These queries like "hi", "ok", "yes", "mary antin" are too generic and match everything
@@ -743,9 +744,10 @@ export async function POST(request: Request) {
     const [
       relevantContent,
       userRagResult,
-      personaRagContext,
-      systemRagContext,
-      memoryContext,
+      orgRagResult,
+      personaRagResult,
+      systemRagResult,
+      memoryResult,
     ] = await Promise.all([
       // General RAG (Knowledge Base) - Company RAG
       queryText && !shouldSkipRAG
@@ -812,10 +814,43 @@ export async function POST(request: Request) {
                   `User RAG: Error getting user RAG context after ${userRagTime}ms:`,
                   error,
                 );
-                return { context: '', documentIds: [], documentNames: [] };
+                return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
               });
           })()
-        : Promise.resolve({ context: '', documentIds: [], documentNames: [] }),
+        : Promise.resolve({ context: '', documentIds: [], documentNames: [], chunkCount: 0 }),
+
+      // Organization RAG (Org Knowledge Base)
+      accessContext.user.orgId && queryText && !shouldSkipRAG
+        ? (() => {
+            const orgRagStart = Date.now();
+            return import('@/lib/ai/org-rag-context')
+              .then(({ getOrgRagContextWithMetadata }) =>
+                getOrgRagContextWithMetadata(accessContext.user.orgId as string, ragQueryText),
+              )
+              .then((result) => {
+                const orgRagTime = Date.now() - orgRagStart;
+                console.log(
+                  `Org RAG: Generated context with ${result.context.length} characters from ${result.documentIds.length} documents in ${orgRagTime}ms`,
+                );
+                orgDocumentIds = result.documentIds;
+                orgDocumentNames = result.documentNames;
+                return result;
+              })
+              .catch((error) => {
+                const orgRagTime = Date.now() - orgRagStart;
+                console.error(
+                  `Org RAG: Error getting org RAG context after ${orgRagTime}ms:`,
+                  error,
+                );
+                return {
+                  context: '',
+                  documentIds: [],
+                  documentNames: [],
+                  chunkCount: 0,
+                };
+              });
+          })()
+        : Promise.resolve({ context: '', documentIds: [], documentNames: [], chunkCount: 0 }),
 
       // Persona RAG (Persona Documents) - Only if persona is selected
       selectedPersonaId && queryText && !shouldSkipRAG
@@ -833,19 +868,19 @@ export async function POST(request: Request) {
                   session.user.id,
                 ),
               )
-              .then((context) => {
+              .then((result) => {
                 const personaRagTime = Date.now() - personaRagStart;
                 console.log(
-                  `Persona RAG: Generated context with ${context.length} characters in ${personaRagTime}ms`,
+                  `Persona RAG: Generated context with ${result.context.length} characters in ${personaRagTime}ms`,
                 );
 
                 // Debug: Log first 200 characters of persona RAG context
-                if (context.length > 0) {
+                if (result.context.length > 0) {
                   console.log(
-                    `Persona RAG: Context preview: ${context.substring(0, 200)}...`,
+                    `Persona RAG: Context preview: ${result.context.substring(0, 200)}...`,
                   );
                 }
-                return context;
+                return result;
               })
               .catch((error) => {
                 const personaRagTime = Date.now() - personaRagStart;
@@ -853,10 +888,10 @@ export async function POST(request: Request) {
                   `Persona RAG: Error getting persona RAG context after ${personaRagTime}ms:`,
                   error,
                 );
-                return '';
+                return { context: '', chunkCount: 0 };
               });
           })()
-        : Promise.resolve(''),
+        : Promise.resolve({ context: '', chunkCount: 0 }),
 
       // System RAG (System Persona Documents) - Only if system persona is selected
       selectedPersonaId && queryText && !shouldSkipRAG
@@ -892,7 +927,9 @@ export async function POST(request: Request) {
                       `Upstash System RAG: Context preview: ${context.substring(0, 200)}...`,
                     );
                   }
-                  return context;
+                  // Estimate chunk count from formatted text (Upstash returns plain string)
+                  const upstashChunkCount = context ? (context.match(/\[\d+\]/g) || []).length : 0;
+                  return { context, chunkCount: upstashChunkCount };
                 })
                 .catch((error) => {
                   const systemRagTime = Date.now() - systemRagStart;
@@ -900,7 +937,7 @@ export async function POST(request: Request) {
                     `Upstash System RAG: Error getting system RAG context after ${systemRagTime}ms:`,
                     error,
                   );
-                  return '';
+                  return { context: '', chunkCount: 0 };
                 });
             }
 
@@ -920,7 +957,7 @@ export async function POST(request: Request) {
                   console.log(
                     `System RAG: Persona ${selectedPersonaId} is not a system persona, skipping`,
                   );
-                  return '';
+                  return { context: '', chunkCount: 0 };
                 }
 
                 console.log(
@@ -937,19 +974,21 @@ export async function POST(request: Request) {
                   ragQueryText,
                 );
               })
-              .then((context) => {
+              .then((result) => {
                 const systemRagTime = Date.now() - systemRagStart;
+                const ctx = typeof result === 'string' ? result : result.context;
+                const count = typeof result === 'string' ? 0 : result.chunkCount;
                 console.log(
-                  `System RAG: Generated context with ${context.length} characters in ${systemRagTime}ms`,
+                  `System RAG: Generated context with ${ctx.length} characters in ${systemRagTime}ms`,
                 );
 
                 // Debug: Log first 200 characters of system RAG context
-                if (context.length > 0) {
+                if (ctx.length > 0) {
                   console.log(
-                    `System RAG: Context preview: ${context.substring(0, 200)}...`,
+                    `System RAG: Context preview: ${ctx.substring(0, 200)}...`,
                   );
                 }
-                return context;
+                return { context: ctx, chunkCount: count };
               })
               .catch((error) => {
                 const systemRagTime = Date.now() - systemRagStart;
@@ -957,10 +996,10 @@ export async function POST(request: Request) {
                   `System RAG: Error getting system RAG context after ${systemRagTime}ms:`,
                   error,
                 );
-                return '';
+                return { context: '', chunkCount: 0 };
               });
           })()
-        : Promise.resolve(''),
+        : Promise.resolve({ context: '', chunkCount: 0 }),
 
       // Memory RAG (User Memories) — similarity-based + recency-based, merged and deduplicated
       session.user.id && queryText && !shouldSkipRAG
@@ -1014,16 +1053,16 @@ export async function POST(request: Request) {
                     }
 
                     // Format memories into prompt
-                    const formattedMemories =
+                    const memoryFormatResult =
                       formatMemoriesForPrompt(merged);
 
-                    if (formattedMemories.length > 0) {
+                    if (memoryFormatResult.formatted.length > 0) {
                       console.log(
-                        `Memory RAG: Formatted context with ${formattedMemories.length} characters`,
+                        `Memory RAG: Formatted context with ${memoryFormatResult.formatted.length} characters`,
                       );
                     }
 
-                    return formattedMemories;
+                    return memoryFormatResult;
                   }),
               )
               .catch((error) => {
@@ -1032,15 +1071,20 @@ export async function POST(request: Request) {
                   `Memory RAG: Error retrieving memories after ${memoryRagTime}ms:`,
                   error,
                 );
-                return '';
+                return { formatted: '', chunkCount: 0 };
               });
           })()
-        : Promise.resolve(''),
+        : Promise.resolve({ formatted: '', chunkCount: 0 }),
     ]);
 
-    // Extract user RAG context string
+    // Extract context strings from structured results
     const userRagContext =
       typeof userRagResult === 'string' ? userRagResult : userRagResult.context;
+    const orgRagContext =
+      typeof orgRagResult === 'string' ? orgRagResult : orgRagResult.context;
+    const personaRagContext = personaRagResult.context;
+    const systemRagContext = systemRagResult.context;
+    const memoryContext = memoryResult.formatted;
 
     const ragEndTime = Date.now();
     console.log(
@@ -1060,6 +1104,7 @@ export async function POST(request: Request) {
         `RAG Summary:`,
         `\n  - Company knowledge base: ${relevantContent.length} chunks`,
         `\n  - User documents: ${userRagContext.length} characters (${userDocumentIds.length} docs: ${userDocumentNames.join(', ')})`,
+        `\n  - Organization knowledge: ${orgRagContext.length} characters (${orgDocumentIds.length} docs: ${orgDocumentNames.join(', ')})`,
         `\n  - Persona documents: ${personaRagContext.length} characters`,
         `\n  - System knowledge: ${systemRagContext.length} characters`,
         `\n  - User memories: ${memoryContext.length} characters`,
@@ -1175,9 +1220,6 @@ export async function POST(request: Request) {
       ],
     });
 
-    // Increment usage counter AFTER message is successfully saved
-    await incrementUsageCounter(session.user.id, 'chats_today', 1);
-
     const streamId = generateUUID();
 
     // Initialize stream buffer service for resumable streams
@@ -1223,6 +1265,7 @@ export async function POST(request: Request) {
       requestHints,
       ragContext: relevantContent, // General knowledge base RAG
       userRagContext: userRagContext, // User-specific document context
+      orgRagContext: orgRagContext, // Organization-level shared knowledge context
       personaRagContext: personaRagContext, // Persona-specific document context
       systemRagContext: systemRagContext, // System-specific document context
       memoryContext: memoryContext, // User memories
@@ -1744,10 +1787,27 @@ Always prioritize the user's document content over generic information. If speci
       }
     }
 
+    // Pre-fetch calendar context before streaming so prompt content is deterministic.
+    // This avoids late async mutations to the system prompt after model execution starts.
+    if (hasMentionedCalendar || (shouldCheckCalendar && eventType)) {
+      const calendarPromptAdditions = await buildCalendarPromptAdditions({
+        hasMentionedCalendar,
+        shouldCheckCalendar,
+        eventType,
+        fetchCalendarEvents: (params) =>
+          getCalendarEventsTool.execute(params, session.user.id) as any,
+        logger: console,
+      });
+
+      if (calendarPromptAdditions) {
+        enhancedSystemPrompt += calendarPromptAdditions;
+      }
+    }
+
     // Create response stream
     // AI SDK 5: Provide originalMessages and generateId to prevent duplicate messages
     const responseStream = createUIMessageStream({
-      originalMessages: normalizedPreviousMessages,
+      originalMessages: dedupedPreviousMessages,
       generateId: generateUUID,
       execute: async ({ writer: originalWriter }) => {
         // Create buffered writer wrapper that also stores chunks to Redis
@@ -2126,6 +2186,16 @@ Always prioritize the user's document content over generic information. If speci
                 ],
               });
               console.log('[DEEP RESEARCH] Saved assistant message:', { assistantId, textLength: deepResearchText.length });
+
+              // Count usage only after assistant output is persisted.
+              try {
+                await incrementUsageCounter(session.user.id, 'chats_today', 1);
+              } catch (usageError) {
+                console.error(
+                  '[USAGE] Failed to increment chats_today after deep research completion:',
+                  usageError,
+                );
+              }
             }
           } catch (deepResearchError) {
             console.error('[DEEP RESEARCH] Fatal error:', deepResearchError);
@@ -3221,6 +3291,16 @@ Always prioritize the user's document content over generic information. If speci
                     ],
                   });
 
+                  // Count usage only after assistant output is persisted.
+                  try {
+                    await incrementUsageCounter(session.user.id, 'chats_today', 1);
+                  } catch (usageError) {
+                    console.error(
+                      '[USAGE] Failed to increment chats_today after assistant save:',
+                      usageError,
+                    );
+                  }
+
                   // Automatic memory extraction - fire and forget
                   // Silently extracts facts/preferences from the conversation
                   try {
@@ -3240,6 +3320,7 @@ Always prioritize the user's document content over generic information. If speci
                             userMessage: userText,
                             assistantMessage: assistantText,
                             existingMemories: memoryContext,
+                            sourceMessageId: assistantId,
                           })
                             .then((memResult) => {
                               if (
@@ -3309,19 +3390,11 @@ Always prioritize the user's document content over generic information. If speci
                       '@/lib/db/context-tracking'
                     );
 
-                    // Count chunks from each source
-                    const systemChunks = systemRagContext
-                      ? (systemRagContext.match(/\[\d+\]/g) || []).length
-                      : 0;
-                    const personaChunks = personaRagContext
-                      ? (personaRagContext.match(/\[\d+\]/g) || []).length
-                      : 0;
-                    const userChunksMatch = userRagContext
-                      ? (userRagContext.match(/\[\d+\]/g) || []).length
-                      : 0;
-                    const memoryChunksMatch = memoryContext
-                      ? (memoryContext.match(/^-/gm) || []).length
-                      : 0;
+                    // Use actual chunk counts from structured RAG results
+                    const systemChunks = systemRagResult.chunkCount;
+                    const personaChunks = personaRagResult.chunkCount;
+                    const userChunksMatch = userRagResult.chunkCount ?? 0;
+                    const memoryChunksMatch = memoryResult.chunkCount;
 
                     await logContextUsage({
                       chatId: id,
@@ -3344,6 +3417,9 @@ Always prioritize the user's document content over generic information. If speci
                         researchMode: selectedResearchMode,
                         userDocumentIds, // Track which documents were used
                         userDocumentNames, // Track document names for display
+                        orgChunks: orgRagResult.chunkCount ?? 0,
+                        orgDocumentIds,
+                        orgDocumentNames,
                       },
                     });
 
@@ -3456,6 +3532,9 @@ Always prioritize the user's document content over generic information. If speci
                       console.log(
                         '[ERROR RECOVERY] Attempting to save partial message',
                       );
+                      const partialText =
+                        extractAssistantTextFromMessage(partialMessage) ||
+                        'Error: Message failed to save';
                       const partialId = generateUUID();
                       await saveMessages({
                         messages: [
@@ -3466,9 +3545,7 @@ Always prioritize the user's document content over generic information. If speci
                             parts: [
                               {
                                 type: 'text',
-                                text:
-                                  (partialMessage as any).content ||
-                                  'Error: Message failed to save',
+                                text: partialText,
                               },
                             ],
                             attachments: [],
@@ -3650,218 +3727,6 @@ Always prioritize the user's document content over generic information. If speci
         }
       } catch (saveError) {
         console.error('RAG: Error in cautious remember flow:', saveError);
-      }
-    }
-
-    // Handle @ mention resource requests
-    // For calendar mentions
-    if (hasMentionedCalendar) {
-      try {
-        console.log('Calendar: Auto-checking calendar from @ mention');
-
-        // Create timeMin and timeMax for next 3 months
-        const now = new Date();
-        const threeMonthsLater = new Date();
-        threeMonthsLater.setMonth(now.getMonth() + 3);
-
-        try {
-          // Directly call the calendar API to ensure results are available for the AI
-          console.log('Calendar: Executing calendar tool from @ mention');
-
-          getCalendarEventsTool
-            .execute(
-              {
-                timeMin: now.toISOString(),
-                timeMax: threeMonthsLater.toISOString(),
-                maxResults: 15,
-              },
-              session.user.id,
-            )
-            .then((calendarResult) => {
-              console.log(
-                `Calendar @ mention: Retrieved ${calendarResult.events?.length || 0} events`,
-              );
-
-              // Update the system prompt with the calendar results
-              if (
-                calendarResult.status === 'success' &&
-                Array.isArray(calendarResult.events) &&
-                calendarResult.events.length > 0
-              ) {
-                enhancedSystemPrompt += `
-
-CALENDAR RESULTS FROM @ MENTION:
-The user has requested calendar information. Here are their upcoming events:
-
-| Event | Date | Time | Location |
-|-------|------|------|----------|
-${calendarResult.events
-  .map(
-    (event: {
-      summary?: string;
-      start?: { dateTime?: string };
-      location?: string;
-    }) => {
-      const eventDate = event.start?.dateTime
-        ? new Date(event.start.dateTime).toLocaleDateString()
-        : 'No date';
-      const eventTime = event.start?.dateTime
-        ? new Date(event.start.dateTime).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : 'No time';
-      return `| ${event.summary || 'Untitled Event'} | ${eventDate} | ${eventTime} | ${event.location || 'No location'} |`;
-    },
-  )
-  .join('\n')}
-
-Present this information to the user in a clear and readable format. Format it as a table using markdown syntax.
-`;
-              } else if (
-                calendarResult.status === 'error' &&
-                calendarResult.authRequired
-              ) {
-                enhancedSystemPrompt += `
-
-CALENDAR CONNECTION ISSUE:
-The user mentioned calendar, but they need to connect their Google Calendar in Settings > Integrations.
-Please inform them of this requirement.
-`;
-              } else {
-                enhancedSystemPrompt += `
-
-CALENDAR RESULTS FROM @ MENTION:
-No upcoming events found in the user's calendar.
-`;
-              }
-            })
-            .catch((error) => {
-              console.error(
-                'Calendar: Error retrieving events for @ mention:',
-                error,
-              );
-            });
-        } catch (toolError) {
-          console.error(
-            'Calendar: Failed to execute calendar tool for @ mention:',
-            toolError,
-          );
-        }
-      } catch (mentionError) {
-        console.error('Calendar: Error in @ mention processing:', mentionError);
-      }
-    }
-
-    // Auto-check calendar for specific event types
-    if (shouldCheckCalendar && eventType) {
-      try {
-        console.log(`Calendar: Auto-checking for "${eventType}" events`);
-
-        // Create timeMin and timeMax for next 6 months
-        const now = new Date();
-        const sixMonthsLater = new Date();
-        sixMonthsLater.setMonth(now.getMonth() + 6);
-
-        // Save the event type to use in the query later
-        const calendarEventType = eventType;
-
-        // Pre-emptively call getCalendarEvents to check for matching event types
-        // This way the AI will have access to this information without explicitly calling the tool
-        console.log(
-          `Calendar: Triggering auto-calendar check for "${calendarEventType}" events`,
-        );
-
-        try {
-          // Directly execute the calendar tool with a 6-month range
-          getCalendarEventsTool
-            .execute(
-              {
-                timeMin: now.toISOString(),
-                timeMax: sixMonthsLater.toISOString(),
-                maxResults: 20,
-                searchTerm: calendarEventType,
-              },
-              session.user.id,
-            )
-            .then((calendarResult) => {
-              console.log(
-                `Calendar: Auto-check complete, found ${calendarResult.events?.length || 0} events`,
-              );
-
-              // Since we're using searchTerm, we don't need the additional filtering here
-              if (
-                calendarResult.status === 'success' &&
-                Array.isArray(calendarResult.events)
-              ) {
-                const matchingEvents = calendarResult.events;
-
-                console.log(
-                  `Calendar: Found ${matchingEvents.length} events matching "${calendarEventType}"`,
-                );
-
-                // This data will be available to the AI model during its response generation
-                enhancedSystemPrompt += `
-
-CALENDAR SEARCH RESULTS:
-The user asked about "${calendarEventType}". ${
-                  matchingEvents.length > 0
-                    ? `There are ${matchingEvents.length} matching events in their calendar:`
-                    : `There are no matching events in their calendar.`
-                }
-${
-  matchingEvents.length > 0
-    ? `
-Here are the matching events:
-
-| Event | Date | Time | Location |
-|-------|------|------|----------|
-${matchingEvents
-  .map(
-    (event: {
-      summary?: string;
-      start?: { dateTime?: string };
-      location?: string;
-    }) => {
-      const eventDate = event.start?.dateTime
-        ? new Date(event.start.dateTime).toLocaleDateString()
-        : 'No date';
-      const eventTime = event.start?.dateTime
-        ? new Date(event.start.dateTime).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-        : 'No time';
-      return `| ${event.summary || 'Untitled Event'} | ${eventDate} | ${eventTime} | ${event.location || 'No location'} |`;
-    },
-  )
-  .join('\n')}
-`
-    : ''
-}
-                
-${
-  matchingEvents.length > 0
-    ? 'IMPORTANT: Include this information in your response using the table format above. NEVER mention that you searched their calendar or that you found these events. Simply respond to their question first, then mention "I see you have the following on your calendar:" and include the table. Format it nicely with a clear header row and well-aligned columns.'
-    : 'You should NOT mention that there are no events found. Just answer their question without referencing their calendar.'
-}
-`;
-              }
-            })
-            .catch((error) => {
-              console.error(
-                'Calendar: Auto-check calendar event search failed:',
-                error,
-              );
-            });
-        } catch (toolError) {
-          console.error(
-            'Calendar: Failed to execute calendar tool:',
-            toolError,
-          );
-        }
-      } catch (calendarError) {
-        console.error('Calendar: Error in auto-calendar check:', calendarError);
       }
     }
 

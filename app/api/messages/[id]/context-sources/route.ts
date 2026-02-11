@@ -1,7 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { contextUsageLog, userDocuments, persona, personaProfile, userMemory } from '@/lib/db/schema';
+import {
+  contextUsageLog,
+  userDocuments,
+  orgDocument,
+  persona,
+  personaProfile,
+  userMemory,
+} from '@/lib/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 
 export async function GET(
@@ -16,7 +23,10 @@ export async function GET(
 
     const { id: messageId } = await params;
 
-    // Get context usage log for this message
+    // Get context usage log by messageId only.
+    // We intentionally do NOT fall back to chatId-based lookup because in
+    // multi-message chats, fetching the "most recent" log for the chat could
+    // return context from a different assistant message.
     const [contextLog] = await db
       .select()
       .from(contextUsageLog)
@@ -28,6 +38,10 @@ export async function GET(
         hasContext: false,
         sources: [],
       });
+    }
+
+    if (contextLog.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const sources: any[] = [];
@@ -72,6 +86,46 @@ export async function GET(
       } else {
         console.log(`Context Sources: userChunks=${contextLog.userChunks} but no document IDs in metadata - skipping document display`);
       }
+    }
+
+    // Add organization knowledge if used
+    const orgChunks =
+      typeof metadata.orgChunks === 'number' ? metadata.orgChunks : 0;
+    if (orgChunks > 0) {
+      let orgDocs: Array<{ id: string; fileName: string }> = [];
+
+      if (Array.isArray(metadata.orgDocumentIds) && metadata.orgDocumentIds.length > 0) {
+        orgDocs = await db
+          .select({
+            id: orgDocument.id,
+            fileName: orgDocument.fileName,
+          })
+          .from(orgDocument)
+          .where(inArray(orgDocument.id, metadata.orgDocumentIds));
+      }
+
+      const fallbackItems = Array.isArray(metadata.orgDocumentNames)
+        ? metadata.orgDocumentNames.map((name: string, index: number) => ({
+            id: `org-doc-${index}`,
+            name,
+            category: 'Org Document',
+          }))
+        : [];
+
+      sources.push({
+        type: 'org',
+        icon: 'Building2',
+        label: 'Organization Knowledge',
+        count: orgChunks,
+        items:
+          orgDocs.length > 0
+            ? orgDocs.map((doc) => ({
+                id: doc.id,
+                name: doc.fileName,
+                category: 'Org Document',
+              }))
+            : fallbackItems,
+      });
     }
 
     // Add persona knowledge if used
@@ -177,6 +231,7 @@ export async function GET(
           (contextLog.systemChunks || 0) +
           (contextLog.personaChunks || 0) +
           (contextLog.userChunks || 0) +
+          (typeof metadata.orgChunks === 'number' ? metadata.orgChunks : 0) +
           (contextLog.memoryChunks || 0),
         tokens: contextLog.contextTokens || 0,
         model: contextLog.model,

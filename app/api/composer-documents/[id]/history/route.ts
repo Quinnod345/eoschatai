@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import {
   createDocumentVersion,
@@ -7,8 +7,27 @@ import {
   updateEditSession,
 } from '@/lib/db/document-history';
 import { db } from '@/lib/db';
-import { document } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { document, documentEditSession } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
+import { z } from 'zod/v3';
+
+const DOCUMENT_KINDS = [
+  'text',
+  'code',
+  'image',
+  'sheet',
+  'chart',
+  'vto',
+  'accountability',
+] as const;
+type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+const postHistoryBodySchema = z.object({
+  title: z.string().trim().min(1).max(255),
+  content: z.string().max(5_000_000),
+  kind: z.enum(DOCUMENT_KINDS),
+  sessionId: z.string().uuid().optional(),
+});
 
 // GET /api/composer-documents/[id]/history - Get document history
 export async function GET(
@@ -22,10 +41,25 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const parsedLimit = Number.parseInt(searchParams.get('limit') || '50', 10);
+    const parsedOffset = Number.parseInt(searchParams.get('offset') || '0', 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 50;
+    const offset = Number.isFinite(parsedOffset)
+      ? Math.max(parsedOffset, 0)
+      : 0;
 
     const { id } = await params;
+    const [doc] = await db
+      .select({ id: document.id, userId: document.userId })
+      .from(document)
+      .where(eq(document.id, id));
+
+    if (!doc || doc.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const history = await getDocumentHistory(id, limit, offset);
 
     return NextResponse.json(history);
@@ -49,21 +83,62 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { userId, title, content, kind, sessionId } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      }
+      throw error;
+    }
+
+    const parsedBody = postHistoryBodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: parsedBody.error.errors[0]?.message || 'Validation failed' },
+        { status: 400 },
+      );
+    }
+
+    const { title, content, kind, sessionId } = parsedBody.data as {
+      title: string;
+      content: string;
+      kind: DocumentKind;
+      sessionId?: string;
+    };
+    const userId = session.user.id;
 
     const { id } = await params;
     // Verify user owns the document or has access
-    const [doc] = await db.select().from(document).where(eq(document.id, id));
+    const [doc] = await db
+      .select({ id: document.id, userId: document.userId })
+      .from(document)
+      .where(eq(document.id, id));
 
     if (!doc || doc.userId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Get or create edit session
-    let editSession;
+    let editSession: { id: string };
     if (sessionId) {
-      editSession = { id: sessionId };
+      const [existingSession] = await db
+        .select({ id: documentEditSession.id })
+        .from(documentEditSession)
+        .where(
+          and(
+            eq(documentEditSession.id, sessionId),
+            eq(documentEditSession.documentId, id),
+            eq(documentEditSession.userId, userId),
+          ),
+        );
+
+      if (!existingSession) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      editSession = { id: existingSession.id };
       await updateEditSession(sessionId);
     } else {
       editSession = await getOrCreateEditSession(id, userId);

@@ -44,6 +44,19 @@ export async function POST(request: Request) {
       });
     }
 
+    const [ownedChat] = await db
+      .select({ id: chat.id })
+      .from(chat)
+      .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
+      .limit(1);
+
+    if (!ownedChat) {
+      return new Response(JSON.stringify({ error: 'Chat not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // Check if already bookmarked
     const existing = await db
       .select()
@@ -182,6 +195,19 @@ export async function PUT(request: Request) {
     if (!chatId) {
       return new Response(JSON.stringify({ error: 'chatId is required' }), {
         status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const [ownedChat] = await db
+      .select({ id: chat.id })
+      .from(chat)
+      .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
+      .limit(1);
+
+    if (!ownedChat) {
+      return new Response(JSON.stringify({ error: 'Chat not found' }), {
+        status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }

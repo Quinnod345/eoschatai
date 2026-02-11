@@ -4,6 +4,7 @@ import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { user as userTable, org as orgTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +13,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { orgId } = body;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { orgId } = body as { orgId?: string };
 
     if (!orgId || typeof orgId !== 'string') {
       return NextResponse.json(
@@ -21,13 +27,18 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // In a real multi-org system, you'd verify the user has access to this org
     // For now, we'll check if the org exists and update the user's current org
     const [org] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!org) {
       return NextResponse.json(
@@ -42,7 +53,7 @@ export async function POST(request: NextRequest) {
       .from(userTable)
       .where(eq(userTable.id, session.user.id));
 
-    if (currentUser?.orgId !== orgId) {
+    if (currentUser?.orgId !== orgIdValue) {
       // In a multi-org system, you'd check membership table
       // For now, we prevent switching to orgs user doesn't belong to
       return NextResponse.json(

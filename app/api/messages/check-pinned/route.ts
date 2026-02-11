@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { message, pinnedMessage } from '@/lib/db/schema';
+import { chat, message, pinnedMessage } from '@/lib/db/schema';
 import { and, eq, gte, inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
@@ -24,9 +24,14 @@ export async function POST(request: NextRequest) {
 
     // Get the message to find its timestamp and chatId
     const [targetMessage] = await db
-      .select()
+      .select({
+        id: message.id,
+        chatId: message.chatId,
+        createdAt: message.createdAt,
+      })
       .from(message)
-      .where(eq(message.id, messageId))
+      .innerJoin(chat, eq(chat.id, message.chatId))
+      .where(and(eq(message.id, messageId), eq(chat.userId, session.user.id)))
       .limit(1);
 
     if (!targetMessage) {

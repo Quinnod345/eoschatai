@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 
 import { getAccessContext } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
+import { createCalendarOAuthState } from './oauth-state';
 
 const CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
@@ -12,6 +13,7 @@ const CALENDAR_SCOPES = [
 export const initiateCalendarConnection = async (
   origin: string,
   userId: string,
+  returnTo?: string | null,
 ) => {
   const accessContext = await getAccessContext(userId);
 
@@ -43,7 +45,7 @@ export const initiateCalendarConnection = async (
     access_type: 'offline',
     scope: CALENDAR_SCOPES,
     prompt: 'consent',
-    state: userId,
+    state: createCalendarOAuthState(userId, returnTo),
   });
 
   return NextResponse.redirect(authUrl);

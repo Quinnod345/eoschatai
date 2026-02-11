@@ -67,15 +67,19 @@ function calculateRelevanceScore(text: string, query: string): number {
   return Math.min(score, 1.0);
 }
 
+const debugLog =
+  process.env.NODE_ENV === 'development' &&
+  process.env.SEARCH_DEBUG === 'true'
+    ? (...args: unknown[]) => console.log(...args)
+    : (..._args: unknown[]) => {};
+
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session || !session.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  console.log(`=== SEARCH DEBUG START ===`);
-  console.log(`Authenticated user ID: ${session.user.id}`);
-  console.log(`User email: ${session.user.email}`);
+  debugLog(`=== SEARCH DEBUG START ===`);
 
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get('q') || '';
@@ -92,12 +96,8 @@ export async function GET(request: NextRequest) {
   const hasBookmarks = searchParams.get('hasBookmarks');
   const hasPins = searchParams.get('hasPins');
 
-  console.log(`Search query: "${query}"`);
-  console.log(`Search types: ${types.join(', ')}`);
-  console.log(`Personas: ${personas.join(', ')}`);
-  console.log(`Document Types: ${documentTypes.join(', ')}`);
-  console.log(`Has Bookmarks: ${hasBookmarks}`);
-  console.log(`Has Pins: ${hasPins}`);
+  debugLog(`Search query present: ${query.trim().length > 0}`);
+  debugLog(`Search types: ${types.join(', ')}`);
 
   try {
     const results: any[] = [];
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       .from(chat)
       .where(eq(chat.userId, session.user.id));
 
-    console.log(`Total chats for user: ${totalUserChats[0]?.count || 0}`);
+    debugLog(`Total chats for user: ${totalUserChats[0]?.count || 0}`);
 
     // Get a sample of user's chats to see what we're working with
     const sampleChats = await db
@@ -124,9 +124,9 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(chat.createdAt))
       .limit(10);
 
-    console.log(`Sample of user's chats:`);
+    debugLog(`Sample of user's chats`);
     sampleChats.forEach((c, i) => {
-      console.log(
+      debugLog(
         `  ${i + 1}. "${getDisplayTitle(c.title)}" (ID: ${c.id}, UserID: ${c.userId})`,
       );
     });
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
         .from(bookmarkedChat)
         .where(eq(bookmarkedChat.userId, session.user.id));
       bookmarkedChatIds = bookmarkedChats.map((b) => b.chatId);
-      console.log(`Found ${bookmarkedChatIds.length} bookmarked chats`);
+      debugLog(`Found ${bookmarkedChatIds.length} bookmarked chats`);
     }
 
     if (hasPins === 'true') {
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
         .from(pinnedMessage)
         .where(eq(pinnedMessage.userId, session.user.id));
       pinnedChatIds = [...new Set(pinnedChats.map((p) => p.chatId))];
-      console.log(`Found ${pinnedChatIds.length} chats with pins`);
+      debugLog(`Found ${pinnedChatIds.length} chats with pins`);
     }
 
     // Filter chat IDs based on bookmarks/pins
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
 
     // Search Chats - Enhanced to include message-matched chats and robust filtering
     if (types.includes('chat')) {
-      console.log(
+      debugLog(
         `Search: Looking for chats with query "${query}" for user ${session.user.id}`,
       );
 
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
 
       if (query.trim()) {
         const searchQuery = `%${query.trim()}%`;
-        console.log(`Search: Using search pattern "${searchQuery}"`);
+        debugLog(`Search: Using search pattern "${searchQuery}"`);
 
         try {
           // First get chatIds from message matches (distinct), respecting user and optional filters
@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
             .orderBy(desc(chat.createdAt))
             .limit(Math.max(50, limitParam));
 
-          console.log(
+          debugLog(
             `Search: Title/message union found ${chats.length} chats (title OR message matches)`,
           );
         } catch (searchError) {
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
         }
       } else {
         // No query - get recent chats
-        console.log(`Search: No query provided, getting recent chats`);
+        debugLog(`Search: No query provided, getting recent chats`);
 
         const conditions = [eq(chat.userId, session.user.id)];
 
@@ -331,17 +331,17 @@ export async function GET(request: NextRequest) {
           .limit(Math.max(50, limitParam));
       }
 
-      console.log(`Search: Found ${chats.length} chats total`);
+      debugLog(`Search: Found ${chats.length} chats total`);
 
       // Log first few chat titles for debugging
       chats.slice(0, 3).forEach((c, i) => {
         const displayTitle = getDisplayTitle(c.title);
-        console.log(`Search: Chat ${i + 1}: "${displayTitle}" (ID: ${c.id})`);
+        debugLog(`Search: Chat ${i + 1}: "${displayTitle}" (ID: ${c.id})`);
         if (query.trim()) {
           const matches = displayTitle
             .toLowerCase()
             .includes(query.toLowerCase());
-          console.log(
+          debugLog(
             `Search: Title "${displayTitle}" contains "${query}": ${matches}`,
           );
         }
@@ -405,7 +405,7 @@ export async function GET(request: NextRequest) {
         hasPinnedMessages: pinnedSet.has(c.id),
       }));
 
-      console.log(
+      debugLog(
         `Search: Adding ${chatResults.length} chat results to search results`,
       );
       results.push(...chatResults);
@@ -413,7 +413,7 @@ export async function GET(request: NextRequest) {
 
     // Include pinned messages when pins filter is active (regardless of query)
     if (types.includes('message') && hasPins === 'true') {
-      console.log(
+      debugLog(
         `Search: Fetching pinned messages${query ? ` with query "${query}"` : ''}`,
       );
 
@@ -482,13 +482,13 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      console.log(`Search: Returning ${pinnedResults.length} pinned messages`);
+      debugLog(`Search: Returning ${pinnedResults.length} pinned messages`);
       results.push(...pinnedResults);
     }
 
     // Search Messages (general) when not restricted to pins
     if (types.includes('message') && query && hasPins !== 'true') {
-      console.log(`Search: Looking for messages with query "${query}"`);
+      debugLog(`Search: Looking for messages with query "${query}"`);
 
       const messageConditions = [
         sql`${message.chatId} IN (SELECT id FROM "Chat" WHERE "userId" = ${session.user.id})`,
@@ -497,7 +497,7 @@ export async function GET(request: NextRequest) {
       // If filtering by bookmarked/pinned chats, narrow at SQL level
       if (filteredChatIds !== null) {
         if (filteredChatIds.length === 0) {
-          console.log(
+          debugLog(
             'Search: Skipping message query due to empty filteredChatIds',
           );
         } else {
@@ -509,7 +509,7 @@ export async function GET(request: NextRequest) {
         messageConditions.push(gte(message.createdAt, dateFilter));
       }
 
-      console.log(
+      debugLog(
         `Search: Message conditions count: ${messageConditions.length}`,
       );
 
@@ -531,7 +531,7 @@ export async function GET(request: NextRequest) {
         .orderBy(desc(message.createdAt))
         .limit(100);
 
-      console.log(
+      debugLog(
         `Search: Found ${messages.length} messages from user's chats`,
       );
 
@@ -574,7 +574,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      console.log(
+      debugLog(
         `Search: Filtered to ${messageResults.length} matching messages`,
       );
       results.push(...messageResults);
@@ -582,7 +582,7 @@ export async function GET(request: NextRequest) {
 
     // Search Composers
     if (types.includes('composer')) {
-      console.log(`Search: Looking for composers with query "${query}"`);
+      debugLog(`Search: Looking for composers with query "${query}"`);
 
       const composerConditions = [eq(document.userId, session.user.id)];
 
@@ -662,7 +662,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      console.log(`Search: Found ${composerResults.length} composers`);
+      debugLog(`Search: Found ${composerResults.length} composers`);
       results.push(...composerResults);
     }
 
@@ -780,9 +780,9 @@ export async function GET(request: NextRequest) {
     // Generate suggestions based on recent searches and popular terms
     const suggestions = await generateSearchSuggestions(session.user.id);
 
-    console.log(`=== SEARCH DEBUG END ===`);
-    console.log(`Total results found: ${results.length}`);
-    console.log(`Results by type:`);
+    debugLog(`=== SEARCH DEBUG END ===`);
+    debugLog(`Total results found: ${results.length}`);
+    debugLog(`Results by type:`);
     const resultsByType = results.reduce(
       (acc, r) => {
         acc[r.type] = (acc[r.type] || 0) + 1;
@@ -790,8 +790,8 @@ export async function GET(request: NextRequest) {
       },
       {} as Record<string, number>,
     );
-    console.log(resultsByType);
-    console.log(
+    debugLog(resultsByType);
+    debugLog(
       `First 3 results:`,
       results.slice(0, 3).map((r) => ({ type: r.type, title: r.title })),
     );

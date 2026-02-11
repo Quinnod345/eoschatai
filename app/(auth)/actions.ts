@@ -37,8 +37,6 @@ export const login = async (
     // Get the callback URL from form data, default to '/chat'
     const callbackUrl = formData.get('callbackUrl')?.toString() || '/chat';
 
-    console.log(`Login attempt for user: ${validatedData.email}`);
-
     try {
       await signIn('credentials', {
         email: validatedData.email,
@@ -100,16 +98,12 @@ export const register = async (
     const users = await getUser(validatedData.email);
 
     if (users.length > 0) {
-      console.log(
-        `Registration attempt: User with email ${validatedData.email} already exists`,
-      );
+      console.log('Registration attempt for existing user');
       return { status: 'user_exists' };
     }
 
     // Create the new user
-    console.log(
-      `Registration: Creating new user with email ${validatedData.email}`,
-    );
+    console.log('Registration: Creating new user');
     await createUser(validatedData.email, validatedData.password);
 
     // Attempt to sign in with the new credentials
@@ -238,9 +232,7 @@ export const forgotPassword = async (
       return { status: 'failed' };
     }
 
-    console.log(
-      `Password reset email sent to ${validatedData.email} (${data?.id})`,
-    );
+    console.log(`Password reset email sent (${data?.id})`);
     return { status: 'success' };
   } catch (error) {
     console.error('Forgot password error:', error);

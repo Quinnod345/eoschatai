@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import {
@@ -6,10 +6,30 @@ import {
   l10AgendaItem,
   l10Issue,
   l10Todo,
-  voiceRecording,
-  voiceTranscript,
+  document,
 } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { z } from 'zod/v3';
+
+const createMeetingSchema = z.object({
+  composerId: z.string().min(1).max(255),
+  title: z.string().trim().min(1).max(255),
+  attendees: z.array(z.string().max(255)).max(100).optional().default([]),
+});
+
+const updateMeetingSchema = z.object({
+  meetingId: z.string().uuid(),
+  updates: z
+    .object({
+      title: z.string().trim().min(1).max(255).optional(),
+      status: z.enum(['active', 'completed', 'archived']).optional(),
+      attendees: z.array(z.string().max(255)).max(100).optional(),
+      rating: z.number().int().min(1).max(10).nullable().optional(),
+      notes: z.string().max(10_000).nullable().optional(),
+      date: z.coerce.date().optional(),
+    })
+    .strict(),
+});
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -79,13 +99,34 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { composerId, title, attendees } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      }
+      throw error;
+    }
 
-    if (!composerId || !title) {
+    const parsedBody = createMeetingSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
       return NextResponse.json(
-        { error: 'Composer ID and title required' },
+        { error: parsedBody.error.errors[0]?.message || 'Validation failed' },
         { status: 400 },
+      );
+    }
+    const { composerId, title, attendees } = parsedBody.data;
+
+    const [composerDoc] = await db
+      .select({ id: document.id, userId: document.userId })
+      .from(document)
+      .where(eq(document.id, composerId));
+
+    if (!composerDoc || composerDoc.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Composer document not found' },
+        { status: 404 },
       );
     }
 
@@ -159,18 +200,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating L10 meeting:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-    const errorDetails =
-      error instanceof Error && 'code' in error
-        ? (error as any).code
-        : undefined;
     return NextResponse.json(
-      {
-        error: 'Failed to create meeting',
-        details: errorMessage,
-        code: errorDetails,
-      },
+      { error: 'Failed to create meeting' },
       { status: 500 },
     );
   }
@@ -183,15 +214,24 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { meetingId, updates } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      }
+      throw error;
+    }
 
-    if (!meetingId) {
+    const parsedBody = updateMeetingSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
       return NextResponse.json(
-        { error: 'Meeting ID required' },
+        { error: parsedBody.error.errors[0]?.message || 'Validation failed' },
         { status: 400 },
       );
     }
+    const { meetingId, updates } = parsedBody.data;
 
     // Verify ownership
     const [existingMeeting] = await db
@@ -209,12 +249,23 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update the meeting
+    const updateSet: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+    if (updates.title !== undefined) updateSet.title = updates.title;
+    if (updates.status !== undefined) updateSet.status = updates.status;
+    if (updates.attendees !== undefined) updateSet.attendees = updates.attendees;
+    if (updates.rating !== undefined) updateSet.rating = updates.rating;
+    if (updates.notes !== undefined) updateSet.notes = updates.notes;
+    if (updates.date !== undefined) updateSet.date = updates.date;
+
+    if (Object.keys(updateSet).length === 1) {
+      return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 });
+    }
+
     const [updatedMeeting] = await db
       .update(l10Meeting)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
+      .set(updateSet)
       .where(eq(l10Meeting.id, meetingId))
       .returning();
 

@@ -17,8 +17,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { inviteCode } = body;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { inviteCode } = body as { inviteCode?: unknown };
 
     if (!inviteCode || typeof inviteCode !== 'string') {
       return NextResponse.json(
@@ -173,8 +178,32 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error joining organization:', error);
+    const message =
+      error instanceof Error ? error.message : 'Failed to join organization';
+
+    if (message.includes('already belong to an organization')) {
+      return NextResponse.json(
+        { error: 'You already belong to an organization' },
+        { status: 409 },
+      );
+    }
+
+    if (message.includes('seat limit')) {
+      return NextResponse.json(
+        { error: 'Organization has reached its seat limit' },
+        { status: 409 },
+      );
+    }
+
+    if (message.includes('Organization no longer exists')) {
+      return NextResponse.json(
+        { error: 'Organization not found' },
+        { status: 404 },
+      );
+    }
+
     return NextResponse.json(
-      { error: 'Failed to join organization' },
+      { error: message || 'Failed to join organization' },
       { status: 500 },
     );
   }

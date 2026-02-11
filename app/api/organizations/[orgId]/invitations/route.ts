@@ -8,6 +8,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import { checkOrgPermission } from '@/lib/organizations/permissions';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -21,11 +22,16 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Check if user has permission to view invitations
     const allowed = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.view',
     );
     if (!allowed) {
@@ -57,7 +63,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .leftJoin(userSettings, eq(userSettings.userId, userTable.id))
       .where(
         and(
-          eq(orgInvitation.orgId, orgId),
+          eq(orgInvitation.orgId, orgIdValue),
           // Show all non-accepted invitations
           isNull(orgInvitation.acceptedAt),
         ),
@@ -97,12 +103,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
     const { searchParams } = new URL(request.url);
     const invitationId = searchParams.get('id');
-
-    if (!invitationId) {
+    const validatedInvitationId = validateUuidField(invitationId, 'invitationId');
+    if (!validatedInvitationId.ok) {
       return NextResponse.json(
-        { error: 'Invitation ID required' },
+        { error: validatedInvitationId.error },
         { status: 400 },
       );
     }
@@ -110,7 +121,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     // Check if user has permission to manage invitations
     const allowed = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.invite',
     );
     if (!allowed) {
@@ -121,11 +132,22 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     // Delete the invitation
-    await db
+    const deleted = await db
       .delete(orgInvitation)
       .where(
-        and(eq(orgInvitation.id, invitationId), eq(orgInvitation.orgId, orgId)),
+        and(
+          eq(orgInvitation.id, validatedInvitationId.value),
+          eq(orgInvitation.orgId, orgIdValue),
+        ),
+      )
+      .returning({ id: orgInvitation.id });
+
+    if (deleted.length === 0) {
+      return NextResponse.json(
+        { error: 'Invitation not found' },
+        { status: 404 },
       );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

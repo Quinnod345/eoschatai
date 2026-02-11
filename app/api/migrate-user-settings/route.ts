@@ -1,15 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { auth } from '@/app/(auth)/auth';
+import { requireAdmin } from '@/lib/auth/admin';
 
-export async function GET(request: NextRequest) {
-  const session = await auth();
-
-  // Only allow admins or in development
-  if (!session?.user && process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export async function POST(_request: NextRequest) {
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
 
   try {
     // Manual migration to create UserSettings table

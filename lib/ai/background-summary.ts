@@ -151,11 +151,18 @@ export async function shouldGenerateSummary(chatId: string): Promise<boolean> {
   }
 }
 
+// Guard against concurrent summary generation for the same chat
+const summariesInProgress = new Set<string>();
+
 /**
  * Trigger background summary generation if needed
- * This is a fire-and-forget function
+ * This is a fire-and-forget function.
+ * Prevents concurrent summary generation for the same chat.
  */
 export function triggerBackgroundSummary(chatId: string): void {
+  if (summariesInProgress.has(chatId)) return;
+  summariesInProgress.add(chatId);
+
   // Fire and forget - don't await
   shouldGenerateSummary(chatId)
     .then((shouldGenerate) => {
@@ -165,5 +172,8 @@ export function triggerBackgroundSummary(chatId: string): void {
     })
     .catch((error) => {
       console.error('[Background Summary] Error in trigger:', error);
+    })
+    .finally(() => {
+      summariesInProgress.delete(chatId);
     });
 }

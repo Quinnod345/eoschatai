@@ -13,6 +13,7 @@ import { getOrCreateInviteCode } from '@/lib/organizations/invite-codes';
 import { getResendClient, getFromAddress } from '@/lib/email/resend';
 import OrgInviteEmail from '@/emails/OrgInviteEmail';
 import { buildAppUrl } from '@/lib/utils/app-url';
+import { validateUuidField } from '@/lib/api/validation';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -30,7 +31,18 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
-    const json = await request.json();
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
+
+    let json: unknown;
+    try {
+      json = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const parse = bodySchema.safeParse(json);
     if (!parse.success) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -42,7 +54,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .select()
       .from(userTable)
       .where(eq(userTable.id, session.user.id));
-    if (!inviter || inviter.orgId !== orgId) {
+    if (!inviter || inviter.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'You are not a member of this organization' },
         { status: 403 },
@@ -51,7 +63,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const allowed = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.invite',
     );
     if (!allowed) {
@@ -65,7 +77,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const [org] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
     if (!org) {
       return NextResponse.json(
         { error: 'Organization not found' },
@@ -79,7 +91,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       .from(orgInvitation)
       .where(
         and(
-          eq(orgInvitation.orgId, orgId),
+          eq(orgInvitation.orgId, orgIdValue),
           eq(orgInvitation.email, email),
           notInArray(orgInvitation.status, ['accepted', 'failed', 'bounced']),
         ),
@@ -146,7 +158,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
 
     await db.insert(orgInvitation).values({
-      orgId,
+      orgId: orgIdValue,
       invitedByUserId: session.user.id,
       email,
       inviteCode: code,

@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from '@/lib/toast-system';
@@ -22,6 +23,7 @@ interface UserSettings {
   companyCountry?: string;
   companyState?: string;
   language?: string;
+  timezone?: string;
   fontSize?: string;
   notificationsEnabled?: boolean;
   autocompleteEnabled?: boolean;
@@ -40,6 +42,7 @@ const defaultSettings: UserSettings = {
   autocompleteEnabled: true,
   notificationsEnabled: true,
   language: 'english',
+  timezone: 'UTC',
   fontSize: 'medium',
   disableGlassEffects: true,
   disableEosGradient: true,
@@ -55,6 +58,20 @@ export function UserSettingsProvider({
   const { status } = useSession();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
+  const lastSyncedTimezoneRef = useRef<string | null>(null);
+
+  const getBrowserTimezone = useCallback((): string => {
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (typeof timezone === 'string' && timezone.trim().length > 0) {
+        return timezone.trim();
+      }
+    } catch (error) {
+      console.warn('Failed to resolve browser timezone:', error);
+    }
+
+    return 'UTC';
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     // Only fetch if user is authenticated
@@ -68,7 +85,40 @@ export function UserSettingsProvider({
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched user settings:', data);
-        setSettings(data);
+        const mergedSettings = {
+          ...defaultSettings,
+          ...data,
+        } as UserSettings;
+        setSettings(mergedSettings);
+
+        const browserTimezone = getBrowserTimezone();
+        const storedTimezone =
+          typeof mergedSettings.timezone === 'string' &&
+          mergedSettings.timezone.trim().length > 0
+            ? mergedSettings.timezone.trim()
+            : 'UTC';
+
+        // Keep timezone aligned automatically so local-day resets are accurate.
+        if (
+          browserTimezone !== storedTimezone &&
+          lastSyncedTimezoneRef.current !== browserTimezone
+        ) {
+          const timezoneResponse = await fetch('/api/user-settings', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timezone: browserTimezone }),
+          });
+
+          if (timezoneResponse.ok) {
+            lastSyncedTimezoneRef.current = browserTimezone;
+            setSettings((prev) => ({
+              ...prev,
+              timezone: browserTimezone,
+            }));
+          } else {
+            console.warn('Failed to persist browser timezone');
+          }
+        }
       }
       // Silently ignore 401 errors - user is not authenticated
     } catch (error) {
@@ -76,7 +126,7 @@ export function UserSettingsProvider({
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [getBrowserTimezone, status]);
 
   const updateSettings = useCallback(
     async (newSettings: Partial<UserSettings>) => {
@@ -89,6 +139,9 @@ export function UserSettingsProvider({
       try {
         // Optimistically update local state
         setSettings((prev) => ({ ...prev, ...newSettings }));
+        if (typeof newSettings.timezone === 'string') {
+          lastSyncedTimezoneRef.current = newSettings.timezone;
+        }
 
         const response = await fetch('/api/user-settings', {
           method: 'POST',
@@ -97,6 +150,9 @@ export function UserSettingsProvider({
         });
 
         if (!response.ok) {
+          if (typeof newSettings.timezone === 'string') {
+            lastSyncedTimezoneRef.current = null;
+          }
           // Revert on failure
           await fetchSettings();
           throw new Error('Failed to update settings');
@@ -106,6 +162,9 @@ export function UserSettingsProvider({
         console.log('Updated user settings:', updatedData);
         setSettings(updatedData);
       } catch (error) {
+        if (typeof newSettings.timezone === 'string') {
+          lastSyncedTimezoneRef.current = null;
+        }
         console.error('Error updating settings:', error);
         toast.error('Failed to update settings');
         throw error;

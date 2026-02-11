@@ -1,10 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { endEditSession } from '@/lib/db/document-history';
+import { db } from '@/lib/db';
+import { documentEditSession } from '@/lib/db/schema';
+import { validateUuidField } from '@/lib/api/validation';
+import { eq } from 'drizzle-orm';
 
 // DELETE /api/composer-documents/history/session/[sessionId] - End edit session
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   try {
@@ -14,7 +18,21 @@ export async function DELETE(
     }
 
     const { sessionId } = await params;
-    await endEditSession(sessionId);
+    const validatedSessionId = validateUuidField(sessionId, 'sessionId');
+    if (!validatedSessionId.ok) {
+      return NextResponse.json({ error: validatedSessionId.error }, { status: 400 });
+    }
+
+    const [editSession] = await db
+      .select({ id: documentEditSession.id, userId: documentEditSession.userId })
+      .from(documentEditSession)
+      .where(eq(documentEditSession.id, validatedSessionId.value));
+
+    if (!editSession || editSession.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await endEditSession(validatedSessionId.value);
 
     return NextResponse.json({ success: true });
   } catch (error) {

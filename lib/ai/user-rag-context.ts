@@ -9,6 +9,7 @@ export interface UserRagResult {
   context: string;
   documentIds: string[];
   documentNames: string[];
+  chunkCount: number;
 }
 
 /**
@@ -19,7 +20,7 @@ export async function getUserRagContextWithMetadata(
   query = '',
 ): Promise<UserRagResult> {
   if (!userId) {
-    return { context: '', documentIds: [], documentNames: [] };
+    return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
   }
 
   try {
@@ -92,7 +93,7 @@ export async function getUserRagContextWithMetadata(
 
     if (!relevantDocs || relevantDocs.length === 0) {
       console.log('User RAG context: No relevant user documents found');
-      return { context: '', documentIds: [], documentNames: [] };
+      return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
     }
 
     // SECURITY FIX: Filter out documents with category "Persona Document"
@@ -109,7 +110,7 @@ export async function getUserRagContextWithMetadata(
 
     if (filteredDocs.length === 0) {
       console.log('User RAG context: No relevant user documents found after filtering');
-      return { context: '', documentIds: [], documentNames: [] };
+      return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
     }
 
     // Extract unique document IDs and names from the results (using filtered docs)
@@ -173,10 +174,11 @@ Do not mention that you are using "user documents" or "uploaded documents" - jus
       context: contextText,
       documentIds,
       documentNames,
+      chunkCount: filteredDocs.length,
     };
   } catch (error) {
     console.error('User RAG: Error fetching user documents:', error);
-    return { context: '', documentIds: [], documentNames: [] };
+    return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
   }
 }
 

@@ -113,7 +113,7 @@ Once the re-sync finishes, run verification:
 
 ```bash
 export UPSTASH_USER_RAG_REST_URL="https://fast-seasnail-12447-us1-vector.upstash.io"
-export UPSTASH_USER_RAG_REST_TOKEN="ABcFMGZhc3Qtc2Vhc25haWwtMTI0NDctdXMxYWRtaW5abVZqTmpGa1pXRXROV1ZtT0MwMFlqaGtMVGs1TURrdFpERmlORGs1TkdGaU1EaGw="
+export UPSTASH_USER_RAG_REST_TOKEN="YOUR_UPSTASH_USER_RAG_REST_TOKEN"
 export OPENAI_API_KEY="sk-proj-..."
 
 pnpm tsx scripts/verify-upstash-embeddings.ts

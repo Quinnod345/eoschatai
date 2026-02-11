@@ -5,6 +5,10 @@ import { google } from 'googleapis';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { googleCalendarToken, user } from '@/lib/db/schema';
+import {
+  sanitizeCalendarReturnTo,
+  verifyCalendarOAuthState,
+} from '@/lib/integrations/calendar/oauth-state';
 import { generateUUID } from '@/lib/utils';
 
 /**
@@ -32,8 +36,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate state matches user ID
-    if (state !== session.user.id) {
+    const stateValidation = verifyCalendarOAuthState(state, session.user.id);
+    if (!stateValidation.valid) {
       console.error('State mismatch in OAuth callback');
       return NextResponse.redirect(
         new URL(
@@ -99,12 +103,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Redirect back to the main app with success message
-    const savedReturnTo = searchParams.get('state_return_to');
+    const savedReturnTo =
+      stateValidation.returnTo ||
+      sanitizeCalendarReturnTo(searchParams.get('state_return_to'));
     let redirectUrl =
       '/?success=Google+Calendar+connected+successfully&open_settings=true';
 
     // If there was a stored return URL, use it
-    if (savedReturnTo?.startsWith('/')) {
+    if (savedReturnTo) {
       // Add success parameter to the return URL
       redirectUrl = `${savedReturnTo}${savedReturnTo.includes('?') ? '&' : '?'}success=Google+Calendar+connected+successfully&open_settings=true`;
     }

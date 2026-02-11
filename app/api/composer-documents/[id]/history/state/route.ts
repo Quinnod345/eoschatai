@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getUndoRedoState } from '@/lib/db/document-history';
+import { db } from '@/lib/db';
+import { document } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // GET /api/composer-documents/[id]/history/state - Get undo/redo state
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -13,17 +16,17 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const { id } = await params;
+    const userId = session.user.id;
+    const [doc] = await db
+      .select({ id: document.id, userId: document.userId })
+      .from(document)
+      .where(eq(document.id, id));
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 },
-      );
+    if (!doc || doc.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { id } = await params;
     const state = await getUndoRedoState(id, userId);
 
     return NextResponse.json(state);

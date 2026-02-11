@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 import { resetMonthlyUsageCounters } from '@/lib/entitlements';
 
 const isAuthorized = (request: NextRequest) => {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
+  if (!secret) return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
 };
 
@@ -23,4 +23,8 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

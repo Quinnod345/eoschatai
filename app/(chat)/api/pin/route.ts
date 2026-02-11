@@ -46,6 +46,26 @@ export async function POST(request: Request) {
       );
     }
 
+    const [ownedMessage] = await db
+      .select({ id: message.id })
+      .from(message)
+      .innerJoin(chat, eq(chat.id, message.chatId))
+      .where(
+        and(
+          eq(message.id, messageId),
+          eq(message.chatId, chatId),
+          eq(chat.userId, session.user.id),
+        ),
+      )
+      .limit(1);
+
+    if (!ownedMessage) {
+      return new Response(JSON.stringify({ error: 'Message not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // Check if already pinned
     const existing = await db
       .select()

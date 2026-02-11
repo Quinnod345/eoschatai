@@ -378,10 +378,14 @@ export async function autoFixSubscriptionIssues(dryRun = true): Promise<{
           skipped++;
         } else {
           // Re-sync entitlements
-          const { invalidateUserEntitlementsCache, getUserEntitlements } =
-            await import('@/lib/entitlements');
+          const {
+            invalidateUserEntitlementsCache,
+            getUserEntitlements,
+            broadcastEntitlementsUpdated,
+          } = await import('@/lib/entitlements');
           await invalidateUserEntitlementsCache(issue.userId);
           await getUserEntitlements(issue.userId);
+          await broadcastEntitlementsUpdated(issue.userId);
 
           details.push({ issue: issue.description, action, success: true });
           fixed++;

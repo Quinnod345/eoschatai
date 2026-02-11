@@ -46,9 +46,13 @@ function InviteAcceptContent() {
           acceptUrl.searchParams.set('email', email);
         }
 
-        // Navigate to the accept URL which will handle auth and redirects
-        // The server will redirect to /chat with the appropriate query params
-        window.location.href = acceptUrl.toString();
+        // Submit a POST to the accept endpoint so state-changing work is not done via GET.
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = acceptUrl.toString();
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        form.submit();
       } catch (error) {
         console.error('Error accepting invitation:', error);
         toast.dismiss(toastId);

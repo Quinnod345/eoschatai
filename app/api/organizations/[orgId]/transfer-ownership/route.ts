@@ -7,6 +7,7 @@ import {
   orgMemberRole,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{
@@ -25,8 +26,19 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
-    const body = await request.json();
-    const { newOwnerId } = body;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { newOwnerId } = body as { newOwnerId?: string };
 
     if (!newOwnerId || typeof newOwnerId !== 'string') {
       return NextResponse.json(
@@ -34,12 +46,20 @@ export async function POST(request: Request, { params }: RouteParams) {
         { status: 400 },
       );
     }
+    const validatedNewOwnerId = validateUuidField(newOwnerId, 'newOwnerId');
+    if (!validatedNewOwnerId.ok) {
+      return NextResponse.json(
+        { error: validatedNewOwnerId.error },
+        { status: 400 },
+      );
+    }
+    const newOwnerIdValue = validatedNewOwnerId.value;
 
     // Get organization and verify current user is owner
     const [organization] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!organization) {
       return NextResponse.json(
@@ -59,7 +79,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const [newOwner] = await db
       .select()
       .from(userTable)
-      .where(eq(userTable.id, newOwnerId));
+      .where(eq(userTable.id, newOwnerIdValue));
 
     if (!newOwner) {
       return NextResponse.json(
@@ -68,7 +88,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    if (newOwner.orgId !== orgId) {
+    if (newOwner.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'New owner must be a member of this organization' },
         { status: 400 },
@@ -76,7 +96,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Can't transfer to yourself
-    if (newOwnerId === session.user.id) {
+    if (newOwnerIdValue === session.user.id) {
       return NextResponse.json(
         { error: 'You are already the owner' },
         { status: 400 },
@@ -88,8 +108,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       // Update org owner
       await tx
         .update(orgTable)
-        .set({ ownerId: newOwnerId })
-        .where(eq(orgTable.id, orgId));
+        .set({ ownerId: newOwnerIdValue })
+        .where(eq(orgTable.id, orgIdValue));
 
       // Update old owner's role to 'member'
       await tx
@@ -98,7 +118,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         .where(
           and(
             eq(orgMemberRole.userId, session.user.id),
-            eq(orgMemberRole.orgId, orgId),
+            eq(orgMemberRole.orgId, orgIdValue),
           ),
         );
 
@@ -106,8 +126,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       await tx
         .insert(orgMemberRole)
         .values({
-          userId: newOwnerId,
-          orgId,
+          userId: newOwnerIdValue,
+          orgId: orgIdValue,
           role: 'owner',
         })
         .onConflictDoUpdate({
@@ -117,7 +137,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     });
 
     console.log(
-      `[transfer-ownership] Transferred ownership of org ${orgId} from ${session.user.id} to ${newOwnerId}`,
+      `[transfer-ownership] Transferred ownership of org ${orgIdValue} from ${session.user.id} to ${newOwnerIdValue}`,
     );
 
     // Track analytics event
@@ -126,10 +146,10 @@ export async function POST(request: Request, { params }: RouteParams) {
       await trackServerEvent({
         event: 'ownership_transferred',
         userId: session.user.id,
-        orgId,
+        orgId: orgIdValue,
         properties: {
           previousOwnerId: session.user.id,
-          newOwnerId,
+          newOwnerId: newOwnerIdValue,
           timestamp: new Date().toISOString(),
         },
       });
@@ -140,7 +160,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     return NextResponse.json({
       success: true,
       message: 'Ownership transferred successfully',
-      newOwnerId,
+      newOwnerId: newOwnerIdValue,
     });
   } catch (error) {
     console.error('[transfer-ownership] Error:', error);

@@ -72,35 +72,40 @@ export async function updateOrgSeatCount(
   orgId: string,
   newSeatCount: number,
 ): Promise<void> {
+  let normalizedSeatCount = newSeatCount;
+
   // Validate seat count to prevent invalid data
   if (
-    newSeatCount < 1 ||
-    newSeatCount > 10000 ||
-    !Number.isFinite(newSeatCount)
+    normalizedSeatCount < 1 ||
+    normalizedSeatCount > 10000 ||
+    !Number.isFinite(normalizedSeatCount)
   ) {
     console.error(
-      `[seat-enforcement] Invalid seat count ${newSeatCount}, clamping to valid range`,
+      `[seat-enforcement] Invalid seat count ${normalizedSeatCount}, clamping to valid range`,
     );
-    newSeatCount = Math.max(1, Math.min(10000, Math.floor(newSeatCount)));
+    normalizedSeatCount = Math.max(
+      1,
+      Math.min(10000, Math.floor(normalizedSeatCount)),
+    );
   }
 
   // Get current member count
   const usage = await getOrgSeatUsage(orgId);
 
   // If reducing seats below current usage, mark for admin action
-  if (newSeatCount < usage.used) {
+  if (normalizedSeatCount < usage.used) {
     // Update seat count anyway (Stripe is source of truth)
     // and set pendingRemoval to require admin selection
     await db
       .update(orgTable)
       .set({
-        seatCount: newSeatCount,
-        pendingRemoval: usage.used - newSeatCount, // Number of members admin must remove
+        seatCount: normalizedSeatCount,
+        pendingRemoval: usage.used - normalizedSeatCount, // Number of members admin must remove
       })
       .where(eq(orgTable.id, orgId));
 
     console.log(
-      `[seat-enforcement] Org ${orgId} reduced from ${usage.used} to ${newSeatCount} seats. Admin must remove ${usage.used - newSeatCount} members.`,
+      `[seat-enforcement] Org ${orgId} reduced from ${usage.used} to ${normalizedSeatCount} seats. Admin must remove ${usage.used - normalizedSeatCount} members.`,
     );
     return;
   }
@@ -109,7 +114,7 @@ export async function updateOrgSeatCount(
   await db
     .update(orgTable)
     .set({
-      seatCount: newSeatCount,
+      seatCount: normalizedSeatCount,
       pendingRemoval: 0, // Clear any pending removals
     })
     .where(eq(orgTable.id, orgId));
@@ -173,8 +178,8 @@ export async function removeExcessMembers(
 
     // Recompute entitlements for the removed user
     try {
-      await getUserEntitlements(member.id);
       await invalidateUserEntitlementsCache(member.id);
+      await getUserEntitlements(member.id);
       await broadcastEntitlementsUpdated(member.id);
     } catch (error) {
       console.warn(

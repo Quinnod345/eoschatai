@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import {
@@ -7,6 +7,7 @@ import {
   documentShareOrg,
   user as userTable,
 } from '@/lib/db/schema';
+import { isValidUuid, validateUuidField } from '@/lib/api/validation';
 import { eq, and } from 'drizzle-orm';
 
 // GET - Get sharing settings for a document
@@ -20,9 +21,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const documentId = searchParams.get('documentId');
 
-    if (!documentId) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
       return NextResponse.json(
-        { error: 'documentId is required' },
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -57,16 +59,16 @@ export async function GET(request: NextRequest) {
       })
       .from(documentShareUser)
       .leftJoin(userTable, eq(userTable.id, documentShareUser.sharedWithId))
-      .where(eq(documentShareUser.documentId, documentId));
+      .where(eq(documentShareUser.documentId, validatedDocumentId.value));
 
     // Get org-level shares
     const orgShares = await db
       .select()
       .from(documentShareOrg)
-      .where(eq(documentShareOrg.documentId, documentId));
+      .where(eq(documentShareOrg.documentId, validatedDocumentId.value));
 
     return NextResponse.json({
-      documentId,
+      documentId: validatedDocumentId.value,
       userShares: userShares.map((share) => ({
         id: share.id,
         sharedWithId: share.sharedWithId,
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
       .where(eq(userTable.id, session.user.id));
     const userOrgId = currentUser?.orgId;
 
-    let body;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -117,16 +119,17 @@ export async function POST(request: NextRequest) {
     }
     const { documentId, shareWithUsers, shareWithOrg, permission, expiresAt } =
       body as {
-        documentId: string;
+        documentId?: string;
         shareWithUsers?: string[]; // Array of user IDs
         shareWithOrg?: boolean;
-        permission: 'view' | 'edit' | 'comment';
+        permission?: 'view' | 'edit' | 'comment';
         expiresAt?: string;
       };
 
-    if (!documentId) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
       return NextResponse.json(
-        { error: 'documentId is required' },
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -138,13 +141,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      shareWithUsers &&
+      (!Array.isArray(shareWithUsers) ||
+        shareWithUsers.some((userId) => !isValidUuid(userId)))
+    ) {
+      return NextResponse.json(
+        { error: 'shareWithUsers must be an array of UUIDs' },
+        { status: 400 },
+      );
+    }
+
     // Verify user owns the document
     const [document] = await db
       .select()
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -184,7 +198,7 @@ export async function POST(request: NextRequest) {
           await db
             .insert(documentShareUser)
             .values({
-              documentId,
+              documentId: validatedDocumentId.value,
               sharedById: session.user.id,
               sharedWithId: userId,
               permission,
@@ -215,7 +229,7 @@ export async function POST(request: NextRequest) {
         await db
           .insert(documentShareOrg)
           .values({
-            documentId,
+            documentId: validatedDocumentId.value,
             orgId: userOrgId,
             sharedById: session.user.id,
             permission,
@@ -257,7 +271,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let body;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -267,14 +281,24 @@ export async function DELETE(request: NextRequest) {
       );
     }
     const { documentId, shareId, shareType } = body as {
-      documentId: string;
-      shareId: string;
-      shareType: 'user' | 'org';
+      documentId?: string;
+      shareId?: string;
+      shareType?: 'user' | 'org';
     };
 
-    if (!documentId || !shareId || !shareType) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
+      return NextResponse.json({ error: validatedDocumentId.error }, { status: 400 });
+    }
+
+    const validatedShareId = validateUuidField(shareId, 'shareId');
+    if (!validatedShareId.ok) {
+      return NextResponse.json({ error: validatedShareId.error }, { status: 400 });
+    }
+
+    if (!shareType) {
       return NextResponse.json(
-        { error: 'documentId, shareId, and shareType are required' },
+        { error: 'shareType is required' },
         { status: 400 },
       );
     }
@@ -285,7 +309,7 @@ export async function DELETE(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -297,13 +321,40 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Revoke share
+    // Revoke share and ensure the share belongs to this document
     if (shareType === 'user') {
-      await db
+      const deleted = await db
         .delete(documentShareUser)
-        .where(eq(documentShareUser.id, shareId));
+        .where(
+          and(
+            eq(documentShareUser.id, validatedShareId.value),
+            eq(documentShareUser.documentId, validatedDocumentId.value),
+          ),
+        )
+        .returning({ id: documentShareUser.id });
+
+      if (deleted.length === 0) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
     } else if (shareType === 'org') {
-      await db.delete(documentShareOrg).where(eq(documentShareOrg.id, shareId));
+      const deleted = await db
+        .delete(documentShareOrg)
+        .where(
+          and(
+            eq(documentShareOrg.id, validatedShareId.value),
+            eq(documentShareOrg.documentId, validatedDocumentId.value),
+          ),
+        )
+        .returning({ id: documentShareOrg.id });
+
+      if (deleted.length === 0) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'shareType must be user or org' },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({
@@ -326,7 +377,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let body;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -336,13 +387,23 @@ export async function PATCH(request: NextRequest) {
       );
     }
     const { documentId, shareId, shareType, permission } = body as {
-      documentId: string;
-      shareId: string;
-      shareType: 'user' | 'org';
-      permission: 'view' | 'edit' | 'comment';
+      documentId?: string;
+      shareId?: string;
+      shareType?: 'user' | 'org';
+      permission?: 'view' | 'edit' | 'comment';
     };
 
-    if (!documentId || !shareId || !shareType || !permission) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
+      return NextResponse.json({ error: validatedDocumentId.error }, { status: 400 });
+    }
+
+    const validatedShareId = validateUuidField(shareId, 'shareId');
+    if (!validatedShareId.ok) {
+      return NextResponse.json({ error: validatedShareId.error }, { status: 400 });
+    }
+
+    if (!shareType || !permission) {
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 },
@@ -362,7 +423,7 @@ export async function PATCH(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -374,17 +435,42 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Update permission
+    // Update permission and ensure the share belongs to this document
     if (shareType === 'user') {
-      await db
+      const updated = await db
         .update(documentShareUser)
         .set({ permission })
-        .where(eq(documentShareUser.id, shareId));
+        .where(
+          and(
+            eq(documentShareUser.id, validatedShareId.value),
+            eq(documentShareUser.documentId, validatedDocumentId.value),
+          ),
+        )
+        .returning({ id: documentShareUser.id });
+
+      if (updated.length === 0) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
     } else if (shareType === 'org') {
-      await db
+      const updated = await db
         .update(documentShareOrg)
         .set({ permission })
-        .where(eq(documentShareOrg.id, shareId));
+        .where(
+          and(
+            eq(documentShareOrg.id, validatedShareId.value),
+            eq(documentShareOrg.documentId, validatedDocumentId.value),
+          ),
+        )
+        .returning({ id: documentShareOrg.id });
+
+      if (updated.length === 0) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'shareType must be user or org' },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({

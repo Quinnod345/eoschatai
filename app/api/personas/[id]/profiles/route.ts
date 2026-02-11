@@ -1,9 +1,13 @@
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { persona, personaProfile, profileDocument } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import {
+  canAccessPersona,
+  checkOrgPermission,
+} from '@/lib/organizations/permissions';
 
 export async function GET(
   request: NextRequest,
@@ -63,12 +67,8 @@ export async function GET(
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
     }
 
-    // For system personas, allow access to all users
-    // For user personas, verify ownership
-    if (
-      !personaData.isSystemPersona &&
-      personaData.userId !== session.user.id
-    ) {
+    const access = await canAccessPersona(session.user.id, personaData);
+    if (!access.canChat) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
     }
 
@@ -103,17 +103,35 @@ export async function POST(
     const { id: personaId } = await params;
     const body = await request.json();
 
-    // Verify the persona belongs to the user (only user personas can have new profiles created)
+    // Verify the persona exists and caller can edit
     const [personaData] = await db
       .select()
       .from(persona)
-      .where(
-        and(eq(persona.id, personaId), eq(persona.userId, session.user.id)),
-      )
+      .where(eq(persona.id, personaId))
       .limit(1);
 
     if (!personaData) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
+    }
+
+    let canEdit = personaData.userId === session.user.id;
+    if (
+      !canEdit &&
+      personaData.orgId &&
+      (personaData.visibility === 'org' || personaData.isShared === true)
+    ) {
+      canEdit = await checkOrgPermission(
+        session.user.id,
+        personaData.orgId,
+        'personas.edit',
+      );
+    }
+
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit this persona' },
+        { status: 403 },
+      );
     }
 
     // Don't allow creating profiles for system personas

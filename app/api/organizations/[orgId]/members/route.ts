@@ -8,6 +8,7 @@ import {
   orgMemberRole,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{
@@ -24,6 +25,11 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Verify user belongs to the organization
     const [currentUser] = await db
@@ -31,7 +37,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .from(userTable)
       .where(eq(userTable.id, session.user.id));
 
-    if (!currentUser || currentUser.orgId !== orgId) {
+    if (!currentUser || currentUser.orgId !== orgIdValue) {
       return NextResponse.json(
         { error: 'You are not a member of this organization' },
         { status: 403 },
@@ -46,7 +52,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         ownerId: orgTable.ownerId,
       })
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!org) {
       return NextResponse.json(
@@ -72,10 +78,10 @@ export async function GET(request: Request, { params }: RouteParams) {
         orgMemberRole,
         and(
           eq(userTable.id, orgMemberRole.userId),
-          eq(orgMemberRole.orgId, orgId),
+          eq(orgMemberRole.orgId, orgIdValue),
         ),
       )
-      .where(eq(userTable.orgId, orgId));
+      .where(eq(userTable.orgId, orgIdValue));
 
     const formattedMembers = members.map((member) => ({
       id: member.id,

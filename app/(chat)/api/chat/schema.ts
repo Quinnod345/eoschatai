@@ -33,7 +33,7 @@ export const postRequestBodySchema = z.object({
     createdAt: z.coerce.date().optional(), // Optional in SDK 5
     role: z.enum(['user']),
     content: z.string().max(100000).optional(), // Optional in SDK 5 (parts is primary)
-    parts: z.array(messagePartSchema),
+    parts: z.array(messagePartSchema).min(1),
     experimental_attachments: z
       .array(
         z.object({

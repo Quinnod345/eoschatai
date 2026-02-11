@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { auth } from '@/app/(auth)/auth';
+import { requireAdmin } from '@/lib/auth/admin';
 import {
   resetUserDailyUsageCounters,
   resetDailyUsageCounters,
@@ -24,21 +25,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
-    const { scope = 'self' } = body as { scope?: 'self' | 'all' };
+    let body: unknown = {};
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const scopeInput = (body as { scope?: unknown })?.scope;
+    const scope = scopeInput ?? 'self';
+    if (scope !== 'self' && scope !== 'all') {
+      return NextResponse.json(
+        { error: 'scope must be either "self" or "all"' },
+        { status: 400 },
+      );
+    }
 
     if (scope === 'all') {
-      // Reset all users (admin only in production)
-      if (!isDevelopment && !allowDebug) {
-        return NextResponse.json(
-          { error: 'Cannot reset all users in production' },
-          { status: 403 },
-        );
-      }
-      
+      const adminError = await requireAdmin(session);
+      if (adminError) return adminError;
+
       await resetDailyUsageCounters();
       console.log('[debug] Reset daily usage counters for all users');
-      
+
       return NextResponse.json({
         ok: true,
         scope: 'all',
@@ -48,7 +57,7 @@ export async function POST(request: Request) {
       // Reset current user only
       await resetUserDailyUsageCounters(session.user.id);
       console.log(`[debug] Reset daily usage counters for user ${session.user.id}`);
-      
+
       return NextResponse.json({
         ok: true,
         scope: 'self',

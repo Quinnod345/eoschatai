@@ -3,6 +3,7 @@ import { userRagContextPrompt } from './prompts';
 import { personaRagContextPrompt } from './persona-rag';
 import { systemRagContextPrompt } from './system-rag';
 import { upstashSystemRagContextPrompt } from './upstash-system-rag';
+import { getOrgRagContextWithMetadata } from './org-rag-context';
 import { findRelevantMemories, formatMemoriesForPrompt } from './memory-rag';
 import { analyzeQueryComplexity, type QueryAnalysis } from './query-analyzer';
 
@@ -15,6 +16,7 @@ export interface ContextSource {
     | 'system'
     | 'persona'
     | 'user'
+    | 'org'
     | 'memory'
     | 'company'
     | 'conversation';
@@ -37,6 +39,7 @@ export interface AssembledContext {
  */
 export async function assembleContextWithBudget(options: {
   userId: string;
+  orgId?: string;
   query: string;
   personaId?: string;
   profileId?: string;
@@ -47,6 +50,7 @@ export async function assembleContextWithBudget(options: {
 }): Promise<AssembledContext> {
   const {
     userId,
+    orgId,
     query,
     personaId,
     profileId,
@@ -91,7 +95,8 @@ export async function assembleContextWithBudget(options: {
   // 3. Persona documents (persona-specific knowledge)
   // 4. Conversation summary (historical context for long chats)
   // 5. User documents (user's uploaded content)
-  // 6. Company context (user's company information)
+  // 6. Org documents (organization shared knowledge)
+  // 7. Company context (user's company information)
 
   try {
     // 1. System RAG (Highest priority for system personas)
@@ -129,11 +134,12 @@ export async function assembleContextWithBudget(options: {
             .limit(1);
 
           // Course personas and other system personas use PostgreSQL
-          systemRagContent = await systemRagContextPrompt(
+          const systemRagResult = await systemRagContextPrompt(
             personaId,
             profileId || null,
             query,
           );
+          systemRagContent = systemRagResult.context;
         }
       }
 
@@ -162,7 +168,8 @@ export async function assembleContextWithBudget(options: {
         0.5,
       );
       if (memories.length > 0) {
-        const memoryContent = formatMemoriesForPrompt(memories);
+        const memoryResult = formatMemoriesForPrompt(memories);
+        const memoryContent = memoryResult.formatted;
         const tokens = countTokens(memoryContent, model);
         contexts.push({
           name: 'User Memories',
@@ -184,11 +191,12 @@ export async function assembleContextWithBudget(options: {
     // 3. Persona Documents (High priority)
     if (personaId) {
       console.log(`Context Assembler: Retrieving persona documents`);
-      const personaRagContent = await personaRagContextPrompt(
+      const personaRagResult = await personaRagContextPrompt(
         personaId,
         query,
         userId,
       );
+      const personaRagContent = personaRagResult.context;
       if (personaRagContent.length > 0) {
         const tokens = countTokens(personaRagContent, model);
         contexts.push({
@@ -242,7 +250,26 @@ export async function assembleContextWithBudget(options: {
       );
     }
 
-    // 6. Company Context (Lowest priority)
+    // 6. Organization Knowledge (Medium-low priority)
+    if (orgId && (!queryAnalysis || queryAnalysis.requiresUserContext)) {
+      console.log(`Context Assembler: Retrieving org knowledge`);
+      const orgRagResult = await getOrgRagContextWithMetadata(orgId, query);
+      if (orgRagResult.context.length > 0) {
+        const tokens = countTokens(orgRagResult.context, model);
+        contexts.push({
+          name: 'Organization Knowledge',
+          content: orgRagResult.context,
+          tokens,
+          priority: 6,
+          category: 'org',
+        });
+        console.log(
+          `Context Assembler: Org knowledge - ${tokens} tokens (Priority 6)`,
+        );
+      }
+    }
+
+    // 7. Company Context (Lowest priority)
     const { companyContextPrompt } = await import('./prompts');
     const companyContent = await companyContextPrompt(userId);
     if (companyContent.length > 0) {
@@ -251,11 +278,11 @@ export async function assembleContextWithBudget(options: {
         name: 'Company Information',
         content: companyContent,
         tokens,
-        priority: 6,
+        priority: 7,
         category: 'company',
       });
       console.log(
-        `Context Assembler: Company context - ${tokens} tokens (Priority 6)`,
+        `Context Assembler: Company context - ${tokens} tokens (Priority 7)`,
       );
     }
   } catch (error) {
@@ -363,6 +390,7 @@ export function extractContextContent(assembled: AssembledContext): {
   systemRagContext: string;
   personaRagContext: string;
   userRagContext: string;
+  orgRagContext: string;
   memoryContext: string;
   companyContext: string;
   conversationSummary: string;
@@ -374,6 +402,7 @@ export function extractContextContent(assembled: AssembledContext): {
     systemRagContext: findContent('system'),
     personaRagContext: findContent('persona'),
     userRagContext: findContent('user'),
+    orgRagContext: findContent('org'),
     memoryContext: findContent('memory'),
     companyContext: findContent('company'),
     conversationSummary: findContent('conversation'),

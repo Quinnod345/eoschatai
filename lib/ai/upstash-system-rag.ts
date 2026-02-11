@@ -39,12 +39,19 @@ function getCachedRagResult(key: string): SystemRagResult[] | null {
 }
 
 function setCachedRagResult(key: string, results: SystemRagResult[]) {
-  // Evict oldest if at capacity
+  // Sweep expired entries first to prevent stale data accumulating
+  const now = Date.now();
+  for (const [k, v] of systemRagCache) {
+    if (now - v.createdAtMs > SYSTEM_RAG_CACHE_TTL_MS) {
+      systemRagCache.delete(k);
+    }
+  }
+  // Evict oldest if still at capacity after sweep
   if (systemRagCache.size >= SYSTEM_RAG_CACHE_MAX_SIZE) {
     const firstKey = systemRagCache.keys().next().value as string | undefined;
     if (firstKey) systemRagCache.delete(firstKey);
   }
-  systemRagCache.set(key, { createdAtMs: Date.now(), results });
+  systemRagCache.set(key, { createdAtMs: now, results });
 }
 
 /**
@@ -403,6 +410,8 @@ function splitIntoChunks(
   chunkSize: number,
   overlap: number,
 ): string[] {
+  // Cap overlap at 50% of chunk size to prevent infinite loops
+  const safeOverlap = Math.min(overlap, Math.floor(chunkSize * 0.5));
   const chunks: string[] = [];
   let start = 0;
 
@@ -412,7 +421,7 @@ function splitIntoChunks(
     chunks.push(chunk);
 
     if (end === text.length) break;
-    start = end - overlap;
+    start = end - safeOverlap;
   }
 
   return chunks;
@@ -605,6 +614,8 @@ export async function processUpstashSystemDocument(
       chunkSize: number,
       overlap: number,
     ): string[] {
+      // Cap overlap at 50% of chunk size to prevent infinite loops
+      const safeOverlap = Math.min(overlap, Math.floor(chunkSize * 0.5));
       const chunks: string[] = [];
       let start = 0;
 
@@ -616,7 +627,7 @@ export async function processUpstashSystemDocument(
           chunks.push(chunk);
         }
 
-        start = end - overlap;
+        start = end - safeOverlap;
       }
 
       return chunks.length > 0 ? chunks : [text];

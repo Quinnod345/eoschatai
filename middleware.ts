@@ -8,7 +8,7 @@ import { guestRegex, isDevelopmentEnvironment } from './lib/constants';
  */
 function validateOrigin(request: NextRequest): boolean {
   const method = request.method.toUpperCase();
-  
+
   // Only validate state-changing methods
   if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
     return true;
@@ -22,32 +22,32 @@ function validateOrigin(request: NextRequest): boolean {
   // Skip for webhook endpoints that need to receive external requests
   if (
     request.nextUrl.pathname.startsWith('/api/webhooks') ||
-    request.nextUrl.pathname.startsWith('/api/stripe/webhook')
+    request.nextUrl.pathname.startsWith('/api/billing/webhook')
   ) {
+    return true;
+  }
+
+  // Skip CSRF validation for Vercel cron endpoints.
+  // These are machine-to-machine invocations protected by CRON_SECRET.
+  if (request.nextUrl.pathname.startsWith('/api/cron/')) {
     return true;
   }
 
   const origin = request.headers.get('origin');
   const referer = request.headers.get('referer');
-  
+
   // Get the host from the request
   const host = request.headers.get('host');
-  const expectedOrigins = [
-    `https://${host}`,
-    `http://${host}`,
-  ];
+  const expectedOrigins = [`https://${host}`, `http://${host}`];
 
   // In development, also allow localhost variations
   if (isDevelopmentEnvironment) {
-    expectedOrigins.push(
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-    );
+    expectedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
   }
 
   // Check origin header first (most reliable)
   if (origin) {
-    return expectedOrigins.some(expected => origin === expected);
+    return expectedOrigins.some((expected) => origin === expected);
   }
 
   // Fall back to referer header
@@ -55,7 +55,7 @@ function validateOrigin(request: NextRequest): boolean {
     try {
       const refererUrl = new URL(referer);
       const refererOrigin = refererUrl.origin;
-      return expectedOrigins.some(expected => refererOrigin === expected);
+      return expectedOrigins.some((expected) => refererOrigin === expected);
     } catch {
       return false;
     }
@@ -103,10 +103,10 @@ export async function middleware(request: NextRequest) {
   if (!validateOrigin(request)) {
     return new NextResponse(
       JSON.stringify({ error: 'CSRF validation failed' }),
-      { 
-        status: 403, 
-        headers: { 'Content-Type': 'application/json' }
-      }
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      },
     );
   }
 

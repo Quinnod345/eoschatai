@@ -6,6 +6,7 @@ import {
   org as orgTable,
   orgMemberRole,
 } from '@/lib/db/schema';
+import type { Persona } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 export type OrgPermission =
@@ -25,6 +26,12 @@ export type OrgPermission =
   | 'personas.delete'; // Delete shared personas
 
 export type OrgRole = 'owner' | 'admin' | 'member';
+
+export type PersonaAccess = {
+  canChat: boolean;
+  canViewSettings: boolean;
+  canEdit: boolean;
+};
 
 // Role-based permission mapping
 const rolePermissions: Record<OrgRole, OrgPermission[]> = {
@@ -60,6 +67,58 @@ const rolePermissions: Record<OrgRole, OrgPermission[]> = {
   member: ['org.view', 'members.view', 'billing.view', 'resources.create'],
 };
 
+export async function canAccessPersona(
+  userId: string,
+  personaRecord: Pick<
+    Persona,
+    'id' | 'userId' | 'orgId' | 'isSystemPersona' | 'isShared' | 'visibility'
+  >,
+): Promise<PersonaAccess> {
+  // System personas are globally chat-accessible but not editable.
+  if (personaRecord.isSystemPersona) {
+    return {
+      canChat: true,
+      canViewSettings: false,
+      canEdit: false,
+    };
+  }
+
+  // Persona owner always has full access.
+  if (personaRecord.userId === userId) {
+    return {
+      canChat: true,
+      canViewSettings: true,
+      canEdit: true,
+    };
+  }
+
+  const isOrgVisible =
+    personaRecord.visibility === 'org' || personaRecord.isShared === true;
+  if (!isOrgVisible || !personaRecord.orgId) {
+    return {
+      canChat: false,
+      canViewSettings: false,
+      canEdit: false,
+    };
+  }
+
+  const role = await getUserOrgRole(userId, personaRecord.orgId);
+  if (!role) {
+    return {
+      canChat: false,
+      canViewSettings: false,
+      canEdit: false,
+    };
+  }
+
+  const canEdit = rolePermissions[role].includes('personas.edit');
+  return {
+    canChat: true,
+    canViewSettings: canEdit,
+    canEdit,
+  };
+}
+
 /**
  * Get user's role in an organization
  * Uses the OrgMemberRole table for proper role management
@@ -68,7 +127,18 @@ export async function getUserOrgRole(
   userId: string,
   orgId: string,
 ): Promise<OrgRole | null> {
-  // First check if the role exists in the role table
+  // Membership is the source of truth. Do not honor stale role rows
+  // for users that no longer belong to this organization.
+  const [member] = await db
+    .select({ orgId: userTable.orgId })
+    .from(userTable)
+    .where(eq(userTable.id, userId));
+
+  if (!member || member.orgId !== orgId) {
+    return null;
+  }
+
+  // Then check if the role exists in the role table
   const [roleRecord] = await db
     .select({ role: orgMemberRole.role })
     .from(orgMemberRole)
@@ -78,16 +148,6 @@ export async function getUserOrgRole(
 
   if (roleRecord) {
     return roleRecord.role;
-  }
-
-  // Fallback: check if user belongs to org (for backward compatibility)
-  const [user] = await db
-    .select()
-    .from(userTable)
-    .where(eq(userTable.id, userId));
-
-  if (!user || user.orgId !== orgId) {
-    return null;
   }
 
   // Get the organization to check ownership
@@ -185,9 +245,18 @@ export async function canManageUser(
     return false;
   }
 
-  // Users can always leave the org themselves
+  // Users can leave the org themselves, except the sole owner.
   if (action === 'remove' && actorId === targetUserId) {
-    return true;
+    if (targetRole !== 'owner') {
+      return true;
+    }
+
+    const memberCount = await db
+      .select({ id: userTable.id })
+      .from(userTable)
+      .where(eq(userTable.orgId, orgId));
+
+    return memberCount.length > 1;
   }
 
   // Only owners can manage other users

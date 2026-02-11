@@ -10,6 +10,9 @@ import {
 } from '@/lib/organizations/seat-enforcement';
 import { getStripeClient } from '@/lib/stripe/client';
 import { STRIPE_CONFIG } from '@/lib/server-constants';
+import { validateUuidField } from '@/lib/api/validation';
+
+const MAX_ORG_SEAT_COUNT = 10_000;
 
 interface RouteParams {
   params: Promise<{
@@ -25,11 +28,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Permissions: only owners (billing.manage) can change seat count
     const canManage = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'billing.manage',
     );
     if (!canManage) {
@@ -39,8 +47,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-    const desiredSeatCount = Number(body?.seatCount);
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const desiredSeatCount = Number((body as { seatCount?: unknown })?.seatCount);
 
     if (!Number.isInteger(desiredSeatCount) || desiredSeatCount < 1) {
       return NextResponse.json(
@@ -49,11 +63,18 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
+    if (desiredSeatCount > MAX_ORG_SEAT_COUNT) {
+      return NextResponse.json(
+        { error: `seatCount must be ${MAX_ORG_SEAT_COUNT} or less` },
+        { status: 400 },
+      );
+    }
+
     // Ensure org exists
     const [org] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
     if (!org) {
       return NextResponse.json(
         { error: 'Organization not found' },
@@ -62,7 +83,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
 
     // Prevent reducing seats below current usage
-    const usage = await getOrgSeatUsage(orgId);
+    const usage = await getOrgSeatUsage(orgIdValue);
     if (desiredSeatCount < usage.used) {
       return NextResponse.json(
         {
@@ -115,9 +136,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
 
     // Always reflect the new desired seat count in our DB
-    await updateOrgSeatCount(orgId, desiredSeatCount);
+    await updateOrgSeatCount(orgIdValue, desiredSeatCount);
 
-    const updated = await getOrgSeatUsage(orgId);
+    const updated = await getOrgSeatUsage(orgIdValue);
 
     return NextResponse.json({
       success: true,

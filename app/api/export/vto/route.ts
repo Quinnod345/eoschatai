@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
 import { db } from '@/lib/db';
 import { document } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 import {
   createPDF,
   addHeader,
@@ -16,7 +17,6 @@ import {
   pdfToBuffer,
 } from '@/lib/export/pdf-generator';
 import {
-  createTitle,
   createSubtitle,
   createHeading,
   createBodyText,
@@ -110,11 +110,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { documentId, format = 'pdf' } = await request.json();
-
-    if (!documentId) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
       return NextResponse.json(
-        { error: 'Document ID is required' },
+        { error: 'Invalid JSON in request body' },
+        { status: 400 },
+      );
+    }
+
+    const { documentId, format = 'pdf' } = body as {
+      documentId?: string;
+      format?: 'pdf' | 'docx' | 'json';
+    };
+
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
+      return NextResponse.json(
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -125,7 +139,7 @@ export async function POST(request: NextRequest) {
       .from(document)
       .where(
         and(
-          eq(document.id, documentId),
+          eq(document.id, validatedDocumentId.value),
           eq(document.userId, session.user.id),
           eq(document.kind, 'vto'),
         ),
@@ -150,7 +164,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const vtoData = JSON.parse(vtoMatch[1]);
+    let vtoData: VTOData;
+    try {
+      vtoData = JSON.parse(vtoMatch[1]) as VTOData;
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid VTO data payload' },
+        { status: 400 },
+      );
+    }
 
     // Increment usage counter
     await incrementUsageCounter(session.user.id, 'exports_month', 1);

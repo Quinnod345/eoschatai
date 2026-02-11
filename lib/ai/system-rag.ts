@@ -223,7 +223,7 @@ export async function systemRagContextPrompt(
   personaId: string,
   profileId: string | null,
   query: string,
-): Promise<string> {
+): Promise<{ context: string; chunkCount: number }> {
   try {
     console.log(
       `System RAG: Generating context for persona ${personaId}, profile ${profileId}`,
@@ -240,7 +240,7 @@ export async function systemRagContextPrompt(
 
     if (!personaData || !personaData.isSystemPersona) {
       console.log('System RAG: Not a system persona, skipping');
-      return '';
+      return { context: '', chunkCount: 0 };
     }
 
     const namespaces: string[] = [personaData.knowledgeNamespace].filter(
@@ -262,7 +262,7 @@ export async function systemRagContextPrompt(
 
     if (namespaces.length === 0) {
       console.log('System RAG: No namespaces found');
-      return '';
+      return { context: '', chunkCount: 0 };
     }
 
     // Search for relevant content
@@ -275,7 +275,7 @@ export async function systemRagContextPrompt(
 
     if (results.length === 0) {
       console.log('System RAG: No relevant content found');
-      return '';
+      return { context: '', chunkCount: 0 };
     }
 
     // Build context prompt
@@ -291,7 +291,7 @@ ${item.content}
       })
       .join('\n\n');
 
-    return `
+    const context = `
 ## SYSTEM KNOWLEDGE BASE CONTEXT
 The following specialized EOS knowledge has been retrieved for this query:
 
@@ -310,9 +310,11 @@ ${contextText}
 3. THIRD: General EOS principles
 
 `;
+
+    return { context, chunkCount: results.length };
   } catch (error) {
     console.error('System RAG: Error generating context prompt:', error);
-    return '';
+    return { context: '', chunkCount: 0 };
   }
 }
 

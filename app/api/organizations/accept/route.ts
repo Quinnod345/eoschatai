@@ -8,9 +8,9 @@ import {
   org as orgTable,
   user as userTable,
   orgInvitation,
+  orgMemberRole,
 } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { canAddUserToOrg } from '@/lib/organizations/seat-enforcement';
 
 const paramsSchema = z.object({
   code: z.string().min(4),
@@ -18,6 +18,22 @@ const paramsSchema = z.object({
 });
 
 export const GET = withErrorHandler(async (request: Request) => {
+    const url = new URL(request.url);
+    const redirect = new URL('/invite/accept', url.origin);
+    const code = url.searchParams.get('code');
+    const email = url.searchParams.get('email');
+
+    if (code) {
+      redirect.searchParams.set('code', code);
+    }
+    if (email) {
+      redirect.searchParams.set('email', email);
+    }
+
+    return NextResponse.redirect(redirect.toString());
+});
+
+export const POST = withErrorHandler(async (request: Request) => {
     const session = await auth();
     if (!session?.user?.id) {
       // Not logged in; send them to login with redirect back here
@@ -132,6 +148,15 @@ export const GET = withErrorHandler(async (request: Request) => {
             plan: org.plan, // Sync user plan to org plan
           })
           .where(eq(userTable.id, session.user.id));
+
+        await tx
+          .insert(orgMemberRole)
+          .values({
+            userId: session.user.id,
+            orgId: org.id,
+            role: 'member',
+          })
+          .onConflictDoNothing();
       });
     } catch (error: any) {
       return NextResponse.redirect(

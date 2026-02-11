@@ -28,13 +28,9 @@ import {
   Copy,
   Trash2,
   Plus,
-  Eye,
-  EyeOff,
   BarChart3,
-  Clock,
   AlertTriangle,
   Check,
-  RefreshCw,
   Loader2,
 } from 'lucide-react';
 import { toast } from '@/lib/toast-system';
@@ -53,6 +49,20 @@ interface ApiKeyData {
   createdAt: string;
   expiresAt: string | null;
   fullKey?: string; // Only present on creation
+}
+
+interface ApiKeyResponse {
+  id?: unknown;
+  name?: unknown;
+  keyPrefix?: unknown;
+  lastFour?: unknown;
+  maskedKey?: unknown;
+  requestCount?: unknown;
+  usageCount?: unknown;
+  lastUsedAt?: unknown;
+  createdAt?: unknown;
+  expiresAt?: unknown;
+  fullKey?: unknown;
 }
 
 interface UsageStats {
@@ -80,16 +90,17 @@ export function ApiKeysManager() {
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
   const [deleting, setDeleting] = React.useState<string | null>(null);
-  
+
   // Create dialog state
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newKeyName, setNewKeyName] = React.useState('');
-  const [newlyCreatedKey, setNewlyCreatedKey] = React.useState<ApiKeyData | null>(null);
+  const [newlyCreatedKey, setNewlyCreatedKey] =
+    React.useState<ApiKeyData | null>(null);
   const [keyCopied, setKeyCopied] = React.useState(false);
-  
+
   // Delete confirmation
   const [keyToDelete, setKeyToDelete] = React.useState<ApiKeyData | null>(null);
-  
+
   // Usage dialog
   const [showUsageDialog, setShowUsageDialog] = React.useState(false);
   const [usageKey, setUsageKey] = React.useState<ApiKeyData | null>(null);
@@ -101,13 +112,73 @@ export function ApiKeysManager() {
     fetchKeys();
   }, []);
 
+  const parseCount = React.useCallback((value: unknown): number => {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  }, []);
+
+  const formatCount = React.useCallback(
+    (value: unknown): string => parseCount(value).toLocaleString(),
+    [parseCount],
+  );
+
+  const normalizeApiKey = React.useCallback(
+    (raw: ApiKeyResponse): ApiKeyData | null => {
+      if (typeof raw.id !== 'string' || raw.id.length === 0) {
+        return null;
+      }
+
+      const keyPrefix =
+        typeof raw.keyPrefix === 'string' && raw.keyPrefix.length > 0
+          ? raw.keyPrefix
+          : 'eos_****';
+
+      const requestCount =
+        typeof raw.requestCount === 'number' &&
+        Number.isFinite(raw.requestCount)
+          ? raw.requestCount
+          : parseCount(raw.usageCount);
+
+      const maskedKey =
+        typeof raw.maskedKey === 'string' && raw.maskedKey.length > 0
+          ? raw.maskedKey
+          : `${keyPrefix}...****`;
+
+      return {
+        id: raw.id,
+        name:
+          typeof raw.name === 'string' && raw.name.length > 0
+            ? raw.name
+            : 'Unnamed key',
+        keyPrefix,
+        lastFour:
+          typeof raw.lastFour === 'string' && raw.lastFour.length > 0
+            ? raw.lastFour
+            : '****',
+        maskedKey,
+        requestCount,
+        lastUsedAt: typeof raw.lastUsedAt === 'string' ? raw.lastUsedAt : null,
+        createdAt:
+          typeof raw.createdAt === 'string'
+            ? raw.createdAt
+            : new Date().toISOString(),
+        expiresAt: typeof raw.expiresAt === 'string' ? raw.expiresAt : null,
+        fullKey: typeof raw.fullKey === 'string' ? raw.fullKey : undefined,
+      };
+    },
+    [parseCount],
+  );
+
   const fetchKeys = async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/api-keys');
       if (res.ok) {
         const data = await res.json();
-        setKeys(data.keys || []);
+        const keyRows = Array.isArray(data.keys) ? data.keys : [];
+        const normalizedKeys = keyRows
+          .map((row) => normalizeApiKey(row as ApiKeyResponse))
+          .filter((row): row is ApiKeyData => row !== null);
+        setKeys(normalizedKeys);
       } else if (res.status === 403) {
         // User doesn't have API access - this is handled by the Gate component
         setKeys([]);
@@ -138,8 +209,17 @@ export function ApiKeysManager() {
 
       if (res.ok) {
         const data = await res.json();
-        setNewlyCreatedKey(data.key);
-        setKeys((prev) => [data.key, ...prev]);
+        const normalizedKey = normalizeApiKey(
+          (data?.key ?? {}) as ApiKeyResponse,
+        );
+
+        if (!normalizedKey) {
+          toast.error('Created API key response was invalid');
+          return;
+        }
+
+        setNewlyCreatedKey(normalizedKey);
+        setKeys((prev) => [normalizedKey, ...prev]);
         setNewKeyName('');
         setKeyCopied(false);
       } else {
@@ -232,7 +312,12 @@ export function ApiKeysManager() {
   };
 
   return (
-    <Gate feature="api_access" fallback={<UpgradePrompt feature="api_access" cta="Unlock with Business" />}>
+    <Gate
+      feature="api_access"
+      fallback={
+        <UpgradePrompt feature="api_access" cta="Unlock with Business" />
+      }
+    >
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -242,10 +327,7 @@ export function ApiKeysManager() {
               Manage API keys for programmatic access to EOSAI
             </p>
           </div>
-          <Button
-            onClick={() => setShowCreateDialog(true)}
-            className="gap-2"
-          >
+          <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
             <Plus className="h-4 w-4" />
             Create Key
           </Button>
@@ -263,7 +345,11 @@ export function ApiKeysManager() {
             <p className="text-sm text-muted-foreground mb-4">
               Create an API key to start using the EOSAI API
             </p>
-            <Button onClick={() => setShowCreateDialog(true)} variant="outline" className="gap-2">
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              variant="outline"
+              className="gap-2"
+            >
               <Plus className="h-4 w-4" />
               Create your first key
             </Button>
@@ -278,12 +364,14 @@ export function ApiKeysManager() {
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <Key className="h-5 w-5 text-primary" />
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{key.name}</span>
                     {key.expiresAt && new Date(key.expiresAt) < new Date() && (
-                      <Badge variant="destructive" className="text-xs">Expired</Badge>
+                      <Badge variant="destructive" className="text-xs">
+                        Expired
+                      </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-1">
@@ -298,10 +386,14 @@ export function ApiKeysManager() {
 
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <div className="text-right mr-2 hidden sm:block">
-                    <div className="text-sm font-medium">{key.requestCount.toLocaleString()}</div>
-                    <div className="text-xs text-muted-foreground">requests</div>
+                    <div className="text-sm font-medium">
+                      {formatCount(key.requestCount)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      requests
+                    </div>
                   </div>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -311,7 +403,7 @@ export function ApiKeysManager() {
                     <BarChart3 className="h-4 w-4" />
                     <span className="hidden sm:inline">Usage</span>
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -356,17 +448,18 @@ export function ApiKeysManager() {
                     Copy your API key now. You won't be able to see it again!
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="space-y-4">
                   <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                       <p className="text-sm text-amber-700 dark:text-amber-400">
-                        This is the only time you'll see this key. Copy it and store it securely.
+                        This is the only time you'll see this key. Copy it and
+                        store it securely.
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Your API Key</Label>
                     <div className="flex gap-2">
@@ -378,15 +471,23 @@ export function ApiKeysManager() {
                       <Button
                         variant={keyCopied ? 'default' : 'outline'}
                         size="icon"
-                        onClick={() => copyToClipboard(newlyCreatedKey.fullKey || '')}
-                        className={cn(keyCopied && 'bg-green-500 hover:bg-green-600')}
+                        onClick={() =>
+                          copyToClipboard(newlyCreatedKey.fullKey || '')
+                        }
+                        className={cn(
+                          keyCopied && 'bg-green-500 hover:bg-green-600',
+                        )}
                       >
-                        {keyCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        {keyCopied ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
                 </div>
-                
+
                 <DialogFooter>
                   <Button
                     onClick={() => {
@@ -407,7 +508,7 @@ export function ApiKeysManager() {
                     Give your API key a descriptive name to identify it later.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="keyName">Key Name</Label>
@@ -424,7 +525,7 @@ export function ApiKeysManager() {
                     />
                   </div>
                 </div>
-                
+
                 <DialogFooter>
                   <Button
                     variant="outline"
@@ -455,13 +556,18 @@ export function ApiKeysManager() {
         </Dialog>
 
         {/* Delete Confirmation */}
-        <AlertDialog open={!!keyToDelete} onOpenChange={(open) => !open && setKeyToDelete(null)}>
+        <AlertDialog
+          open={!!keyToDelete}
+          onOpenChange={(open) => !open && setKeyToDelete(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to revoke <strong>{keyToDelete?.name}</strong>? 
-                This action cannot be undone and any applications using this key will stop working immediately.
+                Are you sure you want to revoke{' '}
+                <strong>{keyToDelete?.name}</strong>? This action cannot be
+                undone and any applications using this key will stop working
+                immediately.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -489,10 +595,11 @@ export function ApiKeysManager() {
             <DialogHeader>
               <DialogTitle>API Key Usage</DialogTitle>
               <DialogDescription>
-                Usage statistics for <strong>{usageKey?.name}</strong> (last 30 days)
+                Usage statistics for <strong>{usageKey?.name}</strong> (last 30
+                days)
               </DialogDescription>
             </DialogHeader>
-            
+
             {loadingUsage ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -503,25 +610,31 @@ export function ApiKeysManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-lg border p-3">
                     <div className="text-2xl font-bold">
-                      {usageData.stats.totalRequests.toLocaleString()}
+                      {formatCount(usageData.stats.totalRequests)}
                     </div>
-                    <div className="text-sm text-muted-foreground">Total Requests</div>
+                    <div className="text-sm text-muted-foreground">
+                      Total Requests
+                    </div>
                   </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-2xl font-bold">
-                      {usageData.stats.totalTokens.toLocaleString()}
+                      {formatCount(usageData.stats.totalTokens)}
                     </div>
-                    <div className="text-sm text-muted-foreground">Tokens Used</div>
+                    <div className="text-sm text-muted-foreground">
+                      Tokens Used
+                    </div>
                   </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-2xl font-bold text-green-500">
-                      {usageData.stats.successCount.toLocaleString()}
+                      {formatCount(usageData.stats.successCount)}
                     </div>
-                    <div className="text-sm text-muted-foreground">Successful</div>
+                    <div className="text-sm text-muted-foreground">
+                      Successful
+                    </div>
                   </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-2xl font-bold text-destructive">
-                      {usageData.stats.errorCount.toLocaleString()}
+                      {formatCount(usageData.stats.errorCount)}
                     </div>
                     <div className="text-sm text-muted-foreground">Errors</div>
                   </div>
@@ -538,7 +651,9 @@ export function ApiKeysManager() {
                     <span>{formatDateTime(usageData.key.createdAt)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Avg Response Time</span>
+                    <span className="text-muted-foreground">
+                      Avg Response Time
+                    </span>
                     <span>{usageData.stats.avgResponseTime}ms</span>
                   </div>
                 </div>
@@ -548,18 +663,24 @@ export function ApiKeysManager() {
                   <div className="space-y-2">
                     <h4 className="font-medium text-sm">Daily Activity</h4>
                     <div className="rounded-lg border divide-y max-h-32 overflow-y-auto">
-                      {usageData.daily.slice(-7).reverse().map((day) => (
-                        <div key={day.date} className="flex justify-between px-3 py-2 text-sm">
-                          <span className="text-muted-foreground">
-                            {new Date(day.date).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </span>
-                          <span>{day.requests.toLocaleString()} requests</span>
-                        </div>
-                      ))}
+                      {usageData.daily
+                        .slice(-7)
+                        .reverse()
+                        .map((day) => (
+                          <div
+                            key={day.date}
+                            className="flex justify-between px-3 py-2 text-sm"
+                          >
+                            <span className="text-muted-foreground">
+                              {new Date(day.date).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </span>
+                            <span>{formatCount(day.requests)} requests</span>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -569,9 +690,12 @@ export function ApiKeysManager() {
                 No usage data available
               </div>
             )}
-            
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowUsageDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowUsageDialog(false)}
+              >
                 Close
               </Button>
             </DialogFooter>

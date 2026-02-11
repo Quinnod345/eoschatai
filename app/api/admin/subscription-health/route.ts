@@ -49,8 +49,21 @@ export async function POST(request: Request) {
     const adminError = await requireAdmin();
     if (adminError) return adminError;
 
-    const body = await request.json();
-    const { dryRun = true } = body;
+    let body: unknown = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    const dryRunInput = (body as { dryRun?: unknown })?.dryRun;
+    if (dryRunInput !== undefined && typeof dryRunInput !== 'boolean') {
+      return NextResponse.json(
+        { error: 'dryRun must be a boolean' },
+        { status: 400 },
+      );
+    }
+    const dryRun = typeof dryRunInput === 'boolean' ? dryRunInput : true;
 
     const result = await autoFixSubscriptionIssues(dryRun);
     return NextResponse.json(result);

@@ -18,11 +18,11 @@ vi.mock('@/lib/ai/prompts', () => ({
 }));
 
 vi.mock('@/lib/ai/persona-rag', () => ({
-  personaRagContextPrompt: vi.fn().mockResolvedValue('Persona context content'),
+  personaRagContextPrompt: vi.fn().mockResolvedValue({ context: 'Persona context content', chunkCount: 2 }),
 }));
 
 vi.mock('@/lib/ai/system-rag', () => ({
-  systemRagContextPrompt: vi.fn().mockResolvedValue('System context content'),
+  systemRagContextPrompt: vi.fn().mockResolvedValue({ context: 'System context content', chunkCount: 3 }),
 }));
 
 vi.mock('@/lib/ai/upstash-system-rag', () => ({
@@ -34,9 +34,10 @@ vi.mock('@/lib/ai/memory-rag', () => ({
     { id: 'mem1', content: 'Memory 1', similarity: 0.9 },
     { id: 'mem2', content: 'Memory 2', similarity: 0.8 },
   ]),
-  formatMemoriesForPrompt: vi.fn((memories) => 
-    memories.map((m: any) => m.content).join('\n')
-  ),
+  formatMemoriesForPrompt: vi.fn((memories) => ({
+    formatted: memories.map((m: any) => m.content).join('\n'),
+    chunkCount: memories.length,
+  })),
 }));
 
 vi.mock('@/lib/ai/query-analyzer', () => ({

@@ -1,22 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
 import { db } from '@/lib/db';
 import { document } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 import {
   createPDF,
   addHeader,
   addSectionHeading,
   addBodyText,
-  addBulletList,
   addBox,
   addFooter,
   pdfToBuffer,
 } from '@/lib/export/pdf-generator';
 import {
-  createTitle,
   createHeading,
   createBodyText,
   createBulletList,
@@ -90,11 +89,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { documentId, format = 'pdf' } = await request.json();
-
-    if (!documentId) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
       return NextResponse.json(
-        { error: 'Document ID is required' },
+        { error: 'Invalid JSON in request body' },
+        { status: 400 },
+      );
+    }
+
+    const { documentId, format = 'pdf' } = body as {
+      documentId?: string;
+      format?: 'pdf' | 'docx' | 'json';
+    };
+
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
+      return NextResponse.json(
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
       .from(document)
       .where(
         and(
-          eq(document.id, documentId),
+          eq(document.id, validatedDocumentId.value),
           eq(document.userId, session.user.id),
           eq(document.kind, 'accountability'),
         ),
@@ -121,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     // Parse accountability chart data
     const content = acDoc.content || '';
-    let acData;
+    let acData: ACData;
 
     try {
       // Try to parse as JSON first (new format)
@@ -130,7 +143,14 @@ export async function POST(request: NextRequest) {
       // Fall back to extracting from wrapped format
       const acMatch = content.match(/AC_DATA_BEGIN\n([\s\S]*?)\nAC_DATA_END/);
       if (acMatch) {
-        acData = JSON.parse(acMatch[1]);
+        try {
+          acData = JSON.parse(acMatch[1]);
+        } catch {
+          return NextResponse.json(
+            { error: 'Invalid accountability chart payload' },
+            { status: 400 },
+          );
+        }
       } else {
         return NextResponse.json(
           { error: 'Invalid accountability chart format' },
@@ -200,7 +220,7 @@ function renderACNodesPdf(
   nodes: ACNode[],
   startX: number,
   startY: number,
-  level: number = 0,
+  level = 0,
 ): number {
   const boxWidth = 50;
   const boxHeight = 15;
@@ -280,7 +300,7 @@ function generateACPdf(acData: ACData, title: string): Buffer {
 /**
  * Recursively render org chart nodes as hierarchy items in DOCX
  */
-function renderACNodesDocx(nodes: ACNode[], level: number = 0): Paragraph[] {
+function renderACNodesDocx(nodes: ACNode[], level = 0): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
   for (const node of nodes) {

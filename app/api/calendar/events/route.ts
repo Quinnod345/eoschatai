@@ -45,10 +45,39 @@ export async function GET(request: NextRequest) {
     const defaultTimeMax = new Date();
     defaultTimeMax.setDate(defaultTimeMax.getDate() + 7); // Default to 7 days from now
     const timeMax = searchParams.get('timeMax') || defaultTimeMax.toISOString();
-    const maxResults = Number.parseInt(
+    const parsedMaxResults = Number.parseInt(
       searchParams.get('maxResults') || '10',
       10,
     );
+    const maxResults = Number.isFinite(parsedMaxResults)
+      ? Math.min(Math.max(parsedMaxResults, 1), 50)
+      : 10;
+
+    const parsedTimeMin = new Date(timeMin);
+    const parsedTimeMax = new Date(timeMax);
+    if (
+      !Number.isFinite(parsedTimeMin.getTime()) ||
+      !Number.isFinite(parsedTimeMax.getTime())
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid time range parameters' },
+        { status: 400 },
+      );
+    }
+    if (parsedTimeMin.getTime() > parsedTimeMax.getTime()) {
+      return NextResponse.json(
+        { error: 'timeMin must be before timeMax' },
+        { status: 400 },
+      );
+    }
+
+    const maxWindowMs = 366 * 24 * 60 * 60 * 1000;
+    if (parsedTimeMax.getTime() - parsedTimeMin.getTime() > maxWindowMs) {
+      return NextResponse.json(
+        { error: 'Requested time range is too large' },
+        { status: 400 },
+      );
+    }
 
     // Get the token directly from the database
     const tokens = await db
@@ -81,8 +110,8 @@ export async function GET(request: NextRequest) {
     // Fetch events
     const { data } = await calendar.events.list({
       calendarId: 'primary',
-      timeMin,
-      timeMax,
+      timeMin: parsedTimeMin.toISOString(),
+      timeMax: parsedTimeMax.toISOString(),
       maxResults,
       singleEvents: true,
       orderBy: 'startTime',
@@ -162,6 +191,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsedStartDate = new Date(startDateTime);
+    const parsedEndDate = new Date(endDateTime);
+    if (
+      !Number.isFinite(parsedStartDate.getTime()) ||
+      !Number.isFinite(parsedEndDate.getTime())
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid event date values' },
+        { status: 400 },
+      );
+    }
+    if (parsedStartDate.getTime() >= parsedEndDate.getTime()) {
+      return NextResponse.json(
+        { error: 'Event end time must be after start time' },
+        { status: 400 },
+      );
+    }
+
     // Get the token directly from the database
     const tokens = await db
       .select()
@@ -201,11 +248,11 @@ export async function POST(request: NextRequest) {
       description,
       location,
       start: {
-        dateTime: startDateTime,
+        dateTime: parsedStartDate.toISOString(),
         timeZone: 'UTC',
       },
       end: {
-        dateTime: endDateTime,
+        dateTime: parsedEndDate.toISOString(),
         timeZone: 'UTC',
       },
       attendees: formattedAttendees,

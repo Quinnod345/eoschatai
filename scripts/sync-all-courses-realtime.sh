@@ -4,11 +4,22 @@
 # This script syncs all Circle courses one by one, showing full output
 
 export UPSTASH_USER_RAG_REST_URL="https://fast-seasnail-12447-us1-vector.upstash.io"
-export UPSTASH_USER_RAG_REST_TOKEN="ABcFMGZhc3Qtc2Vhc25haWwtMTI0NDctdXMxYWRtaW5abVZqTmpGa1pXRXROV1ZtT0MwMFlqaGtMVGs1TURrdFpERmlORGs1TkdGaU1EaGw="
-export CIRCLE_API_TOKEN="DPxf7peTjwauC1LhLtzvDnLsXKXWYydv"
-export CIRCLE_HEADLESS_AUTH_TOKEN="d6R3YAXeZwa7i9UAEjo7ftfjBZkikBjT"
 export CIRCLE_SPACE_ID="2310423"
-export OPENAI_API_KEY="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"
+
+required_env_vars=(
+  UPSTASH_USER_RAG_REST_TOKEN
+  CIRCLE_API_TOKEN
+  CIRCLE_HEADLESS_AUTH_TOKEN
+  OPENAI_API_KEY
+)
+
+for var_name in "${required_env_vars[@]}"; do
+  if [ -z "${!var_name:-}" ]; then
+    echo "❌ Missing required env var: $var_name"
+    echo "Set it in your shell or .env.local before running this script."
+    exit 1
+  fi
+done
 
 # Define all courses
 declare -a courses=(

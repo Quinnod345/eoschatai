@@ -8,6 +8,7 @@ import {
   type PlanType,
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 
 interface RouteParams {
   params: Promise<{
@@ -27,12 +28,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     const { orgId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const orgIdValue = validatedOrgId.value;
 
     // Get organization details
     const [organization] = await db
       .select()
       .from(orgTable)
-      .where(eq(orgTable.id, orgId));
+      .where(eq(orgTable.id, orgIdValue));
 
     if (!organization) {
       return NextResponse.json(
@@ -56,10 +62,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
         stripeCustomerId: userTable.stripeCustomerId,
       })
       .from(userTable)
-      .where(eq(userTable.orgId, orgId));
+      .where(eq(userTable.orgId, orgIdValue));
 
     console.log(
-      `[delete-org] Deleting organization ${orgId} with ${members.length} members`,
+      `[delete-org] Deleting organization ${orgIdValue} with ${members.length} members`,
     );
 
     // Cancel organization's Stripe subscription (outside transaction - external API)
@@ -120,7 +126,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const invites = await db
       .select({ inviteCode: orgInvitation.inviteCode })
       .from(orgInvitation)
-      .where(eq(orgInvitation.orgId, orgId));
+      .where(eq(orgInvitation.orgId, orgIdValue));
 
     // Use transaction to ensure atomic deletion of all database records
     await db.transaction(async (tx) => {
@@ -141,12 +147,14 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       }
 
       // Delete all pending invitations
-      await tx.delete(orgInvitation).where(eq(orgInvitation.orgId, orgId));
+      await tx
+        .delete(orgInvitation)
+        .where(eq(orgInvitation.orgId, orgIdValue));
       console.log(`[delete-org] Deleted ${invites.length} pending invitations`);
 
       // Delete the organization (cascade will clean up OrgMemberRole records)
-      await tx.delete(orgTable).where(eq(orgTable.id, orgId));
-      console.log(`[delete-org] Deleted organization ${orgId}`);
+      await tx.delete(orgTable).where(eq(orgTable.id, orgIdValue));
+      console.log(`[delete-org] Deleted organization ${orgIdValue}`);
     });
 
     // Invalidate Redis caches (outside transaction)
@@ -187,7 +195,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       console.warn('[delete-org] Failed to update member entitlements:', error);
     }
 
-    console.log(`[delete-org] Successfully deleted organization ${orgId}`);
+    console.log(`[delete-org] Successfully deleted organization ${orgIdValue}`);
 
     return NextResponse.json({
       success: true,

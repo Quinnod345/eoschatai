@@ -5,23 +5,85 @@ import {
   personaDocument,
   userDocuments,
   personaComposerDocument,
+  personaUserOverlay,
+  personaUserOverlayDocument,
 } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
+import { canAccessPersona } from '@/lib/organizations/permissions';
+
+type PersonaOverlayForUser = {
+  id: string;
+  additionalInstructions: string | null;
+  documentIds: string[];
+};
+
+const groupChunksByCategoryAndFile = (
+  chunks: Array<{ metadata: any; relevance: number; content: string }>,
+) => {
+  const grouped: Record<string, Record<string, typeof chunks>> = {};
+  for (const chunk of chunks) {
+    const category = chunk.metadata?.category || 'Other';
+    const fileName = chunk.metadata?.fileName || 'Unknown File';
+    if (!grouped[category]) {
+      grouped[category] = {};
+    }
+    if (!grouped[category][fileName]) {
+      grouped[category][fileName] = [];
+    }
+    grouped[category][fileName].push(chunk);
+  }
+  return grouped;
+};
+
+export const getPersonaOverlayForUser = async (
+  personaId: string,
+  userId: string,
+): Promise<PersonaOverlayForUser | null> => {
+  const [overlay] = await db
+    .select({
+      id: personaUserOverlay.id,
+      additionalInstructions: personaUserOverlay.additionalInstructions,
+    })
+    .from(personaUserOverlay)
+    .where(
+      and(
+        eq(personaUserOverlay.personaId, personaId),
+        eq(personaUserOverlay.userId, userId),
+        eq(personaUserOverlay.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!overlay) {
+    return null;
+  }
+
+  const overlayDocs = await db
+    .select({ documentId: personaUserOverlayDocument.documentId })
+    .from(personaUserOverlayDocument)
+    .where(eq(personaUserOverlayDocument.overlayId, overlay.id));
+
+  return {
+    id: overlay.id,
+    additionalInstructions: overlay.additionalInstructions,
+    documentIds: overlayDocs.map((row) => row.documentId),
+  };
+};
 
 /**
  * Persona RAG context prompt - gets persona documents via RAG using persona ID as namespace
- * This function retrieves documents that were associated with the persona during creation
+ * and merges optional per-user overlay content.
  */
 export const personaRagContextPrompt = async (
   personaId: string,
   query: string,
   userId: string,
-) => {
+): Promise<{ context: string; chunkCount: number }> => {
   if (!personaId || !query) {
     console.log(
       'Persona RAG context: No personaId or query provided, skipping',
     );
-    return '';
+    return { context: '', chunkCount: 0 };
   }
 
   try {
@@ -29,16 +91,13 @@ export const personaRagContextPrompt = async (
       `Persona RAG context: Fetching relevant documents for persona ${personaId} with query: "${query}"`,
     );
 
-    // Check if this is the hardcoded EOS implementer
     if (personaId === 'eos-implementer') {
       console.log(
         'Persona RAG context: Hardcoded EOS implementer persona does not use persona-specific documents',
       );
-      return '';
+      return { context: '', chunkCount: 0 };
     }
 
-    // First, verify the persona exists and is accessible
-    // System personas (userId: null) are accessible to all users
     const [personaData] = await db
       .select()
       .from(persona)
@@ -47,192 +106,186 @@ export const personaRagContextPrompt = async (
 
     if (!personaData) {
       console.log('Persona RAG context: Persona not found');
-      return '';
+      return { context: '', chunkCount: 0 };
     }
 
-    // Verify authorization: persona must either be a system persona or belong to the user
-    if (personaData.userId !== null && personaData.userId !== userId) {
-      console.log(
-        'Persona RAG context: Persona is not a system persona and does not belong to user',
-      );
-      return '';
+    const access = await canAccessPersona(userId, personaData);
+    if (!access.canChat) {
+      console.log('Persona RAG context: User does not have access to persona');
+      return { context: '', chunkCount: 0 };
     }
 
-    // Check if this is a Circle course persona (uses shared Upstash namespace)
     if (personaData.knowledgeNamespace?.startsWith('circle-course-')) {
       console.log(
         `Persona RAG context: Circle course persona detected, using Upstash namespace: ${personaData.knowledgeNamespace}`,
       );
-      return await getCircleCourseContext(
+      const circleContext = await getCircleCourseContext(
         personaData.knowledgeNamespace,
         query,
         personaData.name,
       );
+      return { context: circleContext, chunkCount: circleContext ? 1 : 0 };
     }
 
-    // Get the document IDs associated with this persona (uploaded user docs)
     const personaDocs = await db
       .select()
       .from(personaDocument)
       .where(eq(personaDocument.personaId, personaId));
-
-    // Get composer document IDs associated with this persona (AI-generated docs)
     const composerDocs = await db
       .select()
       .from(personaComposerDocument)
       .where(eq(personaComposerDocument.personaId, personaId));
 
-    let documentIds = [
+    let basePersonaDocumentIds = [
       ...personaDocs.map((pd) => pd.documentId),
       ...composerDocs.map((cd) => cd.documentId),
     ];
 
-    // Merge in primary composer documents if the user has enabled it in settings.
-    // We intentionally do NOT merge global personaContextDocumentIds to avoid cross-persona leakage.
     try {
       const { userSettings } = await import('@/lib/db/schema');
-      const { eq } = await import('drizzle-orm');
       const [settings] = await db
         .select()
         .from(userSettings)
         .where(eq(userSettings.userId, userId))
         .limit(1);
-      if (settings) {
-        const includePrimaries = settings.usePrimaryDocsForPersona ?? true;
-        if (includePrimaries) {
-          const primaryIds = [
-            settings.primaryAccountabilityId,
-            settings.primaryVtoId,
-            settings.primaryScorecardId,
-          ].filter(Boolean) as string[];
-          if (primaryIds.length) {
-            documentIds = Array.from(new Set([...documentIds, ...primaryIds]));
-          }
+      if (settings && (settings.usePrimaryDocsForPersona ?? true)) {
+        const primaryIds = [
+          settings.primaryAccountabilityId,
+          settings.primaryVtoId,
+          settings.primaryScorecardId,
+        ].filter(Boolean) as string[];
+        if (primaryIds.length) {
+          basePersonaDocumentIds = Array.from(
+            new Set([...basePersonaDocumentIds, ...primaryIds]),
+          );
         }
       }
     } catch {}
-    documentIds = Array.from(new Set(documentIds));
-    if (documentIds.length === 0) {
-      console.log(
-        'Persona RAG context: No documents associated with this persona',
-      );
-      return '';
+
+    const overlay = await getPersonaOverlayForUser(personaId, userId);
+    const overlayInstructions =
+      personaData.allowUserOverlay && overlay?.additionalInstructions
+        ? overlay.additionalInstructions.trim()
+        : '';
+    const overlayDocumentIds =
+      personaData.allowUserKnowledge && overlay
+        ? Array.from(new Set(overlay.documentIds))
+        : [];
+    const personaDocumentIds = Array.from(new Set(basePersonaDocumentIds));
+
+    if (
+      personaDocumentIds.length === 0 &&
+      overlayDocumentIds.length === 0 &&
+      !overlayInstructions
+    ) {
+      console.log('Persona RAG context: No persona or overlay knowledge found');
+      return { context: '', chunkCount: 0 };
     }
 
-    console.log(
-      `Persona RAG context: Found ${documentIds.length} documents associated with persona "${personaData.name}"`,
+    const [personaRelevantDocs, overlayRelevantDocs] = await Promise.all([
+      personaDocumentIds.length > 0
+        ? findRelevantUserContent(personaId, query, 14, 0.5)
+        : Promise.resolve([]),
+      overlayDocumentIds.length > 0
+        ? findRelevantUserContent(`overlay:${personaId}:${userId}`, query, 10, 0.5)
+        : Promise.resolve([]),
+    ]);
+
+    const personaIdSet = new Set(personaDocumentIds);
+    const overlayIdSet = new Set(overlayDocumentIds);
+
+    const filteredPersonaDocs = personaRelevantDocs.filter((doc) =>
+      personaIdSet.has(doc.metadata.documentId),
+    );
+    const filteredOverlayDocs = overlayRelevantDocs.filter((doc) =>
+      overlayIdSet.has(doc.metadata.documentId),
     );
 
-    // Get document metadata for better context
-    const documents = await db
-      .select()
-      .from(userDocuments)
-      .where(inArray(userDocuments.id, documentIds));
-
-    // Search for relevant content using the persona ID as namespace
-    // This allows personas to have their own vector space for documents
-    const relevantDocs = await findRelevantUserContent(
-      personaId, // Use persona ID as namespace instead of user ID
-      query,
-      14, // Get more results for personas
-      0.5, // Lower threshold for better recall
-    );
-
-    console.log(
-      `Persona RAG context: Found ${relevantDocs.length} relevant document chunks for persona`,
-    );
-
-    if (!relevantDocs || relevantDocs.length === 0) {
-      console.log(
-        'Persona RAG context: No relevant documents found in persona namespace',
-      );
-      return '';
+    if (
+      filteredPersonaDocs.length === 0 &&
+      filteredOverlayDocs.length === 0 &&
+      !overlayInstructions
+    ) {
+      console.log('Persona RAG context: No relevant persona or overlay chunks');
+      return { context: '', chunkCount: 0 };
     }
 
-    // Filter results to only include documents associated with this persona
-    const personaDocumentIds = new Set(documentIds);
-    const filteredDocs = relevantDocs.filter((doc) =>
-      personaDocumentIds.has(doc.metadata.documentId),
-    );
-
-    console.log(
-      `Persona RAG context: Filtered to ${filteredDocs.length} chunks from persona-associated documents`,
-    );
-
-    if (filteredDocs.length === 0) {
-      return '';
-    }
-
-    // Group documents by category and file
-    const documentsByCategory: Record<string, Record<string, any[]>> = {};
-    for (const doc of filteredDocs) {
-      const category = doc.metadata.category || 'Other';
-      const fileName = doc.metadata.fileName || 'Unknown File';
-
-      if (!documentsByCategory[category]) {
-        documentsByCategory[category] = {};
-      }
-      if (!documentsByCategory[category][fileName]) {
-        documentsByCategory[category][fileName] = [];
-      }
-      documentsByCategory[category][fileName].push(doc);
-    }
-
-    console.log(
-      `Persona RAG context: Grouped into ${
-        Object.keys(documentsByCategory).length
-      } categories for persona "${personaData.name}": ${Object.keys(documentsByCategory).join(', ')}`,
-    );
-
-    // Build the context prompt
     let contextText = `
 ## Persona Documents (${personaData.name})
-The following are relevant excerpts from documents specifically associated with the "${personaData.name}" persona:
+The following are relevant excerpts from this persona's configured knowledge.
 `;
 
-    // Add each category section
-    for (const [category, files] of Object.entries(documentsByCategory)) {
-      contextText += `\n### ${category}\n`;
-      console.log(
-        `Persona RAG context: Adding ${Object.keys(files).length} files for category ${category}`,
-      );
+    if (overlayInstructions) {
+      contextText += `
+### User Overlay Instructions
+The current user has added the following supplementary instructions:
+${overlayInstructions}
+`;
+    }
 
-      // Add each file in the category
-      for (const [fileName, docs] of Object.entries(files)) {
-        contextText += `\n**${fileName}** (${docs.length} relevant sections):\n`;
+    if (filteredPersonaDocs.length > 0) {
+      contextText += '\n### Base Persona Knowledge\n';
+      const groupedPersonaDocs = groupChunksByCategoryAndFile(filteredPersonaDocs);
 
-        // Add the most relevant chunks from this file
-        docs
-          .sort((a, b) => b.relevance - a.relevance) // Sort by relevance
-          .slice(0, 3) // Take top 3 chunks per file
-          .forEach((doc, index) => {
-            contextText += `\n[Relevance: ${(doc.relevance * 100).toFixed(1)}%]\n${doc.content}\n`;
-            if (index < docs.length - 1) contextText += '\n---\n';
-          });
+      for (const [category, files] of Object.entries(groupedPersonaDocs)) {
+        contextText += `\n#### ${category}\n`;
+        for (const [fileName, docs] of Object.entries(files)) {
+          contextText += `\n**${fileName}** (${docs.length} relevant sections):\n`;
+          docs
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, 3)
+            .forEach((doc, index) => {
+              contextText += `\n[Relevance: ${(doc.relevance * 100).toFixed(1)}%]\n${doc.content}\n`;
+              if (index < docs.length - 1) {
+                contextText += '\n---\n';
+              }
+            });
+          contextText += '\n---\n';
+        }
+      }
+    }
 
-        contextText += '\n---\n';
+    if (filteredOverlayDocs.length > 0) {
+      contextText += '\n### User Overlay Knowledge\n';
+      const groupedOverlayDocs = groupChunksByCategoryAndFile(filteredOverlayDocs);
+
+      for (const [category, files] of Object.entries(groupedOverlayDocs)) {
+        contextText += `\n#### ${category}\n`;
+        for (const [fileName, docs] of Object.entries(files)) {
+          contextText += `\n**${fileName}** (${docs.length} relevant sections):\n`;
+          docs
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, 3)
+            .forEach((doc, index) => {
+              contextText += `\n[Relevance: ${(doc.relevance * 100).toFixed(1)}%]\n${doc.content}\n`;
+              if (index < docs.length - 1) {
+                contextText += '\n---\n';
+              }
+            });
+          contextText += '\n---\n';
+        }
       }
     }
 
     contextText += `
 PERSONA DOCUMENT INSTRUCTIONS:
-1. These documents were specifically selected for the "${personaData.name}" persona during setup.
-2. They contain specialized knowledge and context that should guide your responses when acting as this persona.
-3. PRIORITIZE this persona-specific content over general user documents when there's overlap.
-4. Use this information to provide expert-level responses aligned with the persona's role and expertise.
-5. The persona's custom instructions should be applied in conjunction with these documents.
+1. Base Persona Knowledge is curated by persona owners/admins.
+2. User Overlay Instructions and User Overlay Knowledge are supplementary and should be applied on top of the base persona.
+3. Prioritize persona-specific content over generic context when there is overlap.
+4. Blend this knowledge naturally into responses without exposing internal retrieval mechanics.
 `;
 
+    const totalChunkCount = filteredPersonaDocs.length + filteredOverlayDocs.length;
     console.log(
-      `Persona RAG context: Generated context for persona "${personaData.name}" with ${contextText.length} characters`,
+      `Persona RAG context: Generated ${contextText.length} chars with ${totalChunkCount} chunks (base=${filteredPersonaDocs.length}, overlay=${filteredOverlayDocs.length})`,
     );
-    return contextText;
+    return { context: contextText, chunkCount: totalChunkCount };
   } catch (error) {
     console.error(
       'Persona RAG context: Error fetching persona documents:',
       error,
     );
-    return '';
+    return { context: '', chunkCount: 0 };
   }
 };
 
@@ -315,6 +368,57 @@ export const processPersonaDocuments = async (
     );
   } catch (error) {
     console.error('Persona RAG: Error processing persona documents:', error);
+    throw error;
+  }
+};
+
+export const processPersonaOverlayDocuments = async (
+  personaId: string,
+  userId: string,
+  documentIds: string[],
+) => {
+  try {
+    if (documentIds.length === 0) {
+      return;
+    }
+
+    const overlayNamespace = `overlay:${personaId}:${userId}`;
+    const { processUserDocument } = await import('./user-rag');
+
+    const overlayDocs = await db
+      .select()
+      .from(userDocuments)
+      .where(
+        and(
+          inArray(userDocuments.id, documentIds),
+          eq(userDocuments.userId, userId),
+        ),
+      );
+
+    for (const doc of overlayDocs) {
+      if (!doc.content) continue;
+      await processUserDocument(overlayNamespace, doc.id, doc.content, {
+        fileName: doc.fileName,
+        category: 'Persona Overlay Document',
+        fileType: doc.fileType || 'unknown',
+      });
+    }
+  } catch (error) {
+    console.error('Persona RAG: Error processing overlay documents:', error);
+    throw error;
+  }
+};
+
+export const deletePersonaOverlayDocuments = async (
+  personaId: string,
+  userId: string,
+) => {
+  try {
+    const overlayNamespace = `overlay:${personaId}:${userId}`;
+    const { deleteUserDocuments } = await import('./user-rag');
+    return await deleteUserDocuments(overlayNamespace);
+  } catch (error) {
+    console.error('Persona RAG: Error deleting overlay documents:', error);
     throw error;
   }
 };

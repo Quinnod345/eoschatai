@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { z } from 'zod/v3';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { validateUuidField } from '@/lib/api/validation';
 import {
   checkOrgPermission,
   changeUserRole,
@@ -22,11 +26,37 @@ export async function PATCH(
     }
 
     const { orgId, userId: targetUserId } = await params;
+    const validatedOrgId = validateUuidField(orgId, 'orgId');
+    if (!validatedOrgId.ok) {
+      return NextResponse.json({ error: validatedOrgId.error }, { status: 400 });
+    }
+    const validatedTargetUserId = validateUuidField(targetUserId, 'userId');
+    if (!validatedTargetUserId.ok) {
+      return NextResponse.json(
+        { error: validatedTargetUserId.error },
+        { status: 400 },
+      );
+    }
+    const orgIdValue = validatedOrgId.value;
+    const targetUserIdValue = validatedTargetUserId.value;
+
+    const [targetUser] = await db
+      .select({ orgId: userTable.orgId })
+      .from(userTable)
+      .where(eq(userTable.id, targetUserIdValue))
+      .limit(1);
+
+    if (!targetUser || targetUser.orgId !== orgIdValue) {
+      return NextResponse.json(
+        { error: 'User not found in this organization' },
+        { status: 404 },
+      );
+    }
 
     // Check if user has permission to change roles
     const hasPermission = await checkOrgPermission(
       session.user.id,
-      orgId,
+      orgIdValue,
       'members.edit_role',
     );
 
@@ -38,7 +68,12 @@ export async function PATCH(
     }
 
     // Parse and validate the request body
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const parse = roleSchema.safeParse(body);
 
     if (!parse.success) {
@@ -50,8 +85,18 @@ export async function PATCH(
 
     const { role } = parse.data;
 
+    if (role === 'owner') {
+      return NextResponse.json(
+        {
+          error:
+            'Ownership transfer requires the dedicated transfer-ownership flow.',
+        },
+        { status: 400 },
+      );
+    }
+
     // Cannot change your own role
-    if (targetUserId === session.user.id) {
+    if (targetUserIdValue === session.user.id) {
       return NextResponse.json(
         { error: 'You cannot change your own role' },
         { status: 400 },
@@ -59,7 +104,11 @@ export async function PATCH(
     }
 
     // Change the user's role
-    const success = await changeUserRole(targetUserId, orgId, role as OrgRole);
+    const success = await changeUserRole(
+      targetUserIdValue,
+      orgIdValue,
+      role as OrgRole,
+    );
 
     if (!success) {
       return NextResponse.json(
@@ -80,9 +129,9 @@ export async function PATCH(
         getUserEntitlements,
       } = await import('@/lib/entitlements');
 
-      await invalidateUserEntitlementsCache(targetUserId);
-      await getUserEntitlements(targetUserId);
-      await broadcastEntitlementsUpdated(targetUserId);
+      await invalidateUserEntitlementsCache(targetUserIdValue);
+      await getUserEntitlements(targetUserIdValue);
+      await broadcastEntitlementsUpdated(targetUserIdValue);
     } catch (error) {
       console.warn('[org:members:role] Failed to update entitlements:', error);
       // Don't fail the role change if entitlements update fails

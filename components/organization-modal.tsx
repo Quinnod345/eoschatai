@@ -48,7 +48,7 @@ export function OrganizationModal({
   // Check if user already has an organization when modal opens
   useEffect(() => {
     if (!open) return;
-    
+
     const abortController = new AbortController();
     const signal = abortController.signal;
 
@@ -57,9 +57,9 @@ export function OrganizationModal({
         const response = await fetch('/api/user-settings', { signal });
         if (response.ok && !signal.aborted) {
           const data = await response.json();
-          // If no org name set yet and user has a company name, use it
-          if (!organizationName && data.companyName) {
-            setOrganizationName(data.companyName);
+          // Only seed the input if it's currently empty.
+          if (data.companyName) {
+            setOrganizationName((current) => current || data.companyName);
           }
         }
       } catch (error) {
@@ -79,6 +79,8 @@ export function OrganizationModal({
           const data = await response.json();
           if (data.organization) {
             setExistingOrg(data.organization);
+          } else {
+            setExistingOrg(null);
           }
         }
       } catch (error) {
@@ -98,7 +100,7 @@ export function OrganizationModal({
     return () => {
       abortController.abort();
     };
-  }, [open, organizationName]);
+  }, [open]);
 
   const checkExistingOrganizationAction = async () => {
     setCheckingExisting(true);
@@ -110,6 +112,8 @@ export function OrganizationModal({
         const data = await response.json();
         if (data.organization) {
           setExistingOrg(data.organization);
+        } else {
+          setExistingOrg(null);
         }
       }
     } catch (error) {

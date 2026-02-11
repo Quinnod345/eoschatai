@@ -18,17 +18,25 @@ import {
 } from '@/components/icons';
 import Image from 'next/image';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
-import { Users, Check, Loader2 } from 'lucide-react';
+import { Users, Check, Loader2, Lock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
 import { getProfileTheme } from '@/lib/constants/profile-themes';
+import { PersonaOverlayEditor } from '@/components/persona-overlay-editor';
+
+type PersonaWithAccess = Persona & {
+  canChat?: boolean;
+  canViewSettings?: boolean;
+  canEdit?: boolean;
+  knowledgeHidden?: boolean;
+};
 
 interface PersonaSubmenuProps {
   selectedPersonaId?: string;
   selectedProfileId?: string;
   onPersonaSelect: (personaId: string | null) => void;
   onCreatePersona: () => void;
-  onEditPersona: (persona: Persona) => void;
+  onEditPersona: (persona: PersonaWithAccess) => void;
   onProfileSelect?: (profileId: string | null) => void;
   onCreateProfile?: () => void;
   onEditProfile?: (profile: PersonaProfile) => void;
@@ -51,11 +59,14 @@ export function PersonaSubmenu({
   messages = [],
   onCloseDropdown,
 }: PersonaSubmenuProps) {
-  const [systemPersonas, setSystemPersonas] = useState<Persona[]>([]);
-  const [userPersonas, setUserPersonas] = useState<Persona[]>([]);
-  const [sharedPersonas, setSharedPersonas] = useState<Persona[]>([]);
+  const [systemPersonas, setSystemPersonas] = useState<PersonaWithAccess[]>([]);
+  const [userPersonas, setUserPersonas] = useState<PersonaWithAccess[]>([]);
+  const [sharedPersonas, setSharedPersonas] = useState<PersonaWithAccess[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitchingPersona, setIsSwitchingPersona] = useState(false);
+  const [customizingPersonaId, setCustomizingPersonaId] = useState<string | null>(
+    null,
+  );
   // Track which personas have profiles (loaded on demand)
   const [personaProfiles, setPersonaProfiles] = useState<
     Record<string, PersonaProfile[]>
@@ -263,7 +274,7 @@ export function PersonaSubmenu({
   );
 
   const handleEditPersona = useCallback(
-    (persona: Persona, e: React.MouseEvent) => {
+    (persona: PersonaWithAccess, e: React.MouseEvent) => {
       e.stopPropagation();
       onEditPersona(persona);
       onCloseDropdown?.();
@@ -272,7 +283,7 @@ export function PersonaSubmenu({
   );
 
   const handleDeletePersona = useCallback(
-    async (persona: Persona, e: React.MouseEvent) => {
+    async (persona: PersonaWithAccess, e: React.MouseEvent) => {
       e.stopPropagation();
 
       if (
@@ -314,6 +325,15 @@ export function PersonaSubmenu({
     [selectedPersonaId, onPersonaSelect, onProfileSelect],
   );
 
+  const handleCustomizePersona = useCallback(
+    (persona: PersonaWithAccess, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCustomizingPersonaId(persona.id);
+      onCloseDropdown?.();
+    },
+    [onCloseDropdown],
+  );
+
   const handleCreateClick = useCallback(() => {
     onCreatePersona();
     onCloseDropdown?.();
@@ -350,7 +370,8 @@ export function PersonaSubmenu({
     : null;
 
   return (
-    <DropdownMenuSub>
+    <>
+      <DropdownMenuSub>
       <DropdownMenuSubTrigger className="gap-2">
         {selectedPersona?.iconUrl ? (
           <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0">
@@ -504,11 +525,16 @@ export function PersonaSubmenu({
                         handleProfileSelect(persona.id, profileId)
                       }
                       onEdit={(e) => handleEditPersona(persona, e)}
+                      onCustomize={(e) => handleCustomizePersona(persona, e)}
                       onCreateProfile={() => handleCreateProfile(persona.id)}
                       onEditProfile={
                         onEditProfile ? handleEditProfile : undefined
                       }
-                      showEdit
+                      showEdit={persona.canEdit === true}
+                      showCustomize={
+                        persona.allowUserOverlay === true ||
+                        persona.allowUserKnowledge === true
+                      }
                     />
                   ))}
                 </>
@@ -572,7 +598,13 @@ export function PersonaSubmenu({
           )}
         </DropdownMenuSubContent>
       </DropdownMenuPortal>
-    </DropdownMenuSub>
+      </DropdownMenuSub>
+      <PersonaOverlayEditor
+        isOpen={customizingPersonaId !== null}
+        onClose={() => setCustomizingPersonaId(null)}
+        personaId={customizingPersonaId}
+      />
+    </>
   );
 }
 
@@ -586,6 +618,36 @@ function isEOSImplementerPersona(persona: Persona): boolean {
   );
 }
 
+function isOrgSharedPersona(persona: PersonaWithAccess): boolean {
+  return persona.visibility === 'org' || persona.isShared === true;
+}
+
+function PersonaAccessBadges({ persona }: { persona: PersonaWithAccess }) {
+  if (!isOrgSharedPersona(persona)) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+        Shared
+      </span>
+      {persona.lockInstructions || persona.lockKnowledge ? (
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+          <Lock className="size-2.5 mr-1" />
+          Locked
+        </span>
+      ) : null}
+      {persona.allowUserOverlay || persona.allowUserKnowledge ? (
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+          <Sparkles className="size-2.5 mr-1" />
+          Customizable
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 // Simple persona item without profile submenu (for non-EOS Implementer personas)
 function SimplePersonaItem({
   persona,
@@ -594,20 +656,27 @@ function SimplePersonaItem({
   onSelectPersona,
   onEdit,
   onDelete,
+  onCustomize,
   showEdit,
   showDelete,
+  showCustomize,
 }: {
-  persona: Persona;
+  persona: PersonaWithAccess;
   isSelected: boolean;
   chatHasMessages: boolean;
   onSelectPersona: () => void;
   onEdit?: (e: React.MouseEvent) => void;
   onDelete?: (e: React.MouseEvent) => void;
+  onCustomize?: (e: React.MouseEvent) => void;
   showEdit?: boolean;
   showDelete?: boolean;
+  showCustomize?: boolean;
 }) {
   // If we have edit/delete actions, we need a submenu for those
-  const hasActions = (showEdit && onEdit) || (showDelete && onDelete);
+  const hasActions =
+    (showEdit && onEdit) ||
+    (showDelete && onDelete) ||
+    (showCustomize && onCustomize);
 
   if (!hasActions) {
     // Simple click-to-select item
@@ -642,6 +711,7 @@ function SimplePersonaItem({
                 {persona.description}
               </div>
             )}
+            <PersonaAccessBadges persona={persona} />
           </div>
           {isSelected && (
             <Check className="size-4 text-eos-navy dark:text-eos-orange flex-shrink-0" />
@@ -690,6 +760,7 @@ function SimplePersonaItem({
                 {persona.description}
               </div>
             )}
+            <PersonaAccessBadges persona={persona} />
           </div>
           {isSelected && (
             <Check className="size-4 text-eos-navy dark:text-eos-orange flex-shrink-0" />
@@ -742,6 +813,17 @@ function SimplePersonaItem({
             Actions
           </div>
           <div className="flex gap-1 px-1 py-1">
+            {showCustomize && onCustomize && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 flex-1 text-xs text-foreground/80 hover:text-foreground hover:bg-primary/10"
+                onClick={onCustomize}
+              >
+                <Sparkles className="size-3" />
+                <span className="ml-1.5">Customize</span>
+              </Button>
+            )}
             {showEdit && onEdit && (
               <Button
                 variant="ghost"
@@ -784,12 +866,14 @@ function PersonaItemWithProfiles({
   onSelectProfile,
   onEdit,
   onDelete,
+  onCustomize,
   onCreateProfile,
   onEditProfile,
   showEdit,
   showDelete,
+  showCustomize,
 }: {
-  persona: Persona;
+  persona: PersonaWithAccess;
   isSelected: boolean;
   selectedProfileId?: string;
   chatHasMessages: boolean;
@@ -800,10 +884,12 @@ function PersonaItemWithProfiles({
   onSelectProfile: (profileId: string | null) => void;
   onEdit?: (e: React.MouseEvent) => void;
   onDelete?: (e: React.MouseEvent) => void;
+  onCustomize?: (e: React.MouseEvent) => void;
   onCreateProfile?: () => void;
   onEditProfile?: (profile: PersonaProfile, e: React.MouseEvent) => void;
   showEdit?: boolean;
   showDelete?: boolean;
+  showCustomize?: boolean;
 }) {
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId);
 
@@ -820,8 +906,10 @@ function PersonaItemWithProfiles({
         onSelectPersona={onSelectPersona}
         onEdit={onEdit}
         onDelete={onDelete}
+        onCustomize={onCustomize}
         showEdit={showEdit}
         showDelete={showDelete}
+        showCustomize={showCustomize}
       />
     );
   }

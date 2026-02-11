@@ -5,6 +5,22 @@ import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { userMemory } from '@/lib/db/schema';
 import { z } from 'zod/v3';
 
+const memoryStatusFilterSchema = z.enum([
+  'active',
+  'pending',
+  'archived',
+  'dismissed',
+]);
+const memoryTypeFilterSchema = z.enum([
+  'preference',
+  'profile',
+  'company',
+  'task',
+  'knowledge',
+  'personal',
+  'other',
+]);
+
 // Validation schema for creating a memory
 const createMemorySchema = z.object({
   summary: z.string().min(1, 'Summary is required').max(500, 'Summary must be 500 characters or less'),
@@ -19,18 +35,18 @@ const createMemorySchema = z.object({
 
 export async function GET(request: Request) {
   const session = await auth();
-  if (!session?.user)
+  if (!session?.user?.id)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') || '';
-    const status = searchParams.get('status');
-    const type = searchParams.get('type');
-    const limit = Math.min(
-      Number.parseInt(searchParams.get('limit') || '50', 10),
-      100,
-    );
+    const statusParam = searchParams.get('status');
+    const typeParam = searchParams.get('type');
+    const parsedLimit = Number.parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 50;
 
     const conditions = [eq(userMemory.userId, session.user.id)];
     if (q) {
@@ -43,8 +59,20 @@ export async function GET(request: Request) {
         ) as any,
       );
     }
-    if (status) conditions.push(eq(userMemory.status, status as any));
-    if (type) conditions.push(eq(userMemory.memoryType, type as any));
+    if (statusParam) {
+      const parsedStatus = memoryStatusFilterSchema.safeParse(statusParam);
+      if (!parsedStatus.success) {
+        return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+      }
+      conditions.push(eq(userMemory.status, parsedStatus.data as any));
+    }
+    if (typeParam) {
+      const parsedType = memoryTypeFilterSchema.safeParse(typeParam);
+      if (!parsedType.success) {
+        return NextResponse.json({ error: 'Invalid type filter' }, { status: 400 });
+      }
+      conditions.push(eq(userMemory.memoryType, parsedType.data as any));
+    }
 
     const results = await db
       .select()
@@ -65,7 +93,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user)
+  if (!session?.user?.id)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -172,7 +200,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user)
+  if (!session?.user?.id)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -212,7 +240,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await auth();
-  if (!session?.user)
+  if (!session?.user?.id)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {

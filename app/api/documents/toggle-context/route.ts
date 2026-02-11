@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { userDocuments, document } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { processUserDocument, deleteUserDocument } from '@/lib/ai/user-rag';
+import { validateUuidField } from '@/lib/api/validation';
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -13,14 +14,24 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 },
+      );
+    }
+
     const { documentId, isContext, documentType } = body as {
-      documentId: string;
+      documentId?: string;
       isContext: boolean;
       documentType: 'user-document' | 'composer-document';
     };
 
-    if (!documentId || typeof isContext !== 'boolean' || !documentType) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok || typeof isContext !== 'boolean' || !documentType) {
       return NextResponse.json(
         {
           error: 'Missing required fields: documentId, isContext, documentType',
@@ -30,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `Toggle context for ${documentType} ${documentId}: ${isContext}`,
+      `Toggle context for ${documentType} ${validatedDocumentId.value}: ${isContext}`,
     );
 
     if (documentType === 'user-document') {
@@ -41,7 +52,7 @@ export async function POST(request: Request) {
         .from(userDocuments)
         .where(
           and(
-            eq(userDocuments.id, documentId),
+            eq(userDocuments.id, validatedDocumentId.value),
             eq(userDocuments.userId, session.user.id),
           ),
         );
@@ -59,19 +70,28 @@ export async function POST(request: Request) {
       await db
         .update(userDocuments)
         .set({ isContext, updatedAt: new Date() })
-        .where(eq(userDocuments.id, documentId));
+        .where(eq(userDocuments.id, validatedDocumentId.value));
 
       // Handle embeddings
       if (isContext) {
         // Generate and store embeddings
-        console.log(`Generating embeddings for document ${documentId}`);
+        console.log(
+          `Generating embeddings for document ${validatedDocumentId.value}`,
+        );
         try {
-          await processUserDocument(session.user.id, documentId, doc.content, {
-            fileName: doc.fileName,
-            category: doc.category,
-            fileType: doc.fileType,
-          });
-          console.log(`Successfully generated embeddings for ${documentId}`);
+          await processUserDocument(
+            session.user.id,
+            validatedDocumentId.value,
+            doc.content,
+            {
+              fileName: doc.fileName,
+              category: doc.category,
+              fileType: doc.fileType,
+            },
+          );
+          console.log(
+            `Successfully generated embeddings for ${validatedDocumentId.value}`,
+          );
         } catch (error) {
           console.error('Error generating embeddings:', error);
           return NextResponse.json(
@@ -84,10 +104,12 @@ export async function POST(request: Request) {
         }
       } else {
         // Delete embeddings
-        console.log(`Deleting embeddings for document ${documentId}`);
+        console.log(`Deleting embeddings for document ${validatedDocumentId.value}`);
         try {
-          await deleteUserDocument(session.user.id, documentId);
-          console.log(`Successfully deleted embeddings for ${documentId}`);
+          await deleteUserDocument(session.user.id, validatedDocumentId.value);
+          console.log(
+            `Successfully deleted embeddings for ${validatedDocumentId.value}`,
+          );
         } catch (error) {
           console.error('Error deleting embeddings:', error);
           return NextResponse.json(
@@ -105,7 +127,7 @@ export async function POST(request: Request) {
         message: isContext
           ? 'Document enabled as context with embeddings'
           : 'Document disabled from context and embeddings removed',
-        documentId,
+        documentId: validatedDocumentId.value,
         isContext,
       });
     } else if (documentType === 'composer-document') {
@@ -116,7 +138,7 @@ export async function POST(request: Request) {
         .from(document)
         .where(
           and(
-            eq(document.id, documentId),
+            eq(document.id, validatedDocumentId.value),
             eq(document.userId, session.user.id),
           ),
         );
@@ -134,22 +156,27 @@ export async function POST(request: Request) {
       await db
         .update(document)
         .set({ isContext })
-        .where(eq(document.id, documentId));
+        .where(eq(document.id, validatedDocumentId.value));
 
       // Handle embeddings for composer documents
       if (isContext && doc.content) {
         // Generate and store embeddings
         console.log(
-          `Generating embeddings for composer document ${documentId}`,
+          `Generating embeddings for composer document ${validatedDocumentId.value}`,
         );
         try {
-          await processUserDocument(session.user.id, documentId, doc.content, {
-            fileName: doc.title || 'Composer Document',
-            category: doc.kind as any,
-            fileType: doc.kind || 'text',
-          });
+          await processUserDocument(
+            session.user.id,
+            validatedDocumentId.value,
+            doc.content,
+            {
+              fileName: doc.title || 'Composer Document',
+              category: doc.kind as any,
+              fileType: doc.kind || 'text',
+            },
+          );
           console.log(
-            `Successfully generated embeddings for composer ${documentId}`,
+            `Successfully generated embeddings for composer ${validatedDocumentId.value}`,
           );
         } catch (error) {
           console.error('Error generating embeddings for composer:', error);
@@ -163,11 +190,13 @@ export async function POST(request: Request) {
         }
       } else if (!isContext) {
         // Delete embeddings
-        console.log(`Deleting embeddings for composer document ${documentId}`);
+        console.log(
+          `Deleting embeddings for composer document ${validatedDocumentId.value}`,
+        );
         try {
-          await deleteUserDocument(session.user.id, documentId);
+          await deleteUserDocument(session.user.id, validatedDocumentId.value);
           console.log(
-            `Successfully deleted embeddings for composer ${documentId}`,
+            `Successfully deleted embeddings for composer ${validatedDocumentId.value}`,
           );
         } catch (error) {
           console.error('Error deleting embeddings from composer:', error);
@@ -186,7 +215,7 @@ export async function POST(request: Request) {
         message: isContext
           ? 'Composer document enabled as context with embeddings'
           : 'Composer document disabled from context and embeddings removed',
-        documentId,
+        documentId: validatedDocumentId.value,
         isContext,
       });
     } else {

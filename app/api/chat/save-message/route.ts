@@ -1,6 +1,9 @@
-import { type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
+import { db } from '@/lib/db';
 import { saveMessages } from '@/lib/db/queries';
+import { chat } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod/v3';
 
 const saveMessageSchema = z.object({
@@ -22,18 +25,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
-    console.log('[Save Message API] Received request body:', {
-      chatId: body.chatId,
-      messageId: body.messageId,
-      messageIdType: typeof body.messageId,
-      messageIdValue: body.messageId,
-      role: body.message?.role,
-      partsCount: body.message?.parts?.length,
-      fullBody: JSON.stringify(body, null, 2).substring(0, 500),
-    });
-    
+
     const { chatId, messageId, message } = saveMessageSchema.parse(body);
+
+    const [ownedChat] = await db
+      .select({ id: chat.id })
+      .from(chat)
+      .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
+      .limit(1);
+
+    if (!ownedChat) {
+      return new Response('Forbidden', { status: 403 });
+    }
 
     // Filter out data stream parts - only keep message content parts
     const contentParts = message.parts.filter((part: any) => {
@@ -60,20 +63,10 @@ export async function POST(request: NextRequest) {
 
     // SDK 5: Generate a proper UUID for the message if the ID isn't a UUID
     // The database requires UUID format
-    const { randomUUID } = await import('crypto');
+    const { randomUUID } = await import('node:crypto');
     const dbMessageId = messageId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
       ? messageId 
       : randomUUID();
-
-    console.log('[Save Message API] Saving message:', {
-      chatId,
-      originalMessageId: messageId,
-      dbMessageId,
-      role: message.role,
-      originalPartsCount: message.parts.length,
-      contentPartsCount: contentParts.length,
-      userId: session.user.id,
-    });
 
     // Save the message to database
     await saveMessages({
@@ -103,7 +96,6 @@ export async function POST(request: NextRequest) {
     return new Response(
       JSON.stringify({
         error: 'Failed to save message',
-        details: error instanceof Error ? error.message : 'Unknown error',
       }),
       {
         status: 500,

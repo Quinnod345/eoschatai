@@ -273,7 +273,7 @@ export interface AccessContext {
   user: Pick<User, 'id' | 'plan' | 'orgId' | 'email'> & {
     usageCounters: UsageCounters;
   };
-  org: Pick<Org, 'id' | 'plan' | 'limits' | 'seatCount'> | null;
+  org: Pick<Org, 'id' | 'name' | 'plan' | 'limits' | 'seatCount'> | null;
   entitlements: NormalizedEntitlements;
 }
 
@@ -291,7 +291,7 @@ type UserWithOrg = {
   org:
     | (Pick<
         Org,
-        'id' | 'plan' | 'limits' | 'seatCount' | 'stripeSubscriptionId'
+        'id' | 'name' | 'plan' | 'limits' | 'seatCount' | 'stripeSubscriptionId'
       > & {
         limits: Org['limits'];
       })
@@ -312,6 +312,7 @@ const fetchUserRecord = async (userId: string): Promise<UserWithOrg | null> => {
       },
       org: {
         id: org.id,
+        name: org.name,
         plan: org.plan,
         limits: org.limits,
         seatCount: org.seatCount,
@@ -511,6 +512,7 @@ export const getAccessContext = async (
     org: record.org
       ? {
           id: record.org.id,
+          name: record.org.name,
           plan: record.org.plan,
           limits: record.org.limits,
           seatCount: record.org.seatCount,
@@ -744,16 +746,66 @@ return active`,
   };
 };
 
-export const resetDailyUsageCounters = async () => {
-  await db.execute(`
-    UPDATE "User"
-    SET "usageCounters" = jsonb_set(
-      jsonb_set(COALESCE("usageCounters", '{}'::jsonb), '{chats_today}', '0'::jsonb, true),
-      '{deep_runs_day}',
-      '0'::jsonb,
-      true
+export const resetDailyUsageCounters = async (): Promise<number> => {
+  const result = await db.execute(`
+    WITH inserted_settings AS (
+      INSERT INTO "UserSettings" ("id", "userId", "timezone", "createdAt", "updatedAt", "lastMessageCountReset")
+      SELECT gen_random_uuid(), u.id, 'UTC', NOW(), NOW(), NOW()::timestamp
+      FROM "User" u
+      LEFT JOIN "UserSettings" us ON us."userId" = u.id
+      WHERE us."userId" IS NULL
+      RETURNING "userId"
+    ),
+    timezone_resolved AS (
+      SELECT
+        us."userId",
+        COALESCE(tz.name, 'UTC') AS effective_timezone,
+        COALESCE(us."lastMessageCountReset", NOW()::timestamp) AS last_reset_at
+      FROM "UserSettings" us
+      LEFT JOIN pg_timezone_names tz
+        ON tz.name = COALESCE(NULLIF(trim(us."timezone"), ''), 'UTC')
+    ),
+    users_to_reset AS (
+      SELECT tr."userId"
+      FROM timezone_resolved tr
+      WHERE
+        timezone(tr.effective_timezone, NOW())::date >
+        timezone(
+          tr.effective_timezone,
+          tr.last_reset_at AT TIME ZONE 'UTC'
+        )::date
+    ),
+    updated_users AS (
+      UPDATE "User" u
+      SET "usageCounters" = jsonb_set(
+        jsonb_set(COALESCE(u."usageCounters", '{}'::jsonb), '{chats_today}', '0'::jsonb, true),
+        '{deep_runs_day}',
+        '0'::jsonb,
+        true
+      )
+      FROM users_to_reset r
+      WHERE u.id = r."userId"
+      RETURNING u.id
+    ),
+    updated_settings AS (
+      UPDATE "UserSettings" us
+      SET
+        "lastMessageCountReset" = NOW()::timestamp,
+        "updatedAt" = NOW()
+      FROM updated_users uu
+      WHERE us."userId" = uu.id
+      RETURNING us."userId"
     )
+    SELECT COUNT(*)::int AS reset_count FROM updated_users
   `);
+
+  const rows = Array.isArray(result)
+    ? (result as Array<{ reset_count?: number | string }>)
+    : ((result as { rows?: Array<{ reset_count?: number | string }> })?.rows ??
+      []);
+  const resetCount = Number(rows[0]?.reset_count ?? 0);
+
+  return Number.isFinite(resetCount) ? resetCount : 0;
 };
 
 export const resetUserDailyUsageCounters = async (userId: string) => {
@@ -768,8 +820,13 @@ export const resetMonthlyUsageCounters = async () => {
   await db.execute(`
     UPDATE "User"
     SET "usageCounters" = jsonb_set(
-      COALESCE("usageCounters", '{}'::jsonb),
-      '{asr_minutes_month}',
+      jsonb_set(
+        COALESCE("usageCounters", '{}'::jsonb),
+        '{asr_minutes_month}',
+        '0'::jsonb,
+        true
+      ),
+      '{exports_month}',
       '0'::jsonb,
       true
     )

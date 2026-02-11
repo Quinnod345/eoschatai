@@ -208,6 +208,206 @@ const columnExists = async (
   }
 };
 
+// Ensure org persona overlay schema exists even if drizzle journal is empty.
+const ensureOrgPersonaOverlaySchema = async (connection: postgres.Sql<{}>) => {
+  console.log('Running org persona overlay schema migration...');
+
+  try {
+    const hasIsShared = await columnExists(connection, 'Persona', 'isShared');
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "visibility" varchar(16)
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "visibility" SET DEFAULT 'private'
+    `;
+
+    if (hasIsShared) {
+      await connection`
+        UPDATE "Persona"
+        SET "visibility" = CASE
+          WHEN COALESCE("isShared", false) = true THEN 'org'
+          ELSE COALESCE("visibility", 'private')
+        END
+      `;
+    } else {
+      await connection`
+        UPDATE "Persona"
+        SET "visibility" = COALESCE("visibility", 'private')
+      `;
+    }
+
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "visibility" SET NOT NULL
+    `;
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "lockInstructions" boolean
+    `;
+    await connection`
+      UPDATE "Persona"
+      SET "lockInstructions" = COALESCE("lockInstructions", false)
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "lockInstructions" SET DEFAULT false
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "lockInstructions" SET NOT NULL
+    `;
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "lockKnowledge" boolean
+    `;
+    await connection`
+      UPDATE "Persona"
+      SET "lockKnowledge" = COALESCE("lockKnowledge", false)
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "lockKnowledge" SET DEFAULT false
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "lockKnowledge" SET NOT NULL
+    `;
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "allowUserOverlay" boolean
+    `;
+    await connection`
+      UPDATE "Persona"
+      SET "allowUserOverlay" = COALESCE("allowUserOverlay", false)
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "allowUserOverlay" SET DEFAULT false
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "allowUserOverlay" SET NOT NULL
+    `;
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "allowUserKnowledge" boolean
+    `;
+    await connection`
+      UPDATE "Persona"
+      SET "allowUserKnowledge" = COALESCE("allowUserKnowledge", false)
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "allowUserKnowledge" SET DEFAULT false
+    `;
+    await connection`
+      ALTER TABLE "Persona"
+      ALTER COLUMN "allowUserKnowledge" SET NOT NULL
+    `;
+
+    await connection`
+      ALTER TABLE "Persona"
+      ADD COLUMN IF NOT EXISTS "publishedAt" timestamp
+    `;
+
+    await connection`
+      CREATE INDEX IF NOT EXISTS "persona_org_visibility_idx"
+      ON "Persona" ("orgId", "visibility")
+    `;
+
+    await connection`
+      CREATE TABLE IF NOT EXISTS "PersonaUserOverlay" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "userId" uuid NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,
+        "personaId" uuid NOT NULL REFERENCES "Persona"("id") ON DELETE CASCADE,
+        "additionalInstructions" text,
+        "isActive" boolean NOT NULL DEFAULT true,
+        "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    await connection`
+      CREATE UNIQUE INDEX IF NOT EXISTS "persona_user_overlay_user_persona_unique"
+      ON "PersonaUserOverlay" ("userId", "personaId")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "persona_user_overlay_user_idx"
+      ON "PersonaUserOverlay" ("userId")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "persona_user_overlay_persona_idx"
+      ON "PersonaUserOverlay" ("personaId")
+    `;
+
+    await connection`
+      CREATE TABLE IF NOT EXISTS "PersonaUserOverlayDocument" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "overlayId" uuid NOT NULL REFERENCES "PersonaUserOverlay"("id") ON DELETE CASCADE,
+        "documentId" uuid NOT NULL REFERENCES "UserDocuments"("id") ON DELETE CASCADE,
+        "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    await connection`
+      CREATE UNIQUE INDEX IF NOT EXISTS "persona_user_overlay_document_overlay_doc_unique"
+      ON "PersonaUserOverlayDocument" ("overlayId", "documentId")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "persona_user_overlay_document_overlay_idx"
+      ON "PersonaUserOverlayDocument" ("overlayId")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "persona_user_overlay_document_doc_idx"
+      ON "PersonaUserOverlayDocument" ("documentId")
+    `;
+
+    await connection`
+      CREATE TABLE IF NOT EXISTS "OrgDocument" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "orgId" uuid NOT NULL REFERENCES "Org"("id") ON DELETE CASCADE,
+        "uploadedBy" uuid REFERENCES "User"("id") ON DELETE SET NULL,
+        "fileName" varchar(255) NOT NULL,
+        "fileUrl" text NOT NULL,
+        "fileSize" integer NOT NULL,
+        "fileType" varchar(255) NOT NULL,
+        "content" text NOT NULL DEFAULT '',
+        "contentHash" varchar(64),
+        "processingStatus" varchar(32) NOT NULL DEFAULT 'pending'
+          CHECK ("processingStatus" IN ('pending', 'processing', 'ready', 'failed')),
+        "processingError" text,
+        "isActive" boolean NOT NULL DEFAULT true,
+        "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    await connection`
+      CREATE INDEX IF NOT EXISTS "org_document_org_idx"
+      ON "OrgDocument" ("orgId")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "org_document_processing_status_idx"
+      ON "OrgDocument" ("processingStatus")
+    `;
+    await connection`
+      CREATE INDEX IF NOT EXISTS "org_document_content_hash_idx"
+      ON "OrgDocument" ("contentHash")
+    `;
+
+    console.log('Org persona overlay schema migration completed');
+  } catch (error) {
+    console.error('Error ensuring org persona overlay schema:', error);
+  }
+};
+
 // Document History migration
 const runDocumentHistoryMigration = async (connection: postgres.Sql<{}>) => {
   console.log('Running Document History migration...');
@@ -527,9 +727,27 @@ const runMigrate = async () => {
           await ensureColumn('UserSettings', 'contextRecordingIds', 'JSONB');
           await ensureColumn(
             'UserSettings',
+            'timezone',
+            `VARCHAR(64) DEFAULT 'UTC'`,
+          );
+          await ensureColumn(
+            'UserSettings',
             'usePrimaryDocsForContext',
             'BOOLEAN DEFAULT true',
           );
+          await connection`
+            UPDATE "UserSettings"
+            SET "timezone" = 'UTC'
+            WHERE "timezone" IS NULL OR trim("timezone") = ''
+          `;
+          await connection`
+            ALTER TABLE "UserSettings"
+            ALTER COLUMN "timezone" SET DEFAULT 'UTC'
+          `;
+          await connection`
+            ALTER TABLE "UserSettings"
+            ALTER COLUMN "timezone" SET NOT NULL
+          `;
 
           // VoiceTranscript content column
           await ensureColumn('VoiceTranscript', 'content', 'TEXT');
@@ -591,6 +809,13 @@ const runMigrate = async () => {
           await runDocumentHistoryMigration(connection);
         } catch (error) {
           console.error('Error running Document History migration:', error);
+        }
+
+        // Ensure org-shared persona + overlay + org knowledge schema
+        try {
+          await ensureOrgPersonaOverlaySchema(connection);
+        } catch (error) {
+          console.error('Error running org persona overlay migration:', error);
         }
 
         // Fix Org schema - add pendingRemoval and fix FK constraint
@@ -766,7 +991,10 @@ const runMigrate = async () => {
             console.log('UserCoursePersonaSubscription table already exists');
           }
         } catch (error) {
-          console.error('Error creating Circle.so course persona tables:', error);
+          console.error(
+            'Error creating Circle.so course persona tables:',
+            error,
+          );
         }
 
         // Add reasoning column to Message_v2 for storing Claude's extended thinking

@@ -107,8 +107,9 @@ export async function extractAndSaveMemories(opts: {
   userMessage: string;
   assistantMessage: string;
   existingMemories?: string;
+  sourceMessageId?: string;
 }): Promise<{ saved: number; updated: number }> {
-  const { userId, userMessage, assistantMessage, existingMemories } = opts;
+  const { userId, userMessage, assistantMessage, existingMemories, sourceMessageId } = opts;
 
   try {
     const provider = createCustomProvider();
@@ -238,6 +239,7 @@ ${existingMemories || 'None yet.'}`,
           writeOps.push(
             saveUserMemory({
               userId,
+              sourceMessageId,
               summary: fact.summary,
               content: fact.summary,
               memoryType,

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments, userDocumentVersion } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { put } from '@vercel/blob';
 import { processUserDocument } from '@/lib/ai/user-rag';
+import { validateUuidField } from '@/lib/api/validation';
 
 // GET - List all versions of a document
 export async function GET(request: NextRequest) {
@@ -17,9 +17,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const documentId = searchParams.get('documentId');
 
-    if (!documentId) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
       return NextResponse.json(
-        { error: 'documentId is required' },
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -46,11 +47,11 @@ export async function GET(request: NextRequest) {
     const versions = await db
       .select()
       .from(userDocumentVersion)
-      .where(eq(userDocumentVersion.documentId, documentId))
+      .where(eq(userDocumentVersion.documentId, validatedDocumentId.value))
       .orderBy(desc(userDocumentVersion.versionNumber));
 
     return NextResponse.json({
-      documentId,
+      documentId: validatedDocumentId.value,
       currentVersion: document.version,
       versions: versions.map((v) => ({
         id: v.id,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let body;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -89,11 +90,18 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { action, documentId, versionId, file, contentHash } = body;
+    const { action, documentId, versionId, file, contentHash } = body as {
+      action?: string;
+      documentId?: string;
+      versionId?: string;
+      file?: unknown;
+      contentHash?: unknown;
+    };
 
-    if (!documentId) {
+    const validatedDocumentId = validateUuidField(documentId, 'documentId');
+    if (!validatedDocumentId.ok) {
       return NextResponse.json(
-        { error: 'documentId is required' },
+        { error: validatedDocumentId.error },
         { status: 400 },
       );
     }
@@ -104,7 +112,7 @@ export async function POST(request: NextRequest) {
       .from(userDocuments)
       .where(
         and(
-          eq(userDocuments.id, documentId),
+          eq(userDocuments.id, validatedDocumentId.value),
           eq(userDocuments.userId, session.user.id),
         ),
       );
@@ -118,9 +126,10 @@ export async function POST(request: NextRequest) {
 
     if (action === 'restore') {
       // Restore a previous version
-      if (!versionId) {
+      const validatedVersionId = validateUuidField(versionId, 'versionId');
+      if (!validatedVersionId.ok) {
         return NextResponse.json(
-          { error: 'versionId is required for restore action' },
+          { error: validatedVersionId.error },
           { status: 400 },
         );
       }
@@ -128,12 +137,19 @@ export async function POST(request: NextRequest) {
       const [versionToRestore] = await db
         .select()
         .from(userDocumentVersion)
-        .where(eq(userDocumentVersion.id, versionId));
+        .where(eq(userDocumentVersion.id, validatedVersionId.value));
 
       if (!versionToRestore) {
         return NextResponse.json(
           { error: 'Version not found' },
           { status: 404 },
+        );
+      }
+
+      if (versionToRestore.documentId !== document.id) {
+        return NextResponse.json(
+          { error: 'Version does not belong to this document' },
+          { status: 400 },
         );
       }
 
@@ -163,14 +179,14 @@ export async function POST(request: NextRequest) {
           version: newVersionNumber + 1,
           updatedAt: new Date(),
         })
-        .where(eq(userDocuments.id, documentId));
+        .where(eq(userDocuments.id, validatedDocumentId.value));
 
       // Re-process for RAG if isContext is true
       if (document.isContext && versionToRestore.content) {
         try {
           await processUserDocument(
             session.user.id,
-            documentId,
+            validatedDocumentId.value,
             versionToRestore.content,
             {
               fileName: versionToRestore.fileName,

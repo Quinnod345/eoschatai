@@ -17,12 +17,13 @@ import {
   Brain,
   MessageSquare,
   Sparkles,
+  Building2,
   Info,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ContextSource {
-  type: 'documents' | 'persona' | 'system' | 'memory' | 'conversation';
+  type: 'documents' | 'persona' | 'system' | 'memory' | 'conversation' | 'org';
   icon: string;
   label: string;
   description?: string;
@@ -37,6 +38,7 @@ interface ContextSource {
 
 interface ContextSourcesDialogProps {
   messageId: string;
+  chatId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -47,17 +49,20 @@ const iconMap = {
   Database,
   Brain,
   MessageSquare,
+  Building2,
   Sparkles,
 };
 
 export function ContextSourcesDialog({
   messageId,
+  chatId,
   open,
   onOpenChange,
 }: ContextSourcesDialogProps) {
   const [loading, setLoading] = React.useState(true);
   const [sources, setSources] = React.useState<ContextSource[]>([]);
   const [stats, setStats] = React.useState<any>(null);
+  const isFetchingRef = React.useRef(false);
 
   React.useEffect(() => {
     if (open && messageId) {
@@ -66,9 +71,14 @@ export function ContextSourcesDialog({
   }, [open, messageId]);
 
   const fetchContextSources = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoading(true);
     try {
-      const response = await fetch(`/api/messages/${messageId}/context-sources`);
+      const url = chatId
+        ? `/api/messages/${messageId}/context-sources?chatId=${chatId}`
+        : `/api/messages/${messageId}/context-sources`;
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setSources(data.sources || []);
@@ -78,6 +88,7 @@ export function ContextSourcesDialog({
       console.error('Error fetching context sources:', error);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -110,12 +121,12 @@ export function ContextSourcesDialog({
             </div>
           ) : (
             <div className="space-y-3">
-              {sources.map((source, index) => {
+              {sources.map((source) => {
                 const Icon = iconMap[source.icon as keyof typeof iconMap] || Sparkles;
                 
                 return (
                   <div
-                    key={index}
+                    key={`${source.type}-${source.label}`}
                     className="rounded-lg border border-border/30 bg-card p-3 space-y-2 hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -139,9 +150,9 @@ export function ContextSourcesDialog({
 
                     {source.items && source.items.length > 0 && (
                       <div className="pl-6 space-y-1.5">
-                        {source.items.map((item, itemIndex) => (
+                        {source.items.map((item) => (
                           <div
-                            key={itemIndex}
+                            key={`${source.type}-${item.id}`}
                             className="text-xs space-y-1"
                           >
                             <div className="text-muted-foreground flex items-center gap-2">

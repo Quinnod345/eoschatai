@@ -17,6 +17,7 @@ import type { UIMessage } from 'ai';
 import { Suspense } from 'react';
 import { ChatLoading } from '@/components/chat-loading';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
+import { isAdminEmail } from '@/lib/auth/admin';
 
 // Silent logger to prevent errors from showing on screen during development
 const silentLog = {
@@ -133,8 +134,8 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
       return notFound();
     }
 
-    // Allow quinn@upaway.dev to access any chat
-    const isAdminUser = session.user.email === 'quinn@upaway.dev';
+    // Allow configured platform admins to access private chats for support
+    const isAdminUser = isAdminEmail(session.user.email);
 
     if (session.user.id !== chat.userId && !isAdminUser) {
       return notFound();

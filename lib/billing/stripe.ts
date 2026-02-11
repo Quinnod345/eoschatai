@@ -67,8 +67,8 @@ const normalizeSeatCount = (value: unknown, fallback = 1): number => {
 
 const recomputeEntitlementsForUsers = async (userIds: string[]) => {
   for (const userId of userIds) {
-    await getUserEntitlements(userId);
     await invalidateUserEntitlementsCache(userId);
+    await getUserEntitlements(userId);
     await broadcastEntitlementsUpdated(userId);
   }
 };

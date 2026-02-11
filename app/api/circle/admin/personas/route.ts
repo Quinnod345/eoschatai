@@ -1,6 +1,7 @@
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
-import { circleCoursePersona, persona } from '@/lib/db/schema';
+import { circleCoursePersona, persona, user } from '@/lib/db/schema';
+import { checkOrgPermission } from '@/lib/organizations/permissions';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -11,9 +12,33 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   const session = await auth();
 
-  // Check if user is admin
-  if (!session?.user?.email || session.user.email !== 'quinn@upaway.dev') {
-    return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 403 });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const [currentUser] = await db
+    .select({ orgId: user.orgId })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+
+  if (!currentUser?.orgId) {
+    return NextResponse.json(
+      { error: 'Forbidden - Organization membership required' },
+      { status: 403 },
+    );
+  }
+
+  const canManagePersonas = await checkOrgPermission(
+    session.user.id,
+    currentUser.orgId,
+    'personas.edit',
+  );
+  if (!canManagePersonas) {
+    return NextResponse.json(
+      { error: 'Forbidden - Admin role required' },
+      { status: 403 },
+    );
   }
 
   try {

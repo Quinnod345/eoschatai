@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { contextUsageLog } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 export interface ContextUsageData {
   chatId: string;
@@ -161,13 +161,24 @@ async function flushPendingLogs() {
  */
 export async function updateContextFeedback(
   messageId: string,
+  userId: string,
   feedback: 'helpful' | 'not_helpful',
 ) {
   try {
-    await db
+    const updated = await db
       .update(contextUsageLog)
       .set({ userFeedback: feedback })
-      .where(eq(contextUsageLog.messageId, messageId));
+      .where(
+        and(
+          eq(contextUsageLog.messageId, messageId),
+          eq(contextUsageLog.userId, userId),
+        ),
+      )
+      .returning({ id: contextUsageLog.id });
+
+    if (updated.length === 0) {
+      return false;
+    }
 
     console.log(
       `Context Tracking: Updated feedback for message ${messageId}: ${feedback}`,

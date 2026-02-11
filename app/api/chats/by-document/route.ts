@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db/queries';
+import { validateUuidField } from '@/lib/api/validation';
 import { sql } from 'drizzle-orm';
 
 export async function GET(request: Request) {
@@ -11,8 +12,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const documentId = searchParams.get('id');
-  if (!documentId) {
-    return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+  const validatedDocumentId = validateUuidField(documentId, 'id');
+  if (!validatedDocumentId.ok) {
+    return NextResponse.json({ error: validatedDocumentId.error }, { status: 400 });
   }
 
   try {
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
       FROM "Message_v2" m
       JOIN "Chat" c ON m."chatId" = c.id
       WHERE c."userId" = ${session.user.id}
-        AND m.parts::text ILIKE ${`%${documentId}%`}
+        AND m.parts::text ILIKE ${`%${validatedDocumentId.value}%`}
       ORDER BY m."createdAt" DESC
       LIMIT 1
     `);
