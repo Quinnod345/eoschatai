@@ -75,7 +75,21 @@ export async function GET(request: Request) {
     }
 
     const results = await db
-      .select()
+      .select({
+        id: userMemory.id,
+        userId: userMemory.userId,
+        sourceMessageId: userMemory.sourceMessageId,
+        summary: userMemory.summary,
+        content: userMemory.content,
+        topic: userMemory.topic,
+        memoryType: userMemory.memoryType,
+        confidence: userMemory.confidence,
+        status: userMemory.status,
+        tags: userMemory.tags,
+        createdAt: userMemory.createdAt,
+        updatedAt: userMemory.updatedAt,
+        expiresAt: userMemory.expiresAt,
+      })
       .from(userMemory)
       .where(and(...conditions))
       .orderBy(desc(userMemory.createdAt))

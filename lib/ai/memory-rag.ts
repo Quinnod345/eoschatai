@@ -141,7 +141,15 @@ export async function findRelevantMemories(
 
       // Fallback: Get all active, non-expired memories (no vector search)
       const allMemories = await db
-        .select()
+        .select({
+          id: userMemory.id,
+          summary: userMemory.summary,
+          content: userMemory.content,
+          memoryType: userMemory.memoryType,
+          confidence: userMemory.confidence,
+          topic: userMemory.topic,
+          createdAt: userMemory.createdAt,
+        })
         .from(userMemory)
         .where(
           and(
@@ -336,7 +344,15 @@ export async function getRecentMemories(
 ): Promise<RelevantMemory[]> {
   try {
     const results = await db
-      .select()
+      .select({
+        id: userMemory.id,
+        summary: userMemory.summary,
+        content: userMemory.content,
+        memoryType: userMemory.memoryType,
+        confidence: userMemory.confidence,
+        topic: userMemory.topic,
+        createdAt: userMemory.createdAt,
+      })
       .from(userMemory)
       .where(
         and(

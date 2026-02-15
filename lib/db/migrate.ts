@@ -885,6 +885,7 @@ const runMigrate = async () => {
                 "memoryType" VARCHAR NOT NULL CHECK ("memoryType" IN ('preference','profile','company','task','knowledge','personal','other')) DEFAULT 'other',
                 "confidence" INTEGER NOT NULL DEFAULT 60,
                 "status" VARCHAR NOT NULL CHECK ("status" IN ('active','pending','archived','dismissed')) DEFAULT 'active',
+                "dedupeKey" TEXT,
                 "tags" JSONB,
                 "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
                 "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -895,6 +896,24 @@ const runMigrate = async () => {
           } else {
             console.log('UserMemory table already exists');
           }
+
+          // Ensure dedupe key column/index exists for idempotent memory writes.
+          const dedupeKeyExists = await columnExists(
+            connection,
+            'UserMemory',
+            'dedupeKey',
+          );
+          if (!dedupeKeyExists) {
+            await connection`
+              ALTER TABLE "UserMemory"
+              ADD COLUMN "dedupeKey" TEXT
+            `;
+            console.log('Added dedupeKey column to UserMemory table');
+          }
+          await connection`
+            CREATE UNIQUE INDEX IF NOT EXISTS "user_memory_active_dedupe_idx"
+            ON "UserMemory" ("userId", "memoryType", "status", "dedupeKey")
+          `;
 
           const embExists = await connection`
             SELECT EXISTS (
