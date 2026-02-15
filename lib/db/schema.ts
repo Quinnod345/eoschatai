@@ -33,6 +33,7 @@ export const user = pgTable(
     lastFeaturesVersion: timestamp('lastFeaturesVersion'),
     plan: planTypeEnum('plan').notNull().default('free'),
     stripeCustomerId: text('stripeCustomerId'),
+    circleMemberId: text('circleMemberId'),
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId'),
@@ -41,6 +42,7 @@ export const user = pgTable(
   },
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
+    circleMemberIdx: index('user_circle_member_idx').on(table.circleMemberId),
     storageIdx: index('user_storage_idx').on(table.storageUsed),
   }),
 );
@@ -298,6 +300,33 @@ export const webhookEvent = pgTable(
 );
 
 export type WebhookEvent = InferSelectModel<typeof webhookEvent>;
+
+export const circleSyncLog = pgTable(
+  'CircleSyncLog',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    eventId: text('eventId').notNull(),
+    circleMemberId: text('circleMemberId'),
+    email: text('email'),
+    tierPurchased: text('tierPurchased'),
+    mappedPlan: planTypeEnum('mappedPlan'),
+    action: varchar('action', { length: 64 }).notNull(),
+    userId: uuid('userId').references(() => user.id, { onDelete: 'set null' }),
+    payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+    errorMessage: text('errorMessage'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdIdx: uniqueIndex('circle_sync_log_event_id_idx').on(table.eventId),
+    memberIdx: index('circle_sync_log_member_idx').on(table.circleMemberId),
+    emailIdx: index('circle_sync_log_email_idx').on(table.email),
+    actionIdx: index('circle_sync_log_action_idx').on(table.action),
+    userIdx: index('circle_sync_log_user_idx').on(table.userId),
+    createdAtIdx: index('circle_sync_log_created_at_idx').on(table.createdAt),
+  }),
+);
+
+export type CircleSyncLog = InferSelectModel<typeof circleSyncLog>;
 
 export const analyticsEvent = pgTable(
   'AnalyticsEvent',

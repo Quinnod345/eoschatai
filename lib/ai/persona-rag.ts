@@ -78,6 +78,7 @@ export const personaRagContextPrompt = async (
   personaId: string,
   query: string,
   userId: string,
+  precomputedEmbedding?: number[],
 ): Promise<{ context: string; chunkCount: number }> => {
   if (!personaId || !query) {
     console.log(
@@ -123,6 +124,7 @@ export const personaRagContextPrompt = async (
         personaData.knowledgeNamespace,
         query,
         personaData.name,
+        precomputedEmbedding,
       );
       return { context: circleContext, chunkCount: circleContext ? 1 : 0 };
     }
@@ -184,10 +186,16 @@ export const personaRagContextPrompt = async (
 
     const [personaRelevantDocs, overlayRelevantDocs] = await Promise.all([
       personaDocumentIds.length > 0
-        ? findRelevantUserContent(personaId, query, 14, 0.5)
+        ? findRelevantUserContent(personaId, query, 14, 0.5, precomputedEmbedding)
         : Promise.resolve([]),
       overlayDocumentIds.length > 0
-        ? findRelevantUserContent(`overlay:${personaId}:${userId}`, query, 10, 0.5)
+        ? findRelevantUserContent(
+            `overlay:${personaId}:${userId}`,
+            query,
+            10,
+            0.5,
+            precomputedEmbedding,
+          )
         : Promise.resolve([]),
     ]);
 
@@ -225,7 +233,8 @@ ${overlayInstructions}
 
     if (filteredPersonaDocs.length > 0) {
       contextText += '\n### Base Persona Knowledge\n';
-      const groupedPersonaDocs = groupChunksByCategoryAndFile(filteredPersonaDocs);
+      const groupedPersonaDocs =
+        groupChunksByCategoryAndFile(filteredPersonaDocs);
 
       for (const [category, files] of Object.entries(groupedPersonaDocs)) {
         contextText += `\n#### ${category}\n`;
@@ -247,7 +256,8 @@ ${overlayInstructions}
 
     if (filteredOverlayDocs.length > 0) {
       contextText += '\n### User Overlay Knowledge\n';
-      const groupedOverlayDocs = groupChunksByCategoryAndFile(filteredOverlayDocs);
+      const groupedOverlayDocs =
+        groupChunksByCategoryAndFile(filteredOverlayDocs);
 
       for (const [category, files] of Object.entries(groupedOverlayDocs)) {
         contextText += `\n#### ${category}\n`;
@@ -275,7 +285,8 @@ PERSONA DOCUMENT INSTRUCTIONS:
 4. Blend this knowledge naturally into responses without exposing internal retrieval mechanics.
 `;
 
-    const totalChunkCount = filteredPersonaDocs.length + filteredOverlayDocs.length;
+    const totalChunkCount =
+      filteredPersonaDocs.length + filteredOverlayDocs.length;
     console.log(
       `Persona RAG context: Generated ${contextText.length} chars with ${totalChunkCount} chunks (base=${filteredPersonaDocs.length}, overlay=${filteredOverlayDocs.length})`,
     );
@@ -463,6 +474,7 @@ async function getCircleCourseContext(
   namespace: string,
   query: string,
   personaName: string,
+  precomputedEmbedding?: number[],
 ): Promise<string> {
   try {
     console.log(
@@ -491,12 +503,16 @@ async function getCircleCourseContext(
     // Get namespace client
     const namespaceClient = upstashClient.namespace(namespace);
 
-    // Generate embedding for query
-    const embeddingModel = openai.embedding('text-embedding-ada-002');
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: query,
-    });
+    // Reuse embedding when provided by caller to avoid duplicate generation.
+    const embedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0
+        ? precomputedEmbedding
+        : (
+            await embed({
+              model: openai.embedding('text-embedding-3-small'),
+              value: query,
+            })
+          ).embedding;
 
     console.log(
       `Persona RAG: Generated ${embedding.length}-dimensional embedding for query`,

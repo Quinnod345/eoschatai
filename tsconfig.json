@@ -29,5 +29,11 @@
     ".next/types/**/*.ts",
     "next.config.js"
   ],
-  "exclude": ["node_modules", "test-*.mjs", "firesearch/**", "firesearch.backup/**", "scripts/**"]
+  "exclude": [
+    "node_modules",
+    "test-*.mjs",
+    "firesearch/**",
+    "scripts/**",
+    "archive/**"
+  ]
 }

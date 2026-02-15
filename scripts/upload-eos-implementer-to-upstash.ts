@@ -98,7 +98,7 @@ async function processDocument(
 
       // Generate embedding
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: chunk,
       });
 
@@ -195,7 +195,7 @@ async function main() {
   console.log('\n🔍 Testing search...');
   try {
     const { embedding } = await embed({
-      model: openai.embedding('text-embedding-ada-002'),
+      model: openai.embedding('text-embedding-3-small'),
       value: 'where to start',
     });
 

@@ -9,7 +9,7 @@ import {
   personaProfile,
   userMemory,
 } from '@/lib/db/schema';
-import { eq, inArray, desc } from 'drizzle-orm';
+import { eq, inArray, desc, and } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
@@ -185,24 +185,98 @@ export async function GET(
 
     // Add memories if used - with actual memory content
     if (contextLog.memoryChunks && contextLog.memoryChunks > 0) {
-      // Get the user's active memories
-      const memories = await db
-        .select({
-          id: userMemory.id,
-          summary: userMemory.summary,
-          content: userMemory.content,
-          memoryType: userMemory.memoryType,
-        })
-        .from(userMemory)
-        .where(eq(userMemory.userId, session.user.id))
-        .orderBy(desc(userMemory.createdAt))
-        .limit(10);
+      const trackedMemoryIds = Array.isArray(metadata.memoryIds)
+        ? metadata.memoryIds.filter((id: unknown) => typeof id === 'string')
+        : [];
+      const memorySourceCounts =
+        metadata.memorySourceCounts &&
+        typeof metadata.memorySourceCounts === 'object'
+          ? metadata.memorySourceCounts
+          : null;
+
+      let memories: Array<{
+        id: string;
+        summary: string;
+        content: string | null;
+        memoryType: string | null;
+      }> = [];
+      let memoryLabel = 'Your Memories';
+      let memoryDescription = 'Retrieved for response context';
+
+      if (trackedMemoryIds.length > 0) {
+        const memoryRows = await db
+          .select({
+            id: userMemory.id,
+            summary: userMemory.summary,
+            content: userMemory.content,
+            memoryType: userMemory.memoryType,
+          })
+          .from(userMemory)
+          .where(
+            and(
+              eq(userMemory.userId, session.user.id),
+              inArray(
+                userMemory.id,
+                trackedMemoryIds as [string, ...string[]] | string[],
+              ),
+            ),
+          );
+
+        // Preserve original logged order where possible.
+        const memoryById = new Map(memoryRows.map((memory) => [memory.id, memory]));
+        memories = trackedMemoryIds
+          .map((id: string) => memoryById.get(id))
+          .filter(Boolean) as typeof memories;
+      } else {
+        // Legacy fallback path for logs created before memoryIds were tracked.
+        const fallbackLimit = Math.min(Math.max(contextLog.memoryChunks, 1), 10);
+        memories = await db
+          .select({
+            id: userMemory.id,
+            summary: userMemory.summary,
+            content: userMemory.content,
+            memoryType: userMemory.memoryType,
+          })
+          .from(userMemory)
+          .where(eq(userMemory.userId, session.user.id))
+          .orderBy(desc(userMemory.createdAt))
+          .limit(fallbackLimit);
+
+        memoryLabel = 'Recent Memory Context (fallback)';
+        memoryDescription =
+          'Exact memory IDs were not tracked for this older response.';
+      }
+
+      const semanticCount =
+        typeof memorySourceCounts?.semantic === 'number'
+          ? memorySourceCounts.semantic
+          : 0;
+      const recentCount =
+        typeof memorySourceCounts?.recent === 'number'
+          ? memorySourceCounts.recent
+          : 0;
+      const unembeddedCount =
+        typeof memorySourceCounts?.unembedded === 'number'
+          ? memorySourceCounts.unembedded
+          : 0;
+
+      if (semanticCount || recentCount || unembeddedCount) {
+        memoryDescription += ` (semantic: ${semanticCount}, recent: ${recentCount}${
+          unembeddedCount ? `, unembedded: ${unembeddedCount}` : ''
+        })`;
+      }
 
       sources.push({
         type: 'memory',
         icon: 'Brain',
-        label: 'Your Memories',
+        label: memoryLabel,
+        description: memoryDescription,
         count: contextLog.memoryChunks,
+        breakdown: {
+          semantic: semanticCount,
+          recent: recentCount,
+          unembedded: unembeddedCount,
+        },
         items: memories.map((mem) => ({
           id: mem.id,
           name: mem.summary,

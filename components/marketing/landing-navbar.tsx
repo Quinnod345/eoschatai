@@ -11,9 +11,14 @@ interface LandingNavbarProps {
   darkeningCoefficient?: number;
 }
 
-export default function LandingNavbar({ darkeningCoefficient = 0.6 }: LandingNavbarProps) {
+export default function LandingNavbar({
+  darkeningCoefficient = 0.6,
+}: LandingNavbarProps) {
   return (
-    <header className="fixed top-4 inset-x-0 z-50 px-4 pointer-events-none" role="banner">
+    <header
+      className="fixed top-4 inset-x-0 z-50 px-4 pointer-events-none"
+      role="banner"
+    >
       <div className="mx-auto w-full max-w-5xl pointer-events-auto relative">
         {/* Darkening Effect Behind Navbar Glass */}
         <div

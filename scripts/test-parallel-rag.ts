@@ -111,7 +111,7 @@ async function testParallelRAG() {
 
   for (const chunk of testChunks) {
     await embed({
-      model: openai.embedding('text-embedding-ada-002'),
+      model: openai.embedding('text-embedding-3-small'),
       value: chunk,
     });
   }
@@ -123,7 +123,7 @@ async function testParallelRAG() {
   await Promise.all(
     testChunks.map((chunk) =>
       embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: chunk,
       }),
     ),

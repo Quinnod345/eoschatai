@@ -802,18 +802,18 @@ with open('meeting-notes.pdf', 'rb') as f:
         path: '/v1/embeddings',
         summary: 'Create embeddings',
         description:
-          "Generate vector embeddings for text input(s). Uses OpenAI's text-embedding-ada-002 model (1536 dimensions). Useful for semantic search, clustering, and RAG applications.",
+          "Generate vector embeddings for text input(s). Uses OpenAI's text-embedding-3-small model (1536 dimensions). Useful for semantic search, clustering, and RAG applications.",
         requestBody: {
           contentType: 'application/json',
           schema: {
             input:
               'string or array of strings (required, max 32000 chars each)',
-            model: 'string (default: text-embedding-ada-002)',
+            model: 'string (default: text-embedding-3-small)',
             encoding_format: 'string: float or base64 (default: float)',
           },
           example: {
             input: 'What is the Entrepreneurial Operating System?',
-            model: 'text-embedding-ada-002',
+            model: 'text-embedding-3-small',
           },
         },
         responses: [
@@ -829,7 +829,7 @@ with open('meeting-notes.pdf', 'rb') as f:
                   embedding: [0.0023064255, -0.009327292, 0.015797086, '...'],
                 },
               ],
-              model: 'text-embedding-ada-002',
+              model: 'text-embedding-3-small',
               usage: {
                 prompt_tokens: 8,
                 total_tokens: 8,

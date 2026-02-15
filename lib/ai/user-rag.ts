@@ -30,7 +30,7 @@ function getUserRagClient(): Index {
   return userRagClient;
 }
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 /**
  * Generate text chunks from content for better embedding
@@ -165,31 +165,24 @@ export const findRelevantUserContent = async (
   userId: string,
   query: string,
   limit = 5,
-  minRelevance = 0.5, // Lowered from 0.7 to 0.5 for better results
+  minRelevance = 0.4, // text-embedding-3-small produces lower cosine scores than ada-002
+  precomputedEmbedding?: number[],
 ): Promise<{ content: string; relevance: number; metadata: any }[]> => {
   try {
     console.log(
       `User RAG: Searching for user ${userId} with query: "${query}" (threshold: ${minRelevance})`,
     );
 
-    // First, check if there are any vectors in the namespace
-    const debugInfo = await debugUserNamespace(userId);
-    console.log(
-      `User RAG: Namespace ${userId} has ${debugInfo.totalVectors} total vectors`,
-    );
-
-    if (debugInfo.totalVectors === 0) {
-      console.log(
-        `User RAG: No vectors found in namespace ${userId} - user has no processed documents`,
-      );
-      return [];
-    }
-
-    // Generate embedding for the query
-    const { embedding } = await embed({
-      model: embeddingModel,
-      value: query,
-    });
+    // Reuse embedding when provided by the caller to avoid duplicate generation.
+    const embedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0
+        ? precomputedEmbedding
+        : (
+            await embed({
+              model: embeddingModel,
+              value: query,
+            })
+          ).embedding;
 
     console.log(
       `User RAG: Generated ${embedding.length}-dimensional embedding`,
@@ -211,9 +204,7 @@ export const findRelevantUserContent = async (
       );
 
       if (!results || results.length === 0) {
-        console.log(
-          `User RAG: No results found in namespace ${userId} despite having ${debugInfo.totalVectors} vectors`,
-        );
+        console.log(`User RAG: No results found in namespace ${userId}`);
         return [];
       }
 
@@ -480,7 +471,7 @@ export const debugUserNamespace = async (
 
     // Use namespace to get vectors for this user
     const namespaceClient = getUserRagClient().namespace(userId);
-    
+
     // Use range to list vectors in the namespace
     const rangeResult = await namespaceClient.range({
       cursor: '',

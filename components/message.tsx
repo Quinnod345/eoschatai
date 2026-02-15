@@ -947,6 +947,9 @@ const MemoizedPreviewMessage = memo(
     if (!equal(prevProps.vote, nextProps.vote)) return false;
     // Re-render when pin status changes so tooltip and icon update immediately
     if (prevProps.isPinned !== nextProps.isPinned) return false;
+    // Re-render when chat status changes so children (MessageActions, badge)
+    // receive the updated prop (e.g. streaming -> ready transition).
+    if (prevProps.chatStatus !== nextProps.chatStatus) return false;
 
     return true;
   },

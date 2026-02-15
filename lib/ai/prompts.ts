@@ -751,45 +751,48 @@ Adjust your responses to address:
         } else {
           let overlayInstructions = '';
           if (personaData.allowUserOverlay) {
-            const overlay = await getPersonaOverlayForUser(selectedPersonaId, userId);
+            const overlay = await getPersonaOverlayForUser(
+              selectedPersonaId,
+              userId,
+            );
             overlayInstructions = overlay?.additionalInstructions?.trim() || '';
           }
 
-        personaContext = `
+          personaContext = `
 ## PERSONA: ${personaData.name}
 ${personaData.description ? `${personaData.description}` : ''}
 
 **Instructions:**
 ${personaData.instructions}${
-          overlayInstructions
-            ? `\n\n**Your Additional Instructions (Overlay):**\n${overlayInstructions}`
-            : ''
-        }
+  overlayInstructions
+    ? `\n\n**Your Additional Instructions (Overlay):**\n${overlayInstructions}`
+    : ''
+}
 `;
 
-        // Fetch profile if selected
-        if (selectedProfileId) {
-          const [profileData] = await db
-            .select()
-            .from(personaProfile)
-            .where(
-              and(
-                eq(personaProfile.id, selectedProfileId),
-                eq(personaProfile.personaId, selectedPersonaId),
-              ),
-            )
-            .limit(1);
+          // Fetch profile if selected
+          if (selectedProfileId) {
+            const [profileData] = await db
+              .select()
+              .from(personaProfile)
+              .where(
+                and(
+                  eq(personaProfile.id, selectedProfileId),
+                  eq(personaProfile.personaId, selectedPersonaId),
+                ),
+              )
+              .limit(1);
 
-          if (profileData) {
-            personaContext += `
+            if (profileData) {
+              personaContext += `
 ## PROFILE: ${profileData.name}
 ${profileData.description ? `${profileData.description}` : ''}
 
 **Specialized Instructions:**
 ${profileData.instructions}
 `;
+            }
           }
-        }
         }
       }
     } catch (error) {
@@ -1114,7 +1117,8 @@ Return the COMPLETE document with your targeted changes applied.
   if (type === 'text') {
     return `${baseInstructions}
 
-Preserve all existing headings, lists, and formatting. Match the existing style.`;
+Preserve all existing headings, lists, and formatting. Match the existing style.
+Do NOT add follow-up questions or conversational prompts (e.g. "Would you like me to...", "Let me know if...") at the end of the document.`;
   }
 
   if (type === 'code') {

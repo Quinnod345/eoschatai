@@ -135,12 +135,12 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
       <button
         type="button"
         onClick={copyCode}
-        className="absolute top-2 right-2 p-2 rounded-md bg-white/5 hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+        className="absolute top-2 right-2 p-2 rounded-md bg-white/5 text-white/80 hover:text-white hover:bg-white/10 opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eos-orange/60 transition-all"
       >
         {copied ? (
           <Check className="w-4 h-4 text-green-400" />
         ) : (
-          <Copy className="w-4 h-4 text-white/60" />
+          <Copy className="w-4 h-4 text-white/80" />
         )}
       </button>
     </div>
@@ -184,7 +184,7 @@ function EndpointCard({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full p-6 flex items-center justify-between text-left"
+        className="w-full p-6 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors"
       >
         <div className="flex items-center gap-4">
           <MethodBadge method={endpoint.method} />
@@ -197,9 +197,9 @@ function EndpointCard({
         </div>
         <div className="flex items-center gap-3">
           {isExpanded ? (
-            <ChevronDown className="w-5 h-5 text-white/40" />
+            <ChevronDown className="w-5 h-5 text-white/60" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-white/40" />
+            <ChevronRight className="w-5 h-5 text-white/60" />
           )}
         </div>
       </button>
@@ -207,7 +207,7 @@ function EndpointCard({
       {/* Summary when collapsed */}
       {!isExpanded && (
         <div className="px-6 pb-4 -mt-2">
-          <p className="text-sm text-white/60">{endpoint.summary}</p>
+          <p className="text-sm text-white/80">{endpoint.summary}</p>
         </div>
       )}
 
@@ -215,7 +215,7 @@ function EndpointCard({
       {isExpanded && (
         <div className="px-6 pb-6 border-t border-white/10 pt-4">
           {/* Description */}
-          <p className="text-white/70 mb-6">{endpoint.description}</p>
+          <p className="text-white/85 mb-6">{endpoint.description}</p>
 
           {/* Path Parameters */}
           {endpoint.pathParameters && endpoint.pathParameters.length > 0 && (
@@ -247,11 +247,11 @@ function EndpointCard({
                           </code>
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/60">
+                          <code className="text-xs text-white/80">
                             {param.type}
                           </code>
                         </td>
-                        <td className="py-2.5 px-4 text-sm text-white/60">
+                        <td className="py-2.5 px-4 text-sm text-white/80">
                           {param.description}
                         </td>
                       </tr>
@@ -295,16 +295,16 @@ function EndpointCard({
                           </code>
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/60">
+                          <code className="text-xs text-white/80">
                             {param.type}
                           </code>
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/40">
+                          <code className="text-xs text-white/60">
                             {param.default || '-'}
                           </code>
                         </td>
-                        <td className="py-2.5 px-4 text-sm text-white/60">
+                        <td className="py-2.5 px-4 text-sm text-white/80">
                           {param.description}
                         </td>
                       </tr>
@@ -323,12 +323,12 @@ function EndpointCard({
               </h4>
               <div className="rounded-lg border border-white/10 overflow-hidden">
                 <div className="p-3 bg-white/5 border-b border-white/10">
-                  <code className="text-xs text-white/60">
+                  <code className="text-xs text-white/80">
                     {endpoint.requestBody.contentType}
                   </code>
                 </div>
                 <div className="p-4">
-                  <h5 className="text-xs font-semibold text-white/50 uppercase mb-2">
+                  <h5 className="text-xs font-semibold text-white/70 uppercase mb-2">
                     Example
                   </h5>
                   <CodeBlock
@@ -351,7 +351,7 @@ function EndpointCard({
                   <span className="px-2 py-0.5 text-xs font-bold rounded bg-green-500/20 text-green-400">
                     {endpoint.responses[0].status}
                   </span>
-                  <span className="text-sm text-white/60">
+                  <span className="text-sm text-white/80">
                     {endpoint.responses[0].description}
                   </span>
                 </div>
@@ -388,7 +388,7 @@ function EndpointCard({
                     className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                       activeTab === tab
                         ? 'bg-white/10 text-white'
-                        : 'text-white/50 hover:text-white/80'
+                        : 'text-white/70 hover:text-white'
                     }`}
                   >
                     {tab === 'curl'
@@ -437,7 +437,7 @@ function CategorySection({ category }: { category: ApiCategory }) {
           <h3 className="font-montserrat text-lg font-semibold text-white">
             {category.title}
           </h3>
-          <p className="text-sm text-white/60">{category.description}</p>
+          <p className="text-sm text-white/80">{category.description}</p>
         </div>
       </div>
 
@@ -498,7 +498,7 @@ export default function DocsPage() {
             <span className="font-montserrat text-lg font-bold text-white">
               EOSAI
             </span>
-            <span className="text-white/40 mx-2">/</span>
+            <span className="text-white/60 mx-2">/</span>
             <span className="font-montserrat text-lg text-white/80">
               API Docs
             </span>
@@ -508,7 +508,7 @@ export default function DocsPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-white/70 hover:text-white"
+                className="text-white/80 hover:text-white hover:bg-white/10"
               >
                 Try Chat
               </Button>
@@ -545,7 +545,7 @@ export default function DocsPage() {
                 EOS Intelligence
               </span>
             </h1>
-            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-8">
+            <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-8">
               REST API powered by Claude with built-in EOS methodology
               knowledge. Add EOS expertise to any application in minutes.
             </p>
@@ -562,7 +562,7 @@ export default function DocsPage() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10 gap-2"
+                  className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
                 >
                   <FileCode className="w-4 h-4" />
                   Full API Reference
@@ -589,7 +589,7 @@ export default function DocsPage() {
                 <h3 className="font-montserrat font-semibold text-white mb-2">
                   {feature.title}
                 </h3>
-                <p className="text-sm text-white/60">{feature.description}</p>
+                <p className="text-sm text-white/80">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -603,7 +603,7 @@ export default function DocsPage() {
             <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
               Quick Start
             </h2>
-            <p className="text-white/60">
+            <p className="text-white/80">
               Get up and running in under a minute
             </p>
           </div>
@@ -620,7 +620,7 @@ export default function DocsPage() {
                   className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                     activeTab === tab
                       ? 'bg-white/10 text-white'
-                      : 'text-white/50 hover:text-white/80'
+                      : 'text-white/70 hover:text-white'
                   }`}
                 >
                   {tab === 'curl'
@@ -632,7 +632,7 @@ export default function DocsPage() {
               <button
                 type="button"
                 onClick={copyCode}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/50 hover:text-white transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-white/70 hover:text-white transition-colors"
               >
                 {copied ? (
                   <>
@@ -668,7 +668,7 @@ export default function DocsPage() {
                 <h3 className="font-montserrat font-semibold text-white mb-1">
                   Get an API Key
                 </h3>
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-white/80">
                   Sign up and generate your API key from the dashboard settings.
                 </p>
               </div>
@@ -683,7 +683,7 @@ export default function DocsPage() {
                 <h3 className="font-montserrat font-semibold text-white mb-1">
                   Make a Request
                 </h3>
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-white/80">
                   Send a POST request to the chat endpoint with your message.
                 </p>
               </div>
@@ -698,7 +698,7 @@ export default function DocsPage() {
                 <h3 className="font-montserrat font-semibold text-white mb-1">
                   Get EOS Insights
                 </h3>
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-white/80">
                   Receive AI responses powered by EOS methodology knowledge.
                 </p>
               </div>
@@ -714,11 +714,11 @@ export default function DocsPage() {
             <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
               API Endpoints
             </h2>
-            <p className="text-white/60 mb-2">
+            <p className="text-white/80 mb-2">
               All endpoints use base URL:{' '}
               <code className="text-eos-orange">https://eosbot.ai/api</code>
             </p>
-            <p className="text-sm text-white/40">
+            <p className="text-sm text-white/70">
               Click any endpoint to see full details, parameters, and code
               examples
             </p>
@@ -738,7 +738,7 @@ export default function DocsPage() {
             <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
               Available Models
             </h2>
-            <p className="text-white/60">
+            <p className="text-white/80">
               Choose the right model for your use case
             </p>
           </div>
@@ -751,11 +751,11 @@ export default function DocsPage() {
                   eosai-v1
                 </h3>
               </div>
-              <p className="text-sm text-white/60 mb-4">
+              <p className="text-sm text-white/80 mb-4">
                 Powered by Claude Sonnet 4.5. Best balance of speed and quality
                 for EOS guidance.
               </p>
-              <div className="text-xs text-white/40">
+              <div className="text-xs text-white/60">
                 <div>Context: 200K tokens</div>
                 <div>Max output: 4,096 tokens</div>
               </div>
@@ -768,10 +768,10 @@ export default function DocsPage() {
                   eosai-v1-fast
                 </h3>
               </div>
-              <p className="text-sm text-white/60 mb-4">
+              <p className="text-sm text-white/80 mb-4">
                 Powered by Claude Haiku 4.5. Optimized for quick responses.
               </p>
-              <div className="text-xs text-white/40">
+              <div className="text-xs text-white/60">
                 <div>Context: 200K tokens</div>
                 <div>Max output: 4,096 tokens</div>
               </div>
@@ -787,11 +787,11 @@ export default function DocsPage() {
                   Pro
                 </span>
               </div>
-              <p className="text-sm text-white/60 mb-4">
+              <p className="text-sm text-white/80 mb-4">
                 Powered by Claude Opus 4.5. Extended thinking for complex EOS
                 scenarios.
               </p>
-              <div className="text-xs text-white/40">
+              <div className="text-xs text-white/60">
                 <div>Context: 200K tokens</div>
                 <div>Max output: 16,384 tokens</div>
               </div>
@@ -808,7 +808,7 @@ export default function DocsPage() {
               <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
                 Authentication
               </h2>
-              <p className="text-white/60 mb-6">
+              <p className="text-white/80 mb-6">
                 All API requests require authentication via API key. Include
                 your key in the Authorization header.
               </p>
@@ -817,7 +817,7 @@ export default function DocsPage() {
                   <Lock className="w-5 h-5 text-eos-orange mt-0.5" />
                   <div>
                     <h4 className="font-medium text-white">Bearer Token</h4>
-                    <p className="text-sm text-white/60">
+                    <p className="text-sm text-white/80">
                       Include as{' '}
                       <code className="text-eos-orange">
                         Authorization: Bearer YOUR_KEY
@@ -829,7 +829,7 @@ export default function DocsPage() {
                   <Key className="w-5 h-5 text-eos-orange mt-0.5" />
                   <div>
                     <h4 className="font-medium text-white">X-API-Key Header</h4>
-                    <p className="text-sm text-white/60">
+                    <p className="text-sm text-white/80">
                       Alternative:{' '}
                       <code className="text-eos-orange">
                         X-API-Key: YOUR_KEY
@@ -861,7 +861,7 @@ curl https://eosbot.ai/api/v1/chat \\
             <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
               Rate Limits
             </h2>
-            <p className="text-white/60">
+            <p className="text-white/80">
               API keys have per-minute and daily request limits
             </p>
           </div>
@@ -886,7 +886,7 @@ curl https://eosbot.ai/api/v1/chat \\
                   <td className="py-4 px-6 text-white/80">
                     Requests per minute
                   </td>
-                  <td className="py-4 px-6 text-white/60">60</td>
+                  <td className="py-4 px-6 text-white/80">60</td>
                   <td className="py-4 px-6">
                     <code className="text-eos-orange text-sm">
                       X-RateLimit-Remaining-RPM
@@ -895,7 +895,7 @@ curl https://eosbot.ai/api/v1/chat \\
                 </tr>
                 <tr>
                   <td className="py-4 px-6 text-white/80">Requests per day</td>
-                  <td className="py-4 px-6 text-white/60">1,000</td>
+                  <td className="py-4 px-6 text-white/80">1,000</td>
                   <td className="py-4 px-6">
                     <code className="text-eos-orange text-sm">
                       X-RateLimit-Remaining-RPD
@@ -916,7 +916,7 @@ curl https://eosbot.ai/api/v1/chat \\
               <h2 className="font-montserrat text-2xl font-bold text-white mb-2">
                 Full API Reference
               </h2>
-              <p className="text-white/60">
+              <p className="text-white/80">
                 Explore all endpoints with complete parameter documentation and
                 response schemas.
               </p>
@@ -941,7 +941,7 @@ curl https://eosbot.ai/api/v1/chat \\
           <h2 className="font-montserrat text-3xl font-bold text-white mb-4">
             Ready to Build?
           </h2>
-          <p className="text-white/60 mb-8">
+          <p className="text-white/80 mb-8">
             Get your API key and start integrating EOS intelligence into your
             applications today.
           </p>
@@ -958,7 +958,7 @@ curl https://eosbot.ai/api/v1/chat \\
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white/20 text-white hover:bg-white/10 gap-2"
+                className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:text-white gap-2"
               >
                 <MessageSquare className="w-4 h-4" />
                 Try the Chat
@@ -979,32 +979,32 @@ curl https://eosbot.ai/api/v1/chat \\
               height={24}
               className="brightness-110"
             />
-            <span className="text-sm text-white/60">
+            <span className="text-sm text-white/80">
               © {new Date().getFullYear()} EOSAI. All rights reserved.
             </span>
           </div>
           <div className="flex items-center gap-6">
             <Link
               href="/docs/reference"
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="text-sm text-white/80 hover:text-white transition-colors"
             >
               API Reference
             </Link>
             <Link
               href="/privacy"
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="text-sm text-white/80 hover:text-white transition-colors"
             >
               Privacy
             </Link>
             <Link
               href="/terms"
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="text-sm text-white/80 hover:text-white transition-colors"
             >
               Terms
             </Link>
             <Link
               href="/"
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="text-sm text-white/80 hover:text-white transition-colors"
             >
               Home
             </Link>

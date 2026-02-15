@@ -348,7 +348,6 @@ export function PureMessageActions({
                     chatId={chatId}
                     variant="subtle"
                     onClick={() => setContextSourcesDialogOpen(true)}
-                    chatStatus={chatStatus}
                   />
                 </motion.div>
 

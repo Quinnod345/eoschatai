@@ -41,6 +41,7 @@ STRICT OUTPUT INSTRUCTIONS:
 - You are generating the final document content only.
 - Do NOT include meta commentary, assistant chatter, or statements like "I'll create a document" or "I'll add this".
 - Do NOT repeat the user's request.
+- Do NOT end the document with follow-up questions, prompts like "Would you like me to...", "Let me know if...", or "What do you think about...". The document should end with its own content, not a conversational prompt.
 - Return pure Markdown suitable for saving directly to the document (no code fences unless it is a code block, no system messages).
 
 🔥 CRITICAL CONTENT USAGE INSTRUCTIONS:
@@ -66,6 +67,7 @@ ${kbRagSection}`;
 STRICT OUTPUT INSTRUCTIONS:
 - Generate only the document content in Markdown.
 - No meta commentary or assistant statements.
+- Do NOT end the document with follow-up questions or conversational prompts like "Would you like me to..." or "Let me know if...".
 - If conversation context or web search results are available, USE them to populate the document with actual content.
 - Extract real questions, answers, data, and information from the context provided.`;
     }

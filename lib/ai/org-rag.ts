@@ -36,12 +36,14 @@ export async function findRelevantOrgContent(
   query: string,
   limit = 10,
   minRelevance = 0.65,
+  precomputedEmbedding?: number[],
 ): Promise<{ content: string; relevance: number; metadata: any }[]> {
   return findRelevantUserContent(
     getOrgKnowledgeNamespace(orgId),
     query,
     limit,
     minRelevance,
+    precomputedEmbedding,
   );
 }
 

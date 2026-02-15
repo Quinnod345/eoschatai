@@ -17,7 +17,6 @@ interface ContextIndicatorProps {
   chatId?: string;
   variant?: 'subtle' | 'visible';
   onClick?: () => void;
-  chatStatus?: string;
 }
 
 export function ContextIndicatorBadge({
@@ -25,7 +24,6 @@ export function ContextIndicatorBadge({
   chatId,
   variant = 'subtle',
   onClick,
-  chatStatus,
 }: ContextIndicatorProps) {
   const [hasContext, setHasContext] = React.useState(false);
   const [sources, setSources] = React.useState<any[]>([]);
@@ -33,7 +31,6 @@ export function ContextIndicatorBadge({
   const hasContextRef = React.useRef(false);
 
   const fetchContextInfo = React.useCallback(async (): Promise<boolean> => {
-    // Skip if we already have context data
     if (hasContextRef.current) return true;
     try {
       const url = chatId
@@ -56,35 +53,42 @@ export function ContextIndicatorBadge({
     return false;
   }, [messageId, chatId]);
 
-  // Reset ref when messageId changes so new messages fetch fresh
+  // This component only mounts AFTER streaming completes (MessageActions
+  // returns null while isLoading is true). So by the time we mount,
+  // chatStatus is already 'ready'. We fetch immediately, and if it returns
+  // empty (onFinish may still be writing the context log), we poll with
+  // back-off until we find data or give up.
   React.useEffect(() => {
     hasContextRef.current = false;
     setHasContext(false);
     setSources([]);
     setLoading(true);
-    fetchContextInfo();
-  }, [messageId, fetchContextInfo]);
 
-  // When chat status transitions to 'ready' (stream just finished),
-  // fetch with a delay to give the server time to write context data.
-  // Uses a single retry with early-exit to avoid wasteful duplicate fetches.
-  React.useEffect(() => {
-    if (chatStatus !== 'ready' || hasContextRef.current) return;
-    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
-    const timer = setTimeout(async () => {
+    const fetchWithRetry = async () => {
       const found = await fetchContextInfo();
-      if (!found) {
-        // Safety retry only if first attempt returned nothing
-        safetyTimer = setTimeout(() => fetchContextInfo(), 3000);
+      if (found || cancelled) return;
+
+      // Context log may not be written yet (async onFinish).
+      // Poll with increasing delays.
+      const delays = [800, 2000, 4000, 7000];
+      for (const delay of delays) {
+        if (cancelled || hasContextRef.current) return;
+        await new Promise((r) => setTimeout(r, delay));
+        if (cancelled || hasContextRef.current) return;
+        const retryFound = await fetchContextInfo();
+        if (retryFound) return;
       }
-    }, 2000);
+    };
+
+    fetchWithRetry();
 
     return () => {
-      clearTimeout(timer);
-      if (safetyTimer) clearTimeout(safetyTimer);
+      cancelled = true;
     };
-  }, [chatStatus, fetchContextInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when messageId changes
+  }, [messageId]);
 
   if (loading || !hasContext || sources.length === 0) {
     return null;
@@ -105,13 +109,13 @@ export function ContextIndicatorBadge({
   const getLabel = () => {
     const types = sources.map((s) => s.type);
     if (types.includes('documents') && types.includes('memory')) {
-      return 'Personalized';
+      return 'Retrieved Context';
     }
     if (types.includes('documents')) {
-      return 'Using Your Docs';
+      return 'Doc Context';
     }
     if (types.includes('memory')) {
-      return 'With Memory';
+      return 'Memory Context';
     }
     if (types.includes('persona')) {
       return 'Persona Knowledge';
@@ -151,13 +155,13 @@ export function ContextIndicatorBadge({
           <TooltipContent side="top" className="max-w-xs">
             <div className="space-y-1">
               <p className="font-medium text-xs">
-                This response used {sources.length} context source
+                Retrieved {sources.length} context source
                 {sources.length !== 1 ? 's' : ''}:
               </p>
               <ul className="text-xs space-y-0.5">
-                {sources.map((source, idx) => (
-                  <li key={idx}>
-                    • {source.label} ({source.count} chunks)
+                {sources.map((source) => (
+                  <li key={`${source.type}-${source.label}-${source.count}`}>
+                    • {source.label} ({source.count})
                   </li>
                 ))}
               </ul>

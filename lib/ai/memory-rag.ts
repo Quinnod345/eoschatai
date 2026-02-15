@@ -16,6 +16,19 @@ export interface RelevantMemory {
   topic: string | null;
   relevance: number;
   createdAt: Date;
+  retrievalSource: 'semantic' | 'semantic-fallback' | 'recent' | 'unembedded';
+  similarity: number | null;
+}
+
+export interface FormattedMemoryContext {
+  formatted: string;
+  chunkCount: number;
+  memoryIds: string[];
+  sourceCounts: {
+    semantic: number;
+    recent: number;
+    unembedded: number;
+  };
 }
 
 /**
@@ -87,6 +100,7 @@ export async function findRelevantMemories(
   query: string,
   limitOrConfig: number | MemorySearchConfig = 10,
   threshold = 0.4,
+  precomputedEmbedding?: number[],
 ): Promise<RelevantMemory[]> {
   // Support both old (limit, threshold) and new (config) signatures
   const config: Required<MemorySearchConfig> =
@@ -110,14 +124,15 @@ export async function findRelevantMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
-          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+          or(
+            isNull(userMemory.expiresAt),
+            sql`${userMemory.expiresAt} > NOW()`,
+          ),
         ),
       );
 
     const memoryCount = memoriesWithEmbeddings[0]?.count || 0;
-    console.log(
-      `Memory RAG: User has ${memoryCount} memories with embeddings`,
-    );
+    console.log(`Memory RAG: User has ${memoryCount} memories with embeddings`);
 
     if (memoryCount === 0) {
       console.log(
@@ -132,7 +147,10 @@ export async function findRelevantMemories(
           and(
             eq(userMemory.userId, userId),
             eq(userMemory.status, 'active'),
-            or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+            or(
+              isNull(userMemory.expiresAt),
+              sql`${userMemory.expiresAt} > NOW()`,
+            ),
           ),
         )
         .limit(config.limit);
@@ -152,8 +170,11 @@ export async function findRelevantMemories(
           memoryType: memory.memoryType || 'other',
           confidence: memory.confidence || 60,
           topic: memory.topic,
-          relevance: 0.6, // Default relevance since we can't compute it
+          // Not a similarity score; used only for downstream tie-breaking.
+          relevance: 0.35,
           createdAt: memory.createdAt,
+          retrievalSource: 'unembedded' as const,
+          similarity: null,
         }));
       } else {
         console.log('Memory RAG: No memories found for this user');
@@ -161,11 +182,16 @@ export async function findRelevantMemories(
       }
     }
 
-    // Generate embedding for the query
-    const { embedding } = await embed({
-      model: openai.embedding('text-embedding-ada-002'),
-      value: query,
-    });
+    // Reuse embedding when provided by caller to avoid duplicate generation.
+    const embedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0
+        ? precomputedEmbedding
+        : (
+            await embed({
+              model: openai.embedding('text-embedding-3-small'),
+              value: query,
+            })
+          ).embedding;
 
     // Search for similar memories using pgvector cosine similarity
     // Only include active memories with confidence above minimum
@@ -189,7 +215,10 @@ export async function findRelevantMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
-          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+          or(
+            isNull(userMemory.expiresAt),
+            sql`${userMemory.expiresAt} > NOW()`,
+          ),
           sql`${userMemory.confidence} > ${config.minConfidence}`,
           sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.threshold}`,
         ),
@@ -229,7 +258,10 @@ export async function findRelevantMemories(
           and(
             eq(userMemory.userId, userId),
             eq(userMemory.status, 'active'),
-            or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+            or(
+              isNull(userMemory.expiresAt),
+              sql`${userMemory.expiresAt} > NOW()`,
+            ),
             sql`${userMemory.confidence} > ${config.minConfidence}`,
             sql`1 - (${userMemoryEmbedding.embedding} <=> ${JSON.stringify(embedding)}) > ${config.fallbackThreshold}`,
           ),
@@ -244,7 +276,32 @@ export async function findRelevantMemories(
       );
 
       // Return formatted memory objects with combined relevance scoring
-      return lowerResults.map((result) => ({
+      return lowerResults.map((result) => {
+        const similarity = result.similarity;
+        return {
+          id: result.id,
+          summary: result.summary,
+          content: result.content,
+          memoryType: result.memoryType || 'other',
+          confidence: result.confidence || 60,
+          topic: result.topic,
+          relevance: calculateCombinedRelevance(
+            similarity,
+            result.confidence || 60,
+            result.createdAt,
+            config,
+          ),
+          createdAt: result.createdAt,
+          retrievalSource: 'semantic-fallback' as const,
+          similarity,
+        };
+      });
+    }
+
+    // Return formatted memory objects with combined relevance scoring
+    return results.map((result) => {
+      const similarity = result.similarity;
+      return {
         id: result.id,
         summary: result.summary,
         content: result.content,
@@ -252,31 +309,16 @@ export async function findRelevantMemories(
         confidence: result.confidence || 60,
         topic: result.topic,
         relevance: calculateCombinedRelevance(
-          result.similarity,
+          similarity,
           result.confidence || 60,
           result.createdAt,
           config,
         ),
         createdAt: result.createdAt,
-      }));
-    }
-
-    // Return formatted memory objects with combined relevance scoring
-    return results.map((result) => ({
-      id: result.id,
-      summary: result.summary,
-      content: result.content,
-      memoryType: result.memoryType || 'other',
-      confidence: result.confidence || 60,
-      topic: result.topic,
-      relevance: calculateCombinedRelevance(
-        result.similarity,
-        result.confidence || 60,
-        result.createdAt,
-        config,
-      ),
-      createdAt: result.createdAt,
-    }));
+        retrievalSource: 'semantic' as const,
+        similarity,
+      };
+    });
   } catch (error) {
     console.error('Memory RAG: Error finding relevant memories:', error);
     return [];
@@ -300,7 +342,10 @@ export async function getRecentMemories(
         and(
           eq(userMemory.userId, userId),
           eq(userMemory.status, 'active'),
-          or(isNull(userMemory.expiresAt), sql`${userMemory.expiresAt} > NOW()`),
+          or(
+            isNull(userMemory.expiresAt),
+            sql`${userMemory.expiresAt} > NOW()`,
+          ),
         ),
       )
       .orderBy(sql`${userMemory.createdAt} DESC`)
@@ -313,8 +358,11 @@ export async function getRecentMemories(
       memoryType: memory.memoryType || 'other',
       confidence: memory.confidence || 60,
       topic: memory.topic,
-      relevance: 0.7, // Default relevance for recency-based retrieval
+      // Recency retrieval has no vector similarity; do not treat as semantic relevance.
+      relevance: 0,
       createdAt: memory.createdAt,
+      retrievalSource: 'recent' as const,
+      similarity: null,
     }));
   } catch (error) {
     console.error('Memory RAG: Error fetching recent memories:', error);
@@ -327,9 +375,23 @@ export async function getRecentMemories(
  * @param memories - Array of relevant memories
  * @returns Formatted prompt string
  */
-export function formatMemoriesForPrompt(memories: RelevantMemory[]): { formatted: string; chunkCount: number } {
+export function formatMemoriesForPrompt(memories: RelevantMemory[]): {
+  formatted: string;
+  chunkCount: number;
+  memoryIds: string[];
+  sourceCounts: {
+    semantic: number;
+    recent: number;
+    unembedded: number;
+  };
+} {
   if (!memories || memories.length === 0) {
-    return { formatted: '', chunkCount: 0 };
+    return {
+      formatted: '',
+      chunkCount: 0,
+      memoryIds: [],
+      sourceCounts: { semantic: 0, recent: 0, unembedded: 0 },
+    };
   }
 
   // Group memories by type
@@ -413,6 +475,27 @@ The following are facts remembered about this user from previous conversations:
 
 `;
 
-  return { formatted: output, chunkCount: memories.length };
-}
+  const sourceCounts = memories.reduce(
+    (acc, memory) => {
+      if (
+        memory.retrievalSource === 'semantic' ||
+        memory.retrievalSource === 'semantic-fallback'
+      ) {
+        acc.semantic += 1;
+      } else if (memory.retrievalSource === 'recent') {
+        acc.recent += 1;
+      } else {
+        acc.unembedded += 1;
+      }
+      return acc;
+    },
+    { semantic: 0, recent: 0, unembedded: 0 },
+  );
 
+  return {
+    formatted: output,
+    chunkCount: memories.length,
+    memoryIds: memories.map((memory) => memory.id),
+    sourceCounts,
+  };
+}

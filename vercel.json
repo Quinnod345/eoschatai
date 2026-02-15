@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/subscription-health-check",
       "schedule": "0 2 * * 0"
+    },
+    {
+      "path": "/api/cron/circle-sync",
+      "schedule": "0 2 * * *"
     }
   ]
 }

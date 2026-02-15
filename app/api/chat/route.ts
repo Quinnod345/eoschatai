@@ -51,6 +51,7 @@ import type { Chat } from '@/lib/db/schema';
 import {
   findRelevantContent,
   deleteContentByKeyword,
+  generateEmbedding,
 } from '@/lib/ai/embeddings';
 import {
   addResourceTool,
@@ -70,6 +71,7 @@ import {
   extractAssistantTextFromMessage,
   extractPrimaryMessageText,
 } from '@/lib/ai/chat-route-helpers';
+import type { RelevantMemory } from '@/lib/ai/memory-rag';
 // Citation formatting - citations now handled inline by the AI through searchWeb tool
 
 export const maxDuration = 300; // 5 minutes - deep research mode needs extended time
@@ -177,6 +179,7 @@ async function decideModelWithHaiku(args: {
   thinkingBudget?: number;
   requiresDocumentCreation: boolean;
   suggestedDocumentKind: string | null;
+  saveMemory: boolean;
 }> {
   const {
     provider,
@@ -277,7 +280,26 @@ Set to false for questions, explanations, discussions, or edits to existing docu
 When true, also set suggested_document_kind to one of: "text", "code", "image", "sheet", "chart", "vto", "accountability".
 When false, suggested_document_kind should be null.
 
-Return STRICT JSON: {"enable_thinking":true|false,"max_tokens":<integer 1000..64000>,"thinking_budget":<integer 0|16000|32000|50000|64000>,"requires_document_creation":true|false,"suggested_document_kind":<string|null>}.
+MEMORY EXTRACTION DETECTION (save_memory: true/false):
+Set to true when the user's message contains ANY personal information, preferences, facts, or details worth remembering for future conversations. Be VERY liberal here — even short statements are valuable.
+
+SAVE MEMORY (save_memory: true) for:
+- Likes/dislikes/preferences: "I like X", "I prefer Y", "I hate Z", "my favorite is..."
+- Personal facts: "I have 2 dogs", "I'm from Texas", "I'm 30 years old"
+- Company/work info: "We use Slack", "my team has 10 people", "I'm a PM"
+- Goals/challenges: "I want to lose weight", "we're growing fast"
+- Opinions/values: "I think X is important", "I believe in Y"
+- Names/relationships: "my wife Sarah", "my boss John", "my company is Acme"
+- Habits/routines: "I wake up at 6am", "I exercise daily"
+- Any statement revealing something about WHO the user IS or WHAT they care about
+
+DO NOT SAVE MEMORY (save_memory: false) for:
+- Pure questions with no personal info ("What is EOS?", "How do I make a chart?")
+- Commands/instructions ("Create a V/TO", "Summarize this document")
+- Greetings with no content ("hi", "thanks", "ok")
+- Requests that only reference external information, not about the user
+
+Return STRICT JSON: {"enable_thinking":true|false,"max_tokens":<integer 1000..64000>,"thinking_budget":<integer 0|16000|32000|50000|64000>,"requires_document_creation":true|false,"suggested_document_kind":<string|null>,"save_memory":true|false}.
 If enable_thinking is false, thinking_budget should be 0.
 If enable_thinking is true, choose appropriate thinking_budget based on complexity.
 If requires_document_creation is true, suggested_document_kind must be one of: text, code, image, sheet, chart, vto, accountability.
@@ -292,8 +314,21 @@ If requires_document_creation is false, suggested_document_kind must be null. No
   try {
     parsed = JSON.parse(cleaned);
   } catch (parseError) {
-    console.error('[PREFLIGHT] Failed to parse Haiku response:', cleaned);
-    throw new Error('Haiku preflight returned invalid JSON');
+    // Haiku sometimes appends a natural-language explanation after the JSON.
+    // Extract the first top-level {...} block and retry.
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+      } catch {
+        console.error('[PREFLIGHT] Failed to parse Haiku response:', cleaned);
+        throw new Error('Haiku preflight returned invalid JSON');
+      }
+    } else {
+      console.error('[PREFLIGHT] Failed to parse Haiku response:', cleaned);
+      throw new Error('Haiku preflight returned invalid JSON');
+    }
   }
 
   const enableThinking = parsed.enable_thinking === true;
@@ -326,12 +361,23 @@ If requires_document_creation is false, suggested_document_kind must be null. No
       ? String(parsed.suggested_document_kind)
       : null;
 
+  // If the model omits save_memory (older response format), fall back to a
+  // quick heuristic: any first-person statement or short personal message
+  // is likely memory-worthy.
+  const saveMemory =
+    parsed.save_memory === true ||
+    (parsed.save_memory === undefined &&
+      /\b(i |my |i'm |i've |i'll |we |our |prefer|like|love|hate|favorite|use |enjoy)\b/i.test(
+        queryText,
+      ));
+
   console.log('[PREFLIGHT] Decision', {
     enableThinking,
     maxOutputTokens: maxTokens,
     thinkingBudget: enableThinking ? thinkingBudget : 0,
     requiresDocumentCreation,
     suggestedDocumentKind,
+    saveMemory,
   });
   return {
     enableThinking,
@@ -339,6 +385,7 @@ If requires_document_creation is false, suggested_document_kind must be null. No
     thinkingBudget: enableThinking ? thinkingBudget : undefined,
     requiresDocumentCreation,
     suggestedDocumentKind,
+    saveMemory,
   };
 }
 
@@ -722,8 +769,10 @@ export async function POST(request: Request) {
       ['user', 'team', 'contact'].includes(m.type),
     );
 
-    // Execute both RAG operations in parallel for better performance
-    console.log('RAG: Starting parallel RAG operations...');
+    // Execute RAG operations AND preflight in parallel for maximum performance.
+    // The preflight (Haiku model decision) only needs queryText and simple flags,
+    // so it can run at the same time as embedding generation + RAG retrieval.
+    console.log('RAG: Starting parallel RAG operations + preflight...');
     const ragStartTime = Date.now();
 
     // Store document IDs for context tracking
@@ -741,6 +790,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // Preflight detection flags (computed from queryText only - no RAG dependency)
+    const hasCodeOrMath =
+      /```|\b(code|implement|function|class|SQL|regex|equation|integral|proof|derive|theorem)\b/i.test(
+        queryText || '',
+      );
+    const hasDeepAnalysis =
+      /\b(deep analysis|comprehensive|thorough|detailed analysis|find.*hidden|beneath.*surface|relate everything|central point|rhetorical situation|audience analysis|critical analysis|pick apart|weak points|critique|evaluate)\b/i.test(
+        queryText || '',
+      ) ||
+      (queryText?.toLowerCase().includes('summary') &&
+        queryText?.toLowerCase().includes('analysis'));
+    const isNexusMode = selectedResearchMode === 'nexus';
+
+    // Fire preflight Haiku call NOW so it runs in parallel with embedding + RAG.
+    const providerForDecision = createCustomProvider(selectedProvider);
+    const preflightPromise = decideModelWithHaiku({
+      provider: providerForDecision,
+      queryText: queryText || '',
+      hasCodeOrMath,
+      hasDeepAnalysis: hasDeepAnalysis || isNexusMode,
+      hasFileUploads,
+      fileUploadCount,
+      inputCharacterCount: (queryText || '').length,
+      mode: isNexusMode ? 'nexus' : 'standard',
+      hasComposerOpen: Boolean(composerDocumentId),
+    }).catch((err) => {
+      console.warn('Preflight decision failed, falling back to defaults', err);
+      return null; // null signals fallback
+    });
+
+    // Generate query embedding once and reuse it across all RAG branches.
+    const queryEmbedding =
+      !shouldSkipRAG && ragQueryText
+        ? await generateEmbedding(ragQueryText)
+        : null;
+
     const [
       relevantContent,
       userRagResult,
@@ -753,7 +838,12 @@ export async function POST(request: Request) {
       queryText && !shouldSkipRAG
         ? (() => {
             const generalRagStart = Date.now();
-            return findRelevantContent(ragQueryText, 5)
+            return findRelevantContent(
+              ragQueryText,
+              5,
+              0.6,
+              queryEmbedding ?? undefined,
+            )
               .then((content) => {
                 const generalRagTime = Date.now() - generalRagStart;
                 console.log(
@@ -785,7 +875,11 @@ export async function POST(request: Request) {
             const userRagStart = Date.now();
             return import('@/lib/ai/user-rag-context')
               .then(({ getUserRagContextWithMetadata }) =>
-                getUserRagContextWithMetadata(session.user.id, ragQueryText),
+                getUserRagContextWithMetadata(
+                  session.user.id,
+                  ragQueryText,
+                  queryEmbedding ?? undefined,
+                ),
               )
               .then((result) => {
                 const userRagTime = Date.now() - userRagStart;
@@ -825,7 +919,11 @@ export async function POST(request: Request) {
             const orgRagStart = Date.now();
             return import('@/lib/ai/org-rag-context')
               .then(({ getOrgRagContextWithMetadata }) =>
-                getOrgRagContextWithMetadata(accessContext.user.orgId as string, ragQueryText),
+                getOrgRagContextWithMetadata(
+                  accessContext.user.orgId as string,
+                  ragQueryText,
+                  queryEmbedding ?? undefined,
+                ),
               )
               .then((result) => {
                 const orgRagTime = Date.now() - orgRagStart;
@@ -866,6 +964,7 @@ export async function POST(request: Request) {
                   selectedPersonaId,
                   ragQueryText,
                   session.user.id,
+                  queryEmbedding ?? undefined,
                 ),
               )
               .then((result) => {
@@ -913,6 +1012,7 @@ export async function POST(request: Request) {
                   upstashSystemRagContextPrompt(
                     selectedProfileId || null,
                     ragQueryText,
+                    queryEmbedding ?? undefined,
                   ),
                 )
                 .then((context) => {
@@ -972,6 +1072,7 @@ export async function POST(request: Request) {
                   selectedPersonaId,
                   selectedProfileId || null,
                   ragQueryText,
+                  queryEmbedding ?? undefined,
                 );
               })
               .then((result) => {
@@ -1021,13 +1122,14 @@ export async function POST(request: Request) {
                       session.user.id,
                       ragQueryText,
                       15, // Increased from 10
-                      0.55, // Lowered from 0.75 for better recall
+                      0.35, // Low threshold: memory embeddings are still ada-002, queries are 3-small
+                      queryEmbedding ?? undefined,
                     ),
                     getRecentMemories(session.user.id, 5),
                   ]).then(([similarMemories, recentMemories]) => {
                     // Merge and deduplicate by memory ID
                     const seenIds = new Set<string>();
-                    const merged = [];
+                    const merged: RelevantMemory[] = [];
                     for (const m of similarMemories) {
                       if (!seenIds.has(m.id)) {
                         seenIds.add(m.id);
@@ -1041,14 +1143,41 @@ export async function POST(request: Request) {
                       }
                     }
 
+                    const semanticMemoryIds = Array.from(
+                      new Set(similarMemories.map((memory) => memory.id)),
+                    );
+                    const recentMemoryIds = Array.from(
+                      new Set(recentMemories.map((memory) => memory.id)),
+                    );
+                    const semanticIdSet = new Set(semanticMemoryIds);
+                    const overlappingMemoryIds = recentMemoryIds.filter((id) =>
+                      semanticIdSet.has(id),
+                    );
+                    const unembeddedRetrievedCount = similarMemories.filter(
+                      (memory) => memory.retrievalSource === 'unembedded',
+                    ).length;
+
                     const memoryRagTime = Date.now() - memoryRagStart;
                     console.log(
-                      `Memory RAG: Retrieved ${merged.length} memories (${similarMemories.length} similar + ${recentMemories.length} recent, deduplicated) in ${memoryRagTime}ms`,
+                      `Memory RAG: Retrieved ${merged.length} unique memories (semantic: ${semanticMemoryIds.length}, recent: ${recentMemoryIds.length}, overlap: ${overlappingMemoryIds.length}, unembedded: ${unembeddedRetrievedCount}) in ${memoryRagTime}ms`,
                     );
 
-                    if (merged.length > 0) {
+                    const topSemanticMemory = merged.find(
+                      (memory) =>
+                        memory.retrievalSource === 'semantic' ||
+                        memory.retrievalSource === 'semantic-fallback',
+                    );
+
+                    if (
+                      topSemanticMemory &&
+                      typeof topSemanticMemory.similarity === 'number'
+                    ) {
                       console.log(
-                        `Memory RAG: Top memory: "${merged[0].summary.substring(0, 100)}..." (relevance: ${(merged[0].relevance * 100).toFixed(1)}%)`,
+                        `Memory RAG: Top semantic memory: "${topSemanticMemory.summary.substring(0, 100)}..." (similarity: ${(topSemanticMemory.similarity * 100).toFixed(1)}%, combined: ${(topSemanticMemory.relevance * 100).toFixed(1)}%)`,
+                      );
+                    } else if (merged.length > 0) {
+                      console.log(
+                        `Memory RAG: Top context memory (non-semantic): "${merged[0].summary.substring(0, 100)}..." (source: ${merged[0].retrievalSource})`,
                       );
                     }
 
@@ -1062,7 +1191,19 @@ export async function POST(request: Request) {
                       );
                     }
 
-                    return memoryFormatResult;
+                    return {
+                      ...memoryFormatResult,
+                      semanticMemoryIds,
+                      recentMemoryIds,
+                      overlappingMemoryIds,
+                      memorySourceCounts: {
+                        semantic: semanticMemoryIds.length,
+                        recent: recentMemoryIds.length,
+                        overlap: overlappingMemoryIds.length,
+                        unique: memoryFormatResult.chunkCount,
+                        unembedded: unembeddedRetrievedCount,
+                      },
+                    };
                   }),
               )
               .catch((error) => {
@@ -1071,10 +1212,40 @@ export async function POST(request: Request) {
                   `Memory RAG: Error retrieving memories after ${memoryRagTime}ms:`,
                   error,
                 );
-                return { formatted: '', chunkCount: 0 };
+                return {
+                  formatted: '',
+                  chunkCount: 0,
+                  memoryIds: [],
+                  sourceCounts: { semantic: 0, recent: 0, unembedded: 0 },
+                  semanticMemoryIds: [],
+                  recentMemoryIds: [],
+                  overlappingMemoryIds: [],
+                  memorySourceCounts: {
+                    semantic: 0,
+                    recent: 0,
+                    overlap: 0,
+                    unique: 0,
+                    unembedded: 0,
+                  },
+                };
               });
           })()
-        : Promise.resolve({ formatted: '', chunkCount: 0 }),
+        : Promise.resolve({
+            formatted: '',
+            chunkCount: 0,
+            memoryIds: [],
+            sourceCounts: { semantic: 0, recent: 0, unembedded: 0 },
+            semanticMemoryIds: [],
+            recentMemoryIds: [],
+            overlappingMemoryIds: [],
+            memorySourceCounts: {
+              semantic: 0,
+              recent: 0,
+              overlap: 0,
+              unique: 0,
+              unembedded: 0,
+            },
+          }),
     ]);
 
     // Extract context strings from structured results
@@ -1085,6 +1256,17 @@ export async function POST(request: Request) {
     const personaRagContext = personaRagResult.context;
     const systemRagContext = systemRagResult.context;
     const memoryContext = memoryResult.formatted;
+    const memoryIds = memoryResult.memoryIds ?? [];
+    const semanticMemoryIds = memoryResult.semanticMemoryIds ?? [];
+    const recentMemoryIds = memoryResult.recentMemoryIds ?? [];
+    const overlappingMemoryIds = memoryResult.overlappingMemoryIds ?? [];
+    const memorySourceCounts = memoryResult.memorySourceCounts ?? {
+      semantic: 0,
+      recent: 0,
+      overlap: 0,
+      unique: memoryResult.chunkCount ?? 0,
+      unembedded: 0,
+    };
 
     const ragEndTime = Date.now();
     console.log(
@@ -1107,7 +1289,7 @@ export async function POST(request: Request) {
         `\n  - Organization knowledge: ${orgRagContext.length} characters (${orgDocumentIds.length} docs: ${orgDocumentNames.join(', ')})`,
         `\n  - Persona documents: ${personaRagContext.length} characters`,
         `\n  - System knowledge: ${systemRagContext.length} characters`,
-        `\n  - User memories: ${memoryContext.length} characters`,
+        `\n  - User memories: ${memoryContext.length} characters (${memorySourceCounts.unique} unique; semantic: ${memorySourceCounts.semantic}, recent: ${memorySourceCounts.recent}, overlap: ${memorySourceCounts.overlap}, unembedded: ${memorySourceCounts.unembedded})`,
       );
     }
 
@@ -1464,8 +1646,7 @@ SPECIAL INSTRUCTIONS FOR CORE PROCESS QUESTIONS:
 `;
     }
 
-    // Define token guidance settings early
-    const isNexusMode = selectedResearchMode === 'nexus';
+    // Define token guidance settings early (isNexusMode already defined above RAG block)
 
     const getSoftTokenGuidance = () => {
       if (isNexusMode) {
@@ -1805,10 +1986,24 @@ Always prioritize the user's document content over generic information. If speci
     }
 
     // Create response stream
-    // AI SDK 5: Provide originalMessages and generateId to prevent duplicate messages
+    // AI SDK 5: Provide originalMessages and generateId to prevent duplicate messages.
+    // Pre-generate the assistantId so the client-side message.id matches the ID
+    // we save to the database and the contextUsageLog. This is critical for the
+    // context-indicator badge to find the log entry without a page reload.
+    const assistantId = generateUUID();
+    let assistantIdClaimed = false;
+
     const responseStream = createUIMessageStream({
       originalMessages: dedupedPreviousMessages,
-      generateId: generateUUID,
+      generateId: () => {
+        // Return the pre-generated assistantId for the first message (the main
+        // assistant response). Subsequent calls (tool-call steps) get fresh UUIDs.
+        if (!assistantIdClaimed) {
+          assistantIdClaimed = true;
+          return assistantId;
+        }
+        return generateUUID();
+      },
       execute: async ({ writer: originalWriter }) => {
         // Create buffered writer wrapper that also stores chunks to Redis
         let chunkCount = 0;
@@ -1959,27 +2154,6 @@ Always prioritize the user's document content over generic information. If speci
         // Keep original messages - we'll add User RAG context to system prompt instead
         const modifiedMessages = messages;
 
-        // Preflight: decide model and token guidance using nano
-        const hasCodeOrMath =
-          /```|\b(code|implement|function|class|SQL|regex|equation|integral|proof|derive|theorem)\b/i.test(
-            queryText || '',
-          );
-
-        // Enhanced detection for deep analysis requests
-        const hasDeepAnalysis =
-          /\b(deep analysis|comprehensive|thorough|detailed analysis|find.*hidden|beneath.*surface|relate everything|central point|rhetorical situation|audience analysis|critical analysis|pick apart|weak points|critique|evaluate)\b/i.test(
-            queryText || '',
-          ) ||
-          (queryText?.toLowerCase().includes('summary') &&
-            queryText?.toLowerCase().includes('analysis')); // Both summary AND analysis requested
-
-        const providerForDecision = createCustomProvider(selectedProvider);
-        let preflightEnableThinking = false;
-        let preflightMaxTokens = 2000;
-        let preflightThinkingBudget: number | undefined = undefined;
-        let preflightRequiresDocumentCreation = false;
-        let preflightSuggestedDocumentKind: string | null = null;
-
         // If the user supplied URLs, instruct the model to fetch them via searchWeb before answering
         const urlRegex = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/gi;
         const suppliedUrls = Array.from(
@@ -2006,35 +2180,22 @@ Always prioritize the user's document content over generic information. If speci
           urlFetchInstruction +
           toolResponseInstructions;
 
-        // Run preflight for all modes, but with different parameters for Nexus
-        writer.write({
-          type: 'data-custom',
-          id: generateUUID(),
-          transient: true,
-          data: {
-            type: 'chat-status',
-            status: 'preflight',
-            message: 'Analyzing request',
-          },
-        });
+        // Await the preflight promise that was fired in parallel with RAG.
+        let preflightEnableThinking = false;
+        let preflightMaxTokens = 2000;
+        let preflightThinkingBudget: number | undefined = undefined;
+        let preflightRequiresDocumentCreation = false;
+        let preflightSuggestedDocumentKind: string | null = null;
+        let preflightSaveMemory = false;
 
-        try {
-          const decision = await decideModelWithHaiku({
-            provider: providerForDecision,
-            queryText: queryText || '',
-            hasCodeOrMath,
-            hasDeepAnalysis: hasDeepAnalysis || isNexusMode, // Treat Nexus as deep analysis
-            hasFileUploads,
-            fileUploadCount,
-            inputCharacterCount: queryText.length,
-            mode: isNexusMode ? 'nexus' : 'standard',
-            hasComposerOpen: Boolean(composerDocumentId),
-          });
-          preflightEnableThinking = decision.enableThinking;
-          preflightMaxTokens = decision.maxOutputTokens;
-          preflightThinkingBudget = decision.thinkingBudget;
-          preflightRequiresDocumentCreation = decision.requiresDocumentCreation;
-          preflightSuggestedDocumentKind = decision.suggestedDocumentKind;
+        const preflightDecision = await preflightPromise;
+        if (preflightDecision) {
+          preflightEnableThinking = preflightDecision.enableThinking;
+          preflightMaxTokens = preflightDecision.maxOutputTokens;
+          preflightThinkingBudget = preflightDecision.thinkingBudget;
+          preflightRequiresDocumentCreation = preflightDecision.requiresDocumentCreation;
+          preflightSuggestedDocumentKind = preflightDecision.suggestedDocumentKind;
+          preflightSaveMemory = preflightDecision.saveMemory;
 
           console.log('[PREFLIGHT] Final decision:', {
             enableThinking: preflightEnableThinking,
@@ -2042,19 +2203,18 @@ Always prioritize the user's document content over generic information. If speci
             thinkingBudget: preflightThinkingBudget,
             requiresDocumentCreation: preflightRequiresDocumentCreation,
             suggestedDocumentKind: preflightSuggestedDocumentKind,
+            saveMemory: preflightSaveMemory,
             mode: isNexusMode ? 'nexus' : 'standard',
           });
-        } catch (e) {
-          console.warn(
-            'Preflight decision failed, falling back to defaults',
-            e,
-          );
-          // For Nexus mode, use more generous defaults with thinking enabled
+        } else {
+          // Preflight failed - use defaults. For Nexus mode, be more generous.
           if (isNexusMode) {
             preflightEnableThinking = true;
             preflightMaxTokens = 8000;
             preflightThinkingBudget = 20000;
           }
+          // On preflight failure, default to attempting memory extraction
+          preflightSaveMemory = true;
         }
 
         // Always use claude-sonnet model - thinking is controlled via parameter
@@ -3055,7 +3215,8 @@ Always prioritize the user's document content over generic information. If speci
                 try {
                   // AI SDK 5: Use result.steps to get ALL tool calls across all steps
                   // result.toolCalls only returns the LAST step's calls!
-                  const assistantId = generateUUID();
+                  // assistantId is pre-generated above createUIMessageStream so the
+                  // client-side message.id matches the DB/contextUsageLog messageId.
 
                   // Capture reasoning content from extended thinking (if enabled)
                   let reasoningContent: string | null = null;
@@ -3301,17 +3462,21 @@ Always prioritize the user's document content over generic information. If speci
                     );
                   }
 
-                  // Automatic memory extraction - fire and forget
-                  // Silently extracts facts/preferences from the conversation
+                  // Automatic memory extraction - gated by preflight intelligence.
+                  // The preflight Haiku decides if the user's message contains
+                  // personal info, preferences, or facts worth remembering.
                   try {
                     const assistantText = finalText?.trim() || '';
                     const userText = queryText?.trim() || '';
 
                     if (
+                      preflightSaveMemory &&
                       userText &&
-                      assistantText &&
-                      userText.length > 20
+                      assistantText
                     ) {
+                      console.log(
+                        `[AutoMemory] Preflight flagged memory-worthy message: "${userText.substring(0, 80)}"`,
+                      );
                       import('@/lib/ai/memory-extractor').then(
                         ({ extractAndSaveMemories }) => {
                           extractAndSaveMemories({
@@ -3354,6 +3519,15 @@ Always prioritize the user's document content over generic information. If speci
                               ),
                             );
                         },
+                      );
+                    } else {
+                      const reason = !preflightSaveMemory
+                        ? 'preflight flagged save_memory=false'
+                        : !userText
+                          ? 'empty user text'
+                          : 'empty assistant text';
+                      console.log(
+                        `[AutoMemory] Skipped: ${reason} (saveMemory=${preflightSaveMemory}, userLen=${userText.length}, assistLen=${assistantText.length})`,
                       );
                     }
                   } catch (memoryError) {
@@ -3420,6 +3594,11 @@ Always prioritize the user's document content over generic information. If speci
                         orgChunks: orgRagResult.chunkCount ?? 0,
                         orgDocumentIds,
                         orgDocumentNames,
+                        memoryIds,
+                        semanticMemoryIds,
+                        recentMemoryIds,
+                        overlappingMemoryIds,
+                        memorySourceCounts,
                       },
                     });
 

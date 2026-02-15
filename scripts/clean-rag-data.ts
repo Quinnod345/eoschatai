@@ -14,7 +14,7 @@ const upstashVectorClient = new Index({
 });
 
 // OpenAI embedding model
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 /**
  * Truncates a vector to the specified dimension

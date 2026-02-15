@@ -48,7 +48,7 @@ const MODEL_MAP: Record<
 // Reasoning budget for pro model (in tokens)
 const REASONING_BUDGET = 32000;
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 // Anthropic client for image processing
 const createAnthropicClient = () => {

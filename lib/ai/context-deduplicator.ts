@@ -59,11 +59,11 @@ async function clusterSimilarChunks(
 
   // Generate embeddings for all chunks
   const embeddings: number[][] = [];
-  
+
   try {
     for (const chunk of chunks) {
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: chunk.content,
       });
       embeddings.push(embedding);
@@ -121,7 +121,9 @@ export async function deduplicateContextChunks(
     return [];
   }
 
-  console.log(`Deduplicator: Starting deduplication of ${chunks.length} chunks`);
+  console.log(
+    `Deduplicator: Starting deduplication of ${chunks.length} chunks`,
+  );
 
   try {
     // Cluster similar chunks
@@ -183,9 +185,7 @@ export function deduplicateByText(
   const seen = new Map<string, ContentChunk>();
 
   for (const chunk of chunks) {
-    const key = exactMatch
-      ? chunk.content
-      : chunk.content.toLowerCase().trim();
+    const key = exactMatch ? chunk.content : chunk.content.toLowerCase().trim();
 
     if (!seen.has(key)) {
       seen.set(key, chunk);
@@ -282,7 +282,10 @@ export function mergeOverlappingChunks(
           const overlapStart = findOverlap(current.content, other.content);
           const overlapEnd = findOverlap(other.content, current.content);
 
-          if (overlapStart >= overlapThreshold || overlapEnd >= overlapThreshold) {
+          if (
+            overlapStart >= overlapThreshold ||
+            overlapEnd >= overlapThreshold
+          ) {
             console.log(
               `Deduplicator: Merged chunks from ${source} (${Math.max(overlapStart, overlapEnd)} char overlap)`,
             );
@@ -306,9 +309,7 @@ export function mergeOverlappingChunks(
   }
 
   const removedCount = chunks.length - merged.length;
-  console.log(
-    `Deduplicator: Merged ${removedCount} overlapping chunks`,
-  );
+  console.log(`Deduplicator: Merged ${removedCount} overlapping chunks`);
 
   return merged;
 }
@@ -334,4 +335,3 @@ function findOverlap(str1: string, str2: string): number {
 
   return maxOverlap;
 }
-

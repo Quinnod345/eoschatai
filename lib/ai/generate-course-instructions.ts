@@ -135,7 +135,7 @@ export async function generateInstructionsFromRAG(params: {
       `${params.courseName} learning objectives`,
     ];
 
-    const embeddingModel = openai.embedding('text-embedding-ada-002');
+    const embeddingModel = openai.embedding('text-embedding-3-small');
     const allContent: string[] = [];
 
     for (const query of queries) {

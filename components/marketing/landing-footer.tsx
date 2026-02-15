@@ -6,7 +6,11 @@ import Image from 'next/image';
 
 export default function LandingFooter() {
   return (
-    <footer className="relative z-40 bg-black pointer-events-auto border-t border-white/10" role="contentinfo" aria-label="Site footer">
+    <footer
+      className="relative z-40 bg-black pointer-events-auto border-t border-white/10"
+      role="contentinfo"
+      aria-label="Site footer"
+    >
       <div className="container mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
@@ -22,7 +26,7 @@ export default function LandingFooter() {
                 EOSAI
               </span>
             </div>
-            <p className="font-montserrat text-sm text-white/60">
+            <p className="font-montserrat text-sm text-white/80">
               Your AI-powered assistant for EOS implementation and business
               growth.
             </p>
@@ -36,7 +40,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/features"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Features
                 </Link>
@@ -44,7 +48,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/chat"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Try Chat
                 </Link>
@@ -52,7 +56,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/docs"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   API Documentation
                 </Link>
@@ -66,14 +70,14 @@ export default function LandingFooter() {
             </h3>
             <ul className="space-y-2">
               <li>
-                <span className="font-montserrat text-sm text-white/60 cursor-default">
+                <span className="font-montserrat text-sm text-white/80 cursor-default">
                   Contact
                 </span>
               </li>
               <li>
                 <Link
                   href="/privacy"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Privacy Policy
                 </Link>
@@ -81,7 +85,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/terms"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Terms of Service
                 </Link>
@@ -97,7 +101,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/register"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Create Account
                 </Link>
@@ -105,7 +109,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/login"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Sign In
                 </Link>
@@ -113,7 +117,7 @@ export default function LandingFooter() {
               <li>
                 <Link
                   href="/chat"
-                  className="font-montserrat text-sm text-white/60 hover:text-white transition-colors"
+                  className="font-montserrat text-sm text-white/80 hover:text-white transition-colors"
                 >
                   Start Chat
                 </Link>
@@ -123,7 +127,7 @@ export default function LandingFooter() {
         </div>
 
         <div className="pt-8 border-t border-white/10">
-          <p className="font-montserrat text-sm text-white/40 text-center">
+          <p className="font-montserrat text-sm text-white/60 text-center">
             © {new Date().getFullYear()} EOSAI. All rights reserved.
           </p>
         </div>

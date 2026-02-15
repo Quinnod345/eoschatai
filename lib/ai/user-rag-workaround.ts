@@ -26,7 +26,7 @@ function getUserRagClient(): Index {
   return userRagClient;
 }
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 // Cosine similarity function
 function cosineSimilarity(a: number[], b: number[]): number {

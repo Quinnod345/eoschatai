@@ -16,7 +16,8 @@ export async function findSystemContent(
   query: string,
   namespace: string,
   limit = 5,
-  threshold = 0.7,
+  threshold = 0.55,
+  precomputedEmbedding?: number[],
 ): Promise<
   Array<{
     content: string;
@@ -30,11 +31,16 @@ export async function findSystemContent(
       `System RAG: Searching namespace "${namespace}" for: "${query}"`,
     );
 
-    // Generate embedding for the query
-    const { embedding } = await embed({
-      model: openai.embedding('text-embedding-ada-002'),
-      value: query,
-    });
+    // Reuse embedding when provided by caller to avoid duplicate generation.
+    const embedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0
+        ? precomputedEmbedding
+        : (
+            await embed({
+              model: openai.embedding('text-embedding-3-small'),
+              value: query,
+            })
+          ).embedding;
 
     // Search for similar content in the specified namespace
     const results = await db
@@ -85,7 +91,8 @@ export async function findHierarchicalSystemContent(
   query: string,
   namespaces: string[],
   limit = 3,
-  threshold = 0.7,
+  threshold = 0.55,
+  precomputedEmbedding?: number[],
 ): Promise<
   Array<{
     content: string;
@@ -115,6 +122,7 @@ export async function findHierarchicalSystemContent(
         namespace,
         limit,
         threshold,
+        precomputedEmbedding,
       );
 
       // Add namespace info to results
@@ -166,7 +174,7 @@ export async function addSystemContent(
 
       // Generate embedding for the chunk
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: chunk,
       });
 
@@ -223,6 +231,7 @@ export async function systemRagContextPrompt(
   personaId: string,
   profileId: string | null,
   query: string,
+  precomputedEmbedding?: number[],
 ): Promise<{ context: string; chunkCount: number }> {
   try {
     console.log(
@@ -271,6 +280,7 @@ export async function systemRagContextPrompt(
       namespaces,
       3,
       0.6,
+      precomputedEmbedding,
     );
 
     if (results.length === 0) {
@@ -346,7 +356,7 @@ export async function processSystemDocument(
     // Generate embeddings for chunks
     const { embedMany } = await import('ai');
     const { embeddings } = await embedMany({
-      model: openai.embedding('text-embedding-ada-002'),
+      model: openai.embedding('text-embedding-3-small'),
       values: chunks,
     });
 

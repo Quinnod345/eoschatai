@@ -10,8 +10,6 @@ import {
 import { Mic, AudioWaveform } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VoiceModeBatchSave from './voice-mode-batch-save';
-import VoiceModeFixed from './voice-mode-fixed';
-import VoiceModeIntegrated from './voice-mode-integrated';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 import { cn } from '@/lib/utils';
@@ -54,10 +52,6 @@ export default function VoiceFAB({
     if (!entitlements) return false;
     return entitlements.features.recordings.enabled;
   }, [entitlements]);
-
-  // Feature flag to use batch save or fixed voice mode
-  const useBatchSaveVoiceMode = true; // Changed to true to work like ChatGPT
-  const useFixedVoiceMode = false;
 
   const getSizeClasses = () => {
     switch (size) {
@@ -178,41 +172,16 @@ export default function VoiceFAB({
         </Tooltip>
       )}
 
-      {useBatchSaveVoiceMode ? (
-        <VoiceModeBatchSave
-          isOpen={isVoiceModeOpen}
-          onClose={() => setIsVoiceModeOpen(false)}
-          selectedModelId={selectedModelId}
-          selectedProviderId={selectedProviderId}
-          selectedPersonaId={selectedPersonaId}
-          selectedProfileId={selectedProfileId}
-          chatId={chatId}
-          onMessagesUpdate={onUpdateMessages}
-        />
-      ) : useFixedVoiceMode ? (
-        <VoiceModeFixed
-          isOpen={isVoiceModeOpen}
-          onClose={() => setIsVoiceModeOpen(false)}
-          selectedModelId={selectedModelId}
-          selectedProviderId={selectedProviderId}
-          selectedPersonaId={selectedPersonaId}
-          selectedProfileId={selectedProfileId}
-          chatId={chatId}
-          onMessagesUpdate={onUpdateMessages}
-          navigateToChat={!chatId} // Only navigate if not already in a chat
-        />
-      ) : (
-        <VoiceModeIntegrated
-          isOpen={isVoiceModeOpen}
-          onClose={() => setIsVoiceModeOpen(false)}
-          selectedModelId={selectedModelId}
-          selectedProviderId={selectedProviderId}
-          selectedPersonaId={selectedPersonaId}
-          selectedProfileId={selectedProfileId}
-          chatId={chatId}
-          onMessagesUpdate={onUpdateMessages}
-        />
-      )}
+      <VoiceModeBatchSave
+        isOpen={isVoiceModeOpen}
+        onClose={() => setIsVoiceModeOpen(false)}
+        selectedModelId={selectedModelId}
+        selectedProviderId={selectedProviderId}
+        selectedPersonaId={selectedPersonaId}
+        selectedProfileId={selectedProfileId}
+        chatId={chatId}
+        onMessagesUpdate={onUpdateMessages}
+      />
     </>
   );
 }

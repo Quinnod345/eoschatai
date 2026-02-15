@@ -109,7 +109,13 @@ export async function extractAndSaveMemories(opts: {
   existingMemories?: string;
   sourceMessageId?: string;
 }): Promise<{ saved: number; updated: number }> {
-  const { userId, userMessage, assistantMessage, existingMemories, sourceMessageId } = opts;
+  const {
+    userId,
+    userMessage,
+    assistantMessage,
+    existingMemories,
+    sourceMessageId,
+  } = opts;
 
   try {
     const provider = createCustomProvider();
@@ -117,29 +123,32 @@ export async function extractAndSaveMemories(opts: {
     // Step 1: Extract facts via Haiku
     const { text } = await generateText({
       model: provider.languageModel('preflight-model'),
-      system: `You are a memory extraction system. Analyze the conversation turn below and extract factual information the USER shared or confirmed about themselves, their business, their team, or their preferences.
+      system: `You are a memory extraction system. Analyze the conversation turn below and extract ANY factual information, preferences, or personal details the USER shared or confirmed.
 
-EXTRACT:
-- Factual statements the user made about their company, team, role, or industry
-- Personal preferences about communication, tools, or work style
+Be LIBERAL about what you extract. Even short or simple statements reveal something worth remembering.
+
+EXTRACT (be inclusive — when in doubt, extract it):
+- Personal preferences and likes/dislikes ("I like X", "I prefer Y", "I hate Z")
+- Facts about the user's life, habits, family, pets, hobbies, or interests
+- Factual statements about their company, team, role, or industry
+- Communication or work style preferences
 - Decisions or conclusions the user reached
 - Important names, numbers, dates, or specifics the user shared
 - Business metrics, goals, or challenges the user mentioned
+- Opinions, values, or beliefs the user expressed
 
 DO NOT EXTRACT:
-- Greetings, pleasantries, or meta-conversation ("thanks", "ok", "got it")
+- Pure greetings with zero informational content ("hi", "thanks", "ok", "got it")
 - Information the AI provided that the user did NOT confirm or expand upon
-- Questions the user asked (unless the question reveals a fact, e.g. "how do I improve my 45-person team?" reveals team size)
-- Vague or ambiguous statements
 - Anything already in the EXISTING MEMORIES section below
 
-Each extracted fact should be a concise, standalone statement that would make sense out of context.
+Even short statements like "I like apples" or "I have 2 dogs" or "We use Slack" contain meaningful personal facts — ALWAYS extract these.
 
 Assign each fact:
 - type: one of "preference", "profile", "company", "task", "knowledge", "personal"
-- confidence: 60-90 based on how explicitly the user stated it (60=implied, 75=stated, 90=emphasized/repeated)
+- confidence: 60-90 based on how explicitly the user stated it (60=implied, 75=stated clearly, 90=emphasized/repeated)
 
-Return a JSON array. If nothing worth remembering, return an empty array [].
+Return a JSON array. If the user truly shared nothing personal or factual (e.g. just said "hi" or asked a generic question), return [].
 Format: [{"summary":"...","type":"...","confidence":N}, ...]
 
 EXISTING MEMORIES (do not re-extract these):
@@ -150,10 +159,36 @@ ${existingMemories || 'None yet.'}`,
     });
 
     // Step 2: Parse facts
+    console.log(
+      `[AutoMemory] Raw extraction response: "${text.substring(0, 300)}"`,
+    );
     let facts: ExtractedFact[] = [];
     try {
       const cleaned = text.trim().replace(/^```json\s*|\s*```$/g, '');
-      const parsed = JSON.parse(cleaned);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        // Haiku sometimes wraps the array in prose or markdown. Extract the
+        // first top-level [...] block and retry.
+        const firstBracket = cleaned.indexOf('[');
+        const lastBracket = cleaned.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket > firstBracket) {
+          try {
+            parsed = JSON.parse(cleaned.slice(firstBracket, lastBracket + 1));
+          } catch {
+            console.log(
+              `[AutoMemory] Failed to parse extraction response: "${cleaned.substring(0, 200)}"`,
+            );
+            return { saved: 0, updated: 0 };
+          }
+        } else {
+          console.log(
+            `[AutoMemory] No JSON array found in extraction response: "${cleaned.substring(0, 200)}"`,
+          );
+          return { saved: 0, updated: 0 };
+        }
+      }
       if (Array.isArray(parsed)) {
         facts = parsed.filter(
           (f: any) =>
@@ -164,12 +199,15 @@ ${existingMemories || 'None yet.'}`,
             typeof f.confidence === 'number',
         );
       }
-    } catch {
-      console.log('[AutoMemory] No valid facts extracted from response');
+    } catch (e) {
+      console.log('[AutoMemory] Unexpected parse error:', e);
       return { saved: 0, updated: 0 };
     }
 
     if (facts.length === 0) {
+      console.log(
+        `[AutoMemory] Model returned no extractable facts for: "${opts.userMessage.substring(0, 80)}"`,
+      );
       return { saved: 0, updated: 0 };
     }
 
@@ -179,7 +217,7 @@ ${existingMemories || 'None yet.'}`,
 
     // Step 3: Batch-embed ALL fact summaries in a single API call
     const { embeddings } = await embedMany({
-      model: openai.embedding('text-embedding-ada-002'),
+      model: openai.embedding('text-embedding-3-small'),
       values: facts.map((f) => f.summary),
     });
 
@@ -227,9 +265,7 @@ ${existingMemories || 'None yet.'}`,
                 })
                 .where(eq(userMemory.id, memId))
                 .then(() => undefined)
-                .catch((e) =>
-                  console.error('[AutoMemory] Boost failed:', e),
-                ),
+                .catch((e) => console.error('[AutoMemory] Boost failed:', e)),
             );
           }
           break;

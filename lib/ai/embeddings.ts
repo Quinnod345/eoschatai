@@ -28,7 +28,7 @@ const upstashVectorClient =
       })
     : null;
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 // In-process cache for query embeddings to avoid duplicate work across RAG branches
 type CachedEmbedding = { createdAtMs: number; vector: number[] };
@@ -206,9 +206,7 @@ export const processDocument = async (
 
       // Delete by known IDs (upsert behavior - no error if they don't exist)
       await upstashVectorClient.delete(idsToDelete);
-      console.log(
-        `RAG: Cleaned up old embeddings for document ${documentId}`,
-      );
+      console.log(`RAG: Cleaned up old embeddings for document ${documentId}`);
     } catch (deleteError) {
       console.warn(
         'RAG: Error deleting old embeddings (continuing anyway):',
@@ -265,7 +263,9 @@ export const processDocument = async (
 
     // Generate chunks from content (always create full content chunks as fallback)
     const chunks = generateChunks(content);
-    console.log(`RAG: Generated ${chunks.length} chunks from full document content`);
+    console.log(
+      `RAG: Generated ${chunks.length} chunks from full document content`,
+    );
 
     // Generate embeddings for chunks
     const { embeddings } = await embedMany({
@@ -369,7 +369,8 @@ type UpstashVectorResult = {
 export const findRelevantContent = async (
   query: string | any,
   limit = 5,
-  minRelevance = 0.8, // Increase to 80% for better quality matches
+  minRelevance = 0.6, // text-embedding-3-small produces lower cosine scores than ada-002
+  precomputedEmbedding?: number[],
 ): Promise<{ content: string; relevance: number }[]> => {
   if (!upstashVectorClient) {
     console.warn(
@@ -392,27 +393,36 @@ export const findRelevantContent = async (
       }
     }
 
-    // Enhance the search query for better semantic matching
-    const enhancedQuery = enhanceSearchQuery(queryText);
+    const hasPrecomputedEmbedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0;
+
+    // Only enhance when generating a fresh embedding locally.
+    const searchQuery = hasPrecomputedEmbedding
+      ? queryText
+      : enhanceSearchQuery(queryText);
 
     // Log the original and enhanced queries
-    if (enhancedQuery !== queryText) {
+    if (hasPrecomputedEmbedding) {
+      console.log('RAG: Using precomputed query embedding');
+    } else if (searchQuery !== queryText) {
       console.log(
-        `RAG: Enhanced query from "${queryText}" to "${enhancedQuery}"`,
+        `RAG: Enhanced query from "${queryText}" to "${searchQuery}"`,
       );
     } else {
       console.log('RAG: Using original query:', queryText);
     }
 
-    // Generate embedding for the query (reuse cached embedding when available)
-    let embedding = getCachedEmbeddingIfFresh(enhancedQuery);
+    // Reuse provided embedding when available, otherwise use local cache/generation.
+    let embedding = hasPrecomputedEmbedding
+      ? precomputedEmbedding
+      : getCachedEmbeddingIfFresh(searchQuery);
     if (!embedding) {
       const result = await embed({
         model: embeddingModel,
-        value: enhancedQuery,
+        value: searchQuery,
       });
       embedding = result.embedding;
-      setCachedEmbedding(enhancedQuery, embedding);
+      setCachedEmbedding(searchQuery, embedding);
     }
 
     // Log the dimensions for debugging

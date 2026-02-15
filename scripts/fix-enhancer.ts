@@ -141,11 +141,11 @@ function updateEmbeddingsFile() {
 
     // Add the enhanceSearchQuery function after the embedding model declaration
     const embeddingModelRegex =
-      /const embeddingModel = openai\.embedding\('text-embedding-ada-002'\);/;
+      /const embeddingModel = openai\.embedding\('text-embedding-3-small'\);/;
     if (embeddingModelRegex.test(content)) {
       content = content.replace(
         embeddingModelRegex,
-        `const embeddingModel = openai.embedding('text-embedding-ada-002');
+        `const embeddingModel = openai.embedding('text-embedding-3-small');
 
 ${enhanceSearchQueryCode}`,
       );

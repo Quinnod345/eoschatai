@@ -5,7 +5,7 @@
  * OpenAI-compatible endpoint.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v3';
 import { embed, embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
@@ -18,9 +18,9 @@ import {
 import { logApiKeyUsage } from '@/lib/api/keys';
 
 // Embedding model
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 const EMBEDDING_DIMENSIONS = 1536;
-const MAX_TOKENS_PER_INPUT = 8191; // OpenAI's limit for ada-002
+const MAX_TOKENS_PER_INPUT = 8191; // OpenAI's limit for text-embedding-3-small
 
 // Request schema (OpenAI-compatible)
 const embeddingsRequestSchema = z.object({
@@ -28,7 +28,7 @@ const embeddingsRequestSchema = z.object({
     z.string().min(1).max(32000),
     z.array(z.string().min(1).max(32000)).min(1).max(100),
   ]),
-  model: z.string().optional().default('text-embedding-ada-002'),
+  model: z.string().optional().default('text-embedding-3-small'),
   encoding_format: z.enum(['float', 'base64']).optional().default('float'),
 });
 
@@ -84,10 +84,10 @@ export async function POST(request: NextRequest) {
 
   const { input, model, encoding_format } = parseResult.data;
 
-  // Only support ada-002 for now
-  if (model !== 'text-embedding-ada-002') {
+  // Only support text-embedding-3-small for now
+  if (model !== 'text-embedding-3-small') {
     return openaiError(
-      `Model "${model}" is not supported. Use "text-embedding-ada-002".`,
+      `Model "${model}" is not supported. Use "text-embedding-3-small".`,
       'invalid_request_error',
       'model_not_found',
       'model',

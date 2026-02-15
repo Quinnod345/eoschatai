@@ -26,7 +26,7 @@ async function testRealQuery() {
       token: userRagToken,
     });
 
-    const embeddingModel = openai.embedding('text-embedding-ada-002');
+    const embeddingModel = openai.embedding('text-embedding-3-small');
 
     // Test with a real query
     const testQuery = 'financial planning scorecard';

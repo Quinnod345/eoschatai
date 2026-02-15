@@ -41,7 +41,7 @@ async function testDirectFetch() {
         '\n2️⃣ Generating embedding from the actual content and searching...',
       );
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: (content as string).substring(0, 500), // Use first 500 chars
       });
 

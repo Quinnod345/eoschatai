@@ -8,7 +8,7 @@ import { Index } from '@upstash/vector';
 // Load environment variables
 config({ path: '.env.local' });
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 async function testRealEmbeddingSearch() {
   console.log('=== Testing Real Embedding Search ===');

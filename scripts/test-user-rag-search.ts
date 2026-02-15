@@ -8,7 +8,7 @@ import { Index } from '@upstash/vector';
 // Load environment variables
 config({ path: '.env.local' });
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 async function testUserRagSearch() {
   const userId = '4963f143-cfdd-4f4b-aaf4-b50a735eca54';

@@ -26,7 +26,7 @@ const UPSTASH_USER_RAG_REST_URL = process.env.UPSTASH_USER_RAG_REST_URL;
 const UPSTASH_USER_RAG_REST_TOKEN = process.env.UPSTASH_USER_RAG_REST_TOKEN;
 const CIRCLE_SPACE_ID = process.env.CIRCLE_SPACE_ID || '';
 
-const embeddingModel = openai.embedding('text-embedding-ada-002');
+const embeddingModel = openai.embedding('text-embedding-3-small');
 
 /**
  * Generate text chunks from content for better embedding

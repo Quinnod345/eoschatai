@@ -13,11 +13,25 @@ const coerceBoolean = (value: FlagEnvValue, fallback: boolean): boolean => {
 const defaultEnabled = !isProductionEnvironment;
 
 export const FEATURE_FLAGS = {
-  free_gating_v1: coerceBoolean(process.env.FEATURE_FLAG_FREE_GATING_V1, defaultEnabled),
-  stripe_mvp: coerceBoolean(process.env.FEATURE_FLAG_STRIPE_MVP, defaultEnabled),
-  entitlements_ws: coerceBoolean(process.env.FEATURE_FLAG_ENTITLEMENTS_WS, defaultEnabled),
+  free_gating_v1: coerceBoolean(
+    process.env.FEATURE_FLAG_FREE_GATING_V1,
+    defaultEnabled,
+  ),
+  stripe_mvp: coerceBoolean(
+    process.env.FEATURE_FLAG_STRIPE_MVP,
+    defaultEnabled,
+  ),
+  entitlements_ws: coerceBoolean(
+    process.env.FEATURE_FLAG_ENTITLEMENTS_WS,
+    defaultEnabled,
+  ),
+  circle_sync: coerceBoolean(
+    process.env.FEATURE_FLAG_CIRCLE_SYNC,
+    defaultEnabled,
+  ),
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
 
-export const isFeatureEnabled = (flag: FeatureFlagKey): boolean => FEATURE_FLAGS[flag];
+export const isFeatureEnabled = (flag: FeatureFlagKey): boolean =>
+  FEATURE_FLAGS[flag];

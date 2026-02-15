@@ -22,7 +22,12 @@ const SYSTEM_RAG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const SYSTEM_RAG_CACHE_MAX_SIZE = 100;
 const systemRagCache: Map<string, CachedRagResult> = new Map();
 
-function buildCacheKey(query: string, namespace: string, limit: number, threshold: number): string {
+function buildCacheKey(
+  query: string,
+  namespace: string,
+  limit: number,
+  threshold: number,
+): string {
   // Normalize query for better cache hits
   const normalizedQuery = query.toLowerCase().trim();
   return `${namespace}:${normalizedQuery}:${limit}:${threshold}`;
@@ -65,7 +70,9 @@ export function clearSystemRagCache(namespace?: string) {
         systemRagCache.delete(key);
       }
     }
-    console.log(`Upstash System RAG: Cleared cache for namespace "${namespace}"`);
+    console.log(
+      `Upstash System RAG: Cleared cache for namespace "${namespace}"`,
+    );
   } else {
     systemRagCache.clear();
     console.log('Upstash System RAG: Cleared entire cache');
@@ -99,7 +106,8 @@ export async function findUpstashSystemContent(
   query: string,
   namespace: string,
   limit = 5,
-  threshold = 0.7,
+  threshold = 0.55,
+  precomputedEmbedding?: number[],
 ): Promise<
   Array<{
     content: string;
@@ -125,11 +133,16 @@ export async function findUpstashSystemContent(
 
     const client = getUpstashSystemClient();
 
-    // Generate embedding for the query
-    const { embedding } = await embed({
-      model: openai.embedding('text-embedding-ada-002'),
-      value: query,
-    });
+    // Reuse embedding when provided by caller to avoid duplicate generation.
+    const embedding =
+      Array.isArray(precomputedEmbedding) && precomputedEmbedding.length > 0
+        ? precomputedEmbedding
+        : (
+            await embed({
+              model: openai.embedding('text-embedding-3-small'),
+              value: query,
+            })
+          ).embedding;
 
     // Use the namespace method to get the namespace-specific client
     const namespaceClient = client.namespace(namespace);
@@ -183,7 +196,8 @@ export async function findHierarchicalUpstashSystemContent(
   query: string,
   namespaces: string[],
   limit = 3,
-  threshold = 0.7,
+  threshold = 0.55,
+  precomputedEmbedding?: number[],
 ): Promise<
   Array<{
     content: string;
@@ -200,7 +214,13 @@ export async function findHierarchicalUpstashSystemContent(
 
     // Search all namespaces in parallel
     const searchPromises = namespaces.map((namespace) =>
-      findUpstashSystemContent(query, namespace, limit, threshold)
+      findUpstashSystemContent(
+        query,
+        namespace,
+        limit,
+        threshold,
+        precomputedEmbedding,
+      )
         .then((results) =>
           // Add namespace info to results
           results.map((result) => ({
@@ -263,7 +283,7 @@ export async function addUpstashSystemContent(
     // Generate embeddings for all chunks in parallel
     const embeddingPromises = chunks.map(async (chunk, i) => {
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: chunk,
       });
 
@@ -433,6 +453,7 @@ function splitIntoChunks(
 export async function upstashSystemRagContextPrompt(
   profileId: string | null,
   query: string,
+  precomputedEmbedding?: number[],
 ): Promise<string> {
   try {
     console.log(
@@ -455,7 +476,13 @@ export async function upstashSystemRagContextPrompt(
     const namespace = profileNamespaceMap[profileId];
 
     // Search for relevant content in the profile's namespace
-    const results = await findUpstashSystemContent(query, namespace, 5, 0.6);
+    const results = await findUpstashSystemContent(
+      query,
+      namespace,
+      5,
+      0.6,
+      precomputedEmbedding,
+    );
 
     if (results.length === 0) {
       console.log(
@@ -636,7 +663,7 @@ export async function processUpstashSystemDocument(
     // Ultra-safe: Process ONE chunk at a time, NO arrays
     const chunks = splitIntoChunks(content, 500, 50);
     const maxChunks = Math.min(chunks.length, 5); // Max 5 chunks per document
-    
+
     console.log(
       `Upstash System RAG: Processing ${maxChunks} chunks (of ${chunks.length}) for "${metadata.title}"`,
     );
@@ -646,32 +673,34 @@ export async function processUpstashSystemDocument(
     // Process and upload ONE chunk at a time
     for (let i = 0; i < maxChunks; i++) {
       const chunk = chunks[i];
-      
+
       try {
         // Generate embedding for this ONE chunk
         const { embedding } = await embed({
-          model: openai.embedding('text-embedding-ada-002'),
+          model: openai.embedding('text-embedding-3-small'),
           value: chunk,
         });
 
         // Upload this ONE vector immediately
-        await namespaceClient.upsert([{
-          id: `${metadata.lessonId || 'doc'}-${i}`,
-          vector: embedding,
-          metadata: {
-            title: metadata.title,
-            fileName: metadata.fileName || metadata.title,
-            category: metadata.category || 'Course Content',
-            fileType: metadata.fileType || 'lesson',
-            lessonId: metadata.lessonId,
-            order: metadata.order,
-            chunk,
-            createdAt: new Date().toISOString(),
+        await namespaceClient.upsert([
+          {
+            id: `${metadata.lessonId || 'doc'}-${i}`,
+            vector: embedding,
+            metadata: {
+              title: metadata.title,
+              fileName: metadata.fileName || metadata.title,
+              category: metadata.category || 'Course Content',
+              fileType: metadata.fileType || 'lesson',
+              lessonId: metadata.lessonId,
+              order: metadata.order,
+              chunk,
+              createdAt: new Date().toISOString(),
+            },
           },
-        }]);
+        ]);
 
         uploadedCount++;
-        
+
         // Small delay between chunks
         if (i < maxChunks - 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));

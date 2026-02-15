@@ -74,7 +74,7 @@ export async function assembleContextWithBudget(options: {
   if (useAdaptiveLimits && query) {
     queryAnalysis = await analyzeQueryComplexity(query);
     chunkLimits = queryAnalysis.suggestedChunkLimits;
-    
+
     console.log(
       `Context Assembler: Query complexity: ${queryAnalysis.complexity}`,
     );
@@ -116,7 +116,9 @@ export async function assembleContextWithBudget(options: {
       } else {
         // Check if it's a system persona via database
         const { db } = await import('@/lib/db');
-        const { persona, circleCoursePersona } = await import('@/lib/db/schema');
+        const { persona, circleCoursePersona } = await import(
+          '@/lib/db/schema'
+        );
         const { eq } = await import('drizzle-orm');
 
         const [personaData] = await db
@@ -160,7 +162,9 @@ export async function assembleContextWithBudget(options: {
 
     // 2. User Memories (High priority)
     if (!queryAnalysis || queryAnalysis.requiresMemories) {
-      console.log(`Context Assembler: Retrieving user memories (limit: ${chunkLimits.memories})`);
+      console.log(
+        `Context Assembler: Retrieving user memories (limit: ${chunkLimits.memories})`,
+      );
       const memories = await findRelevantMemories(
         userId,
         query,
@@ -299,9 +303,7 @@ export async function assembleContextWithBudget(options: {
   console.log(
     `Context Assembler: Total context before budget: ${totalTokensBefore} tokens`,
   );
-  console.log(
-    `Context Assembler: Available budget: ${remainingBudget} tokens`,
-  );
+  console.log(`Context Assembler: Available budget: ${remainingBudget} tokens`);
 
   for (const ctx of contexts) {
     if (ctx.tokens <= remainingBudget) {
@@ -408,4 +410,3 @@ export function extractContextContent(assembled: AssembledContext): {
     conversationSummary: findContent('conversation'),
   };
 }
-

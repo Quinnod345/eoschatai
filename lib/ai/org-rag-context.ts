@@ -12,13 +12,20 @@ export interface OrgRagResult {
 export async function getOrgRagContextWithMetadata(
   orgId: string,
   query = '',
+  precomputedEmbedding?: number[],
 ): Promise<OrgRagResult> {
   if (!orgId || !query) {
     return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
   }
 
   try {
-    const relevantDocs = await findRelevantOrgContent(orgId, query, 12, 0.68);
+    const relevantDocs = await findRelevantOrgContent(
+      orgId,
+      query,
+      12,
+      0.5,
+      precomputedEmbedding,
+    );
 
     if (!relevantDocs || relevantDocs.length === 0) {
       return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };

@@ -57,12 +57,12 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
       <button
         type="button"
         onClick={copyCode}
-        className="absolute top-2 right-2 p-2 rounded-md bg-white/5 hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+        className="absolute top-2 right-2 p-2 rounded-md bg-white/5 text-white/80 hover:text-white hover:bg-white/10 opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-eos-orange/60 transition-all"
       >
         {copied ? (
           <Check className="w-4 h-4 text-green-400" />
         ) : (
-          <Copy className="w-4 h-4 text-white/60" />
+          <Copy className="w-4 h-4 text-white/80" />
         )}
       </button>
     </div>
@@ -130,18 +130,18 @@ function ParameterTable({
                   <code className="text-sm text-eos-orange">{param.name}</code>
                 </td>
                 <td className="py-2.5 px-4">
-                  <code className="text-xs text-white/60">{param.type}</code>
+                  <code className="text-xs text-white/80">{param.type}</code>
                 </td>
                 <td className="py-2.5 px-4">
                   {param.required ? (
                     <span className="text-xs text-amber-400">Yes</span>
                   ) : (
-                    <span className="text-xs text-white/40">
+                    <span className="text-xs text-white/60">
                       No{param.default ? ` (${param.default})` : ''}
                     </span>
                   )}
                 </td>
-                <td className="py-2.5 px-4 text-sm text-white/60">
+                <td className="py-2.5 px-4 text-sm text-white/80">
                   {param.description}
                 </td>
               </tr>
@@ -180,13 +180,13 @@ function EndpointSection({
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-white/60 hidden md:block">
+          <span className="text-sm text-white/80 hidden md:block">
             {endpoint.summary}
           </span>
           {isExpanded ? (
-            <ChevronDown className="w-5 h-5 text-white/40" />
+            <ChevronDown className="w-5 h-5 text-white/60" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-white/40" />
+            <ChevronRight className="w-5 h-5 text-white/60" />
           )}
         </div>
       </button>
@@ -195,7 +195,7 @@ function EndpointSection({
       {isExpanded && (
         <div className="p-6 border-t border-white/10">
           {/* Description */}
-          <p className="text-white/70 mb-6">{endpoint.description}</p>
+          <p className="text-white/85 mb-6">{endpoint.description}</p>
 
           {/* Path Parameters */}
           {endpoint.pathParameters && (
@@ -221,12 +221,12 @@ function EndpointSection({
               </h4>
               <div className="rounded-lg border border-white/10 overflow-hidden">
                 <div className="p-3 bg-white/5 border-b border-white/10">
-                  <code className="text-xs text-white/60">
+                  <code className="text-xs text-white/80">
                     {endpoint.requestBody.contentType}
                   </code>
                 </div>
                 <div className="p-4">
-                  <h5 className="text-xs font-semibold text-white/50 uppercase mb-2">
+                  <h5 className="text-xs font-semibold text-white/70 uppercase mb-2">
                     Schema
                   </h5>
                   <div className="space-y-1">
@@ -234,14 +234,14 @@ function EndpointSection({
                       ([key, value]) => (
                         <div key={key} className="flex gap-3">
                           <code className="text-sm text-eos-orange">{key}</code>
-                          <span className="text-sm text-white/50">
+                          <span className="text-sm text-white/70">
                             {String(value)}
                           </span>
                         </div>
                       ),
                     )}
                   </div>
-                  <h5 className="text-xs font-semibold text-white/50 uppercase mt-4 mb-2">
+                  <h5 className="text-xs font-semibold text-white/70 uppercase mt-4 mb-2">
                     Example
                   </h5>
                   <CodeBlock
@@ -271,7 +271,7 @@ function EndpointSection({
                   >
                     {response.status}
                   </span>
-                  <span className="text-sm text-white/60">
+                  <span className="text-sm text-white/80">
                     {response.description}
                   </span>
                 </div>
@@ -301,7 +301,7 @@ function EndpointSection({
                     className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                       activeTab === tab
                         ? 'bg-white/10 text-white'
-                        : 'text-white/50 hover:text-white/80'
+                        : 'text-white/70 hover:text-white'
                     }`}
                   >
                     {tab === 'curl'
@@ -350,7 +350,7 @@ function CategorySection({ category }: { category: ApiCategory }) {
           <h2 className="font-montserrat text-xl font-bold text-white">
             {category.title}
           </h2>
-          <p className="text-sm text-white/60">{category.description}</p>
+          <p className="text-sm text-white/80">{category.description}</p>
         </div>
       </div>
 
@@ -382,12 +382,12 @@ export default function ApiReferencePage() {
           <div className="flex items-center gap-4">
             <Link
               href="/docs"
-              className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-white/80 hover:text-white transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm">Back to Docs</span>
             </Link>
-            <span className="text-white/20">|</span>
+            <span className="text-white/50">|</span>
             <div className="flex items-center gap-2">
               <Image
                 src="/images/eos-model-bulb.svg"
@@ -416,7 +416,7 @@ export default function ApiReferencePage() {
           <nav className="p-4 space-y-6">
             {/* Base URL */}
             <div className="pb-4 border-b border-white/10">
-              <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
+              <h3 className="text-xs font-semibold text-white/60 uppercase mb-2">
                 Base URL
               </h3>
               <code className="text-sm text-eos-orange break-all">
@@ -426,7 +426,7 @@ export default function ApiReferencePage() {
 
             {/* Categories */}
             <div>
-              <h3 className="text-xs font-semibold text-white/40 uppercase mb-3">
+              <h3 className="text-xs font-semibold text-white/60 uppercase mb-3">
                 Endpoints
               </h3>
               <ul className="space-y-1">
@@ -440,12 +440,12 @@ export default function ApiReferencePage() {
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           activeSection === category.id
                             ? 'bg-eos-orange/10 text-eos-orange'
-                            : 'text-white/60 hover:text-white hover:bg-white/5'
+                            : 'text-white/80 hover:text-white hover:bg-white/5'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
                         {category.title}
-                        <span className="ml-auto text-xs text-white/30">
+                        <span className="ml-auto text-xs text-white/60">
                           {category.endpoints.length}
                         </span>
                       </a>
@@ -457,14 +457,14 @@ export default function ApiReferencePage() {
 
             {/* Quick Links */}
             <div className="pt-4 border-t border-white/10">
-              <h3 className="text-xs font-semibold text-white/40 uppercase mb-3">
+              <h3 className="text-xs font-semibold text-white/60 uppercase mb-3">
                 Reference
               </h3>
               <ul className="space-y-1">
                 <li>
                   <a
                     href="#authentication"
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors"
                   >
                     <Key className="w-4 h-4" />
                     Authentication
@@ -473,7 +473,7 @@ export default function ApiReferencePage() {
                 <li>
                   <a
                     href="#errors"
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/80 hover:text-white hover:bg-white/5 transition-colors"
                   >
                     <AlertCircle className="w-4 h-4" />
                     Error Codes
@@ -491,7 +491,7 @@ export default function ApiReferencePage() {
             <h1 className="font-montserrat text-3xl font-bold text-white mb-3">
               EOSAI API Reference
             </h1>
-            <p className="text-white/60 max-w-2xl">
+            <p className="text-white/80 max-w-2xl">
               Complete reference documentation for the EOSAI API. Build
               applications with EOS methodology intelligence built-in.
             </p>
@@ -508,7 +508,7 @@ export default function ApiReferencePage() {
                   Authentication
                 </h2>
               </div>
-              <p className="text-white/70 mb-4">
+              <p className="text-white/85 mb-4">
                 All API requests require authentication via API key. Include
                 your key in the request header:
               </p>
@@ -538,7 +538,7 @@ export default function ApiReferencePage() {
               <h2 className="font-montserrat text-xl font-bold text-white mb-4">
                 Chat Request Parameters
               </h2>
-              <p className="text-white/60 mb-4">
+              <p className="text-white/80 mb-4">
                 Complete list of parameters for the{' '}
                 <code className="text-eos-orange">/v1/chat</code> endpoint:
               </p>
@@ -572,7 +572,7 @@ export default function ApiReferencePage() {
                           </code>
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/60">
+                          <code className="text-xs text-white/80">
                             {param.type}
                           </code>
                         </td>
@@ -580,15 +580,15 @@ export default function ApiReferencePage() {
                           {param.required ? (
                             <span className="text-xs text-amber-400">Yes</span>
                           ) : (
-                            <span className="text-xs text-white/40">No</span>
+                            <span className="text-xs text-white/60">No</span>
                           )}
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/40">
+                          <code className="text-xs text-white/60">
                             {param.default || '-'}
                           </code>
                         </td>
-                        <td className="py-2.5 px-4 text-sm text-white/60">
+                        <td className="py-2.5 px-4 text-sm text-white/80">
                           {param.description}
                         </td>
                       </tr>
@@ -617,7 +617,7 @@ export default function ApiReferencePage() {
                   Error Codes
                 </h2>
               </div>
-              <p className="text-white/70 mb-4">
+              <p className="text-white/85 mb-4">
                 All errors follow a standard format with a message, type, code,
                 and optional parameter field.
               </p>
@@ -669,7 +669,7 @@ export default function ApiReferencePage() {
                           </span>
                         </td>
                         <td className="py-2.5 px-4">
-                          <code className="text-xs text-white/60">
+                          <code className="text-xs text-white/80">
                             {error.type}
                           </code>
                         </td>
@@ -678,7 +678,7 @@ export default function ApiReferencePage() {
                             {error.code}
                           </code>
                         </td>
-                        <td className="py-2.5 px-4 text-sm text-white/60">
+                        <td className="py-2.5 px-4 text-sm text-white/80">
                           {error.description}
                         </td>
                       </tr>
@@ -695,7 +695,7 @@ export default function ApiReferencePage() {
               <h2 className="font-montserrat text-xl font-bold text-white mb-4">
                 Error Handling Best Practices
               </h2>
-              <p className="text-white/60 mb-6">
+              <p className="text-white/80 mb-6">
                 Always implement proper error handling with retry logic for rate
                 limits and server errors. Here are production-ready examples:
               </p>
@@ -727,7 +727,7 @@ export default function ApiReferencePage() {
                 <h4 className="text-sm font-semibold text-eos-orange mb-3">
                   Key Best Practices
                 </h4>
-                <ul className="space-y-2 text-sm text-white/70">
+                <ul className="space-y-2 text-sm text-white/85">
                   <li className="flex items-start gap-2">
                     <span className="text-eos-orange">1.</span>
                     <span>
@@ -770,7 +770,7 @@ export default function ApiReferencePage() {
               <h2 className="font-montserrat text-xl font-bold text-white mb-4">
                 Rate Limits
               </h2>
-              <p className="text-white/60 mb-4">
+              <p className="text-white/80 mb-4">
                 API keys have per-minute and daily request limits. Rate limit
                 headers are included in all responses.
               </p>
@@ -781,11 +781,11 @@ export default function ApiReferencePage() {
                   </h4>
                   <ul className="space-y-2">
                     <li className="flex items-center justify-between">
-                      <span className="text-white/60">Requests per minute</span>
+                      <span className="text-white/80">Requests per minute</span>
                       <code className="text-eos-orange">60</code>
                     </li>
                     <li className="flex items-center justify-between">
-                      <span className="text-white/60">Requests per day</span>
+                      <span className="text-white/80">Requests per day</span>
                       <code className="text-eos-orange">1,000</code>
                     </li>
                   </ul>

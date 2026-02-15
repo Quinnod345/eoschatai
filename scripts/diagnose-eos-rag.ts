@@ -93,7 +93,7 @@ async function diagnoseEOSRAG() {
       console.log(`Query: "${query}"`);
 
       const { embedding } = await embed({
-        model: openai.embedding('text-embedding-ada-002'),
+        model: openai.embedding('text-embedding-3-small'),
         value: query,
       });
 

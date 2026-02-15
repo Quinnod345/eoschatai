@@ -18,6 +18,7 @@ export interface UserRagResult {
 export async function getUserRagContextWithMetadata(
   userId: string,
   query = '',
+  precomputedEmbedding?: number[],
 ): Promise<UserRagResult> {
   if (!userId) {
     return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
@@ -28,68 +29,67 @@ export async function getUserRagContextWithMetadata(
       `User RAG: Fetching relevant documents for user ${userId} with query: "${query}"`,
     );
 
-    // Check user settings for context preferences
-    let preferredDocumentIds: string[] = [];
-    let includePrimaries = true;
+    // Run settings fetch and vector search in parallel to avoid sequential DB round-trips.
+    const settingsPromise = (async () => {
+      try {
+        const [settings] = await db
+          .select()
+          .from(userSettings)
+          .where(eq(userSettings.userId, userId))
+          .limit(1);
+        if (!settings) return [];
 
-    try {
-      const [settings] = await db
-        .select()
-        .from(userSettings)
-        .where(eq(userSettings.userId, userId))
-        .limit(1);
-
-      if (settings) {
-        includePrimaries = settings.usePrimaryDocsForContext ?? true;
-
-        // Get user-uploaded documents where isContext = true
-        const contextUserDocs = await db
-          .select({ id: userDocuments.id })
-          .from(userDocuments)
-          .where(
-            and(
-              eq(userDocuments.userId, userId),
-              eq(userDocuments.isContext, true),
+        const [contextUserDocs, contextComposerDocs] = await Promise.all([
+          db
+            .select({ id: userDocuments.id })
+            .from(userDocuments)
+            .where(
+              and(
+                eq(userDocuments.userId, userId),
+                eq(userDocuments.isContext, true),
+              ),
             ),
-          );
+          db
+            .select({ id: document.id })
+            .from(document)
+            .where(
+              and(eq(document.userId, userId), eq(document.isContext, true)),
+            ),
+        ]);
 
-        // Get composer documents where isContext = true
-        const contextComposerDocs = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(and(eq(document.userId, userId), eq(document.isContext, true)));
+        const ids = new Set([
+          ...contextUserDocs.map((d) => d.id),
+          ...contextComposerDocs.map((d) => d.id),
+        ]);
 
-        preferredDocumentIds = Array.from(
-          new Set([
-            ...contextUserDocs.map((d) => d.id),
-            ...contextComposerDocs.map((d) => d.id),
-          ]),
-        );
-
-        // Add primary documents if enabled
-        if (includePrimaries) {
-          const primaryIds = [
+        if (settings.usePrimaryDocsForContext ?? true) {
+          for (const pid of [
             settings.primaryAccountabilityId,
             settings.primaryVtoId,
             settings.primaryScorecardId,
-          ].filter(Boolean) as string[];
-          preferredDocumentIds = Array.from(
-            new Set([...preferredDocumentIds, ...primaryIds]),
-          );
+          ]) {
+            if (pid) ids.add(pid);
+          }
         }
+        return Array.from(ids);
+      } catch (settingsError) {
+        console.error('Error fetching user settings:', settingsError);
+        return [];
       }
-    } catch (settingsError) {
-      console.error('Error fetching user settings:', settingsError);
-    }
+    })();
 
-    // Get relevant user documents using RAG
-    // Use higher threshold (0.70) to avoid irrelevant document matches
-    const relevantDocs = await findRelevantUserContent(
+    const ragPromise = findRelevantUserContent(
       userId,
       query,
       14,
-      0.70, // Raised from 0.55 to 0.70 - only include highly relevant documents
+      0.55, // Adjusted for text-embedding-3-small (lower cosine scores than ada-002)
+      precomputedEmbedding,
     );
+
+    const [_preferredDocumentIds, relevantDocs] = await Promise.all([
+      settingsPromise,
+      ragPromise,
+    ]);
 
     if (!relevantDocs || relevantDocs.length === 0) {
       console.log('User RAG context: No relevant user documents found');
@@ -109,13 +109,15 @@ export async function getUserRagContextWithMetadata(
     }
 
     if (filteredDocs.length === 0) {
-      console.log('User RAG context: No relevant user documents found after filtering');
+      console.log(
+        'User RAG context: No relevant user documents found after filtering',
+      );
       return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
     }
 
     // Extract unique document IDs and names from the results (using filtered docs)
     const documentMap = new Map<string, string>();
-    
+
     for (const doc of filteredDocs) {
       if (doc.metadata?.documentId && doc.metadata?.fileName) {
         documentMap.set(doc.metadata.documentId, doc.metadata.fileName);
@@ -127,7 +129,8 @@ export async function getUserRagContextWithMetadata(
 
     // Build context text (simplified version of existing logic)
     let contextText = '## USER DOCUMENT CONTEXT\n\n';
-    contextText += 'The following information has been retrieved from the user\'s uploaded documents:\n\n';
+    contextText +=
+      "The following information has been retrieved from the user's uploaded documents:\n\n";
 
     // Group by category (using filtered docs)
     const documentsByCategory: Record<string, any[]> = {};
@@ -143,7 +146,7 @@ export async function getUserRagContextWithMetadata(
     for (const [category, docs] of Object.entries(documentsByCategory)) {
       contextText += `### ${category}\n\n`;
       const groupedByFile: Record<string, any[]> = {};
-      
+
       for (const doc of docs) {
         const fileName = doc.metadata?.fileName || 'Unknown';
         if (!groupedByFile[fileName]) {
@@ -181,4 +184,3 @@ Do not mention that you are using "user documents" or "uploaded documents" - jus
     return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
   }
 }
-

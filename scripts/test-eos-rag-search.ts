@@ -42,7 +42,7 @@ async function testSearch() {
     // Generate embedding for test query
     console.log(`\n2️⃣ Generating embedding for query: "${testQuery}"`);
     const { embedding } = await embed({
-      model: openai.embedding('text-embedding-ada-002'),
+      model: openai.embedding('text-embedding-3-small'),
       value: testQuery,
     });
     console.log(`Generated embedding with ${embedding.length} dimensions`);
