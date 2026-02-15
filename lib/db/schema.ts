@@ -888,41 +888,54 @@ export const documentShareOrg = pgTable(
 export type DocumentShareOrg = InferSelectModel<typeof documentShareOrg>;
 
 // User Memories tables
-export const userMemory = pgTable('UserMemory', {
-  id: uuid('id').primaryKey().notNull().defaultRandom(),
-  userId: uuid('userId')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  sourceMessageId: uuid('sourceMessageId').references(() => message.id, {
-    onDelete: 'set null',
+export const userMemory = pgTable(
+  'UserMemory',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sourceMessageId: uuid('sourceMessageId').references(() => message.id, {
+      onDelete: 'set null',
+    }),
+    summary: text('summary').notNull(),
+    content: text('content'),
+    topic: varchar('topic', { length: 128 }),
+    memoryType: varchar('memoryType', {
+      enum: [
+        'preference',
+        'profile',
+        'company',
+        'task',
+        'knowledge',
+        'personal',
+        'other',
+      ],
+    })
+      .notNull()
+      .default('other'),
+    confidence: integer('confidence').notNull().default(60), // 0-100
+    status: varchar('status', {
+      enum: ['active', 'pending', 'archived', 'dismissed'],
+    })
+      .notNull()
+      .default('active'),
+    // Normalized key used to enforce conflict-safe idempotent writes.
+    dedupeKey: text('dedupeKey'),
+    tags: jsonb('tags'),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+    expiresAt: timestamp('expiresAt'),
+  },
+  (table) => ({
+    memoryActiveDedupeIdx: uniqueIndex('user_memory_active_dedupe_idx').on(
+      table.userId,
+      table.memoryType,
+      table.status,
+      table.dedupeKey,
+    ),
   }),
-  summary: text('summary').notNull(),
-  content: text('content'),
-  topic: varchar('topic', { length: 128 }),
-  memoryType: varchar('memoryType', {
-    enum: [
-      'preference',
-      'profile',
-      'company',
-      'task',
-      'knowledge',
-      'personal',
-      'other',
-    ],
-  })
-    .notNull()
-    .default('other'),
-  confidence: integer('confidence').notNull().default(60), // 0-100
-  status: varchar('status', {
-    enum: ['active', 'pending', 'archived', 'dismissed'],
-  })
-    .notNull()
-    .default('active'),
-  tags: jsonb('tags'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-  expiresAt: timestamp('expiresAt'),
-});
+);
 
 export type UserMemory = InferSelectModel<typeof userMemory>;
 

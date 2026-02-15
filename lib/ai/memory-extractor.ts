@@ -3,7 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { db } from '@/lib/db';
 import { userMemory, userMemoryEmbedding } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { saveUserMemory } from '@/lib/ai/memory';
+import { buildMemoryDedupeKey, saveUserMemory } from '@/lib/ai/memory';
 import { createCustomProvider } from '@/lib/ai/providers';
 
 // Valid memory types matching the schema enum
@@ -92,7 +92,10 @@ async function deduplicateWithEmbedding(
     return { action: 'boost', existingId: match.id };
   } catch (error) {
     console.error('[AutoMemory] Dedup check failed:', error);
-    return { action: 'create' };
+    // Be conservative when dedup verification fails. The DB-level unique index
+    // still guards against races in saveUserMemory, but this avoids noisy inserts
+    // when similarity checks are temporarily unavailable.
+    return { action: 'skip' };
   }
 }
 
@@ -208,6 +211,27 @@ ${existingMemories || 'None yet.'}`,
       console.log(
         `[AutoMemory] Model returned no extractable facts for: "${opts.userMessage.substring(0, 80)}"`,
       );
+      return { saved: 0, updated: 0 };
+    }
+
+    // Drop duplicate facts returned by the extractor in this same turn.
+    const seenFactKeys = new Set<string>();
+    facts = facts.filter((fact) => {
+      const memoryType: MemoryType = VALID_TYPES.has(fact.type as MemoryType)
+        ? (fact.type as MemoryType)
+        : 'other';
+      const dedupeKey = buildMemoryDedupeKey(fact.summary);
+      if (!dedupeKey) return false;
+
+      const factKey = `${memoryType}:${dedupeKey}`;
+      if (seenFactKeys.has(factKey)) return false;
+
+      seenFactKeys.add(factKey);
+      return true;
+    });
+
+    if (facts.length === 0) {
+      console.log('[AutoMemory] Candidate facts collapsed to 0 after dedupe');
       return { saved: 0, updated: 0 };
     }
 

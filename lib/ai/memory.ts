@@ -4,6 +4,7 @@ import { z } from 'zod/v3';
 import { db } from '@/lib/db';
 import { userMemory, userMemoryEmbedding } from '@/lib/db/schema';
 import { generateChunks, generateEmbeddings } from '@/lib/ai/embeddings';
+import { eq, sql } from 'drizzle-orm';
 
 const MemoryDecisionSchema = z.object({
   shouldSave: z.boolean(),
@@ -24,6 +25,15 @@ const MemoryDecisionSchema = z.object({
 });
 
 export type MemoryDecision = z.infer<typeof MemoryDecisionSchema>;
+
+export function normalizeMemorySummary(summary: string): string {
+  return summary.replace(/\s+/g, ' ').trim();
+}
+
+export function buildMemoryDedupeKey(summary: string): string | null {
+  const normalized = normalizeMemorySummary(summary).toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
 
 export async function classifyMemoryCandidate(
   text: string,
@@ -55,20 +65,39 @@ export async function saveUserMemory(opts: {
   confidence?: number;
 }) {
   const now = new Date();
+  const normalizedSummary = normalizeMemorySummary(opts.summary);
+  const dedupeKey = buildMemoryDedupeKey(normalizedSummary);
+
   const [row] = await db
     .insert(userMemory)
     .values({
       userId: opts.userId,
       sourceMessageId: opts.sourceMessageId || null,
-      summary: opts.summary,
+      summary: normalizedSummary,
       content: opts.content || null,
       topic: opts.topic || null,
       memoryType: (opts.memoryType || 'other') as any,
       confidence: typeof opts.confidence === 'number' ? opts.confidence : 60,
       status: 'active' as any,
+      dedupeKey,
       tags: null,
       createdAt: now,
       updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        userMemory.userId,
+        userMemory.memoryType,
+        userMemory.status,
+        userMemory.dedupeKey,
+      ],
+      set: {
+        sourceMessageId: sql`COALESCE(excluded."sourceMessageId", ${userMemory.sourceMessageId})`,
+        content: sql`COALESCE(excluded."content", ${userMemory.content})`,
+        topic: sql`COALESCE(excluded."topic", ${userMemory.topic})`,
+        confidence: sql`GREATEST(excluded."confidence", ${userMemory.confidence})`,
+        updatedAt: now,
+      },
     })
     .returning();
 
@@ -77,12 +106,23 @@ export async function saveUserMemory(opts: {
     const text = `${row.summary}\n\n${row.content || ''}`.trim();
     const chunks = generateChunks(text, 512);
     const embeddings = await generateEmbeddings(chunks);
-    const values = embeddings.map((e) => ({
-      memoryId: row.id,
-      chunk: e.chunk,
-      embedding: e.embedding as any,
-    })) as any[];
-    if (values.length > 0) await db.insert(userMemoryEmbedding).values(values);
+    const existingChunks = await db
+      .select({ chunk: userMemoryEmbedding.chunk })
+      .from(userMemoryEmbedding)
+      .where(eq(userMemoryEmbedding.memoryId, row.id));
+
+    const existingChunkSet = new Set(existingChunks.map((chunk) => chunk.chunk));
+    const values = embeddings
+      .filter((embedding) => !existingChunkSet.has(embedding.chunk))
+      .map((embedding) => ({
+        memoryId: row.id,
+        chunk: embedding.chunk,
+        embedding: embedding.embedding as any,
+      })) as any[];
+
+    if (values.length > 0) {
+      await db.insert(userMemoryEmbedding).values(values);
+    }
   } catch (e) {
     console.error('Memory: failed to embed memory', e);
   }

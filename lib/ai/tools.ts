@@ -3,6 +3,7 @@ import { generateUUID } from '../utils';
 import { document } from '../db/schema';
 import { safeParseJson } from '../fetch-utils';
 import { z } from 'zod/v3';
+import { saveUserMemory } from './memory';
 
 // Helper function to check if environment variables are set correctly
 function checkEnvironmentVariables() {
@@ -217,20 +218,12 @@ export const addResourceTool: Tool<{ title: string; content: string }> = {
 
       // Also write a structured UserMemory row for future memory management
       try {
-        const { db } = await import('@/lib/db');
-        const { userMemory } = await import('@/lib/db/schema');
-        const now = new Date();
-        await db.insert(userMemory).values({
+        await saveUserMemory({
           userId,
           summary: normalizedTitle.replace(/^User Note:\s*/i, ''),
           content: contentText,
-          topic: null,
           memoryType: 'knowledge' as any,
           confidence: 70,
-          status: 'active' as any,
-          tags: null,
-          createdAt: now,
-          updatedAt: now,
         });
       } catch (memErr) {
         console.error(
