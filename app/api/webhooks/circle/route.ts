@@ -18,7 +18,10 @@ const hasValidWebhookSecret = (
   request: NextRequest,
   webhookSecret: string,
 ): boolean => {
-  const providedSecret = request.headers.get('x-circle-webhook-secret');
+  const providedSecret =
+    request.nextUrl.searchParams.get('secret') ||
+    request.headers.get('x-circle-webhook-secret');
+
   if (!providedSecret) {
     return false;
   }
@@ -52,16 +55,14 @@ export async function POST(request: NextRequest) {
   }
 
   const webhookSecret = process.env.CIRCLE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    console.error('[circle.webhook] CIRCLE_WEBHOOK_SECRET is not configured');
-    return NextResponse.json(
-      { error: 'Webhook secret is not configured' },
-      { status: 500 },
+  if (webhookSecret) {
+    if (!hasValidWebhookSecret(request, webhookSecret)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  } else {
+    console.warn(
+      '[circle.webhook] CIRCLE_WEBHOOK_SECRET is not set — accepting request without auth. Set this env var in production.',
     );
-  }
-
-  if (!hasValidWebhookSecret(request, webhookSecret)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const rawBody = await request.text();
