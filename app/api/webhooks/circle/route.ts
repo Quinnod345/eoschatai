@@ -125,3 +125,12 @@ export async function POST(request: NextRequest) {
     error: result.errorMessage,
   });
 }
+
+export async function GET() {
+  return NextResponse.json({
+    status: 'ok',
+    endpoint: '/api/webhooks/circle',
+    method: 'POST',
+    message: 'Circle webhook endpoint is active. Send POST requests to process events.',
+  });
+}

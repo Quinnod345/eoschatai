@@ -33,6 +33,17 @@ const PLAN_RANK: Record<PlanType, number> = {
 
 const circleWebhookPayloadSchema = z.object({}).passthrough();
 
+const circleNativePayloadSchema = z.object({
+  type: z.string(),
+  data: z.object({
+    community_id: z.number().optional(),
+    community_member_id: z.number(),
+    paywall_id: z.number(),
+    paywall_price_id: z.number().optional(),
+    currency_id: z.number().optional(),
+  }),
+});
+
 type JsonRecord = Record<string, unknown>;
 type CircleSyncSource = 'webhook' | 'nightly_reconciliation';
 
@@ -295,15 +306,202 @@ export const mapCircleTierToPlan = (tierName: string): PlanType | null => {
   return directMap ?? null;
 };
 
-export const parseCircleWebhookPayload = (
+const getCircleV1Config = () => {
+  const apiToken = process.env.CIRCLE_API_TOKEN;
+  if (!apiToken) {
+    throw new Error('CIRCLE_API_TOKEN is not configured');
+  }
+  const baseUrl = (
+    process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1'
+  ).replace(/\/$/, '');
+
+  return { apiToken, baseUrl };
+};
+
+const circleV1Request = async <T = unknown>(path: string): Promise<T> => {
+  const { apiToken, baseUrl } = getCircleV1Config();
+  const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  console.log(`[circle-sync] V1 API request: ${url}`);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Token ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `[circle-sync] Circle V1 API error (${response.status}) ${errorBody.slice(0, 300)}`,
+    );
+  }
+
+  return response.json() as Promise<T>;
+};
+
+type CircleV1MemberInfo = {
+  id: number;
+  email: string;
+  name: string | null;
+};
+
+type CircleV1PaywallInfo = {
+  id: number;
+  name: string;
+};
+
+const fetchCircleMemberById = async (
+  communityMemberId: number,
+): Promise<CircleV1MemberInfo> => {
+  const result = await circleV1Request<JsonRecord>(
+    `/community_members/${communityMemberId}`,
+  );
+
+  const email = toStringValue(result.email);
+  if (!email) {
+    throw new Error(
+      `Circle member ${communityMemberId} has no email in API response`,
+    );
+  }
+
+  return {
+    id: communityMemberId,
+    email,
+    name: toStringValue(result.name ?? result.full_name ?? result.first_name) ?? null,
+  };
+};
+
+const PAYWALL_ID_TO_TIER: Record<number, string> = (() => {
+  const envMapping = process.env.CIRCLE_PAYWALL_ID_MAP;
+  if (!envMapping) return {};
+  try {
+    const parsed = JSON.parse(envMapping);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const mapping: Record<number, string> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        const numericKey = Number(key);
+        if (Number.isFinite(numericKey) && typeof value === 'string') {
+          mapping[numericKey] = value;
+        }
+      }
+      return mapping;
+    }
+  } catch {
+    console.warn('[circle-sync] Failed to parse CIRCLE_PAYWALL_ID_MAP env var');
+  }
+  return {};
+})();
+
+const fetchCirclePaywallById = async (
+  paywallId: number,
+): Promise<CircleV1PaywallInfo> => {
+  const envName = PAYWALL_ID_TO_TIER[paywallId];
+  if (envName) {
+    console.log(
+      `[circle-sync] Resolved paywall ${paywallId} from CIRCLE_PAYWALL_ID_MAP: ${envName}`,
+    );
+    return { id: paywallId, name: envName };
+  }
+
+  try {
+    const result = await circleV1Request<JsonRecord>(`/paywalls/${paywallId}`);
+    const name = toStringValue(result.name ?? result.title ?? result.paywall_name);
+    if (name) {
+      return { id: paywallId, name };
+    }
+  } catch (error) {
+    console.warn(
+      `[circle-sync] Failed to fetch paywall ${paywallId} from API, trying paywalls list`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  try {
+    const list = await circleV1Request<JsonRecord[] | JsonRecord>('/paywalls');
+    const paywalls = Array.isArray(list) ? list : [];
+    for (const pw of paywalls) {
+      if (!isRecord(pw)) continue;
+      const pwId = toNumberValue(pw.id);
+      const pwName = toStringValue(pw.name ?? pw.title);
+      if (pwId === paywallId && pwName) {
+        return { id: paywallId, name: pwName };
+      }
+    }
+  } catch (listError) {
+    console.warn(
+      `[circle-sync] Failed to fetch paywalls list`,
+      listError instanceof Error ? listError.message : listError,
+    );
+  }
+
+  throw new Error(
+    `Could not resolve paywall name for paywall_id ${paywallId}. Set CIRCLE_PAYWALL_ID_MAP env var, e.g. '{"1":"Discover","2":"Strengthen","3":"Mastery"}'`,
+  );
+};
+
+const isCircleNativePayload = (payload: unknown): boolean => {
+  const result = circleNativePayloadSchema.safeParse(payload);
+  return result.success;
+};
+
+const parseCircleNativePayload = async (
   payload: unknown,
-): ParsedCirclePaymentPayload => {
+): Promise<ParsedCirclePaymentPayload> => {
+  const parsed = circleNativePayloadSchema.parse(payload);
+  const rawPayload = payload as JsonRecord;
+
+  const memberInfo = await fetchCircleMemberById(
+    parsed.data.community_member_id,
+  );
+
+  const paywallInfo = await fetchCirclePaywallById(parsed.data.paywall_id);
+
+  const mappedPlan = mapCircleTierToPlan(paywallInfo.name);
+  if (!mappedPlan) {
+    throw new Error(
+      `Unsupported Circle tier from paywall "${paywallInfo.name}" (paywall_id=${parsed.data.paywall_id})`,
+    );
+  }
+
+  return {
+    email: normalizeEmail(memberInfo.email),
+    name: memberInfo.name,
+    circleMemberId: String(parsed.data.community_member_id),
+    tierPurchased: paywallInfo.name,
+    mappedPlan,
+    amount: null,
+    currency: null,
+    occurredAt: new Date(),
+    rawPayload,
+  };
+};
+
+export const parseCircleWebhookPayload = async (
+  payload: unknown,
+): Promise<ParsedCirclePaymentPayload> => {
+  if (isCircleNativePayload(payload)) {
+    console.log(
+      '[circle-sync] Detected Circle native payload format, resolving IDs via API',
+    );
+    return parseCircleNativePayload(payload);
+  }
+
+  console.log(
+    '[circle-sync] Using generic payload parsing (non-native format)',
+  );
+
   const parsed = circleWebhookPayloadSchema.parse(payload);
   const rawPayload = parsed as JsonRecord;
 
   const tierPurchased = toStringValue(readFirst(rawPayload, TIER_PATHS));
   if (!tierPurchased) {
-    throw new Error('Missing tier/paywall name in Circle webhook payload');
+    throw new Error(
+      'Missing tier/paywall name in Circle webhook payload. ' +
+        'If Circle sends numeric paywall_id, ensure CIRCLE_API_TOKEN is set so the system can resolve the paywall name.',
+    );
   }
 
   const mappedPlan = mapCircleTierToPlan(tierPurchased);
@@ -700,7 +898,7 @@ export const processCirclePaymentEvent = async ({
   payload: unknown;
   source?: CircleSyncSource;
 }): Promise<CircleSyncResult> => {
-  const parsed = parseCircleWebhookPayload(payload);
+  const parsed = await parseCircleWebhookPayload(payload);
   return applyCirclePlanAssignment({
     eventId,
     source,
