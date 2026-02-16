@@ -355,9 +355,13 @@ type CircleV1PaywallInfo = {
 
 const fetchCircleMemberById = async (
   communityMemberId: number,
+  communityId?: number,
 ): Promise<CircleV1MemberInfo> => {
+  const communityParam = communityId
+    ? `?community_id=${communityId}`
+    : '';
   const result = await circleV1Request<JsonRecord>(
-    `/community_members/${communityMemberId}`,
+    `/community_members/${communityMemberId}${communityParam}`,
   );
 
   const email = toStringValue(result.email);
@@ -370,7 +374,10 @@ const fetchCircleMemberById = async (
   return {
     id: communityMemberId,
     email,
-    name: toStringValue(result.name ?? result.full_name ?? result.first_name) ?? null,
+    name:
+      toStringValue(
+        result.name ?? result.full_name ?? result.first_name,
+      ) ?? null,
   };
 };
 
@@ -397,6 +404,7 @@ const PAYWALL_ID_TO_TIER: Record<number, string> = (() => {
 
 const fetchCirclePaywallById = async (
   paywallId: number,
+  communityId?: number,
 ): Promise<CircleV1PaywallInfo> => {
   const envName = PAYWALL_ID_TO_TIER[paywallId];
   if (envName) {
@@ -406,8 +414,14 @@ const fetchCirclePaywallById = async (
     return { id: paywallId, name: envName };
   }
 
+  const communityParam = communityId
+    ? `?community_id=${communityId}`
+    : '';
+
   try {
-    const result = await circleV1Request<JsonRecord>(`/paywalls/${paywallId}`);
+    const result = await circleV1Request<JsonRecord>(
+      `/paywalls/${paywallId}${communityParam}`,
+    );
     const name = toStringValue(result.name ?? result.title ?? result.paywall_name);
     if (name) {
       return { id: paywallId, name };
@@ -420,7 +434,9 @@ const fetchCirclePaywallById = async (
   }
 
   try {
-    const list = await circleV1Request<JsonRecord[] | JsonRecord>('/paywalls');
+    const list = await circleV1Request<JsonRecord[] | JsonRecord>(
+      `/paywalls${communityParam}`,
+    );
     const paywalls = Array.isArray(list) ? list : [];
     for (const pw of paywalls) {
       if (!isRecord(pw)) continue;
@@ -455,9 +471,13 @@ const parseCircleNativePayload = async (
 
   const memberInfo = await fetchCircleMemberById(
     parsed.data.community_member_id,
+    parsed.data.community_id,
   );
 
-  const paywallInfo = await fetchCirclePaywallById(parsed.data.paywall_id);
+  const paywallInfo = await fetchCirclePaywallById(
+    parsed.data.paywall_id,
+    parsed.data.community_id,
+  );
 
   const mappedPlan = mapCircleTierToPlan(paywallInfo.name);
   if (!mappedPlan) {
@@ -913,7 +933,8 @@ const getCircleAdminConfig = () => {
   }
 
   const baseUrl = (
-    process.env.CIRCLE_ADMIN_API_BASE_URL || 'https://app.circle.so/api/v2'
+    process.env.CIRCLE_ADMIN_API_BASE_URL ||
+    'https://app.circle.so/api/admin/v2'
   ).replace(/\/$/, '');
 
   return { apiToken, baseUrl };
@@ -922,10 +943,11 @@ const getCircleAdminConfig = () => {
 const circleAdminRequest = async (path: string): Promise<unknown> => {
   const { apiToken, baseUrl } = getCircleAdminConfig();
   const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  console.log(`[circle-sync] Admin API request: ${url}`);
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      Authorization: `Bearer ${apiToken}`,
+      Authorization: `Token ${apiToken}`,
       'Content-Type': 'application/json',
     },
     cache: 'no-store',

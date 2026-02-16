@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { FEATURE_FLAGS } from '@/lib/config/feature-flags';
@@ -14,63 +13,111 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const hasValidWebhookSecret = (
-  request: NextRequest,
-  webhookSecret: string,
-): boolean => {
-  const providedSecret =
-    request.nextUrl.searchParams.get('secret') ||
-    request.headers.get('x-circle-webhook-secret');
-
-  if (!providedSecret) {
-    return false;
-  }
-
-  const expectedBuffer = Buffer.from(webhookSecret);
-  const providedBuffer = Buffer.from(providedSecret);
-  if (expectedBuffer.length !== providedBuffer.length) {
-    return false;
-  }
-
-  try {
-    return timingSafeEqual(expectedBuffer, providedBuffer);
-  } catch {
-    return false;
-  }
-};
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 const toPayloadRecord = (
   payload: unknown,
   rawBody: string,
 ): Record<string, unknown> => {
-  if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
-    return payload as Record<string, unknown>;
+  if (isRecord(payload)) {
+    return payload;
   }
   return { rawBody };
 };
 
+/**
+ * Unwrap Circle's webhook format.
+ * Circle workflow webhooks wrap the event in {"body": {...actual event...}}.
+ * This function returns the inner event object.
+ */
+const unwrapCirclePayload = (
+  payload: unknown,
+): Record<string, unknown> | null => {
+  if (!isRecord(payload)) return null;
+
+  if (isRecord(payload.body)) {
+    return payload.body as Record<string, unknown>;
+  }
+
+  if (typeof payload.type === 'string' && isRecord(payload.data)) {
+    return payload;
+  }
+
+  return payload;
+};
+
+/**
+ * HEAD — Circle sends this first to verify the endpoint exists.
+ * Must return 200.
+ */
+export async function HEAD() {
+  return new Response(null, { status: 200 });
+}
+
+/**
+ * GET — health check / verification.
+ */
+export async function GET() {
+  return NextResponse.json({
+    status: 'ok',
+    endpoint: '/api/webhooks/circle',
+    accepts: 'POST',
+  });
+}
+
+/**
+ * POST — the actual webhook handler.
+ */
 export async function POST(request: NextRequest) {
   if (!FEATURE_FLAGS.circle_sync) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const webhookSecret = process.env.CIRCLE_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    if (!hasValidWebhookSecret(request, webhookSecret)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  } else {
-    console.warn(
-      '[circle.webhook] CIRCLE_WEBHOOK_SECRET is not set — accepting request without auth. Set this env var in production.',
+  const rawBody = await request.text();
+
+  if (!rawBody || rawBody.trim().length === 0) {
+    return NextResponse.json({ received: true, test: true });
+  }
+
+  let outerPayload: unknown;
+  try {
+    outerPayload = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid JSON payload' },
+      { status: 400 },
     );
   }
 
-  const rawBody = await request.text();
-  let payload: unknown;
-  try {
-    payload = JSON.parse(rawBody);
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+  if (outerPayload === null || outerPayload === undefined) {
+    return NextResponse.json({ received: true, test: true });
+  }
+
+  if (isRecord(outerPayload) && outerPayload.body === null) {
+    return NextResponse.json({ received: true, test: true });
+  }
+
+  const payload = unwrapCirclePayload(outerPayload);
+  if (!payload) {
+    return NextResponse.json({ received: true, test: true });
+  }
+
+  if (
+    typeof payload.type === 'string' &&
+    (payload.type === 'test' ||
+      payload.type === 'webhooks.test' ||
+      payload.type === 'ping')
+  ) {
+    return NextResponse.json({ received: true, test: true });
+  }
+
+  if (!payload.type || !isRecord(payload.data)) {
+    console.warn(
+      '[circle.webhook] Received payload without type/data, treating as test',
+      { keys: Object.keys(payload) },
+    );
+    return NextResponse.json({ received: true, test: true });
   }
 
   const eventId = deriveCircleEventId({
@@ -80,7 +127,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (await hasCircleWebhookBeenProcessed(eventId)) {
-    return NextResponse.json({ received: true, deduplicated: true, eventId });
+    return NextResponse.json({
+      received: true,
+      deduplicated: true,
+      eventId,
+    });
   }
 
   let result: CircleSyncResult | null = null;
@@ -101,11 +152,18 @@ export async function POST(request: NextRequest) {
       error: errorMessage,
     });
 
-    await logCircleSyncError({
-      eventId,
-      payload: toPayloadRecord(payload, rawBody),
-      errorMessage,
-    });
+    try {
+      await logCircleSyncError({
+        eventId,
+        payload: toPayloadRecord(payload, rawBody),
+        errorMessage,
+      });
+    } catch (logError) {
+      console.error(
+        '[circle.webhook] Failed to log sync error',
+        logError,
+      );
+    }
 
     result = {
       eventId,
@@ -117,21 +175,19 @@ export async function POST(request: NextRequest) {
     };
   }
 
-  await markCircleWebhookProcessed(eventId);
+  try {
+    await markCircleWebhookProcessed(eventId);
+  } catch (markError) {
+    console.error(
+      '[circle.webhook] Failed to mark event processed',
+      markError,
+    );
+  }
 
   return NextResponse.json({
     received: true,
     eventId,
     action: result.action,
     error: result.errorMessage,
-  });
-}
-
-export async function GET() {
-  return NextResponse.json({
-    status: 'ok',
-    endpoint: '/api/webhooks/circle',
-    method: 'POST',
-    message: 'Circle webhook endpoint is active. Send POST requests to process events.',
   });
 }
