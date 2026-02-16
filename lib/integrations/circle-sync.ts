@@ -306,22 +306,31 @@ export const mapCircleTierToPlan = (tierName: string): PlanType | null => {
   return directMap ?? null;
 };
 
-const getCircleV1Config = () => {
-  const apiToken = process.env.CIRCLE_API_TOKEN;
+const getCircleAdminSyncConfig = () => {
+  const apiToken =
+    process.env.CIRCLE_ADMIN_API_TOKEN || process.env.CIRCLE_API_TOKEN;
   if (!apiToken) {
-    throw new Error('CIRCLE_API_TOKEN is not configured');
+    throw new Error(
+      'Neither CIRCLE_ADMIN_API_TOKEN nor CIRCLE_API_TOKEN is configured',
+    );
   }
-  const baseUrl = (
-    process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1'
-  ).replace(/\/$/, '');
+
+  const baseUrl = process.env.CIRCLE_ADMIN_API_TOKEN
+    ? (
+        process.env.CIRCLE_ADMIN_API_BASE_URL ||
+        'https://app.circle.so/api/admin/v2'
+      ).replace(/\/$/, '')
+    : (
+        process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1'
+      ).replace(/\/$/, '');
 
   return { apiToken, baseUrl };
 };
 
-const circleV1Request = async <T = unknown>(path: string): Promise<T> => {
-  const { apiToken, baseUrl } = getCircleV1Config();
+const circleSyncRequest = async <T = unknown>(path: string): Promise<T> => {
+  const { apiToken, baseUrl } = getCircleAdminSyncConfig();
   const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-  console.log(`[circle-sync] V1 API request: ${url}`);
+  console.log(`[circle-sync] API request: ${url}`);
 
   const response = await fetch(url, {
     method: 'GET',
@@ -335,20 +344,20 @@ const circleV1Request = async <T = unknown>(path: string): Promise<T> => {
   if (!response.ok) {
     const errorBody = await response.text();
     throw new Error(
-      `[circle-sync] Circle V1 API error (${response.status}) ${errorBody.slice(0, 300)}`,
+      `[circle-sync] Circle API error (${response.status}) ${errorBody.slice(0, 300)}`,
     );
   }
 
   return response.json() as Promise<T>;
 };
 
-type CircleV1MemberInfo = {
+type CircleMemberInfo = {
   id: number;
   email: string;
   name: string | null;
 };
 
-type CircleV1PaywallInfo = {
+type CirclePaywallInfo = {
   id: number;
   name: string;
 };
@@ -356,12 +365,9 @@ type CircleV1PaywallInfo = {
 const fetchCircleMemberById = async (
   communityMemberId: number,
   communityId?: number,
-): Promise<CircleV1MemberInfo> => {
-  const communityParam = communityId
-    ? `?community_id=${communityId}`
-    : '';
-  const result = await circleV1Request<JsonRecord>(
-    `/community_members/${communityMemberId}${communityParam}`,
+): Promise<CircleMemberInfo> => {
+  const result = await circleSyncRequest<JsonRecord>(
+    `/community_members/${communityMemberId}`,
   );
 
   const email = toStringValue(result.email);
@@ -404,8 +410,8 @@ const PAYWALL_ID_TO_TIER: Record<number, string> = (() => {
 
 const fetchCirclePaywallById = async (
   paywallId: number,
-  communityId?: number,
-): Promise<CircleV1PaywallInfo> => {
+  _communityId?: number,
+): Promise<CirclePaywallInfo> => {
   const envName = PAYWALL_ID_TO_TIER[paywallId];
   if (envName) {
     console.log(
@@ -414,13 +420,9 @@ const fetchCirclePaywallById = async (
     return { id: paywallId, name: envName };
   }
 
-  const communityParam = communityId
-    ? `?community_id=${communityId}`
-    : '';
-
   try {
-    const result = await circleV1Request<JsonRecord>(
-      `/paywalls/${paywallId}${communityParam}`,
+    const result = await circleSyncRequest<JsonRecord>(
+      `/paywalls/${paywallId}`,
     );
     const name = toStringValue(result.name ?? result.title ?? result.paywall_name);
     if (name) {
@@ -434,8 +436,8 @@ const fetchCirclePaywallById = async (
   }
 
   try {
-    const list = await circleV1Request<JsonRecord[] | JsonRecord>(
-      `/paywalls${communityParam}`,
+    const list = await circleSyncRequest<JsonRecord[] | JsonRecord>(
+      '/paywalls',
     );
     const paywalls = Array.isArray(list) ? list : [];
     for (const pw of paywalls) {

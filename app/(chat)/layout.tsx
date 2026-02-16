@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -8,6 +9,7 @@ import { AccountInitializer } from '@/components/account-initializer';
 import { AccountForceLoader } from '@/components/account-force-loader';
 import { SkipLink } from '@/components/skip-link';
 import { auth } from '../(auth)/auth';
+import { getUserWithOrg } from '@/lib/db/users';
 import Script from 'next/script';
 
 export const experimental_ppr = true;
@@ -19,6 +21,13 @@ export default async function Layout({
 }) {
   const [session, cookieStore] = await Promise.all([auth(), cookies()]);
   const isCollapsed = cookieStore.get('sidebar:state')?.value !== 'true';
+
+  if (session?.user?.id) {
+    const record = await getUserWithOrg(session.user.id);
+    if (record?.user.plan === 'business' && !record.user.orgId) {
+      redirect('/setup/organization');
+    }
+  }
 
   return (
     <>
