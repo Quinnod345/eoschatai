@@ -13,6 +13,7 @@ import { LoadingProvider } from '@/components/providers/loading-provider';
 import { UserSettingsProvider } from '@/components/user-settings-provider';
 import { SettingsEffectsManager } from '@/components/settings-effects-manager';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import './globals.css';
 import { SessionProvider } from 'next-auth/react';
@@ -146,6 +147,7 @@ export default async function RootLayout({
             </UserSettingsProvider>
           </SessionProvider>
           <Analytics />
+          <SpeedInsights />
         </ThemeProvider>
       </body>
     </html>
