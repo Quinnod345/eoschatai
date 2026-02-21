@@ -1120,6 +1120,67 @@ const runMigrate = async () => {
           console.error('Error creating ApiKeyUsage table:', error);
         }
 
+        // Add Circle.so payment sync schema
+        try {
+          console.log('Running Circle payment sync migrations...');
+
+          const circleMemberIdExists = await columnExists(
+            connection,
+            'User',
+            'circleMemberId',
+          );
+          if (!circleMemberIdExists) {
+            await connection`
+              ALTER TABLE "User" ADD COLUMN "circleMemberId" text
+            `;
+            console.log('Added circleMemberId column to User table');
+          } else {
+            console.log('circleMemberId column already exists in User table');
+          }
+
+          await connection`
+            CREATE INDEX IF NOT EXISTS "user_circle_member_idx"
+            ON "User" ("circleMemberId")
+          `;
+
+          const circleSyncLogExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables
+              WHERE table_name = 'CircleSyncLog'
+            ) as "exists"
+          `;
+          if (!circleSyncLogExists[0].exists) {
+            await connection`
+              CREATE TABLE "CircleSyncLog" (
+                "id" UUID PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+                "eventId" TEXT NOT NULL,
+                "circleMemberId" TEXT,
+                "email" TEXT,
+                "tierPurchased" TEXT,
+                "mappedPlan" plan_type,
+                "action" VARCHAR(64) NOT NULL,
+                "userId" UUID REFERENCES "User"("id") ON DELETE SET NULL,
+                "payload" JSONB NOT NULL DEFAULT '{}'::jsonb,
+                "errorMessage" TEXT,
+                "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+              )
+            `;
+            await connection`CREATE UNIQUE INDEX "circle_sync_log_event_id_idx" ON "CircleSyncLog"("eventId")`;
+            await connection`CREATE INDEX "circle_sync_log_member_idx" ON "CircleSyncLog"("circleMemberId")`;
+            await connection`CREATE INDEX "circle_sync_log_email_idx" ON "CircleSyncLog"("email")`;
+            await connection`CREATE INDEX "circle_sync_log_action_idx" ON "CircleSyncLog"("action")`;
+            await connection`CREATE INDEX "circle_sync_log_user_idx" ON "CircleSyncLog"("userId")`;
+            await connection`CREATE INDEX "circle_sync_log_created_at_idx" ON "CircleSyncLog"("createdAt")`;
+            console.log('Created CircleSyncLog table with indexes');
+          } else {
+            console.log('CircleSyncLog table already exists');
+          }
+
+          console.log('Circle payment sync migrations completed');
+        } catch (error) {
+          console.error('Error running Circle payment sync migrations:', error);
+        }
+
         const end = Date.now();
         console.log('✅ Migrations completed in', end - start, 'ms');
 

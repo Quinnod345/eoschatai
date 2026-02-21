@@ -1,6 +1,12 @@
 // @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ContextSource, AssembledContext } from '@/lib/ai/context-assembler';
+import {
+  assembleContextWithBudget,
+  extractContextContent,
+  type ContextSource,
+  type AssembledContext,
+} from '@/lib/ai/context-assembler';
+import { estimateTokenBudget } from '@/lib/ai/token-counter';
 
 // Mock the dependencies
 vi.mock('@/lib/ai/token-counter', () => ({
@@ -153,13 +159,61 @@ describe('ContextAssembler', () => {
       };
 
       expect(assembledContext.queryAnalysis).toBeDefined();
-      expect(assembledContext.queryAnalysis!.complexity).toBe('high');
+      expect(assembledContext.queryAnalysis?.complexity).toBe('high');
     });
   });
 
-  // Integration tests with mocked assembleContextWithBudget would go here
-  // but since it's a complex async function with many dependencies,
-  // we'll test the types and interfaces for now
+  describe('assembleContextWithBudget', () => {
+    it('assembles contexts in priority order and extracts category content', async () => {
+      const assembled = await assembleContextWithBudget({
+        userId: 'user-1',
+        query: 'How should I run an EOS Level 10 meeting?',
+        personaId: 'eos-implementer',
+        model: 'claude-3-sonnet',
+        conversationSummary: 'Prior conversation summary',
+      });
+
+      expect(assembled.contexts.length).toBeGreaterThan(0);
+      expect(assembled.contexts.map((ctx) => ctx.priority)).toEqual(
+        [...assembled.contexts.map((ctx) => ctx.priority)].sort(
+          (a, b) => a - b,
+        ),
+      );
+
+      const extracted = extractContextContent(assembled);
+      expect(extracted.systemRagContext).toContain('context');
+      expect(extracted.personaRagContext).toContain('Persona context content');
+      expect(extracted.memoryContext).toContain('Memory');
+      expect(extracted.userRagContext).toContain('User context content');
+      expect(extracted.companyContext).toContain('Company context content');
+      expect(extracted.conversationSummary).toContain(
+        'Prior conversation summary',
+      );
+    });
+
+    it('drops lower-priority contexts when token budget is constrained', async () => {
+      vi.mocked(estimateTokenBudget).mockImplementationOnce(() => ({
+        systemPromptBudget: 12,
+        userMessageBudget: 8,
+        maxOutputTokens: 4,
+      }));
+
+      const assembled = await assembleContextWithBudget({
+        userId: 'user-2',
+        query: 'Explain EOS scorecards',
+        personaId: 'eos-implementer',
+        model: 'claude-3-sonnet',
+        conversationSummary: 'Some prior history',
+      });
+
+      expect(assembled.totalTokens).toBeLessThanOrEqual(12);
+      expect(assembled.droppedContexts.length).toBeGreaterThan(0);
+      expect(assembled.droppedContexts.some((ctx) => ctx.priority >= 3)).toBe(
+        true,
+      );
+    });
+  });
+
   describe('Context Priority System', () => {
     it('should use correct priority ordering', () => {
       // Test the expected priority system:
@@ -192,8 +246,6 @@ describe('ContextAssembler', () => {
 
   describe('Token Budget Management', () => {
     it('should handle different model token budgets', () => {
-      const { estimateTokenBudget } = require('@/lib/ai/token-counter');
-      
       const claudeBudget = estimateTokenBudget('claude-3-sonnet');
       const gptBudget = estimateTokenBudget('gpt-4');
       

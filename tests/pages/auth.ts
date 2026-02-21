@@ -18,23 +18,27 @@ export class AuthPage {
     await this.gotoRegister();
     await this.page.getByPlaceholder('user@acme.com').click();
     await this.page.getByPlaceholder('user@acme.com').fill(email);
-    await this.page.getByLabel('Password').click();
-    await this.page.getByLabel('Password').fill(password);
-    await this.page.getByRole('button', { name: 'Sign Up' }).click();
+    await this.page.locator('input[name="password"]').fill(password);
+    await this.page.locator('input[name="confirmPassword"]').fill(password);
+    await this.page
+      .getByRole('checkbox', {
+        name: /I agree to the Terms of Service and Privacy Policy/i,
+      })
+      .check();
+    await this.page.getByRole('button', { name: /Create account/i }).click();
   }
 
   async login(email: string, password: string) {
     await this.gotoLogin();
     await this.page.getByPlaceholder('user@acme.com').click();
     await this.page.getByPlaceholder('user@acme.com').fill(email);
-    await this.page.getByLabel('Password').click();
-    await this.page.getByLabel('Password').fill(password);
-    await this.page.getByRole('button', { name: 'Sign In' }).click();
+    await this.page.locator('input[name="password"]').fill(password);
+    await this.page.getByRole('button', { name: /^Sign in$/i }).click();
   }
 
   async logout(email: string, password: string) {
     await this.login(email, password);
-    await this.page.waitForURL('/');
+    await this.page.waitForURL(/\/chat(?:\?.*)?$|\/$/);
 
     await this.openSidebar();
 

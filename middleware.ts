@@ -110,12 +110,33 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  // Authenticated users should default to chat when requesting the root URL.
+  // Allow intentional homepage access from inside the chat app via ?from=chat.
+  if (pathname === '/') {
+    const from = request.nextUrl.searchParams.get('from');
+    const canViewHomepage = from === 'chat';
+
+    if (!canViewHomepage) {
+      const token = await getToken({
+        req: request,
+        secret: process.env.AUTH_SECRET,
+        secureCookie: !isDevelopmentEnvironment,
+      });
+      const isGuest = guestRegex.test(token?.email ?? '');
+
+      if (token && !isGuest) {
+        return NextResponse.redirect(new URL('/chat', request.url));
+      }
+    }
+
+    return NextResponse.next();
+  }
+
   // Public routes that are always accessible without authentication
   if (
     pathname.startsWith('/api/auth') ||
     pathname === '/login' ||
     pathname === '/register' ||
-    pathname === '/' || // Allow access to the landing page without auth
     pathname === '/home.html' || // Allow access to static home page
     pathname === '/privacy-policy' || // Allow access to privacy policy
     pathname === '/terms' // Allow access to terms of service

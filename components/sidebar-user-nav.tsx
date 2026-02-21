@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Keyboard, LogOut, Settings, Mic } from 'lucide-react';
+import { Keyboard, LogOut, Settings, Mic, Home } from 'lucide-react';
 import { clientLogout } from '@/lib/auth-utils';
 import RecordingModal from '@/components/recording-modal';
 import {
@@ -323,6 +323,12 @@ export function SidebarUserNav({
                 <Code className="mr-2 h-4 w-4" />
                 <span>API Documentation</span>
               </DropdownMenuItem>
+              {!isGuest && (
+                <DropdownMenuItem onSelect={() => router.push('/?from=chat')}>
+                  <Home className="mr-2 h-4 w-4" />
+                  <span>Explore Homepage</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={() =>
                   window.open('https://eosworldwide.com', '_blank')

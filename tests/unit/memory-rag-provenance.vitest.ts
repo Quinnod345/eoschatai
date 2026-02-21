@@ -48,7 +48,11 @@ vi.mock('ai', () => ({
   embed: vi.fn(async () => ({ embedding: [0.1, 0.2, 0.3] })),
 }));
 
-import { formatMemoriesForPrompt, getRecentMemories } from '@/lib/ai/memory-rag';
+import {
+  findRelevantMemories,
+  formatMemoriesForPrompt,
+  getRecentMemories,
+} from '@/lib/ai/memory-rag';
 
 function mockRecentMemoryQuery() {
   return {
@@ -119,6 +123,29 @@ describe('memory rag provenance', () => {
     expect(result.formatted).toContain('## USER MEMORIES');
   });
 
+  it('counts semantic-fallback retrieval under semantic provenance', () => {
+    const result = formatMemoriesForPrompt([
+      {
+        id: 'm-fallback',
+        summary: 'Fallback semantic memory',
+        content: null,
+        memoryType: 'context',
+        confidence: 80,
+        topic: null,
+        relevance: 0.52,
+        createdAt: new Date('2026-02-01T00:00:00.000Z'),
+        retrievalSource: 'semantic-fallback',
+        similarity: 0.41,
+      },
+    ]);
+
+    expect(result.sourceCounts).toEqual({
+      semantic: 1,
+      recent: 0,
+      unembedded: 0,
+    });
+  });
+
   it('marks recency retrieval as non-semantic provenance', async () => {
     mocks.recentRows = [
       {
@@ -138,5 +165,14 @@ describe('memory rag provenance', () => {
     expect(memories[0].retrievalSource).toBe('recent');
     expect(memories[0].similarity).toBeNull();
     expect(memories[0].relevance).toBe(0);
+  });
+
+  it('returns an empty list when memory retrieval throws', async () => {
+    mocks.dbSelect.mockImplementation(() => {
+      throw new Error('db unavailable');
+    });
+
+    const memories = await findRelevantMemories('user-1', 'test query', 5, 0.5);
+    expect(memories).toEqual([]);
   });
 });
