@@ -15,12 +15,18 @@ import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
 import { fetcher, generateUUID } from '@/lib/utils';
-import { Composer, composerDefinitions } from './composer';
+import dynamic from 'next/dynamic';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
 import type { VisibilityType } from './visibility-selector';
 import { useComposer, useComposerSelector } from '@/hooks/use-composer';
-import type { ComposerKind } from './composer';
+import type { ComposerKind } from '@/lib/mentions/types';
+import { getStreamHandler } from '@/lib/composer/stream-handlers';
+
+const Composer = dynamic(
+  () => import('./composer').then((m) => ({ default: m.Composer })),
+  { ssr: false },
+);
 import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
 import { toast } from '@/lib/toast-system';
@@ -31,13 +37,24 @@ import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { ResearchMode } from './nexus-research-selector';
 import { useWebSearchProgress } from '@/hooks/use-web-search-progress';
-import { ReplyIndicator } from './reply-indicator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReplyState } from '@/hooks/use-reply-state';
 import { ComposerContextIndicator } from './composer-context-indicator';
-import { NexusFollowUpQuestions } from './nexus-followup-questions';
 import { Telescope } from 'lucide-react';
 import { ChatOverview } from './chat-overview';
+
+const NexusFollowUpQuestions = dynamic(
+  () =>
+    import('./nexus-followup-questions').then((m) => ({
+      default: m.NexusFollowUpQuestions,
+    })),
+  { ssr: false },
+);
+const ReplyIndicator = dynamic(
+  () =>
+    import('./reply-indicator').then((m) => ({ default: m.ReplyIndicator })),
+  { ssr: false },
+);
 import { ErrorBoundary } from './error-boundary';
 import {
   useStreamRecovery,
@@ -391,11 +408,9 @@ export function Chat({
             // Handle content deltas - find the appropriate composer handler
             // Use composerKindRef to get the current kind (avoids stale closure from React's batched state updates)
             const currentKind = composerKindRef.current;
-            const composerDef = composerDefinitions.find(
-              (def) => def.kind === currentKind,
-            );
-            if (composerDef?.onStreamPart) {
-              composerDef.onStreamPart({
+            if (currentKind) {
+              const handler = getStreamHandler(currentKind);
+              handler?.({
                 streamPart: { type: data.type, content: data.content },
                 setComposer,
                 setMetadata,

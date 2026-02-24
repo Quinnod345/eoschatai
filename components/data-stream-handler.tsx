@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { composerDefinitions, type ComposerKind } from './composer';
+import type { ComposerKind } from '@/lib/mentions/types';
+import { getStreamHandler } from '@/lib/composer/stream-handlers';
 import { initialComposerData, useComposer } from '@/hooks/use-composer';
 
 export type DataStreamDelta = {
@@ -72,17 +73,12 @@ export function DataStreamHandler({ id }: { id: string }) {
   // Process a delta with the kind-specific handler
   const processContentDelta = useCallback(
     (delta: DataStreamDelta, kind: ComposerKind) => {
-      const composerDefinition = composerDefinitions.find(
-        (def) => def.kind === kind,
-      );
-
-      if (composerDefinition?.onStreamPart) {
-        composerDefinition.onStreamPart({
-          streamPart: delta,
-          setComposer,
-          setMetadata,
-        });
-      }
+      const handler = getStreamHandler(kind);
+      handler?.({
+        streamPart: delta,
+        setComposer,
+        setMetadata,
+      });
     },
     [setComposer, setMetadata],
   );

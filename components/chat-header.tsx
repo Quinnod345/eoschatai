@@ -2,24 +2,44 @@
 import { useRouter } from 'next/navigation';
 import { useWindowSize } from 'usehooks-ts';
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 
 import { memo } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { VisibilityType } from './visibility-selector';
 import type { Session } from 'next-auth';
-import { PersonaWizard } from '@/components/persona-wizard';
 import type { Persona, PersonaProfile } from '@/lib/db/schema';
 import { Bookmark, Search } from 'lucide-react';
-import { AdvancedSearch } from '@/components/advanced-search';
 import { PlusIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
-import { Dropdown as SavedContentDropdown } from '@/components/saved-content-dropdown';
 import type { UIMessage } from 'ai';
 import GlassSurface from '@/components/GlassSurface';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Menu } from 'lucide-react';
+
+const PersonaWizard = dynamic(
+  () =>
+    import('@/components/persona-wizard').then((m) => ({
+      default: m.PersonaWizard,
+    })),
+  { ssr: false },
+);
+const AdvancedSearch = dynamic(
+  () =>
+    import('@/components/advanced-search').then((m) => ({
+      default: m.AdvancedSearch,
+    })),
+  { ssr: false },
+);
+const SavedContentDropdown = dynamic(
+  () =>
+    import('@/components/saved-content-dropdown').then((m) => ({
+      default: m.Dropdown,
+    })),
+  { ssr: false },
+);
 
 function PureChatHeader({
   chatId,

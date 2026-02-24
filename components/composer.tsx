@@ -24,13 +24,6 @@ import { ComposerCloseButton } from './composer-close-button';
 import { ComposerMessages } from './composer-messages';
 import { useSidebar } from './ui/sidebar';
 import { useComposer } from '@/hooks/use-composer';
-import { imageComposer } from '@/composer/image/client';
-import { codeComposer } from '@/composer/code/client';
-import { sheetComposer } from '@/composer/sheet/client';
-import { textComposer } from '@/composer/text/client';
-import { chartComposer } from '@/composer/chart/client';
-import { vtoComposer } from '@/composer/vto/client';
-import { accountabilityComposer } from '@/composer/accountability/client';
 import equal from 'fast-deep-equal';
 import type {
   ChatHelpers,
@@ -52,17 +45,60 @@ import {
   useAutoSave,
   useSaveStatusDisplay,
 } from '@/lib/composer/use-auto-save';
+import type { Composer as ComposerClass } from './create-composer';
+import type { ComposerKind } from '@/lib/mentions/types';
 
-export const composerDefinitions = [
-  textComposer,
-  codeComposer,
-  imageComposer,
-  sheetComposer,
-  chartComposer,
-  vtoComposer,
-  accountabilityComposer,
-];
-export type ComposerKind = (typeof composerDefinitions)[number]['kind'];
+export type { ComposerKind };
+
+type AnyComposerDef = ComposerClass<string, any>;
+
+const composerClientLoaders: Record<string, () => Promise<AnyComposerDef>> = {
+  text: () => import('@/composer/text/client').then((m) => m.textComposer),
+  code: () => import('@/composer/code/client').then((m) => m.codeComposer),
+  image: () => import('@/composer/image/client').then((m) => m.imageComposer),
+  sheet: () => import('@/composer/sheet/client').then((m) => m.sheetComposer),
+  chart: () => import('@/composer/chart/client').then((m) => m.chartComposer),
+  vto: () => import('@/composer/vto/client').then((m) => m.vtoComposer),
+  accountability: () =>
+    import('@/composer/accountability/client').then(
+      (m) => m.accountabilityComposer,
+    ),
+};
+
+const defCache = new Map<string, AnyComposerDef>();
+
+function useComposerDefinition(kind: string): AnyComposerDef | null {
+  const [def, setDef] = useState<AnyComposerDef | null>(
+    () => defCache.get(kind) ?? null,
+  );
+
+  useEffect(() => {
+    const cached = defCache.get(kind);
+    if (cached) {
+      setDef(cached);
+      return;
+    }
+    let cancelled = false;
+    composerClientLoaders[kind]?.().then((loaded) => {
+      defCache.set(kind, loaded);
+      if (!cancelled) setDef(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
+
+  return def;
+}
+
+export const composerDefinitions = {
+  find(predicate: (def: AnyComposerDef) => boolean): AnyComposerDef | undefined {
+    return Array.from(defCache.values()).find(predicate);
+  },
+  get kinds(): string[] {
+    return Object.keys(composerClientLoaders);
+  },
+};
 
 export interface UIComposer {
   title: string;
@@ -321,17 +357,10 @@ function PureComposer({
   const { width: windowWidth, height: windowHeight } = useWindowSize();
   const isMobile = useIsMobile();
 
-  const composerDefinition = composerDefinitions.find(
-    (definition) => definition.kind === composer.kind,
-  );
-
-  if (!composerDefinition) {
-    throw new Error('Composer definition not found!');
-  }
+  const composerDefinition = useComposerDefinition(composer.kind);
 
   useEffect(() => {
-    if (composer.documentId !== 'init') {
-      // Reset for new document
+    if (composer.documentId !== 'init' && composerDefinition) {
       console.log('[Composer] Document ID changed:', composer.documentId);
       initialLoadDoneRef.current = false;
       lastLoadedContentRef.current = null;
@@ -345,6 +374,24 @@ function PureComposer({
       }
     }
   }, [composer.documentId, composerDefinition, setMetadata]);
+
+  if (!composerDefinition) {
+    return (
+      <AnimatePresence>
+        {composer.isVisible && (
+          <motion.div
+            className="flex items-center justify-center h-dvh w-dvw fixed top-0 left-0 z-[100] bg-background"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="animate-pulse text-muted-foreground text-sm">
+              Loading composer...
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -604,6 +651,7 @@ function PureComposer({
 
               <ComposerHeaderActions
                 composer={composer}
+                composerDefinition={composerDefinition}
                 currentVersionIndex={resolveVersionIndex(
                   currentVersionIndex,
                   documents?.length ?? 0,
@@ -663,6 +711,7 @@ function PureComposer({
                     stop={stop}
                     setMessages={setMessages}
                     composerKind={composer.kind}
+                    composerDefinition={composerDefinition}
                   />
                 )}
               </AnimatePresence>

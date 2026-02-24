@@ -25,8 +25,9 @@ import {
 } from '@/components/ui/tooltip';
 
 import { ArrowUpIcon, StopIcon, SummarizeIcon } from './icons';
-import { composerDefinitions, type ComposerKind } from './composer';
+import type { ComposerKind } from '@/lib/mentions/types';
 import type { ComposerToolbarItem } from './create-composer';
+import type { Composer as ComposerClass } from './create-composer';
 import type { ChatHelpers, ChatStatus, AppendFunction } from './multimodal-input/types';
 
 type ToolProps = {
@@ -310,6 +311,7 @@ const PureToolbar = ({
   stop,
   setMessages,
   composerKind,
+  composerDefinition: composerDefinitionProp,
   chatId,
 }: {
   isToolbarVisible: boolean;
@@ -319,6 +321,7 @@ const PureToolbar = ({
   stop: ChatHelpers['stop'];
   setMessages: ChatHelpers['setMessages'];
   composerKind: ComposerKind;
+  composerDefinition?: ComposerClass<string, any>;
   chatId?: string;
 }) => {
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -363,15 +366,11 @@ const PureToolbar = ({
     }
   }, [status, setIsToolbarVisible]);
 
-  const composerDefinition = composerDefinitions.find(
-    (definition) => definition.kind === composerKind,
-  );
-
-  if (!composerDefinition) {
-    throw new Error('Composer definition not found!');
+  if (!composerDefinitionProp) {
+    return null;
   }
 
-  const toolsByComposerKind = composerDefinition.toolbar;
+  const toolsByComposerKind = composerDefinitionProp.toolbar;
 
   if (toolsByComposerKind.length === 0) {
     return null;

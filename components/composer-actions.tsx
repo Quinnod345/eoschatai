@@ -1,6 +1,7 @@
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { composerDefinitions, type UIComposer } from './composer';
+import type { UIComposer } from './composer';
+import type { Composer as ComposerClass } from './create-composer';
 import { type Dispatch, memo, type SetStateAction, useState } from 'react';
 import type { ComposerActionContext } from './create-composer';
 import { cn } from '@/lib/utils';
@@ -8,6 +9,7 @@ import { toast } from '@/lib/toast-system';
 
 interface ComposerActionsProps {
   composer: UIComposer;
+  composerDefinition: ComposerClass<string, any>;
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
   currentVersionIndex: number;
   isCurrentVersion: boolean;
@@ -18,6 +20,7 @@ interface ComposerActionsProps {
 
 function PureComposerActions({
   composer,
+  composerDefinition,
   handleVersionChange,
   currentVersionIndex,
   isCurrentVersion,
@@ -26,14 +29,6 @@ function PureComposerActions({
   setMetadata,
 }: ComposerActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
-
-  const composerDefinition = composerDefinitions.find(
-    (definition) => definition.kind === composer.kind,
-  );
-
-  if (!composerDefinition) {
-    throw new Error('Composer definition not found!');
-  }
 
   const actionContext: ComposerActionContext = {
     content: composer.content,

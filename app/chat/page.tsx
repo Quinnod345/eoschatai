@@ -1,8 +1,14 @@
 import { cookies } from 'next/headers';
 
 import { ChatClientWrapper } from '@/components/chat-client-wrapper';
-import { ComposerDashboard } from '@/components/composer-dashboard';
+import dynamic from 'next/dynamic';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
+
+const ComposerDashboard = dynamic(() =>
+  import('@/components/composer-dashboard').then((m) => ({
+    default: m.ComposerDashboard,
+  })),
+);
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import { generateUUID } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
