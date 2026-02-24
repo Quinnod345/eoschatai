@@ -75,7 +75,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [openModal]);
 
-  const refreshRef = useRef<() => Promise<void>>();
+  const refreshRef = useRef<(() => Promise<void>) | null>(null);
 
   const refresh = useCallback(async () => {
     console.log('[AccountProvider] Refresh called', {

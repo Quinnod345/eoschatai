@@ -9,8 +9,8 @@
  *   tsx scripts/sync-all-circle-courses.ts [--force]
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
@@ -37,7 +37,7 @@ const COURSES: Course[] = [
   { id: '907974', name: 'Test', spaceCount: 1 },
 ];
 
-async function syncAllCourses(forceResync: boolean = false) {
+async function syncAllCourses(forceResync = false) {
   console.log('\n╔════════════════════════════════════════════════════════════╗');
   console.log('║          Sync ALL Circle Courses to Upstash               ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
@@ -62,9 +62,9 @@ async function syncAllCourses(forceResync: boolean = false) {
     const course = COURSES[i];
     const progress = `[${i + 1}/${COURSES.length}]`;
 
-    console.log('\n' + '═'.repeat(70));
+    console.log(`\n${'═'.repeat(70)}`);
     console.log(`${progress} ${course.name} (ID: ${course.id})`);
-    console.log('═'.repeat(70) + '\n');
+    console.log(`${'═'.repeat(70)}\n`);
 
     try {
       // Build command
@@ -94,9 +94,9 @@ async function syncAllCourses(forceResync: boolean = false) {
         course,
         success: true,
         stats: {
-          documents: docsMatch ? parseInt(docsMatch[1]) : 0,
-          chunks: chunksMatch ? parseInt(chunksMatch[1]) : 0,
-          vectors: vectorsMatch ? parseInt(vectorsMatch[1]) : 0,
+          documents: docsMatch ? Number.parseInt(docsMatch[1]) : 0,
+          chunks: chunksMatch ? Number.parseInt(chunksMatch[1]) : 0,
+          vectors: vectorsMatch ? Number.parseInt(vectorsMatch[1]) : 0,
           retention: retentionMatch ? retentionMatch[1] : 'N/A',
         },
       });

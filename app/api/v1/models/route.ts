@@ -5,7 +5,7 @@
  * OpenAI-compatible endpoint.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import {
   validateApiRequest,
   addRateLimitHeaders,

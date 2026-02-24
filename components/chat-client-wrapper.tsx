@@ -8,7 +8,6 @@ import type { VisibilityType } from '@/components/visibility-selector';
 import type { ResearchMode } from '@/components/nexus-research-selector';
 import type { Session } from 'next-auth';
 import { useEffect, useState, useCallback } from 'react';
-import { generateUUID } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { toast } from 'sonner';
 

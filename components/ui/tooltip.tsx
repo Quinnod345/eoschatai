@@ -16,7 +16,7 @@ interface TooltipContextValue {
   setIsOpen: (open: boolean) => void;
   content: React.ReactNode;
   setContent: (content: React.ReactNode) => void;
-  triggerRef: React.RefObject<HTMLElement>;
+  triggerRef: React.RefObject<HTMLElement | null>;
   delayDuration: number;
 }
 
@@ -75,7 +75,7 @@ export const TooltipTrigger = React.forwardRef<
   const context = React.useContext(TooltipContext);
   if (!context) throw new Error('TooltipTrigger must be used within Tooltip');
 
-  const timeoutRef = React.useRef<NodeJS.Timeout>();
+  const timeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
 
   const handleMouseEnter = React.useCallback(() => {
     // Add delay before showing tooltip
@@ -116,11 +116,13 @@ export const TooltipTrigger = React.forwardRef<
     },
     onMouseEnter: (e: React.MouseEvent) => {
       handleMouseEnter();
-      child.props.onMouseEnter?.(e);
+      (child.props as { onMouseEnter?: (e: React.MouseEvent) => void })
+        .onMouseEnter?.(e);
     },
     onMouseLeave: (e: React.MouseEvent) => {
       handleMouseLeave();
-      child.props.onMouseLeave?.(e);
+      (child.props as { onMouseLeave?: (e: React.MouseEvent) => void })
+        .onMouseLeave?.(e);
     },
     ...props,
   } as any);

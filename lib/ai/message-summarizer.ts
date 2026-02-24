@@ -44,7 +44,7 @@ export async function summarizeOlderMessages(
 
     // Generate summary using Claude 3.5 Haiku
     const summary = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       prompt: `You are summarizing an older conversation to preserve key context. Create a concise but comprehensive summary that captures:
 
 1. Main topics discussed

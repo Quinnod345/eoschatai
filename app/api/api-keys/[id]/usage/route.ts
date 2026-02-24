@@ -17,7 +17,7 @@ export async function GET(
 
     const { id } = await params;
     const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get('days') || '30', 10);
+    const days = Number.parseInt(url.searchParams.get('days') || '30', 10);
 
     if (!id) {
       return NextResponse.json(

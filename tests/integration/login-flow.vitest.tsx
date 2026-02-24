@@ -154,7 +154,7 @@ describe('Login/Logout Flow Integration', () => {
       expect(submitButton).toBeDisabled();
 
       // Resolve the promise
-      resolveSignIn!({ ok: true, error: null, status: 200, url: '/chat' });
+      resolveSignIn?.({ ok: true, error: null, status: 200, url: '/chat' });
 
       await waitFor(() => {
         expect(screen.queryByText(/signing in/i)).not.toBeInTheDocument();

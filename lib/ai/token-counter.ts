@@ -1,4 +1,4 @@
-import { Tiktoken, encoding_for_model } from 'tiktoken';
+import { type Tiktoken, encoding_for_model } from 'tiktoken';
 
 // Cache encodings to avoid recreating them
 const encodingCache: Record<string, Tiktoken> = {};
@@ -9,7 +9,7 @@ const encodingCache: Record<string, Tiktoken> = {};
  * @param model - Model name (default: 'gpt-4')
  * @returns Number of tokens
  */
-export function countTokens(text: string, model: string = 'gpt-4'): number {
+export function countTokens(text: string, model = 'gpt-4'): number {
   if (!text) return 0;
 
   try {
@@ -34,7 +34,7 @@ export function countTokens(text: string, model: string = 'gpt-4'): number {
         'claude-sonnet': 'gpt-4',
         'claude-sonnet-4-5-20250929': 'gpt-4',
         'claude-sonnet-4-20250514': 'gpt-4',
-        'claude-3-5-haiku-20241022': 'gpt-4',
+        'claude-haiku-4-5-20251001': 'gpt-4',
         'claude-3-5-sonnet-20241022': 'gpt-4',
         'claude-3-opus-20240229': 'gpt-4',
       };
@@ -162,7 +162,7 @@ export function estimateTokenBudget(model: string): {
       message: 12000,
       response: 64000,
     },
-    'claude-3-5-haiku-20241022': {
+    'claude-haiku-4-5-20251001': {
       max: 200000,
       system: 8000,
       message: 6000,
@@ -196,7 +196,7 @@ export function estimateTokenBudget(model: string): {
 export function fitsWithinBudget(
   text: string,
   budget: number,
-  model: string = 'gpt-4',
+  model = 'gpt-4',
 ): { fits: boolean; tokens: number; remaining: number } {
   const tokens = countTokens(text, model);
   const remaining = budget - tokens;
@@ -218,7 +218,7 @@ export function fitsWithinBudget(
 export function truncateToFit(
   text: string,
   budget: number,
-  model: string = 'gpt-4',
+  model = 'gpt-4',
 ): string {
   const tokens = countTokens(text, model);
 
@@ -232,7 +232,7 @@ export function truncateToFit(
 
   // Truncate and add ellipsis
   const truncated = text.substring(0, targetChars);
-  return truncated + '...[truncated to fit token budget]';
+  return `${truncated}...[truncated to fit token budget]`;
 }
 
 /**
@@ -243,7 +243,7 @@ export function truncateToFit(
  */
 export function countMultiple(
   texts: string[],
-  model: string = 'gpt-4',
+  model = 'gpt-4',
 ): number[] {
   return texts.map((text) => countTokens(text, model));
 }
@@ -254,6 +254,6 @@ export function countMultiple(
  * @param model - Model name
  * @returns Total token count
  */
-export function countTotal(texts: string[], model: string = 'gpt-4'): number {
+export function countTotal(texts: string[], model = 'gpt-4'): number {
   return texts.reduce((sum, text) => sum + countTokens(text, model), 0);
 }

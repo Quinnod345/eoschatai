@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { userDocuments } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { canUpload, updateUserStorage, reserveStorageAtomic, releaseStorageReservation } from '@/lib/storage/tracking';
+import { reserveStorageAtomic, releaseStorageReservation } from '@/lib/storage/tracking';
 import { processUserDocument } from '@/lib/ai/user-rag';
 import { computeStringHash } from '@/lib/utils/file-hash';
 import { createApiErrorResponse } from '@/lib/errors';

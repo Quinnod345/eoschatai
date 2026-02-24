@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ChevronLeft,
@@ -486,7 +486,7 @@ interface FeatureCardProps {
   isSelected: boolean;
   onClick: () => void;
   getCategoryColor: (categoryId: string) => string;
-  getIcon: (iconName: string) => JSX.Element;
+  getIcon: (iconName: string) => React.ReactElement;
 }
 
 function FeatureCard({

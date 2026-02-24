@@ -648,13 +648,16 @@ const NonMemoizedMarkdown = ({ children, citations = [] }: MarkdownProps) => {
           .map((child) => {
             if (typeof child === 'string') {
               return child;
-            } else if (React.isValidElement(child) && child.props.children) {
-              // Recursively extract text from nested elements
-              return React.Children.toArray(child.props.children)
-                .map((nestedChild) =>
-                  typeof nestedChild === 'string' ? nestedChild : '',
-                )
-                .join('');
+            } else if (React.isValidElement(child)) {
+              const props = child.props as { children?: React.ReactNode };
+              if (props.children) {
+                // Recursively extract text from nested elements
+                return React.Children.toArray(props.children)
+                  .map((nestedChild) =>
+                    typeof nestedChild === 'string' ? nestedChild : '',
+                  )
+                  .join('');
+              }
             }
             return '';
           })

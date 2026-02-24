@@ -26,7 +26,7 @@ export function CustomTooltip({
   const [mounted, setMounted] = React.useState(false);
   const triggerRef = React.useRef<HTMLElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout>();
+  const timeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
 
   React.useEffect(() => {
     setMounted(true);

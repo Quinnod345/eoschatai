@@ -1,5 +1,5 @@
 import 'server-only';
-import { randomBytes } from 'crypto';
+import { randomBytes } from 'node:crypto';
 import { genSaltSync, hashSync, compareSync } from 'bcrypt-ts';
 
 // AI SDK 5: generateId no longer takes length argument

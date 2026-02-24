@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isAdminEmail } from '@/lib/auth/admin';
+import { chatTitleSchema } from '@/lib/validation/schemas';
 
 export async function GET(
   request: NextRequest,
@@ -71,7 +72,11 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    let body;
+    let body: {
+      personaId?: string | null;
+      profileId?: string | null;
+      title?: unknown;
+    };
     try {
       body = await request.json();
     } catch (jsonError) {
@@ -80,13 +85,26 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const { personaId, profileId } = body;
+    const { personaId, profileId, title } = body;
+
+    let validatedTitle: string | undefined;
+    if ('title' in body) {
+      const titleValidation = chatTitleSchema.safeParse(title);
+      if (!titleValidation.success) {
+        return NextResponse.json(
+          { error: 'Invalid title. Title must be 1-200 characters.' },
+          { status: 400 },
+        );
+      }
+      validatedTitle = titleValidation.data;
+    }
 
     console.log('PERSONA_SWITCH: Starting persona/profile update', {
       chatId: id,
       userId: session.user.id,
       personaId: personaId,
       profileId: profileId,
+      title: validatedTitle,
       timestamp: new Date().toISOString(),
     });
 
@@ -132,6 +150,7 @@ export async function PATCH(
         currentTitle: foundChat.title,
         newPersonaId: personaId,
         newProfileId: profileId,
+        newTitle: validatedTitle,
         isCurrentlyEOSImplementer:
           foundChat.title.includes('|||EOS_META:') &&
           foundChat.title.includes('"persona":"eos-implementer"'),
@@ -223,9 +242,31 @@ export async function PATCH(
       }
     }
 
+    if (validatedTitle !== undefined) {
+      const metadataDelimiter = '|||EOS_META:';
+      const titleSource = titleUpdate ?? foundChat.title;
+      const metadataStartIndex = titleSource.indexOf(metadataDelimiter);
+
+      if (metadataStartIndex >= 0) {
+        const metadataPart = titleSource.slice(
+          metadataStartIndex + metadataDelimiter.length,
+        );
+        titleUpdate = `${validatedTitle}${metadataDelimiter}${metadataPart}`;
+      } else {
+        titleUpdate = validatedTitle;
+      }
+    }
+
     // Add title update to updateData if needed
     if (titleUpdate !== undefined) {
       updateData.title = titleUpdate;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No valid fields to update' },
+        { status: 400 },
+      );
     }
 
     console.log('PERSONA_SWITCH: Final update data before database call', {

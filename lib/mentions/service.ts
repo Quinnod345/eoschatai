@@ -11,9 +11,7 @@ import type {
   ComposerKind,
 } from './types';
 import {
-  COMPOSER_KIND_TO_MENTION_TYPE,
   COMPOSER_KIND_ICONS,
-  COMPOSER_KIND_DISPLAY_NAMES,
   COMPOSER_KIND_COLORS,
   COMPOSER_MENTION_SHORTCUTS,
 } from './types';

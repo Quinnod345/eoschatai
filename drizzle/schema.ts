@@ -15,7 +15,6 @@ import {
   vector,
   primaryKey,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 export const suggestion = pgTable(
   'Suggestion',

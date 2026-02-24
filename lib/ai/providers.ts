@@ -71,12 +71,12 @@ const getModelConfig = () => {
     memoizedModelConfig = {
       // Primary chat model - Claude 4.5 Sonnet
       'chat-model': anthropic('claude-sonnet-4-5-20250929'),
-      // Title generation - Claude 3.5 Haiku (fast and cheap)
-      'title-model': anthropic('claude-3-5-haiku-20241022'),
+      // Title generation - Claude 4.5 Haiku (fast and cheap)
+      'title-model': anthropic('claude-haiku-4-5-20251001'),
       // Composer/document generation - Claude 4.5 Sonnet
       'composer-model': anthropic('claude-sonnet-4-5-20250929'),
-      // Preflight model selection - Claude 3.5 Haiku
-      'preflight-model': anthropic('claude-3-5-haiku-20241022'),
+      // Preflight model selection - Claude 4.5 Haiku
+      'preflight-model': anthropic('claude-haiku-4-5-20251001'),
       // Image generation - keep OpenAI
       'small-model': openai('gpt-image-1'),
       // Claude 4.5 Sonnet - used for all chat queries

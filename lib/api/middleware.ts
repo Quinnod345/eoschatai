@@ -5,7 +5,7 @@
  * authentication, rate limiting, and request validation.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, checkRateLimit } from './keys';
 import type { ApiKey, User, Org } from '@/lib/db/schema';
 

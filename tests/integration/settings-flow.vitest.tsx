@@ -417,7 +417,7 @@ describe('Settings Flow Integration', () => {
               max="2"
               step="0.1"
               value={aiSettings.temperature}
-              onChange={(e) => setAISettings({ ...aiSettings, temperature: parseFloat(e.target.value) })}
+              onChange={(e) => setAISettings({ ...aiSettings, temperature: Number.parseFloat(e.target.value) })}
               data-testid="temperature-slider"
             />
             <span data-testid="temperature-value">{aiSettings.temperature}</span>
@@ -425,7 +425,7 @@ describe('Settings Flow Integration', () => {
             <input
               type="number"
               value={aiSettings.maxTokens}
-              onChange={(e) => setAISettings({ ...aiSettings, maxTokens: parseInt(e.target.value) })}
+              onChange={(e) => setAISettings({ ...aiSettings, maxTokens: Number.parseInt(e.target.value) })}
               data-testid="max-tokens-input"
             />
 
@@ -485,7 +485,7 @@ describe('Settings Flow Integration', () => {
               max="2"
               step="0.1"
               value={temperature}
-              onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
+              onChange={(e) => handleTemperatureChange(Number.parseFloat(e.target.value))}
               data-testid="temperature-slider"
             />
             {error && <div data-testid="error">{error}</div>}

@@ -8,7 +8,6 @@ import {
   fetchCourseContent,
   courseToDocuments,
 } from '@/lib/integrations/circle';
-import { processPersonaDocuments } from '@/lib/ai/persona-rag';
 
 /**
  * Sync Course API Endpoint

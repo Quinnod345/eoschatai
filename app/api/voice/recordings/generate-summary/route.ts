@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Generate summary using Claude Haiku
     const completion = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       messages: [
         {

@@ -12,7 +12,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 interface ScrollFloatProps {
   children: ReactNode;
-  scrollContainerRef?: RefObject<HTMLElement>;
+  scrollContainerRef?: RefObject<HTMLElement | null>;
   containerClassName?: string;
   textClassName?: string;
   animationDuration?: number;

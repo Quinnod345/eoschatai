@@ -117,7 +117,7 @@ export function getVoiceModeTitle(content: string): string {
   // Truncate if too long
   const maxLength = 60;
   if (firstSentence.length > maxLength) {
-    return firstSentence.substring(0, maxLength) + '...';
+    return `${firstSentence.substring(0, maxLength)}...`;
   }
 
   return firstSentence;

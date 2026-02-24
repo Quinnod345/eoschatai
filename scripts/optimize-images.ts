@@ -1,6 +1,6 @@
 import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const featuresDir = path.join(process.cwd(), 'public/images/features');
 const outputDir = path.join(featuresDir, 'optimized');

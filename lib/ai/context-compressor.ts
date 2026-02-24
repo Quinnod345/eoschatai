@@ -7,13 +7,13 @@ import { countTokens } from './token-counter';
  * Uses LLM to intelligently compress while preserving key information
  * @param text - Text to compress
  * @param maxTokens - Maximum tokens allowed
- * @param model - Model to use for compression (default: claude-3-5-haiku for speed)
+ * @param model - Model to use for compression (default: claude-haiku-4-5 for speed)
  * @returns Compressed text
  */
 export async function compressContext(
   text: string,
   maxTokens: number,
-  model: string = 'claude-3-5-haiku-20241022',
+  model = 'claude-haiku-4-5-20251001',
 ): Promise<string> {
   if (!text || maxTokens <= 0) {
     return '';
@@ -36,7 +36,7 @@ export async function compressContext(
 
     // Use Claude 3.5 Haiku for fast, cost-effective compression
     const result = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       prompt: `You are compressing context to fit a token budget while preserving all key information.
 
 ORIGINAL TEXT (${currentTokens} tokens):
@@ -117,7 +117,7 @@ function truncateAggressively(
 export async function compressMultipleContexts(
   contexts: Array<{ content: string; priority: number; name: string }>,
   totalBudget: number,
-  model: string = 'gpt-4o-mini',
+  model = 'gpt-4o-mini',
 ): Promise<Array<{ content: string; originalTokens: number; compressedTokens: number; name: string }>> {
   // Calculate token allocations based on priority
   // Higher priority (lower number) gets more budget
@@ -173,11 +173,11 @@ export async function compressMultipleContexts(
  */
 export async function extractKeyPoints(
   text: string,
-  maxPoints: number = 10,
+  maxPoints = 10,
 ): Promise<string> {
   try {
     const result = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       prompt: `Extract the ${maxPoints} most important points from this text as a concise bulleted list:
 
 ${text}

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
-import { document, composerMention, chat, message } from '@/lib/db/schema';
-import { eq, and, sql, desc, gte, count } from 'drizzle-orm';
+import { document, composerMention, chat, } from '@/lib/db/schema';
+import { eq, and, sql, desc, gte, } from 'drizzle-orm';
 
 /**
  * Composer statistics
@@ -282,7 +282,7 @@ export async function getComposerMentionHistory(
   const { limit = 50, since } = options || {};
 
   try {
-    let query = db
+    const query = db
       .select({
         id: composerMention.id,
         chatId: composerMention.mentionedInChatId,

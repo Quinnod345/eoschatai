@@ -1,4 +1,4 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Sign Up Free - Start Your AI-Powered EOS Journey | EOS AI',

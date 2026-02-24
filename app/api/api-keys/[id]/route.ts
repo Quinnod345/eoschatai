@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { db } from '@/lib/db';
 import { apiKey } from '@/lib/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, } from 'drizzle-orm';
 
 // DELETE /api/api-keys/[id] - Revoke an API key
 export async function DELETE(

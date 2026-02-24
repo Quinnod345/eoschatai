@@ -34,7 +34,7 @@ export function CitationButton({
     // Ensure URL is properly formatted
     let targetUrl = url.trim();
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-      targetUrl = 'https://' + targetUrl;
+      targetUrl = `https://${targetUrl}`;
     }
 
     console.log('[CitationButton] Opening URL:', targetUrl);
@@ -74,7 +74,7 @@ export function CitationButton({
                   try {
                     const formattedUrl = url.startsWith('http')
                       ? url
-                      : 'https://' + url;
+                      : `https://${url}`;
                     return new URL(formattedUrl).hostname;
                   } catch {
                     return url;
@@ -132,7 +132,7 @@ export function CitationButton({
                   try {
                     const formattedUrl = url.startsWith('http')
                       ? url
-                      : 'https://' + url;
+                      : `https://${url}`;
                     return new URL(formattedUrl).hostname;
                   } catch {
                     return url;

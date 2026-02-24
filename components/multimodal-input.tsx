@@ -3577,7 +3577,10 @@ function PureMultimodalInput({
                   open={isPlusDropdownOpen}
                   onOpenChange={setIsPlusDropdownOpen}
                 >
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger
+                    asChild
+                    id={`composer-attach-dropdown-trigger-${chatId}`}
+                  >
                     <Button
                       type="button"
                       variant="ghost"

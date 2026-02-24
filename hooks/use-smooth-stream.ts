@@ -11,7 +11,7 @@ import { useEffect, useState, useRef } from 'react';
 export function useSmoothStream(
   content: string,
   isStreaming: boolean,
-  streamSpeed: number = 5
+  streamSpeed = 5
 ) {
   const [displayContent, setDisplayContent] = useState(
     isStreaming ? '' : content

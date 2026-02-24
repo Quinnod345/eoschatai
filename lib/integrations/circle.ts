@@ -342,7 +342,7 @@ async function fetchCourseLessonsFromSpace(
             
             // Also include description if available (prepend to content)
             let fullContent = content;
-            if (lessonObj.description && lessonObj.description.trim()) {
+            if (lessonObj.description?.trim()) {
               fullContent = `${lessonObj.description}\n\n${content}`;
             }
 

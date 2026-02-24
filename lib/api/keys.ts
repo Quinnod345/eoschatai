@@ -8,7 +8,7 @@
 import { db } from '@/lib/db';
 import { apiKey, apiKeyUsage, user, org } from '@/lib/db/schema';
 import { eq, and, gt, sql } from 'drizzle-orm';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 // API Key format: eosai_sk_<random_32_chars>
 const API_KEY_PREFIX = 'eosai_sk_';
@@ -224,7 +224,7 @@ export async function logApiKeyUsage(params: {
 /**
  * Get usage statistics for an API key
  */
-export async function getApiKeyUsageStats(apiKeyId: string, days: number = 30): Promise<{
+export async function getApiKeyUsageStats(apiKeyId: string, days = 30): Promise<{
   totalRequests: number;
   totalTokens: number;
   requestsByDay: Array<{ date: string; requests: number; tokens: number }>;

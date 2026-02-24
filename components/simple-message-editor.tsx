@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { UIMessage } from 'ai';
 import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
 import { deleteTrailingMessages } from '@/app/(chat)/actions';
 import { toast } from '@/lib/toast-system';
-import { cn } from '@/lib/utils';
 import { LoaderIcon } from 'lucide-react';
 import { EditConfirmationDialog } from './edit-confirmation-dialog';
 

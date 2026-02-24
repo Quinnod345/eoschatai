@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const API_KEY_PREFIX = 'eos_';
 const API_KEY_LENGTH = 32; // 32 bytes = 64 hex chars

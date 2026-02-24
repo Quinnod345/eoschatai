@@ -128,7 +128,7 @@ export class ComposerCommandDetector {
 
     // Filter to only composer mentions
     const composerMentions = mentions.filter((m) =>
-      m.type.includes('composer') || this.isComposerMentionType(m.type),
+      m.type.includes('composer') || ComposerCommandDetector.isComposerMentionType(m.type),
     );
 
     if (composerMentions.length === 0) {
@@ -140,7 +140,7 @@ export class ComposerCommandDetector {
       const composerId = mention.id.replace('composer-', '');
       
       // Check for edit commands first (most common)
-      const editResult = this.detectEditCommand(message, mention);
+      const editResult = ComposerCommandDetector.detectEditCommand(message, mention);
       if (editResult) {
         result.commands.push({
           ...editResult,
@@ -157,7 +157,7 @@ export class ComposerCommandDetector {
         
         for (const pattern of patterns) {
           if (pattern.test(message)) {
-            const command = this.parseCommand(
+            const command = ComposerCommandDetector.parseCommand(
               commandType as ComposerCommandType,
               message,
               mention,
@@ -180,7 +180,7 @@ export class ComposerCommandDetector {
 
     // Clean the message by removing command-related parts
     if (result.hasCommand) {
-      result.cleanedMessage = this.cleanMessage(message, result.commands);
+      result.cleanedMessage = ComposerCommandDetector.cleanMessage(message, result.commands);
     }
 
     return result;
@@ -212,7 +212,7 @@ export class ComposerCommandDetector {
     const confidence = Math.min(totalWeight / matchCount, 1);
 
     // Extract the edit instruction
-    const instruction = this.extractEditInstruction(message);
+    const instruction = ComposerCommandDetector.extractEditInstruction(message);
 
     return {
       type: 'edit',

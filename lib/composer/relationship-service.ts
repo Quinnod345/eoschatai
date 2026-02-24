@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { document, composerRelationship } from '@/lib/db/schema';
-import { eq, and, or, sql, desc } from 'drizzle-orm';
+import { eq, and, or, sql, } from 'drizzle-orm';
 
 /**
  * Relationship types between composers
@@ -240,7 +240,7 @@ export async function getRelatedComposers(
       .as('targetDoc');
 
     // Get relationships where this composer is either source or target
-    let query = db
+    const query = db
       .select({
         id: composerRelationship.id,
         sourceId: composerRelationship.sourceId,

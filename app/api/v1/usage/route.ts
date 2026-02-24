@@ -4,7 +4,7 @@
  * Check API key usage and rate limit status.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import {
   validateApiRequest,
   addRateLimitHeaders,
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   // Get query parameters
   const url = new URL(request.url);
-  const days = parseInt(url.searchParams.get('days') || '30', 10);
+  const days = Number.parseInt(url.searchParams.get('days') || '30', 10);
   const clampedDays = Math.min(Math.max(days, 1), 90); // 1-90 days
 
   // Get usage stats

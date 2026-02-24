@@ -28,7 +28,7 @@ export async function summarizeComposer(document: Document): Promise<string> {
     const kindInstructions = getInstructionsForKind(document.kind);
 
     const summary = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       prompt: `${kindInstructions}
 
 Document Title: ${document.title}

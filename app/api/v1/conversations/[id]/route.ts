@@ -4,7 +4,7 @@
  * Get or delete a specific conversation.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { apiConversation, apiConversationMessage } from '@/lib/db/schema';
 import { eq, and, asc } from 'drizzle-orm';

@@ -1,4 +1,4 @@
-import React, { CSSProperties, useEffect, useRef, useState, useMemo, PropsWithChildren } from 'react';
+import React, { type CSSProperties, useEffect, useRef, useState, useMemo, type PropsWithChildren } from 'react';
 import * as math from 'mathjs';
 
 type GradualBlurProps = PropsWithChildren<{
@@ -135,9 +135,9 @@ const useResponsiveDimension = (
       let v: any = config[key];
       const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
       const k = cap(key as string);
-      if (w <= 480 && (config as any)['mobile' + k]) v = (config as any)['mobile' + k];
-      else if (w <= 768 && (config as any)['tablet' + k]) v = (config as any)['tablet' + k];
-      else if (w <= 1024 && (config as any)['desktop' + k]) v = (config as any)['desktop' + k];
+      if (w <= 480 && (config as any)[`mobile${k}`]) v = (config as any)[`mobile${k}`];
+      else if (w <= 768 && (config as any)[`tablet${k}`]) v = (config as any)[`tablet${k}`];
+      else if (w <= 1024 && (config as any)[`desktop${k}`]) v = (config as any)[`desktop${k}`];
       setVal(v);
     };
     const deb = debounce(calc, 100);
@@ -148,7 +148,7 @@ const useResponsiveDimension = (
   return responsive ? val : (config as any)[key];
 };
 
-const useIntersectionObserver = (ref: React.RefObject<HTMLDivElement>, shouldObserve: boolean = false) => {
+const useIntersectionObserver = (ref: React.RefObject<HTMLDivElement | null>, shouldObserve = false) => {
   const [isVisible, setIsVisible] = useState(!shouldObserve);
 
   useEffect(() => {
@@ -164,7 +164,7 @@ const useIntersectionObserver = (ref: React.RefObject<HTMLDivElement>, shouldObs
 };
 
 const GradualBlur: React.FC<GradualBlurProps> = props => {
-  const containerRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>;
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
 
   const config = useMemo(() => {
@@ -258,7 +258,7 @@ const GradualBlur: React.FC<GradualBlurProps> = props => {
   const { hoverIntensity, animated, onAnimationComplete, duration } = config as any;
   useEffect(() => {
     if (isVisible && animated === 'scroll' && onAnimationComplete) {
-      const t = setTimeout(() => onAnimationComplete(), parseFloat(duration) * 1000);
+      const t = setTimeout(() => onAnimationComplete(), Number.parseFloat(duration) * 1000);
       return () => clearTimeout(t);
     }
   }, [isVisible, animated, onAnimationComplete, duration]);

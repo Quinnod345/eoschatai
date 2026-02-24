@@ -239,8 +239,8 @@ async function migrateMessages() {
         // Log sample conversions
         if (convertedCount <= 5) {
           console.log(`\n📝 Sample conversion (message ${msg.id}):`);
-          console.log('  Before:', JSON.stringify(parts.slice(0, 2), null, 2).substring(0, 200) + '...');
-          console.log('  After:', JSON.stringify(convertedParts.slice(0, 2), null, 2).substring(0, 200) + '...');
+          console.log('  Before:', `${JSON.stringify(parts.slice(0, 2), null, 2).substring(0, 200)}...`);
+          console.log('  After:', `${JSON.stringify(convertedParts.slice(0, 2), null, 2).substring(0, 200)}...`);
         }
       } catch (error) {
         errorCount++;

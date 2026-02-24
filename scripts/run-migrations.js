@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 const dotenv = require('dotenv');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });

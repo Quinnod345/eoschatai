@@ -764,7 +764,7 @@ export const chartComposer = new Composer<'chart', ChartComposerMetadata>({
       }
       console.log(
         '[ComposerClient RenderEffect] Rendering chart with localChartData, type:',
-        localChartData!.type,
+        localChartData?.type,
       );
       renderChart(canvasRef.current, localChartData!);
     }, [localChartData]);

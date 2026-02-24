@@ -5,7 +5,7 @@
  * Supports streaming.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { streamText, generateText } from 'ai';
 import { z } from 'zod/v3';
 import { db } from '@/lib/db';

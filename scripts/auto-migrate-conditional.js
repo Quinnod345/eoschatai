@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const { execSync } = require('node:child_process');
+const path = require('node:path');
+const fs = require('node:fs');
 
 // Check for environment flag to skip migrations
 if (process.env.SKIP_AUTO_MIGRATE === 'true') {

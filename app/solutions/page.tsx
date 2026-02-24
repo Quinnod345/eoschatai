@@ -1,4 +1,4 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Enterprise Solutions - Advanced AI Tools for Business Growth | EOS AI',

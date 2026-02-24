@@ -50,7 +50,7 @@ async function runMigration() {
   let errorCount = 0;
   
   for (const statement of statements) {
-    const shortStatement = statement.replace(/\s+/g, ' ').slice(0, 70) + '...';
+    const shortStatement = `${statement.replace(/\s+/g, ' ').slice(0, 70)}...`;
     try {
       console.log(`Executing: ${shortStatement}`);
       await db.execute(sql.raw(statement));

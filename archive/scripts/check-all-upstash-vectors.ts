@@ -22,7 +22,7 @@ async function checkAllUpstashVectors() {
 
     console.log(`Fetching all vectors for user: ${userId}\n`);
 
-    let allVectors: any[] = [];
+    const allVectors: any[] = [];
     let cursor = '';
     let pageNum = 1;
 
@@ -52,7 +52,7 @@ async function checkAllUpstashVectors() {
       if (!byDocument.has(docId)) {
         byDocument.set(docId, []);
       }
-      byDocument.get(docId)!.push(v);
+      byDocument.get(docId)?.push(v);
     }
 
     console.log(`📁 Documents:\n`);

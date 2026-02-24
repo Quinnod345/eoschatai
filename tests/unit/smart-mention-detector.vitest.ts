@@ -17,8 +17,8 @@ describe('SmartMentionDetector', () => {
         const calendarMention = mentions.find(m => m.type === 'calendar');
         
         expect(calendarMention).toBeDefined();
-        expect(calendarMention!.confidence).toBeGreaterThan(0.6);
-        expect(calendarMention!.context).toBe('User is discussing calendar/scheduling');
+        expect(calendarMention?.confidence).toBeGreaterThan(0.6);
+        expect(calendarMention?.context).toBe('User is discussing calendar/scheduling');
       });
     });
 
@@ -34,8 +34,8 @@ describe('SmartMentionDetector', () => {
         const availabilityMention = mentions.find(m => m.type === 'availability');
         
         expect(availabilityMention).toBeDefined();
-        expect(availabilityMention!.confidence).toBeGreaterThan(0.6);
-        expect(availabilityMention!.context).toBe('User wants to find free time');
+        expect(availabilityMention?.confidence).toBeGreaterThan(0.6);
+        expect(availabilityMention?.context).toBe('User wants to find free time');
       });
     });
 
@@ -51,8 +51,8 @@ describe('SmartMentionDetector', () => {
         const analysisMention = mentions.find(m => m.type === 'analyze');
         
         expect(analysisMention).toBeDefined();
-        expect(analysisMention!.confidence).toBeGreaterThan(0.6);
-        expect(analysisMention!.context).toBe('User wants data analysis');
+        expect(analysisMention?.confidence).toBeGreaterThan(0.6);
+        expect(analysisMention?.context).toBe('User wants data analysis');
       });
     });
 
@@ -68,8 +68,8 @@ describe('SmartMentionDetector', () => {
         const documentMention = mentions.find(m => m.type === 'document');
         
         expect(documentMention).toBeDefined();
-        expect(documentMention!.confidence).toBeGreaterThan(0.6);
-        expect(documentMention!.context).toBe('User is asking about documents');
+        expect(documentMention?.confidence).toBeGreaterThan(0.6);
+        expect(documentMention?.context).toBe('User is asking about documents');
       });
     });
 
@@ -85,8 +85,8 @@ describe('SmartMentionDetector', () => {
         const scorecardMention = mentions.find(m => m.type === 'scorecard');
         
         expect(scorecardMention).toBeDefined();
-        expect(scorecardMention!.confidence).toBeGreaterThan(0.6);
-        expect(scorecardMention!.context).toBe('User is asking about EOS Scorecard');
+        expect(scorecardMention?.confidence).toBeGreaterThan(0.6);
+        expect(scorecardMention?.context).toBe('User is asking about EOS Scorecard');
       });
     });
 

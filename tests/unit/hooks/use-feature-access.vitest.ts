@@ -286,8 +286,8 @@ describe('useFeatureAccess', () => {
 
       const { result } = renderHook(() => useFeatureAccess('memory'));
 
-      expect(result.current.limit).toBe(Infinity);
-      expect(result.current.remaining).toBe(Infinity);
+      expect(result.current.limit).toBe(Number.POSITIVE_INFINITY);
+      expect(result.current.remaining).toBe(Number.POSITIVE_INFINITY);
     });
   });
 

@@ -39,7 +39,7 @@ export async function classifyMemoryCandidate(
   text: string,
 ): Promise<MemoryDecision> {
   const result = await generateObject({
-    model: anthropic('claude-3-5-haiku-20241022'),
+    model: anthropic('claude-haiku-4-5-20251001'),
     schema: MemoryDecisionSchema,
     system:
       'You are a conservative memory classifier. Save only clear, stable, reusable facts/preferences. Avoid one-off or sensitive details. Return conservative confidence.',

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { getAccessContext, incrementUsageCounter } from '@/lib/entitlements';
 import { trackBlockedAction } from '@/lib/analytics';
@@ -10,13 +10,11 @@ import {
   addHeader,
   addSectionHeading,
   addBodyText,
-  addBulletList,
   addTable,
   addFooter,
   pdfToBuffer,
 } from '@/lib/export/pdf-generator';
 import {
-  createTitle,
   createSubtitle,
   createHeading,
   createBodyText,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod/v3';
 import { db } from '@/lib/db';
 import { orgInvitation } from '@/lib/db/schema';
@@ -48,7 +48,7 @@ function verifyWebhookSignature(
   if (!signature) return false;
 
   // Resend uses svix for webhooks
-  const crypto = require('crypto');
+  const crypto = require('node:crypto');
   const webhookSecret = secret.split(' ').pop(); // Extract the secret part
 
   const expectedSignature = crypto

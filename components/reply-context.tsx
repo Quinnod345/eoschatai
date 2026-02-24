@@ -1,7 +1,6 @@
 'use client';
 
 import { Reply, User, Bot } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ReplyContextProps {
   role: 'user' | 'assistant';

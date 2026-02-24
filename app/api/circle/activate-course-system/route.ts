@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         .limit(1);
 
       // If user already subscribed, just return success
-      if (existingSubscription && existingSubscription.isActive) {
+      if (existingSubscription?.isActive) {
         console.log('[Circle Activate System] User already subscribed to this course');
         
         return NextResponse.json({

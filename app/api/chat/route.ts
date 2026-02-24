@@ -3880,7 +3880,7 @@ Always prioritize the user's document content over generic information. If speci
         });
         const result = await generateObject({
           model: (await import('@ai-sdk/anthropic')).anthropic(
-            'claude-3-5-haiku-20241022',
+            'claude-haiku-4-5-20251001',
           ),
           schema,
           system:

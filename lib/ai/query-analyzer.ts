@@ -42,7 +42,7 @@ export async function analyzeQueryComplexity(
     console.log(`Query Analyzer: Analyzing query: "${query}"`);
 
     const result = await generateObject({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       schema: z.object({
         complexity: z.enum(['simple', 'medium', 'complex']).describe(
           'Simple: General question, no specific user context. Medium: Specific question that might use user data. Complex: Multi-part or requires comprehensive context.',

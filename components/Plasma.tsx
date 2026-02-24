@@ -14,9 +14,9 @@ const hexToRgb = (hex: string): [number, number, number] => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return [1, 0.5, 0.2];
   return [
-    parseInt(result[1], 16) / 255,
-    parseInt(result[2], 16) / 255,
-    parseInt(result[3], 16) / 255,
+    Number.parseInt(result[1], 16) / 255,
+    Number.parseInt(result[2], 16) / 255,
+    Number.parseInt(result[3], 16) / 255,
   ];
 };
 
@@ -146,8 +146,8 @@ export const Plasma: React.FC<PlasmaProps> = ({
     const mesh = new Mesh(gl, { geometry, program });
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!mouseInteractive) return;
-      const rect = containerRef.current!.getBoundingClientRect();
+      if (!mouseInteractive || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
       mousePos.current.x = e.clientX - rect.left;
       mousePos.current.y = e.clientY - rect.top;
       const mouseUniform = program.uniforms.uMouse.value as Float32Array;
@@ -160,7 +160,8 @@ export const Plasma: React.FC<PlasmaProps> = ({
     }
 
     const setSize = () => {
-      const rect = containerRef.current!.getBoundingClientRect();
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
       const width = Math.max(1, Math.floor(rect.width));
       const height = Math.max(1, Math.floor(rect.height));
       renderer.setSize(width, height);
@@ -176,7 +177,7 @@ export const Plasma: React.FC<PlasmaProps> = ({
     let raf = 0;
     const t0 = performance.now();
     const loop = (t: number) => {
-      let timeValue = (t - t0) * 0.001;
+      const timeValue = (t - t0) * 0.001;
 
       if (direction === 'pingpong') {
         const cycle = Math.sin(timeValue * 0.5) * directionMultiplier;

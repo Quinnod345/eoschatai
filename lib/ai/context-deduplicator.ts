@@ -47,7 +47,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
  */
 async function clusterSimilarChunks(
   chunks: ContentChunk[],
-  similarityThreshold: number = 0.8,
+  similarityThreshold = 0.8,
 ): Promise<ContentChunk[][]> {
   if (chunks.length === 0) {
     return [];
@@ -115,7 +115,7 @@ async function clusterSimilarChunks(
  */
 export async function deduplicateContextChunks(
   chunks: ContentChunk[],
-  similarityThreshold: number = 0.8,
+  similarityThreshold = 0.8,
 ): Promise<ContentChunk[]> {
   if (chunks.length === 0) {
     return [];
@@ -172,7 +172,7 @@ export async function deduplicateContextChunks(
  */
 export function deduplicateByText(
   chunks: ContentChunk[],
-  exactMatch: boolean = false,
+  exactMatch = false,
 ): ContentChunk[] {
   if (chunks.length === 0) {
     return [];
@@ -216,7 +216,7 @@ export function deduplicateByText(
  */
 export function mergeOverlappingChunks(
   chunks: ContentChunk[],
-  overlapThreshold: number = 50,
+  overlapThreshold = 50,
 ): ContentChunk[] {
   if (chunks.length === 0) {
     return [];

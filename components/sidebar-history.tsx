@@ -194,6 +194,18 @@ function SidebarHistoryInner({
     };
   }, [mutate]);
 
+  // Listen for chat title updates to refresh chat history
+  useEffect(() => {
+    const handleChatRenamed = () => {
+      mutate();
+    };
+
+    window.addEventListener('chatRenamed', handleChatRenamed);
+    return () => {
+      window.removeEventListener('chatRenamed', handleChatRenamed);
+    };
+  }, [mutate]);
+
   // Force refresh when navigating to a new chat
   useEffect(() => {
     if (id && typeof id === 'string') {

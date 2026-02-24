@@ -12,7 +12,7 @@
  */
 
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 
 // Load environment variables
 config({ path: resolve(process.cwd(), '.env.local') });
@@ -34,7 +34,7 @@ async function testDailyReset() {
     };
 
     if (CRON_SECRET) {
-      headers['Authorization'] = `Bearer ${CRON_SECRET}`;
+      headers.Authorization = `Bearer ${CRON_SECRET}`;
     }
 
     console.log('📡 Calling /api/cron/usage/daily...');

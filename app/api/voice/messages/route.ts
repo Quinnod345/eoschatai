@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { saveMessages, saveChat } from '@/lib/db/queries';
 import { generateUUID } from '@/lib/utils';
-import { DBMessage } from '@/lib/db/schema';
 
 // This endpoint saves voice conversation messages to the database
 export async function POST(request: NextRequest) {
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
     const messages: any[] = [];
 
     // Save user message
-    if (userMessage && userMessage.content) {
+    if (userMessage?.content) {
       const userMsg = {
         id: userMessage.id || generateUUID(),
         chatId,
@@ -101,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save assistant message
-    if (assistantMessage && assistantMessage.content) {
+    if (assistantMessage?.content) {
       const assistantMsg = {
         id: assistantMessage.id || generateUUID(),
         chatId,

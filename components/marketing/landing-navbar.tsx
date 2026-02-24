@@ -17,7 +17,6 @@ export default function LandingNavbar({
   return (
     <header
       className="fixed top-4 inset-x-0 z-50 px-4 pointer-events-none"
-      role="banner"
     >
       <div className="mx-auto w-full max-w-5xl pointer-events-auto relative">
         {/* Darkening Effect Behind Navbar Glass */}

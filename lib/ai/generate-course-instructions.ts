@@ -69,7 +69,7 @@ LENGTH: 800-1200 characters (comprehensive but concise)
 Generate the persona instructions now:`;
 
     const { text } = await generateText({
-      model: anthropic('claude-3-5-haiku-20241022'), // Using Claude Haiku for instruction generation
+      model: anthropic('claude-haiku-4-5-20251001'), // Using Claude 4.5 Haiku for instruction generation
       prompt,
       maxOutputTokens: 600,
       temperature: 0.7,

@@ -90,7 +90,7 @@ async function checkUpstashNamespace(namespace: string): Promise<{
   }
 }
 
-async function listCourses(checkUpstash: boolean = false) {
+async function listCourses(checkUpstash = false) {
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
   console.log('║       Circle Course Personas - Status Report                  ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');

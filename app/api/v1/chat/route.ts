@@ -6,12 +6,11 @@
  * include user-specific data (memories, user documents, etc.)
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { streamText, generateText } from 'ai';
 import { z } from 'zod/v3';
 import {
   validateApiRequest,
-  apiError,
   addRateLimitHeaders,
   generateRequestId,
   openaiError,

@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { saveMessages, saveChat } from '@/lib/db/queries';
 import { generateUUID } from '@/lib/utils';
-import { DBMessage } from '@/lib/db/schema';
 
 // This endpoint saves an entire voice conversation at once
 export async function POST(request: NextRequest) {

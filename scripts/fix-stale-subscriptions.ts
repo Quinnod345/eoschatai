@@ -19,7 +19,7 @@ config({ path: '.env.local' });
 
 import { db } from "../lib/db";
 import { user as userTable, org as orgTable } from "../lib/db/schema";
-import { eq, isNotNull, or } from "drizzle-orm";
+import { eq, isNotNull, } from "drizzle-orm";
 import Stripe from "stripe";
 
 const isDryRun = process.argv.includes("--dry-run");

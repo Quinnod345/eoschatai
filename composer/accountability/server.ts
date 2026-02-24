@@ -91,7 +91,7 @@ If no specific names are provided, use "Seat Holder" for the holder field.`;
           
           // Try to parse the accumulated text as JSON
           // Clean up any markdown code fences that might slip through
-          let cleanedText = accumulatedText
+          const cleanedText = accumulatedText
             .replace(/^```json\s*/i, '')
             .replace(/^```\s*/i, '')
             .replace(/\s*```$/i, '')
@@ -189,7 +189,7 @@ Maintain all existing seat IDs unless adding/removing seats.`;
           accumulatedText += text;
           
           // Clean up any markdown code fences
-          let cleanedText = accumulatedText
+          const cleanedText = accumulatedText
             .replace(/^```json\s*/i, '')
             .replace(/^```\s*/i, '')
             .replace(/\s*```$/i, '')

@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import {
   convertUserDocumentToComposer,
   getConversionSuggestions,
-  detectOptimalComposerKind,
 } from '@/lib/composer/conversion-service';
 import type { ComposerKind } from '@/lib/mentions/types';
 

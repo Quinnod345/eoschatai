@@ -82,7 +82,7 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
         if (typeof value === 'number') {
           return {
             hasAccess: value > 0 || value === -1,
-            limit: value === -1 ? Infinity : value,
+            limit: value === -1 ? Number.POSITIVE_INFINITY : value,
             requiredPlan: value > 0 || value === -1 ? undefined : 'pro',
           };
         }
@@ -116,12 +116,12 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
           hasAccess: features.personas.custom,
           limit:
             features.personas.max_count === -1
-              ? Infinity
+              ? Number.POSITIVE_INFINITY
               : features.personas.max_count,
           used: usageCounters?.personas_created ?? 0,
           remaining:
             features.personas.max_count === -1
-              ? Infinity
+              ? Number.POSITIVE_INFINITY
               : Math.max(
                   0,
                   features.personas.max_count -
@@ -135,12 +135,12 @@ export function useFeatureAccess(feature: FeatureKey): FeatureAccessResult {
           hasAccess: features.memory.enabled,
           limit:
             features.memory.max_memories === -1
-              ? Infinity
+              ? Number.POSITIVE_INFINITY
               : features.memory.max_memories,
           used: usageCounters?.memories_stored ?? 0,
           remaining:
             features.memory.max_memories === -1
-              ? Infinity
+              ? Number.POSITIVE_INFINITY
               : Math.max(
                   0,
                   features.memory.max_memories -

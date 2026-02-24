@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { generateUUID } from '@/lib/utils';
-import { saveChat, saveMessages, getChatById } from '@/lib/db/queries';
+import { saveChat, getChatById } from '@/lib/db/queries';
 
 export async function POST(request: NextRequest) {
   console.log('[send-to-chat] Request received');

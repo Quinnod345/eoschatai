@@ -202,7 +202,10 @@ export function Dropdown({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       {/* Saved content dropdown trigger styled like persona button */}
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger
+        asChild
+        id={`saved-content-dropdown-trigger-${currentChatId}`}
+      >
         <GlassSurface
           width="auto"
           height={40}

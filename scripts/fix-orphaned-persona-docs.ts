@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { userDocuments, personaDocument } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, } from 'drizzle-orm';
 
 async function fixOrphanedPersonaDocs() {
   try {

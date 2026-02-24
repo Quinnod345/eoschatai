@@ -231,7 +231,7 @@ async function checkExistingData(
 async function syncCourseToUpstash(
   courseId: string,
   spaceId: string,
-  forceResync: boolean = false,
+  forceResync = false,
 ) {
   console.log('\n========================================');
   console.log('Circle Course → Upstash Sync');

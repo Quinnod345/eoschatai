@@ -81,7 +81,7 @@ async function verifyMigration() {
     .orderBy(sql`RANDOM()`)
     .limit(SAMPLE_SIZE);
 
-  let stats = {
+  const stats = {
     total: sampleMessages.length,
     withParts: 0,
     v4ToolInvocation: 0,

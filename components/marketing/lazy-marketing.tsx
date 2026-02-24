@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, Component, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 
 // Loading placeholder for heavy components
 const LoadingPlaceholder = ({ height = 400 }: { height?: number }) => (

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import { put } from '@vercel/blob';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);

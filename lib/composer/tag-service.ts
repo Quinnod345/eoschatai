@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { document } from '@/lib/db/schema';
-import { eq, and, sql, arrayContains } from 'drizzle-orm';
+import { eq, and, sql, } from 'drizzle-orm';
 
 /**
  * Add tags to a composer
