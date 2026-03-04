@@ -13,6 +13,7 @@ import { Bookmark, Search } from 'lucide-react';
 import { PlusIcon } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import type { UIMessage } from 'ai';
 import GlassSurface from '@/components/GlassSurface';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -202,6 +203,10 @@ function PureChatHeader({
             },
           }),
         );
+      } else if (response.status === 403 && data?.code === 'FEATURE_LOCKED') {
+        await showEdgeCaseToast(toast, data, {
+          fallback: 'Bookmarking requires a paid plan.',
+        });
       } else {
         toast.error('Failed to update bookmark');
       }

@@ -104,10 +104,10 @@ const SidebarProvider = React.forwardRef<
       // Add class to pause expensive effects during transition
       if (!isMobile) {
         document.documentElement.classList.add('sidebar-animating');
-        // Remove after transition completes (280ms + 30ms buffer)
+        // Remove after transition completes (200ms + 50ms buffer)
         setTimeout(() => {
           document.documentElement.classList.remove('sidebar-animating');
-        }, 310);
+        }, 250);
       }
 
       return isMobile
@@ -272,7 +272,7 @@ const Sidebar = React.forwardRef<
           style={{
             margin: 0,
             padding: 0,
-            transitionDuration: '280ms',
+            transitionDuration: '200ms',
             transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
           }}
         />
@@ -290,7 +290,7 @@ const Sidebar = React.forwardRef<
             className,
           )}
           style={{
-            transitionDuration: '280ms',
+            transitionDuration: '200ms',
             transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
           }}
           {...props}

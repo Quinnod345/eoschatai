@@ -7,6 +7,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { isAdminEmail } from '@/lib/auth/admin';
 import { chatTitleSchema } from '@/lib/validation/schemas';
+import { getAccessContext } from '@/lib/entitlements';
 
 export async function GET(
   request: NextRequest,
@@ -86,6 +87,25 @@ export async function PATCH(
       );
     }
     const { personaId, profileId, title } = body;
+
+    const isAttemptingPersonaSelection =
+      ('personaId' in body && Boolean(personaId)) ||
+      ('profileId' in body && Boolean(profileId));
+
+    if (isAttemptingPersonaSelection) {
+      const accessContext = await getAccessContext(session.user.id);
+      if (!accessContext.entitlements.features.personas.custom) {
+        return NextResponse.json(
+          {
+            error: 'AI personas are a Pro feature',
+            code: 'FEATURE_LOCKED',
+            requiredPlan: 'pro',
+            feature: 'personas.custom',
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     let validatedTitle: string | undefined;
     if ('title' in body) {

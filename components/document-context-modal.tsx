@@ -768,18 +768,14 @@ export function DocumentContextModal({
         } else {
           const error = await response.json();
 
-          // Check if this is a premium feature error
-          if (response.status === 403 && error.requiresPremium) {
-            toast.error(
-              'Document upload is a premium feature. Please upgrade to enable document uploads.',
-            );
-
-            setTimeout(() => {
-              // Redirect to settings with premium tab focused
-              window.location.href = '/settings?tab=preferences';
-            }, 2000);
-
-            // Stop trying to upload more files
+          // Check if this is a premium feature error (FEATURE_LOCKED or ENTITLEMENT_BLOCK)
+          const isPremiumBlocked =
+            response.status === 403 &&
+            (error?.code === 'FEATURE_LOCKED' ||
+              error?.code === 'ENTITLEMENT_BLOCK' ||
+              error?.requiresPremium);
+          if (isPremiumBlocked) {
+            window.dispatchEvent(new Event('open-premium-modal'));
             break;
           } else {
             throw new Error(error.error || 'Failed to upload document');

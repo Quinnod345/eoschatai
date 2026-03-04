@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast as customToast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { generateUUID } from '@/lib/utils';
@@ -224,12 +225,18 @@ export default function VoiceModeBatchSave({
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error('[Voice Mode] Batch save failed:', errorData);
+          await showEdgeCaseToast(customToast, errorData, {
+            fallback: 'Failed to save voice conversation',
+          });
           throw new Error(
             errorData.error || 'Failed to save voice conversation',
           );
         }
 
         const data = await response.json();
+        if (data?.warning) {
+          await showEdgeCaseToast(customToast, data.warning);
+        }
         
 
         // Ensure we have the chat ID
@@ -265,8 +272,9 @@ export default function VoiceModeBatchSave({
           '[Voice Mode] Saving messages to existing chat:',
           existingChatId,
         );
+        let surfacedVoiceWarning = false;
         for (const message of allMessages) {
-          await fetch('/api/voice/messages', {
+          const saveResponse = await fetch('/api/voice/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -281,6 +289,25 @@ export default function VoiceModeBatchSave({
               provider: selectedProviderId || 'openai',
             }),
           });
+
+          if (!saveResponse.ok) {
+            const errorData = await saveResponse.json().catch(() => ({}));
+            await showEdgeCaseToast(customToast, errorData, {
+              fallback: 'Failed to save voice messages',
+            });
+            throw new Error(
+              (errorData as { error?: string }).error ||
+                'Failed to save voice messages',
+            );
+          }
+
+          if (!surfacedVoiceWarning) {
+            const saveData = await saveResponse.json().catch(() => null);
+            if (saveData?.warning) {
+              surfacedVoiceWarning = true;
+              await showEdgeCaseToast(customToast, saveData.warning);
+            }
+          }
         }
         return existingChatId; // Return the existing chat ID so we can navigate to it
       }
@@ -407,10 +434,20 @@ export default function VoiceModeBatchSave({
       });
 
       if (!tokenResponse.ok) {
-        throw new Error('Failed to get session token');
+        const tokenError = await tokenResponse.json().catch(() => ({}));
+        await showEdgeCaseToast(customToast, tokenError, {
+          fallback: 'Failed to start voice mode session.',
+        });
+        throw new Error(
+          (tokenError as { error?: string })?.error ||
+            'Failed to get session token',
+        );
       }
 
       const tokenData = await tokenResponse.json();
+      if (tokenData?.warning) {
+        await showEdgeCaseToast(customToast, tokenData.warning);
+      }
       const ephemeralKey = tokenData.client_secret;
 
       setSessionInfo({

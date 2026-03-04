@@ -167,16 +167,24 @@ export function ComposerDashboard() {
     return () => clearTimeout(timer);
   }, [setLoading]);
 
+  const hasAccessToKind =
+    !accountEntitlements?.features?.composer?.types ||
+    accountEntitlements.features.composer.types.includes(kind);
+  const isFeatureLocked =
+    (error as any)?.info?.code === 'FEATURE_LOCKED' || !hasAccessToKind;
+
   const handleCreate = useCallback(() => {
     if (isRecordings) {
       router.push('/chat?openRecordingModal=true');
+    } else if (isFeatureLocked) {
+      openModal('premium');
     } else {
       const url = new URL(window.location.href);
       url.searchParams.delete('dashboard');
       url.searchParams.set('newComposerKind', kind);
       router.replace(url.toString());
     }
-  }, [router, kind, isRecordings]);
+  }, [router, kind, isRecordings, isFeatureLocked, openModal]);
 
   const handleOpen = useCallback(
     async (doc: Row | any) => {
@@ -365,10 +373,16 @@ export function ComposerDashboard() {
       {/* Section title + create button */}
       <div className="flex items-center justify-between mt-16 mb-6 px-2 md:px-2">
         <div className="text-base font-semibold">{displayPlural}</div>
-        <Button size="sm" onClick={handleCreate}>
-          {displayName === 'Document'
-            ? 'Create Document'
-            : `Create ${displayName}`}
+        <Button
+          size="sm"
+          onClick={handleCreate}
+          variant={isFeatureLocked ? 'secondary' : 'default'}
+        >
+          {isFeatureLocked
+            ? 'Upgrade to Create'
+            : displayName === 'Document'
+              ? 'Create Document'
+              : `Create ${displayName}`}
         </Button>
       </div>
 
@@ -446,10 +460,17 @@ export function ComposerDashboard() {
       ) : displayRows.length === 0 ? (
         <div className="text-sm text-muted-foreground">
           No {displayName.toLowerCase()}s yet.
-          <Button size="sm" className="ml-2" onClick={handleCreate}>
-            {displayName === 'Document'
-              ? 'Create Document'
-              : `Create ${displayName}`}
+          <Button
+            size="sm"
+            className="ml-2"
+            onClick={handleCreate}
+            variant={isFeatureLocked ? 'secondary' : 'default'}
+          >
+            {isFeatureLocked
+              ? 'Upgrade to Create'
+              : displayName === 'Document'
+                ? 'Create Document'
+                : `Create ${displayName}`}
           </Button>
         </div>
       ) : (

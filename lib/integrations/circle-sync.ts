@@ -15,9 +15,14 @@ import {
 } from '@/lib/db/schema';
 import { generateHashedPassword } from '@/lib/db/utils';
 import { getFromAddress, getResendClient } from '@/lib/email/resend';
-import { handlePlanChange, resetUserDailyUsageCounters } from '@/lib/entitlements';
+import { handlePlanChange, invalidateUserEntitlementsCache, broadcastEntitlementsUpdated, resetUserDailyUsageCounters } from '@/lib/entitlements';
 import { updateUserPlan } from '@/lib/db/users';
 import { buildAppUrl } from '@/lib/utils/app-url';
+// Canonical tier mapping - imported here so all sync paths use the same logic
+// (supports env var overrides and aliases like 'explorer' -> pro).
+import { mapCircleTierToPlan } from '@/lib/integrations/circle';
+// Re-export so callers who import mapCircleTierToPlan from this module continue to work.
+export { mapCircleTierToPlan } from '@/lib/integrations/circle';
 
 export const CIRCLE_TIER_TO_PLAN = {
   discover: 'free',
@@ -291,20 +296,6 @@ const normalizeEmail = (value: string | null): string | null => {
   return normalized.includes('@') ? normalized : null;
 };
 
-const normalizeTier = (value: string): string =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-export const mapCircleTierToPlan = (tierName: string): PlanType | null => {
-  const normalized = normalizeTier(tierName);
-
-  if (normalized.includes('mastery')) return 'business';
-  if (normalized.includes('strengthen')) return 'pro';
-  if (normalized.includes('discover')) return 'free';
-
-  const directMap =
-    CIRCLE_TIER_TO_PLAN[normalized as keyof typeof CIRCLE_TIER_TO_PLAN];
-  return directMap ?? null;
-};
 
 const getCircleAdminSyncConfig = () => {
   const apiToken =
@@ -601,6 +592,31 @@ export const markCircleWebhookProcessed = async (eventId: string) => {
     .onConflictDoNothing({ target: webhookEvent.eventId });
 };
 
+/**
+ * Atomically claim a webhook event for processing.
+ * Returns true if this call successfully claimed the event (first to process it).
+ * Returns false if the event was already claimed/processed by a prior call.
+ * This prevents duplicate processing in concurrent retry scenarios.
+ */
+export const claimCircleWebhookEvent = async (
+  eventId: string,
+): Promise<boolean> => {
+  const result = await db
+    .insert(webhookEvent)
+    .values({ eventId, processedAt: new Date() })
+    .onConflictDoNothing({ target: webhookEvent.eventId })
+    .returning({ id: webhookEvent.id });
+  return result.length > 0;
+};
+
+/**
+ * Releases a previously claimed webhook event when processing fails transiently.
+ * This allows upstream webhook retries to be processed instead of being deduplicated.
+ */
+export const releaseCircleWebhookEventClaim = async (eventId: string) => {
+  await db.delete(webhookEvent).where(eq(webhookEvent.eventId, eventId));
+};
+
 const writeCircleSyncLog = async (entry: CircleSyncLogInsert) => {
   await db.insert(circleSyncLog).values({
     eventId: entry.eventId,
@@ -682,12 +698,21 @@ const findUserByEmail = async (email: string): Promise<MinimalUser | null> => {
   return record ?? null;
 };
 
-const upsertCircleMemberId = async (
+const upsertCircleMemberIdentity = async (
   userId: string,
   circleMemberId: string | null,
+  circleMemberEmail: string | null,
 ): Promise<void> => {
-  if (!circleMemberId) return;
-  await db.update(user).set({ circleMemberId }).where(eq(user.id, userId));
+  if (!circleMemberId && !circleMemberEmail) return;
+  await db
+    .update(user)
+    .set({
+      circleMemberId: circleMemberId ?? undefined,
+      circleId: circleMemberId ?? undefined,
+      circleMemberEmail: circleMemberEmail ?? undefined,
+      subscriptionSource: 'circle',
+    })
+    .where(eq(user.id, userId));
 };
 
 const createSetupPasswordToken = async (userId: string): Promise<string> => {
@@ -786,7 +811,11 @@ const applyCirclePlanAssignment = async (
     const currentRank = PLAN_RANK[existingUser.plan];
     const incomingRank = PLAN_RANK[input.mappedPlan];
 
-    await upsertCircleMemberId(existingUser.id, input.circleMemberId);
+    await upsertCircleMemberIdentity(
+      existingUser.id,
+      input.circleMemberId,
+      input.email,
+    );
 
     if (currentRank >= incomingRank) {
       await writeCircleSyncLog({
@@ -810,7 +839,7 @@ const applyCirclePlanAssignment = async (
       };
     }
 
-    await updateUserPlan(existingUser.id, input.mappedPlan);
+    await updateUserPlan(existingUser.id, input.mappedPlan, undefined, 'circle');
     await handlePlanChange(existingUser.id);
     await resetUserDailyUsageCounters(existingUser.id);
 
@@ -867,6 +896,9 @@ const applyCirclePlanAssignment = async (
       password: hashedPassword,
       plan: input.mappedPlan,
       circleMemberId: input.circleMemberId ?? null,
+      circleId: input.circleMemberId ?? null,
+      circleMemberEmail: input.email,
+      subscriptionSource: 'circle',
     })
     .returning({
       id: user.id,
@@ -1189,6 +1221,7 @@ export const reconcileCircleTierMemberships =
         id: user.id,
         email: user.email,
         circleMemberId: user.circleMemberId,
+        subscriptionSource: user.subscriptionSource,
       })
       .from(user)
       .where(isNotNull(user.circleMemberId));
@@ -1199,21 +1232,70 @@ export const reconcileCircleTierMemberships =
       if (activeMemberIds.has(trackedUser.circleMemberId)) continue;
 
       missingMemberships += 1;
-      await writeCircleSyncLog({
-        eventId: `circle:reconcile:missing:${startedAt.getTime()}:${trackedUser.id}`,
-        circleMemberId: trackedUser.circleMemberId,
-        email: trackedUser.email,
-        tierPurchased: null,
-        mappedPlan: null,
-        action: 'membership_missing',
-        userId: trackedUser.id,
-        payload: {
-          source: 'nightly_reconciliation',
-          reason: 'member_not_present_in_circle_tier_groups',
-        },
-        errorMessage:
-          'Member is no longer present in Circle tier access groups. Manual review required.',
-      });
+
+      // Only downgrade users whose subscription is Circle-managed.
+      // Stripe-sourced users who happen to have a circleMemberId set are left alone.
+      if (trackedUser.subscriptionSource === 'circle') {
+        try {
+          await updateUserPlan(trackedUser.id, 'free', undefined, 'circle');
+          await handlePlanChange(trackedUser.id);
+          await invalidateUserEntitlementsCache(trackedUser.id);
+          await broadcastEntitlementsUpdated(trackedUser.id);
+
+          await writeCircleSyncLog({
+            eventId: `circle:reconcile:missing:${startedAt.getTime()}:${trackedUser.id}`,
+            circleMemberId: trackedUser.circleMemberId,
+            email: trackedUser.email,
+            tierPurchased: null,
+            mappedPlan: 'free',
+            action: 'membership_missing',
+            userId: trackedUser.id,
+            payload: {
+              source: 'nightly_reconciliation',
+              reason: 'member_not_present_in_circle_tier_groups',
+              action_taken: 'downgraded_to_free',
+            },
+            errorMessage: null,
+          });
+        } catch (downgradeError) {
+          await writeCircleSyncLog({
+            eventId: `circle:reconcile:missing:${startedAt.getTime()}:${trackedUser.id}`,
+            circleMemberId: trackedUser.circleMemberId,
+            email: trackedUser.email,
+            tierPurchased: null,
+            mappedPlan: null,
+            action: 'membership_missing',
+            userId: trackedUser.id,
+            payload: {
+              source: 'nightly_reconciliation',
+              reason: 'member_not_present_in_circle_tier_groups',
+              action_taken: 'downgrade_failed',
+            },
+            errorMessage:
+              downgradeError instanceof Error
+                ? downgradeError.message
+                : 'Unknown downgrade error',
+          });
+        }
+      } else {
+        // Non-circle-sourced user: log missing membership but do not change plan.
+        await writeCircleSyncLog({
+          eventId: `circle:reconcile:missing:${startedAt.getTime()}:${trackedUser.id}`,
+          circleMemberId: trackedUser.circleMemberId,
+          email: trackedUser.email,
+          tierPurchased: null,
+          mappedPlan: null,
+          action: 'membership_missing',
+          userId: trackedUser.id,
+          payload: {
+            source: 'nightly_reconciliation',
+            reason: 'member_not_present_in_circle_tier_groups',
+            action_taken: 'skipped_non_circle_source',
+          },
+          errorMessage:
+            'Member is no longer present in Circle tier access groups. Plan not changed because subscriptionSource is not circle.',
+        });
+      }
     }
 
     return {

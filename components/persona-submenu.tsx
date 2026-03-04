@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
 import { getProfileTheme } from '@/lib/constants/profile-themes';
 import { PersonaOverlayEditor } from '@/components/persona-overlay-editor';
+import { useAccountStore } from '@/lib/stores/account-store';
 
 type PersonaWithAccess = Persona & {
   canChat?: boolean;
@@ -77,6 +78,8 @@ export function PersonaSubmenu({
 
   // Determine if chat has been used (has any messages)
   const chatHasMessages = messages.length > 0;
+  const entitlements = useAccountStore((state) => state.entitlements);
+  const hasPersonasAccess = Boolean(entitlements?.features?.personas?.custom);
 
   const allPersonas = [...systemPersonas, ...userPersonas, ...sharedPersonas];
   const selectedPersona = allPersonas.find((p) => p.id === selectedPersonaId);
@@ -85,6 +88,14 @@ export function PersonaSubmenu({
     personaProfiles[selectedPersonaId]?.find((p) => p.id === selectedProfileId);
 
   useEffect(() => {
+    if (!hasPersonasAccess) {
+      setSystemPersonas([]);
+      setUserPersonas([]);
+      setSharedPersonas([]);
+      setIsLoading(false);
+      return;
+    }
+
     fetchPersonas();
 
     const handlePersonasUpdated = () => {
@@ -107,17 +118,21 @@ export function PersonaSubmenu({
       window.removeEventListener('personasUpdated', handlePersonasUpdated);
       window.removeEventListener('profilesUpdated', handleProfilesUpdated);
     };
-  }, [selectedPersonaId]);
+  }, [selectedPersonaId, hasPersonasAccess]);
 
   // Fetch profiles for selected persona on mount to show selected profile correctly
   useEffect(() => {
-    if (selectedPersonaId) {
+    if (hasPersonasAccess && selectedPersonaId) {
       fetchProfilesForPersonaImmediate(selectedPersonaId);
     }
-  }, [selectedPersonaId]);
+  }, [selectedPersonaId, hasPersonasAccess]);
 
   // Immediate fetch without checking loading state (for initial load)
   const fetchProfilesForPersonaImmediate = async (personaId: string) => {
+    if (!hasPersonasAccess) {
+      return;
+    }
+
     // Check cache first
     if (profilesCache[personaId]) {
       setPersonaProfiles((prev) => ({
@@ -148,6 +163,14 @@ export function PersonaSubmenu({
   };
 
   const fetchPersonas = async () => {
+    if (!hasPersonasAccess) {
+      setSystemPersonas([]);
+      setUserPersonas([]);
+      setSharedPersonas([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/personas');
       if (response.ok) {
@@ -170,6 +193,10 @@ export function PersonaSubmenu({
   // Fetch profiles for a specific persona (called when hovering)
   const fetchProfilesForPersona = useCallback(
     async (personaId: string) => {
+      if (!hasPersonasAccess) {
+        return;
+      }
+
       // Check cache first
       if (profilesCache[personaId]) {
         setPersonaProfiles((prev) => ({
@@ -204,7 +231,7 @@ export function PersonaSubmenu({
         setLoadingProfiles((prev) => ({ ...prev, [personaId]: false }));
       }
     },
-    [loadingProfiles],
+    [loadingProfiles, hasPersonasAccess],
   );
 
   const handlePersonaSelect = useCallback(
@@ -339,6 +366,13 @@ export function PersonaSubmenu({
     onCloseDropdown?.();
   }, [onCreatePersona, onCloseDropdown]);
 
+  const handleOpenUpgrade = useCallback(() => {
+    onCloseDropdown?.();
+    setTimeout(() => {
+      window.dispatchEvent(new Event('open-premium-modal'));
+    }, 100);
+  }, [onCloseDropdown]);
+
   const handleEditProfile = useCallback(
     (profile: PersonaProfile, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -373,44 +407,53 @@ export function PersonaSubmenu({
     <>
       <DropdownMenuSub>
       <DropdownMenuSubTrigger className="gap-2">
-        {selectedPersona?.iconUrl ? (
-          <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0">
-            <Image
-              src={selectedPersona.iconUrl}
-              alt=""
-              width={16}
-              height={16}
-              className="object-cover w-full h-full"
-            />
-          </div>
-        ) : selectedProfile && selectedProfileTheme ? (
-          <div
-            className={cn(
-              'w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0',
-              selectedProfileTheme.iconBg,
-            )}
-          >
-            {selectedProfile.name.charAt(0).toUpperCase()}
-          </div>
+        {!hasPersonasAccess ? (
+          <>
+            <Lock className="size-4 text-muted-foreground" />
+            <span className="truncate max-w-[120px]">AI Persona</span>
+          </>
         ) : (
-          <span className={selectedPersona ? 'text-eos-orange' : ''}>
-            <UserIcon size={16} />
-          </span>
-        )}
-        <span
-          className={cn(
-            'truncate max-w-[120px]',
-            (selectedPersona || selectedProfile) && 'text-eos-orange',
-          )}
-        >
-          {selectedProfile
-            ? `${selectedPersona?.name} · ${selectedProfile.name}`
-            : selectedPersona
-              ? selectedPersona.name
-              : 'AI Persona'}
-        </span>
-        {(selectedPersona || selectedProfile) && (
-          <Check className="size-3 ml-auto text-eos-orange" />
+          <>
+            {selectedPersona?.iconUrl ? (
+              <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0">
+                <Image
+                  src={selectedPersona.iconUrl}
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+            ) : selectedProfile && selectedProfileTheme ? (
+              <div
+                className={cn(
+                  'w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0',
+                  selectedProfileTheme.iconBg,
+                )}
+              >
+                {selectedProfile.name.charAt(0).toUpperCase()}
+              </div>
+            ) : (
+              <span className={selectedPersona ? 'text-eos-orange' : ''}>
+                <UserIcon size={16} />
+              </span>
+            )}
+            <span
+              className={cn(
+                'truncate max-w-[120px]',
+                (selectedPersona || selectedProfile) && 'text-eos-orange',
+              )}
+            >
+              {selectedProfile
+                ? `${selectedPersona?.name} · ${selectedProfile.name}`
+                : selectedPersona
+                  ? selectedPersona.name
+                  : 'AI Persona'}
+            </span>
+            {(selectedPersona || selectedProfile) && (
+              <Check className="size-3 ml-auto text-eos-orange" />
+            )}
+          </>
         )}
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
@@ -418,7 +461,21 @@ export function PersonaSubmenu({
           className="w-72 max-h-[400px] overflow-y-auto p-1"
           sideOffset={8}
         >
-          {isLoading ? (
+          {!hasPersonasAccess ? (
+            <div className="p-3 space-y-3">
+              <div className="text-sm font-medium">AI Personas are a Pro feature</div>
+              <p className="text-xs text-muted-foreground">
+                Upgrade to unlock specialized personas and custom assistants.
+              </p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={handleOpenUpgrade}
+              >
+                Upgrade to Pro
+              </Button>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>

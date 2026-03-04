@@ -203,7 +203,7 @@ Your subscription has been cancelled. You'll continue to have access until: ${da
 
 After that, you'll be downgraded to the Free plan with these limits:
 - 20 messages per day
-- 5 document uploads total
+- 5 document uploads per day
 - No calendar integration
 - No voice recording
 
@@ -219,7 +219,7 @@ ${
   data.plan === 'pro'
     ? `
 ✅ 200 messages per day
-✅ 100 document uploads
+✅ 100 document uploads per day
 ✅ Calendar integration
 ✅ 600 minutes of voice recording per month
 ✅ Export conversations
@@ -227,7 +227,7 @@ ${
     : data.plan === 'business'
       ? `
 ✅ 1,000 messages per day
-✅ 1,000 document uploads
+✅ 1,000 document uploads per day
 ✅ Calendar integration
 ✅ 3,000 minutes of voice recording per month
 ✅ Export conversations

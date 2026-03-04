@@ -113,11 +113,19 @@ export const POST = withErrorHandler(async (request: Request) => {
       await db.transaction(async (tx) => {
         // Re-verify user still doesn't have orgId (prevent double-join)
         const [currentUser] = await tx
-          .select({ orgId: userTable.orgId })
+          .select({
+            orgId: userTable.orgId,
+            plan: userTable.plan,
+            subscriptionSource: userTable.subscriptionSource,
+          })
           .from(userTable)
           .where(eq(userTable.id, session.user.id));
 
-        if (currentUser?.orgId) {
+        if (!currentUser) {
+          throw new Error('User no longer exists');
+        }
+
+        if (currentUser.orgId) {
           throw new Error('You already belong to an organization');
         }
 
@@ -126,6 +134,7 @@ export const POST = withErrorHandler(async (request: Request) => {
           .select({
             id: orgTable.id,
             plan: orgTable.plan,
+            subscriptionSource: orgTable.subscriptionSource,
             seatCount: orgTable.seatCount,
             memberCount: sql<number>`(SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})`,
           })
@@ -136,16 +145,24 @@ export const POST = withErrorHandler(async (request: Request) => {
           throw new Error('Organization no longer exists');
         }
 
-        if (Number(org.memberCount) >= org.seatCount) {
+        if (
+          org.subscriptionSource !== 'circle' &&
+          Number(org.memberCount) >= org.seatCount
+        ) {
           throw new Error('Organization has reached its seat limit');
         }
 
         // Add user to org (atomically)
+        const nextPlan =
+          org.subscriptionSource === 'circle' ||
+          currentUser.subscriptionSource === 'circle'
+            ? currentUser.plan
+            : org.plan;
         await tx
           .update(userTable)
           .set({
             orgId: org.id,
-            plan: org.plan, // Sync user plan to org plan
+            plan: nextPlan,
           })
           .where(eq(userTable.id, session.user.id));
 

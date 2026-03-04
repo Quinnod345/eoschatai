@@ -33,6 +33,12 @@ export type PersonaAccess = {
   canEdit: boolean;
 };
 
+const NO_PERSONA_ACCESS: PersonaAccess = {
+  canChat: false,
+  canViewSettings: false,
+  canEdit: false,
+};
+
 // Role-based permission mapping
 const rolePermissions: Record<OrgRole, OrgPermission[]> = {
   owner: [
@@ -74,6 +80,16 @@ export async function canAccessPersona(
     'id' | 'userId' | 'orgId' | 'isSystemPersona' | 'isShared' | 'visibility'
   >,
 ): Promise<PersonaAccess> {
+  const [member] = await db
+    .select({ plan: userTable.plan })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+
+  if (!member || member.plan === 'free') {
+    return NO_PERSONA_ACCESS;
+  }
+
   // System personas are globally chat-accessible but not editable.
   if (personaRecord.isSystemPersona) {
     return {
@@ -95,20 +111,12 @@ export async function canAccessPersona(
   const isOrgVisible =
     personaRecord.visibility === 'org' || personaRecord.isShared === true;
   if (!isOrgVisible || !personaRecord.orgId) {
-    return {
-      canChat: false,
-      canViewSettings: false,
-      canEdit: false,
-    };
+    return NO_PERSONA_ACCESS;
   }
 
   const role = await getUserOrgRole(userId, personaRecord.orgId);
   if (!role) {
-    return {
-      canChat: false,
-      canViewSettings: false,
-      canEdit: false,
-    };
+    return NO_PERSONA_ACCESS;
   }
 
   const canEdit = rolePermissions[role].includes('personas.edit');

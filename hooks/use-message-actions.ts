@@ -148,6 +148,26 @@ export function useMessageActions({
 
       const data = await response.json();
 
+      if (!response.ok) {
+        if (response.status === 403 && data?.code === 'FEATURE_LOCKED') {
+          setPinnedMessages((prev) => {
+            const without = prev.filter((p) => p.messageId !== messageId);
+            if (wasPinned && previousPin) {
+              return [...without, previousPin];
+            }
+            return without;
+          });
+          emitMessageActionUpdate('pin', {
+            pinned: wasPinned,
+            messageId,
+            chatId,
+          });
+          window.dispatchEvent(new Event('open-premium-modal'));
+          return;
+        }
+        throw new Error(data.error || 'Failed to pin/unpin');
+      }
+
       // Reconcile with server state
       if (data.pinned) {
         const serverPin: PinnedMessage = {

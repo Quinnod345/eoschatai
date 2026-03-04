@@ -82,6 +82,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
+    if (org.subscriptionSource === 'circle') {
+      return NextResponse.json(
+        {
+          error:
+            'Circle resource-sharing organizations do not use seat management',
+        },
+        { status: 400 },
+      );
+    }
+
     // Prevent reducing seats below current usage
     const usage = await getOrgSeatUsage(orgIdValue);
     if (desiredSeatCount < usage.used) {

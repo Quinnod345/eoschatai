@@ -771,9 +771,11 @@ body.has-chat-mesh .eos-chat-mesh {
     padding: 0.5rem 1.5rem;
 }
 
-/* Card with hover effect */
+/* Card with hover effect - explicit properties for GPU-friendly animation */
 .eos-card {
-    transition: all var(--spring-duration) var(--spring-easing);
+    transition: transform var(--spring-duration) var(--spring-easing),
+                box-shadow var(--spring-duration) var(--spring-easing);
+    transform: translateZ(0);
     border-radius: var(--eos-glass-border-radius);
     overflow: hidden;
     position: relative;
@@ -799,11 +801,13 @@ body.has-chat-mesh .eos-chat-mesh {
     opacity: 1;
 }
 
-/* Button with glow and hover effect */
+/* Button with glow and hover effect - explicit properties for smooth animation */
 .eos-button {
     position: relative;
     overflow: hidden;
-    transition: all var(--spring-duration) var(--spring-easing);
+    transition: transform var(--spring-duration) var(--spring-easing),
+                box-shadow var(--spring-duration) var(--spring-easing);
+    transform: translateZ(0);
     z-index: 1;
     border-radius: 9999px;
     padding: 0.75rem 1.75rem;
@@ -836,12 +840,14 @@ body.has-chat-mesh .eos-chat-mesh {
 }
 
 .eos-interactive-icon {
-    transition: all 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                filter 0.3s ease;
     transform-origin: center;
+    transform: translateZ(0);
 }
 
 .eos-interactive-icon:hover {
-    transform: scale(1.2) rotate(10deg);
+    transform: scale(1.2) rotate(10deg) translateZ(0);
     filter: brightness(1.2);
 }
 
@@ -1147,26 +1153,25 @@ body.has-chat-mesh .eos-chat-mesh {
   transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Smooth sidebar transitions */
-.sidebar-container,
-.glass-sidebar-container,
-[data-sidebar="sidebar"] {
-  will-change: width;
-}
-
-/* Opening: gentle ease-out settle */
+/* Smooth sidebar transitions - unified timing to reduce glitchiness */
+/* Opening and closing: same duration for consistent feel */
 .group[data-state="expanded"] .glass-sidebar-container,
 .group[data-state="expanded"] > div:first-child {
-  transition: width 280ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  transition: width 200ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
-/* Closing: quick and decisive */
 .group[data-state="collapsed"] .glass-sidebar-container,
 .group[data-state="collapsed"] > div:first-child {
-  transition: width 150ms cubic-bezier(0.4, 0, 1, 1) !important;
+  transition: width 200ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 /* Sidebar toggle button - bulb to icon transformation on hover */
+.sidebar-toggle-btn .sidebar-toggle-bulb,
+.sidebar-toggle-btn .sidebar-toggle-icon {
+  transition: opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .sidebar-toggle-btn:hover .sidebar-toggle-bulb {
   opacity: 0 !important;
   transform: scale(0.8) !important;
@@ -1192,14 +1197,12 @@ body.has-chat-mesh .eos-chat-mesh {
 }
 
 /* ===== SIDEBAR TRANSITION PERFORMANCE OPTIMIZATIONS ===== */
-/* During sidebar transitions, temporarily disable expensive filter effects */
+/* During sidebar transitions, temporarily disable expensive effects */
 
-/* Main culprit: the chat gradient mesh with blur(80px) */
 html.sidebar-animating .eos-chat-mesh::after {
-  filter: none !important; /* Completely disable blur during transition */
   animation: none !important;
-  opacity: 0.3 !important; /* Fade it out so the change isn't jarring */
-  transition: opacity 120ms cubic-bezier(0.32, 0.72, 0, 1) !important;
+  opacity: 0.4 !important; /* Slight fade during transition */
+  transition: opacity 150ms cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 
 /* Disable GradualBlur backdrop-filters during transition */
@@ -1229,25 +1232,17 @@ html.sidebar-animating [class*="gradient-mesh"] {
   overflow: visible;
 }
 
-/* ===== SIDEBAR TOGGLE STYLING ===== */
-/* Ensure the toggle button icons have smooth transitions */
-.sidebar-toggle-btn .sidebar-toggle-bulb,
-.sidebar-toggle-btn .sidebar-toggle-icon {
-  transition: opacity 120ms cubic-bezier(0.32, 0.72, 0, 1), 
-              transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/* Content opacity transitions - asymmetric: fast out, gentle in */
+/* Content opacity - instant fade when sidebar collapses/expands */
 .group[data-state="collapsed"] [data-sidebar="header"],
 .group[data-state="collapsed"] [data-sidebar="content"],
 .group[data-state="collapsed"] [data-sidebar="footer"] {
-  transition: opacity 90ms cubic-bezier(0.4, 0, 1, 1);
+  transition: none;
 }
 
 .group[data-state="expanded"] [data-sidebar="header"],
 .group[data-state="expanded"] [data-sidebar="content"],
 .group[data-state="expanded"] [data-sidebar="footer"] {
-  transition: opacity 180ms cubic-bezier(0, 0, 0.2, 1);
+  transition: none;
 }
 
 /* Ensure items in collapsed state stay visible */
@@ -1262,13 +1257,13 @@ html.sidebar-animating [class*="gradient-mesh"] {
   opacity: 0;
   width: 0;
   overflow: hidden;
-  transition: opacity 90ms cubic-bezier(0.4, 0, 1, 1), width 90ms cubic-bezier(0.4, 0, 1, 1);
+  transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1), width 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Show icons in collapsed state */
 .group[data-state="collapsed"] [data-sidebar="menu-button"] > svg {
   margin-right: 0;
-  transition: margin 90ms cubic-bezier(0.4, 0, 1, 1);
+  transition: margin 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Content transitions removed - let flexbox handle layout naturally */
@@ -1384,20 +1379,24 @@ html.sidebar-animating [class*="gradient-mesh"] {
     .hover-scale {
         transition: transform var(--spring-duration) var(--spring-easing),
             box-shadow var(--spring-duration) var(--spring-easing);
+        transform: translateZ(0);
+        backface-visibility: hidden;
     }
 
     .hover-scale:hover {
-        transform: scale(var(--hover-scale));
+        transform: scale(var(--hover-scale)) translateZ(0);
         box-shadow: var(--hover-shadow);
     }
 
     .hover-lift {
         transition: transform var(--spring-duration) var(--spring-easing),
             box-shadow var(--spring-duration) var(--spring-easing);
+        transform: translateZ(0);
+        backface-visibility: hidden;
     }
 
     .hover-lift:hover {
-        transform: translateY(var(--hover-translate-y));
+        transform: translateY(var(--hover-translate-y)) translateZ(0);
         box-shadow: var(--hover-shadow);
     }
 
@@ -1432,7 +1431,10 @@ html.sidebar-animating [class*="gradient-mesh"] {
     }
 
     .glass-button {
-        @apply eos-glass hover:shadow-lg transition-all duration-300;
+        @apply eos-glass hover:shadow-lg;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                    box-shadow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform: translateZ(0);
     }
 
     /* Super rounded utilities */
@@ -1492,19 +1494,22 @@ html.sidebar-animating [class*="gradient-mesh"] {
         --z-sticky: 20;
         --z-fixed: 30;
         --z-sidebar: 40;
-        --z-dropdown: 150;
-        --z-dropdown-submenu: 200;
-        --z-popover: 150;
-        --z-select: 150;
-        --z-tooltip: 250;
         --z-modal-overlay: 300;
         --z-modal-content: 301;
         --z-nested-modal-overlay: 350;
         --z-nested-modal-content: 351;
         --z-alert-overlay: 400;
         --z-alert-content: 401;
-        --z-toast: 400;
-        --z-notification: 400;
+        /* Dropdowns, selects, and popovers must sit above modal content (301)
+           so form elements inside dialogs render on top. */
+        --z-dropdown: 500;
+        --z-dropdown-submenu: 510;
+        --z-popover: 500;
+        --z-select: 500;
+        /* Tooltips stay above all overlays */
+        --z-tooltip: 550;
+        --z-toast: 600;
+        --z-notification: 600;
     }
 
     .dark {
@@ -2474,72 +2479,42 @@ body:has([data-radix-alert-dialog-overlay]) {
   z-index: var(--z-nested-modal-content, 351) !important;
 }
 
-/* Dropdowns, selects, and popovers - BASE z-index for non-modal contexts */
+/* Dropdowns, selects, and popovers - sit above modal content (301) */
 [data-radix-select-portal],
 [data-radix-select-content],
 [data-radix-dropdown-menu-portal],
 [data-radix-dropdown-menu-content] {
-  z-index: var(--z-dropdown, 150);
+  z-index: var(--z-dropdown, 500);
 }
 
 /* Dropdown submenus - must be above parent dropdown */
 [data-radix-dropdown-menu-content][data-side] {
-  z-index: var(--z-dropdown-submenu, 200);
+  z-index: var(--z-dropdown-submenu, 510);
 }
 
 /* Popovers */
 [data-radix-popover-portal],
 [data-radix-popover-content] {
-  z-index: var(--z-popover, 150);
+  z-index: var(--z-popover, 500);
 }
 
 /* Tooltips (should be above dropdowns and submenus) */
 [data-radix-tooltip-portal],
 [data-radix-tooltip-content] {
-  z-index: var(--z-tooltip, 250);
+  z-index: var(--z-tooltip, 550);
 }
 
 /* ===========================================
    FORM ELEMENTS INSIDE MODALS/DIALOGS
-   These MUST appear above the modal content
+   Values are set via CSS variables above (--z-dropdown: 500, --z-select: 500,
+   --z-popover: 500, --z-tooltip: 550) so the !important overrides below are
+   kept only as a safety net for third-party styles that might clobber variables.
    =========================================== */
-
-/* Select/Dropdown inside any dialog - must be above modal content (301/401) */
-[data-radix-select-portal] {
-  z-index: 500 !important;
-}
-
-[data-radix-dropdown-menu-portal] {
-  z-index: 500 !important;
-}
-
-[data-radix-popover-portal] {
-  z-index: 500 !important;
-}
-
-/* Ensure the content inside portals is also high z-index */
-[data-radix-select-content] {
-  z-index: 500 !important;
-}
-
-[data-radix-dropdown-menu-content] {
-  z-index: 500 !important;
-}
-
-[data-radix-popover-content] {
-  z-index: 500 !important;
-}
-
-/* Combobox/Command menu inside dialogs */
-[data-radix-combobox-portal],
-[data-radix-combobox-content] {
-  z-index: 500 !important;
-}
 
 /* Ensure tooltip is always on top */
 [data-radix-tooltip-portal],
 [data-radix-tooltip-content] {
-  z-index: 550 !important;
+  z-index: var(--z-tooltip, 550) !important;
 }
 
 /* Ensure dropdown viewport is visible */

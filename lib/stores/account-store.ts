@@ -12,6 +12,7 @@ export type AccountUser = {
   email: string;
   plan: PlanName;
   orgId: string | null;
+  subscriptionSource: 'stripe' | 'circle';
 };
 
 export type AccountOrg = {
@@ -20,6 +21,7 @@ export type AccountOrg = {
   plan: PlanName;
   seatCount: number;
   limits: unknown;
+  subscriptionSource: 'stripe' | 'circle';
 } | null;
 
 export type FeatureFlagSnapshot = Record<string, boolean>;

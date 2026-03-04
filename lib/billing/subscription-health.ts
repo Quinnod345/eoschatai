@@ -70,6 +70,7 @@ export async function scanSubscriptionHealth(): Promise<SubscriptionHealthReport
       plan: userTable.plan,
       stripeCustomerId: userTable.stripeCustomerId,
       orgId: userTable.orgId,
+      subscriptionSource: userTable.subscriptionSource,
     })
     .from(userTable)
     .where(isNotNull(userTable.stripeCustomerId));
@@ -79,6 +80,10 @@ export async function scanSubscriptionHealth(): Promise<SubscriptionHealthReport
   // Check each user for issues
   for (const user of users) {
     if (!user.stripeCustomerId) continue;
+    if (user.subscriptionSource === 'circle') {
+      // Stripe checks and auto-fixes should not drive Circle-managed plans.
+      continue;
+    }
 
     try {
       // Get all subscriptions for this user
@@ -157,6 +162,7 @@ export async function scanSubscriptionHealth(): Promise<SubscriptionHealthReport
       plan: orgTable.plan,
       seatCount: orgTable.seatCount,
       stripeSubscriptionId: orgTable.stripeSubscriptionId,
+      subscriptionSource: orgTable.subscriptionSource,
     })
     .from(orgTable)
     .where(isNotNull(orgTable.stripeSubscriptionId));
@@ -165,6 +171,10 @@ export async function scanSubscriptionHealth(): Promise<SubscriptionHealthReport
 
   for (const org of orgs) {
     if (!org.stripeSubscriptionId) continue;
+    if (org.subscriptionSource === 'circle') {
+      // Circle resource-sharing orgs should not be auto-healed using Stripe logic.
+      continue;
+    }
 
     stats.orgsWithSubscriptions++;
 
@@ -338,6 +348,22 @@ export async function autoFixSubscriptionIssues(dryRun = true): Promise<{
           });
           skipped++;
         } else {
+          const [currentUser] = await db
+            .select({ subscriptionSource: userTable.subscriptionSource })
+            .from(userTable)
+            .where(eq(userTable.id, issue.userId))
+            .limit(1);
+          if (currentUser?.subscriptionSource === 'circle') {
+            details.push({
+              issue: issue.description,
+              action:
+                'Skipped: user is Circle-managed and should not be downgraded by Stripe auto-fix',
+              success: true,
+            });
+            skipped++;
+            continue;
+          }
+
           await db
             .update(userTable)
             .set({ stripeCustomerId: null, plan: 'free' })
@@ -357,6 +383,22 @@ export async function autoFixSubscriptionIssues(dryRun = true): Promise<{
           });
           skipped++;
         } else {
+          const [currentOrg] = await db
+            .select({ subscriptionSource: orgTable.subscriptionSource })
+            .from(orgTable)
+            .where(eq(orgTable.id, issue.orgId))
+            .limit(1);
+          if (currentOrg?.subscriptionSource === 'circle') {
+            details.push({
+              issue: issue.description,
+              action:
+                'Skipped: org is Circle-managed and should not be downgraded by Stripe auto-fix',
+              success: true,
+            });
+            skipped++;
+            continue;
+          }
+
           await db
             .update(orgTable)
             .set({ stripeSubscriptionId: null, plan: 'free' })

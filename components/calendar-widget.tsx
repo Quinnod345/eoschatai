@@ -56,6 +56,13 @@ function CalendarWidgetInner() {
       if (eventsRes.ok) {
         const eventsData = await eventsRes.json();
         setEvents(eventsData);
+      } else if (eventsRes.status === 403) {
+        const data = await eventsRes.json().catch(() => ({}));
+        if (
+          data?.code === 'ENTITLEMENT_BLOCK' || data?.code === 'FEATURE_LOCKED'
+        ) {
+          window.dispatchEvent(new Event('open-premium-modal'));
+        }
       }
 
       // This would normally call our analytics endpoint

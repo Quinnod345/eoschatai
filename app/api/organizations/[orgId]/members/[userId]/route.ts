@@ -12,6 +12,7 @@ import {
   checkOrgPermission,
 } from '@/lib/organizations/permissions';
 import { validateUuidField } from '@/lib/api/validation';
+import { resolveCirclePlanFromEmail } from '@/lib/integrations/circle-plan-resolver';
 
 interface RouteParams {
   params: Promise<{
@@ -111,7 +112,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
           targetUserIdValue,
         )
       : null;
-    const newPlan = individualPlan || 'free';
+    const newPlan =
+      targetUser.subscriptionSource === 'circle'
+        ? await resolveCirclePlanFromEmail(targetUser.email, 'remove-member', {
+            fallbackOnLookupError: targetUser.plan,
+            alternateEmail: targetUser.circleMemberEmail,
+          })
+        : individualPlan || 'free';
 
     // Remove user from organization and reset plan
     await db

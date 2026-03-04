@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { saveMessages, saveChat } from '@/lib/db/queries';
 import { generateUUID } from '@/lib/utils';
+import { getAccessContext } from '@/lib/entitlements';
 
 // This endpoint saves an entire voice conversation at once
 export async function POST(request: NextRequest) {
@@ -11,7 +12,10 @@ export async function POST(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized', code: 'UNAUTHORIZED' },
+        { status: 401 },
+      );
     }
 
     const body = await request.json();
@@ -21,17 +25,46 @@ export async function POST(request: NextRequest) {
       hasPersona: !!body.selectedPersonaId,
     });
 
-    const {
+    let {
       chatId,
       messages,
       selectedPersonaId,
       selectedProfileId,
       provider = 'openai',
     } = body;
+    let personaWarning:
+      | {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT';
+          message: string;
+          requiredPlan: 'pro';
+          feature: 'personas.custom';
+          action: 'open_premium_modal';
+          selectedPersonaId?: string;
+          selectedProfileId?: string;
+        }
+      | undefined;
+
+    if (selectedPersonaId || selectedProfileId) {
+      const accessContext = await getAccessContext(session.user.id);
+      if (!accessContext.entitlements.features.personas.custom) {
+        personaWarning = {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT',
+          message:
+            'AI personas are a Pro feature. Voice chat was saved with the default assistant.',
+          requiredPlan: 'pro',
+          feature: 'personas.custom',
+          action: 'open_premium_modal',
+          selectedPersonaId,
+          selectedProfileId,
+        };
+        selectedPersonaId = undefined;
+        selectedProfileId = undefined;
+      }
+    }
 
     if (!chatId || !messages || messages.length === 0) {
       return NextResponse.json(
-        { error: 'Chat ID and messages are required' },
+        { error: 'Chat ID and messages are required', code: 'MISSING_CHAT_DATA' },
         { status: 400 },
       );
     }
@@ -184,6 +217,7 @@ export async function POST(request: NextRequest) {
       chatId,
       title,
       savedCount: dbMessages.length,
+      warning: personaWarning,
     });
   } catch (error) {
     console.error('[Batch Save] Error:', error);
@@ -193,6 +227,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to save voice conversation',
+        code: 'VOICE_BATCH_SAVE_FAILED',
         details: errorMessage,
       },
       { status: 500 },

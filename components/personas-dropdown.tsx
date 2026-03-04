@@ -24,10 +24,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import type { Persona } from '@/lib/db/schema';
 import { useAccountStore } from '@/lib/stores/account-store';
-import { PersonasModal } from '@/components/personas-modal';
 import { Sparkles, Users } from 'lucide-react';
 import GlassSurface from '@/components/GlassSurface';
 import { cn } from '@/lib/utils';
+import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 interface PersonasDropdownProps {
   selectedPersonaId?: string;
@@ -50,19 +51,14 @@ export function PersonasDropdown({
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredPersonaId, setHoveredPersonaId] = useState<string | null>(null);
-  const [showPersonasModal, setShowPersonasModal] = useState(false);
   const [isSwitchingPersona, setIsSwitchingPersona] = useState(false);
 
   // Determine if chat has been used (has any messages)
   const chatHasMessages = messages.length > 0;
 
-  // Check if user has access to personas (any premium feature except deep_research means they have Pro)
+  // Persona access is explicitly entitlement-gated (Pro+)
   const entitlements = useAccountStore((state) => state.entitlements);
-  const hasPersonasAccess =
-    entitlements?.features?.export ||
-    entitlements?.features?.calendar_connect ||
-    entitlements?.features?.recordings?.enabled ||
-    false;
+  const hasPersonasAccess = Boolean(entitlements?.features?.personas?.custom);
 
   const allPersonas = [...systemPersonas, ...userPersonas];
   const selectedPersona = allPersonas.find((p) => p.id === selectedPersonaId);
@@ -102,6 +98,14 @@ export function PersonasDropdown({
   ]);
 
   useEffect(() => {
+    if (!hasPersonasAccess) {
+      setSystemPersonas([]);
+      setUserPersonas([]);
+      setSharedPersonas([]);
+      setIsLoading(false);
+      return;
+    }
+
     fetchPersonas();
 
     // Listen for personas updates
@@ -122,9 +126,17 @@ export function PersonasDropdown({
       window.removeEventListener('personasUpdated', handlePersonasUpdated);
       window.removeEventListener('personaChanged', handlePersonaChanged);
     };
-  }, []);
+  }, [hasPersonasAccess]);
 
   const fetchPersonas = async () => {
+    if (!hasPersonasAccess) {
+      setSystemPersonas([]);
+      setUserPersonas([]);
+      setSharedPersonas([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/personas');
       if (response.ok) {
@@ -190,7 +202,7 @@ export function PersonasDropdown({
       } catch (error) {
         console.error('PERSONA_DROPDOWN: Error switching persona:', error);
         setIsSwitchingPersona(false);
-        alert(
+        toast.error(
           `Failed to switch persona: ${error instanceof Error ? error.message : 'Please try again.'}`,
         );
       }
@@ -241,11 +253,11 @@ export function PersonasDropdown({
         }
       } else {
         const error = await response.json();
-        alert(`Failed to remove persona: ${error.error || 'Unknown error'}`);
+        toast.error(`Failed to remove persona: ${error.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting persona:', error);
-      alert('Failed to remove persona. Please try again.');
+      toast.error('Failed to remove persona. Please try again.');
     }
   };
 
@@ -268,7 +280,13 @@ export function PersonasDropdown({
                 transition-all duration-300 ease-out
                 shadow-sm hover:shadow-md
               `}
-              onClick={() => setShowPersonasModal(true)}
+              onClick={() => {
+                void showEdgeCaseToast(toast, {
+                  code: 'FEATURE_LOCKED',
+                  message: 'AI Personas are available on Pro and Business plans.',
+                  requiredPlan: 'pro',
+                });
+              }}
             >
               <Sparkles className="size-4 mr-2 text-eos-orange" />
               <span className="hidden md:inline font-medium">AI Personas</span>
@@ -278,10 +296,6 @@ export function PersonasDropdown({
             <div className="text-sm">Unlock specialized AI assistants</div>
           </TooltipContent>
         </Tooltip>
-        <PersonasModal
-          open={showPersonasModal}
-          onClose={() => setShowPersonasModal(false)}
-        />
       </>
     );
   }

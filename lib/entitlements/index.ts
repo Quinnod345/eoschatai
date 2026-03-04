@@ -270,10 +270,15 @@ const entitlementsEqual = (
 ) => JSON.stringify(left) === JSON.stringify(right);
 
 export interface AccessContext {
-  user: Pick<User, 'id' | 'plan' | 'orgId' | 'email'> & {
+  user: Pick<User, 'id' | 'plan' | 'orgId' | 'email' | 'subscriptionSource'> & {
     usageCounters: UsageCounters;
   };
-  org: Pick<Org, 'id' | 'name' | 'plan' | 'limits' | 'seatCount'> | null;
+  org:
+    | Pick<
+        Org,
+        'id' | 'name' | 'plan' | 'limits' | 'seatCount' | 'subscriptionSource'
+      >
+    | null;
   entitlements: NormalizedEntitlements;
 }
 
@@ -286,12 +291,19 @@ type UserWithOrg = {
     | 'usageCounters'
     | 'entitlements'
     | 'stripeCustomerId'
+    | 'subscriptionSource'
     | 'email'
   >;
   org:
     | (Pick<
         Org,
-        'id' | 'name' | 'plan' | 'limits' | 'seatCount' | 'stripeSubscriptionId'
+            | 'id'
+            | 'name'
+            | 'plan'
+            | 'limits'
+            | 'seatCount'
+            | 'stripeSubscriptionId'
+            | 'subscriptionSource'
       > & {
         limits: Org['limits'];
       })
@@ -308,6 +320,7 @@ const fetchUserRecord = async (userId: string): Promise<UserWithOrg | null> => {
         usageCounters: user.usageCounters,
         entitlements: user.entitlements,
         stripeCustomerId: user.stripeCustomerId,
+        subscriptionSource: user.subscriptionSource,
         email: user.email,
       },
       org: {
@@ -317,6 +330,7 @@ const fetchUserRecord = async (userId: string): Promise<UserWithOrg | null> => {
         limits: org.limits,
         seatCount: org.seatCount,
         stripeSubscriptionId: org.stripeSubscriptionId,
+        subscriptionSource: org.subscriptionSource,
       },
     })
     .from(user)
@@ -464,8 +478,10 @@ export const getUserEntitlements = async (
   }
 
   const overrides = extractOrgOverrides(record.org);
-  // Use organization's plan if user belongs to an organization, otherwise use user's plan
-  const effectivePlan = record.org?.plan ?? record.user.plan;
+  const effectivePlan =
+    record.org?.subscriptionSource === 'circle'
+      ? record.user.plan
+      : record.org?.plan ?? record.user.plan;
   const computed = computeEntitlements(effectivePlan, overrides);
   const previous = coerceEntitlements(record.user.entitlements);
 
@@ -507,6 +523,7 @@ export const getAccessContext = async (
       plan: record.user.plan,
       orgId: record.user.orgId,
       email: record.user.email,
+      subscriptionSource: record.user.subscriptionSource,
       usageCounters,
     },
     org: record.org
@@ -516,6 +533,7 @@ export const getAccessContext = async (
           plan: record.org.plan,
           limits: record.org.limits,
           seatCount: record.org.seatCount,
+          subscriptionSource: record.org.subscriptionSource,
         }
       : null,
     entitlements,
@@ -778,8 +796,18 @@ export const resetDailyUsageCounters = async (): Promise<number> => {
     updated_users AS (
       UPDATE "User" u
       SET "usageCounters" = jsonb_set(
-        jsonb_set(COALESCE(u."usageCounters", '{}'::jsonb), '{chats_today}', '0'::jsonb, true),
-        '{deep_runs_day}',
+        jsonb_set(
+          jsonb_set(
+            COALESCE(u."usageCounters", '{}'::jsonb),
+            '{chats_today}',
+            '0'::jsonb,
+            true
+          ),
+          '{deep_runs_day}',
+          '0'::jsonb,
+          true
+        ),
+        '{uploads_total}',
         '0'::jsonb,
         true
       )
@@ -813,6 +841,7 @@ export const resetUserDailyUsageCounters = async (userId: string) => {
     ...current,
     chats_today: 0,
     deep_runs_day: 0,
+    uploads_total: 0,
   }));
 };
 

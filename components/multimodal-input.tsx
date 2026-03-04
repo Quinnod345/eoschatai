@@ -17,6 +17,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 import GlassSurface from '@/components/GlassSurface';
 import { ErrorBoundary } from './error-boundary';
@@ -1483,14 +1484,12 @@ function PureMultimodalInput({
             return null;
           } else {
             const errorData = await response.json();
+            // Dismiss the loading toast
+            toast.dismiss(toastId);
+            await showEdgeCaseToast(toast, errorData);
             const errorMessage =
               errorData.error || 'Unknown error processing PDF';
             console.error(`PDF processing error: ${errorMessage}`);
-
-            // Dismiss the loading toast
-            toast.dismiss(toastId);
-
-            // Show an error toast
             toast.error(`PDF processing error: ${errorMessage}`);
             return undefined;
           }
@@ -1593,14 +1592,12 @@ function PureMultimodalInput({
             return null;
           } else {
             const errorData = await response.json();
+            // Dismiss loading toast
+            toast.dismiss(toastId);
+            await showEdgeCaseToast(toast, errorData);
             const errorMessage =
               errorData.error || 'Unknown error processing document';
             console.error(`Document processing error: ${errorMessage}`);
-
-            // Dismiss loading toast
-            toast.dismiss(toastId);
-
-            // Show error toast
             toast.error(`Document processing error: ${errorMessage}`);
             return undefined;
           }
@@ -1668,14 +1665,12 @@ function PureMultimodalInput({
             return null;
           } else {
             const errorData = await response.json();
+            // Dismiss loading toast
+            toast.dismiss(toastId);
+            await showEdgeCaseToast(toast, errorData);
             const errorMessage =
               errorData.error || 'Unknown error processing presentation';
             console.error(`Presentation processing error: ${errorMessage}`);
-
-            // Dismiss loading toast
-            toast.dismiss(toastId);
-
-            // Show error toast
             toast.error(`Presentation processing error: ${errorMessage}`);
             return undefined;
           }
@@ -1745,14 +1740,12 @@ function PureMultimodalInput({
             return null;
           } else {
             const errorData = await response.json();
+            // Dismiss loading toast
+            toast.dismiss(toastId);
+            await showEdgeCaseToast(toast, errorData);
             const errorMessage =
               errorData.error || 'Unknown error processing spreadsheet';
             console.error(`Spreadsheet processing error: ${errorMessage}`);
-
-            // Dismiss loading toast
-            toast.dismiss(toastId);
-
-            // Show error toast
             toast.error(`Spreadsheet processing error: ${errorMessage}`);
             return undefined;
           }
@@ -1784,8 +1777,9 @@ function PureMultimodalInput({
           });
 
           if (!response.ok) {
-            const { error } = await response.json();
-            toast.error(error || 'Failed to upload image');
+            const err = await response.json().catch(() => ({}));
+            await showEdgeCaseToast(toast, err);
+            toast.error(err?.error || 'Failed to upload image');
             return undefined;
           }
 
@@ -1899,12 +1893,12 @@ function PureMultimodalInput({
 
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            // Update status to error
             setAudioContents((prev) =>
               prev.map((a) =>
                 a.id === tempId ? { ...a, status: 'error' } : a,
               ),
             );
+            await showEdgeCaseToast(toast, err);
             toast.error(err?.error || 'Failed to upload audio');
             return undefined;
           }
@@ -2006,8 +2000,9 @@ function PureMultimodalInput({
           contentType: contentType,
         };
       }
-      const { error } = await response.json();
-      toast.error(error);
+      const err = await response.json().catch(() => ({}));
+      await showEdgeCaseToast(toast, err);
+      toast.error(err?.error || 'Failed to upload file');
       return undefined;
     } catch (error) {
       console.error('Failed to upload file:', error);
@@ -4015,7 +4010,7 @@ function PureMultimodalInput({
                 label="Uploads"
                 used={uploadsUsed}
                 limit={uploadLimit}
-                title="Context uploads used"
+                title="Context uploads used today"
               />
             )}
           </div>

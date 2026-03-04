@@ -18,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, Users, Shield, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAccountStore } from '@/lib/stores/account-store';
+import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 interface OrganizationModalProps {
   open: boolean;
@@ -140,8 +142,15 @@ export function OrganizationModal({
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create organization');
+        const data = (await response.json().catch(() => ({}))) as unknown;
+        await showEdgeCaseToast(toast, data, {
+          fallback: 'Failed to create organization',
+        });
+        const errorMessage =
+          typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error: string }).error
+            : 'Failed to create organization';
+        throw new Error(errorMessage);
       }
 
       const { organization } = await response.json();
@@ -149,6 +158,7 @@ export function OrganizationModal({
     } catch (error: any) {
       // If user already has an org, that's actually okay - check if we can proceed
       if (error?.message?.includes('already belong to an organization')) {
+        void showEdgeCaseToast(toast, { code: 'ALREADY_IN_ORG' });
         // Fetch the existing org
         try {
           const checkResponse = await fetch('/api/organizations');
@@ -187,11 +197,27 @@ export function OrganizationModal({
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to join organization');
+        const data = (await response.json().catch(() => ({}))) as unknown;
+        await showEdgeCaseToast(toast, data, {
+          fallback: 'Failed to join organization',
+        });
+        const errorMessage =
+          typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error: string }).error
+            : 'Failed to join organization';
+        throw new Error(errorMessage);
       }
 
-      const { organization } = await response.json();
+      const data = (await response.json()) as {
+        organization: { id: string };
+        warning?: string;
+        warningCode?: string;
+      };
+      if (data.warning) {
+        await showEdgeCaseToast(toast, data);
+      }
+      toast.success('Organization joined successfully');
+      const { organization } = data;
       onContinue(organization.id);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Invalid invite code');

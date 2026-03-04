@@ -127,7 +127,12 @@ export function OrganizationSettings() {
 
   const seatsUsed = members.length;
   const seatsTotal = org?.seatCount ?? 0;
-  const seatsFull = seatsTotal > 0 ? seatsUsed >= seatsTotal : false;
+  const isCircleResourceOrg = org?.subscriptionSource === 'circle';
+  const seatsFull = isCircleResourceOrg
+    ? false
+    : seatsTotal > 0
+      ? seatsUsed >= seatsTotal
+      : false;
 
   const copyInviteCode = () => {
     navigator.clipboard.writeText(inviteCode);
@@ -314,8 +319,18 @@ export function OrganizationSettings() {
                 <CardDescription>Organization Settings</CardDescription>
               </div>
             </div>
-            <Badge variant={org.plan === 'business' ? 'default' : 'secondary'}>
-              {org.plan.charAt(0).toUpperCase() + org.plan.slice(1)} Plan
+            <Badge
+              variant={
+                org.subscriptionSource === 'circle'
+                  ? 'outline'
+                  : org.plan === 'business'
+                    ? 'default'
+                    : 'secondary'
+              }
+            >
+              {org.subscriptionSource === 'circle'
+                ? 'Circle Resource Org'
+                : `${org.plan.charAt(0).toUpperCase() + org.plan.slice(1)} Plan`}
             </Badge>
           </div>
         </CardHeader>
@@ -330,10 +345,14 @@ export function OrganizationSettings() {
             <div>
               <Label className="text-sm text-muted-foreground">Seats</Label>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm">
-                  {members.length} / {org.seatCount} used
-                </p>
-                {isOwner && (
+                {isCircleResourceOrg ? (
+                  <p className="text-sm">Unlimited (Circle resource-sharing org)</p>
+                ) : (
+                  <p className="text-sm">
+                    {members.length} / {org.seatCount} used
+                  </p>
+                )}
+                {isOwner && !isCircleResourceOrg && (
                   <SeatEditor
                     orgId={org.id}
                     current={org.seatCount}

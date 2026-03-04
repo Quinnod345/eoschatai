@@ -20,6 +20,12 @@ import {
 
 export const planTypeEnum = pgEnum('plan_type', ['free', 'pro', 'business']);
 export type PlanType = (typeof planTypeEnum.enumValues)[number];
+export const subscriptionSourceEnum = pgEnum('subscription_source', [
+  'stripe',
+  'circle',
+]);
+export type SubscriptionSource =
+  (typeof subscriptionSourceEnum.enumValues)[number];
 
 // Declare user table first - orgId FK will be added after org table is declared
 export const user = pgTable(
@@ -34,6 +40,11 @@ export const user = pgTable(
     plan: planTypeEnum('plan').notNull().default('free'),
     stripeCustomerId: text('stripeCustomerId'),
     circleMemberId: text('circleMemberId'),
+    circleId: text('circleId'),
+    circleMemberEmail: text('circleMemberEmail'),
+    subscriptionSource: subscriptionSourceEnum('subscriptionSource')
+      .notNull()
+      .default('stripe'),
     entitlements: jsonb('entitlements').notNull().default(sql`'{}'::jsonb`),
     usageCounters: jsonb('usageCounters').notNull().default(sql`'{}'::jsonb`),
     orgId: uuid('orgId'),
@@ -43,6 +54,13 @@ export const user = pgTable(
   (table) => ({
     orgIdx: index('user_org_idx').on(table.orgId),
     circleMemberIdx: index('user_circle_member_idx').on(table.circleMemberId),
+    circleIdIdx: index('user_circle_id_idx').on(table.circleId),
+    circleMemberEmailIdx: index('user_circle_member_email_idx').on(
+      table.circleMemberEmail,
+    ),
+    subscriptionSourceIdx: index('user_subscription_source_idx').on(
+      table.subscriptionSource,
+    ),
     storageIdx: index('user_storage_idx').on(table.storageUsed),
   }),
 );
@@ -54,6 +72,9 @@ export const org = pgTable(
     name: text('name'),
     plan: planTypeEnum('plan').notNull().default('free'),
     stripeSubscriptionId: text('stripeSubscriptionId'),
+    subscriptionSource: subscriptionSourceEnum('subscriptionSource')
+      .notNull()
+      .default('stripe'),
     seatCount: integer('seatCount').notNull().default(1),
     pendingRemoval: integer('pendingRemoval').default(0), // Number of members pending removal due to seat reduction
     limits: jsonb('limits').notNull().default(sql`'{}'::jsonb`),
@@ -66,6 +87,9 @@ export const org = pgTable(
   (table) => ({
     stripeSubscriptionIdx: index('org_stripe_subscription_idx').on(
       table.stripeSubscriptionId,
+    ),
+    subscriptionSourceIdx: index('org_subscription_source_idx').on(
+      table.subscriptionSource,
     ),
     ownerIdx: index('org_owner_idx').on(table.ownerId),
   }),

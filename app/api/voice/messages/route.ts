@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { saveMessages, saveChat } from '@/lib/db/queries';
 import { generateUUID } from '@/lib/utils';
+import { getAccessContext } from '@/lib/entitlements';
 
 // This endpoint saves voice conversation messages to the database
 export async function POST(request: NextRequest) {
@@ -11,7 +12,10 @@ export async function POST(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized', code: 'UNAUTHORIZED' },
+        { status: 401 },
+      );
     }
 
     const body = await request.json();
@@ -22,7 +26,7 @@ export async function POST(request: NextRequest) {
       userMessageContent: body.userMessage?.content?.substring(0, 50),
       assistantMessageContent: body.assistantMessage?.content?.substring(0, 50),
     });
-    const {
+    let {
       chatId,
       userMessage,
       assistantMessage,
@@ -30,10 +34,39 @@ export async function POST(request: NextRequest) {
       selectedProfileId,
       provider = 'openai',
     } = body;
+    let personaWarning:
+      | {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT';
+          message: string;
+          requiredPlan: 'pro';
+          feature: 'personas.custom';
+          action: 'open_premium_modal';
+          selectedPersonaId?: string;
+          selectedProfileId?: string;
+        }
+      | undefined;
+
+    if (selectedPersonaId || selectedProfileId) {
+      const accessContext = await getAccessContext(session.user.id);
+      if (!accessContext.entitlements.features.personas.custom) {
+        personaWarning = {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT',
+          message:
+            'AI personas are a Pro feature. Message saved with the default assistant.',
+          requiredPlan: 'pro',
+          feature: 'personas.custom',
+          action: 'open_premium_modal',
+          selectedPersonaId,
+          selectedProfileId,
+        };
+        selectedPersonaId = undefined;
+        selectedProfileId = undefined;
+      }
+    }
 
     if (!chatId) {
       return NextResponse.json(
-        { error: 'Chat ID is required' },
+        { error: 'Chat ID is required', code: 'CHAT_ID_REQUIRED' },
         { status: 400 },
       );
     }
@@ -139,6 +172,7 @@ export async function POST(request: NextRequest) {
       savedCount: messages.length,
       chatCreated,
       chatId,
+      warning: personaWarning,
     });
   } catch (error) {
     console.error('Voice message save error:', error);
@@ -157,6 +191,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Message already exists',
+          code: 'VOICE_MESSAGE_DUPLICATE',
           details: errorMessage,
         },
         { status: 409 },
@@ -166,6 +201,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to save voice messages',
+        code: 'VOICE_MESSAGES_SAVE_FAILED',
         details: errorMessage,
       },
       { status: 500 },

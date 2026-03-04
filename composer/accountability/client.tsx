@@ -587,7 +587,14 @@ function SeatCard({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create event');
+        if (
+          res.status === 403 &&
+          (err?.code === 'FEATURE_LOCKED' || err?.code === 'ENTITLEMENT_BLOCK')
+        ) {
+          window.dispatchEvent(new Event('open-premium-modal'));
+          return;
+        }
+        throw new Error(err?.error || 'Failed to create event');
       }
       const data = await res.json();
       toast.success('Quarterly Session scheduled');
@@ -1907,7 +1914,14 @@ function L10MeetingPanel({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create event');
+        if (
+          res.status === 403 &&
+          (err?.code === 'FEATURE_LOCKED' || err?.code === 'ENTITLEMENT_BLOCK')
+        ) {
+          window.dispatchEvent(new Event('open-premium-modal'));
+          return;
+        }
+        throw new Error(err?.error || 'Failed to create event');
       }
       const data = await res.json();
       toast.success('Next L10 scheduled');

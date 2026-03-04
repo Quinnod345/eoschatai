@@ -94,6 +94,7 @@ describe('usage counters', () => {
     const sql = __dbMock.executed.at(0) ?? '';
     expect(sql).toContain('chats_today');
     expect(sql).toContain('deep_runs_day');
+    expect(sql).toContain('uploads_total');
     expect(sql).toContain('"UserSettings"');
     expect(sql).toContain('lastMessageCountReset');
     expect(sql).toContain('effective_timezone');

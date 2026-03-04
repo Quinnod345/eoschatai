@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 /**
  * Circle.so API Client
  * Handles fetching course content from Circle.so for course assistant personas
@@ -25,6 +27,545 @@ interface CircleAPIConfig {
   baseUrl: string;
   spaceId: string;
 }
+
+type CirclePlan = 'free' | 'pro' | 'business';
+
+type GenericRecord = Record<string, unknown>;
+
+export type CircleMemberLookup = {
+  id: string | null;
+  email: string | null;
+  tierName: string;
+  mappedPlan: CirclePlan | null;
+  raw: GenericRecord;
+};
+
+interface CircleMemberSearchConfig {
+  token: string;
+  baseUrl: string;
+  communityId?: string;
+}
+
+interface CircleAdminSearchConfig {
+  adminToken: string;
+  adminBaseUrl: string;
+}
+
+const CIRCLE_TIER_DEFAULTS = {
+  free: 'discoverer',
+  pro: 'explorer',
+  business: 'mastery',
+} as const satisfies Record<CirclePlan, string>;
+
+const CIRCLE_TIER_ALIASES: Record<CirclePlan, string[]> = {
+  free: ['discover', 'discoverer', 'starter'],
+  pro: ['explorer', 'strengthen', 'pro', 'professional'],
+  business: ['mastery', 'business', 'team'],
+};
+
+const isRecord = (value: unknown): value is GenericRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+};
+
+const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+
+const normalizeTier = (value: string): string =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const DEFAULT_ADMIN_GROUP_MEMBER_SCAN_MAX_PAGES = 20;
+const DEFAULT_ADMIN_COMMUNITY_SCAN_MAX_PAGES = 25;
+
+const getOptionalPositiveInt = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return null;
+  return Math.floor(parsed);
+};
+
+const extractArrayCandidates = (value: unknown): GenericRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const candidateArrays = [
+    value.records,
+    value.members,
+    value.community_members,
+    value.results,
+    value.data,
+    isRecord(value.data) ? value.data.records : undefined,
+    isRecord(value.data) ? value.data.members : undefined,
+    isRecord(value.data) ? value.data.community_members : undefined,
+    isRecord(value.data) ? value.data.results : undefined,
+  ];
+
+  for (const candidate of candidateArrays) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter(isRecord);
+    }
+  }
+
+  return isRecord(value.member) ? [value.member] : [];
+};
+
+const getCircleMemberSearchConfig = (): CircleMemberSearchConfig => {
+  const token =
+    process.env.CIRCLE_API_TOKEN || process.env.CIRCLE_HEADLESS_AUTH_TOKEN;
+  if (!token) {
+    throw new Error(
+      'CIRCLE_API_TOKEN or CIRCLE_HEADLESS_AUTH_TOKEN must be configured',
+    );
+  }
+
+  return {
+    token,
+    baseUrl: (
+      process.env.CIRCLE_HEADLESS_API_BASE_URL || 'https://app.circle.so'
+    ).replace(/\/$/, ''),
+    communityId: process.env.CIRCLE_COMMUNITY_ID || undefined,
+  };
+};
+
+const getCircleAdminSearchConfig = (): CircleAdminSearchConfig | null => {
+  const adminToken = process.env.CIRCLE_ADMIN_API_TOKEN;
+  if (!adminToken) return null;
+  return {
+    adminToken,
+    adminBaseUrl: (
+      process.env.CIRCLE_ADMIN_API_BASE_URL || 'https://app.circle.so/api/admin/v2'
+    ).replace(/\/$/, ''),
+  };
+};
+
+/**
+ * Search for a Circle member by email using the admin v2 API.
+ * Checks tier-group memberships first (smaller lists), then falls back to
+ * paging all community members.
+ */
+const searchCircleMembersViaAdmin = async (
+  email: string,
+): Promise<CircleMemberLookup | null> => {
+  const config = getCircleAdminSearchConfig();
+  if (!config) return null;
+
+  const normalizedEmail = normalizeEmail(email);
+  const maxGroupPages =
+    getOptionalPositiveInt(process.env.CIRCLE_ADMIN_GROUP_MEMBER_SCAN_MAX_PAGES) ??
+    DEFAULT_ADMIN_GROUP_MEMBER_SCAN_MAX_PAGES;
+  const maxCommunityPages =
+    getOptionalPositiveInt(process.env.CIRCLE_ADMIN_COMMUNITY_SCAN_MAX_PAGES) ??
+    DEFAULT_ADMIN_COMMUNITY_SCAN_MAX_PAGES;
+
+  // First, discover which tier groups exist
+  const tierGroups = await getAdminTierGroups(config);
+
+  // Only search paid tier groups (pro and business) - the free group can have
+  // tens of thousands of members and is too expensive to iterate.
+  // If the email isn't in any paid group, treat as free/not-a-paid-member.
+  const paidPlans: CirclePlan[] = ['business', 'pro'];
+
+  // Build a map of community_member_id → plan by fetching tier group member lists
+  const memberIdToPlan = new Map<string, CirclePlan>();
+  for (const plan of paidPlans) {
+    const groupIds = tierGroups[plan];
+    if (!Array.isArray(groupIds)) continue;
+    for (const groupId of groupIds) {
+      if (!groupId) continue;
+      let mPage = 1;
+      while (true) {
+        const res = await fetch(
+          `${config.adminBaseUrl}/access_groups/${groupId}/community_members?per_page=200&page=${mPage}`,
+          { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+        );
+        if (!res.ok) break;
+        const data = (await res.json()) as GenericRecord;
+        const records = Array.isArray(data.records) ? (data.records as GenericRecord[]) : [];
+        for (const r of records) {
+          const membId = toStringValue(r.community_member_id);
+          if (membId) memberIdToPlan.set(membId, plan as CirclePlan);
+        }
+        if (!data.has_next_page) break;
+        mPage++;
+        if (mPage > maxGroupPages) {
+          console.warn(
+            '[circle] admin search: reached configured group scan page limit',
+            { plan, groupId, maxGroupPages },
+          );
+          break;
+        }
+      }
+    }
+  }
+
+  console.log('[circle] admin search: built tier map with', memberIdToPlan.size, 'entries');
+
+  // Now find the member by email - check tier-group members first (much smaller set)
+  // Resolve emails for only the members in tier groups
+  const candidateIds = [...memberIdToPlan.keys()];
+
+  for (const memberId of candidateIds) {
+    const memberRes = await fetch(
+      `${config.adminBaseUrl}/community_members/${memberId}`,
+      { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+    );
+    if (!memberRes.ok) continue;
+    const member = (await memberRes.json()) as GenericRecord;
+    const memberEmail = typeof member.email === 'string' ? normalizeEmail(member.email) : null;
+    if (memberEmail === normalizedEmail) {
+      const plan = memberIdToPlan.get(memberId) ?? 'free';
+      const tierName = tierGroups._names[plan] ?? plan;
+      console.log('[circle] admin search: found member in tier group', { email: normalizedEmail, plan, tierName });
+      return {
+        id: memberId,
+        email: normalizedEmail,
+        tierName,
+        mappedPlan: plan,
+        raw: member,
+      };
+    }
+  }
+
+  // Member not in any tier group - check if they exist at all in the community
+  let page = 1;
+  while (true) {
+    const res = await fetch(
+      `${config.adminBaseUrl}/community_members?per_page=200&page=${page}`,
+      { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+    );
+    if (!res.ok) break;
+    const data = (await res.json()) as GenericRecord;
+    const records = Array.isArray(data.records) ? (data.records as GenericRecord[]) : [];
+    const match = records.find(
+      (m) => typeof m.email === 'string' && normalizeEmail(m.email) === normalizedEmail,
+    );
+    if (match) {
+      // Member exists but not in any paid tier — treat as free/discoverer
+      const tierName = process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free;
+      return {
+        id: toStringValue(match.id),
+        email: normalizedEmail,
+        tierName,
+        mappedPlan: 'free',
+        raw: match,
+      };
+    }
+    if (!data.has_next_page) break;
+    page++;
+    if (page > maxCommunityPages) {
+      console.warn(
+        '[circle] admin search: reached configured community scan page limit before finding member',
+        { email: normalizedEmail, maxCommunityPages },
+      );
+      break;
+    }
+  }
+
+  console.warn('[circle] admin search: member not found by email', { email: normalizedEmail });
+  return null;
+};
+
+type TierGroups = Record<CirclePlan, string[]> & { _names: Record<CirclePlan, string> };
+
+const getAdminTierGroups = async (config: CircleAdminSearchConfig): Promise<TierGroups> => {
+  // If explicit group IDs are set in env, use them
+  const explicitMastery = process.env.CIRCLE_TIER_BUSINESS_GROUP_ID;
+  const explicitStrengthen = process.env.CIRCLE_TIER_PRO_GROUP_ID;
+  const explicitDiscover = process.env.CIRCLE_TIER_FREE_GROUP_ID;
+
+  if (explicitMastery && explicitStrengthen) {
+    return {
+      business: [explicitMastery],
+      pro: [explicitStrengthen],
+      free: explicitDiscover ? [explicitDiscover] : [],
+      _names: {
+        business: process.env.CIRCLE_TIER_BUSINESS || CIRCLE_TIER_DEFAULTS.business,
+        pro: process.env.CIRCLE_TIER_PRO || CIRCLE_TIER_DEFAULTS.pro,
+        free: process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free,
+      },
+    };
+  }
+
+  // Auto-discover tier groups from the access groups list
+  const res = await fetch(
+    `${config.adminBaseUrl}/access_groups?per_page=100`,
+    { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+  );
+  if (!res.ok) return { business: [], pro: [], free: [], _names: { business: 'mastery', pro: 'strengthen', free: 'discover' } };
+
+  const data = (await res.json()) as GenericRecord;
+  const groups = Array.isArray(data.records) ? (data.records as GenericRecord[]) : [];
+
+  const result: TierGroups = {
+    business: [],
+    pro: [],
+    free: [],
+    _names: {
+      business: process.env.CIRCLE_TIER_BUSINESS || CIRCLE_TIER_DEFAULTS.business,
+      pro: process.env.CIRCLE_TIER_PRO || CIRCLE_TIER_DEFAULTS.pro,
+      free: process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free,
+    },
+  };
+
+  for (const group of groups) {
+    const name = toStringValue(group.name);
+    if (!name) continue;
+    const plan = mapCircleTierToPlan(name);
+    if (plan && plan !== 'free') {
+      result[plan].push(toStringValue(group.id) ?? '');
+      result._names[plan] = name;
+    }
+  }
+
+  return result;
+};
+
+const extractMemberId = (member: GenericRecord): string | null =>
+  toStringValue(
+    member.id ??
+      member.member_id ??
+      member.community_member_id ??
+      member.memberId ??
+      (isRecord(member.member) ? member.member.id : undefined),
+  );
+
+const extractMemberEmail = (member: GenericRecord): string | null => {
+  const email = toStringValue(
+    member.email ??
+      member.member_email ??
+      member.memberEmail ??
+      (isRecord(member.member) ? member.member.email : undefined) ??
+      (isRecord(member.user) ? member.user.email : undefined),
+  );
+
+  return email ? normalizeEmail(email) : null;
+};
+
+const extractMemberTierName = (member: GenericRecord): string | null => {
+  const directTier = toStringValue(
+    member.tier ??
+      member.tier_name ??
+      member.tierName ??
+      member.paywall ??
+      member.paywall_name ??
+      member.paywallName ??
+      member.membership_level ??
+      member.membershipLevel ??
+      member.access_group_name ??
+      member.accessGroupName,
+  );
+
+  if (directTier) {
+    return directTier;
+  }
+
+  const nestedName = toStringValue(
+    (isRecord(member.access_group) ? member.access_group.name : undefined) ??
+      (isRecord(member.paywall) ? member.paywall.name : undefined) ??
+      (isRecord(member.tier) ? member.tier.name : undefined),
+  );
+
+  if (nestedName) {
+    return nestedName;
+  }
+
+  const groups = member.access_groups;
+  if (Array.isArray(groups)) {
+    for (const group of groups) {
+      if (!isRecord(group)) continue;
+      const name = toStringValue(group.name ?? group.title);
+      if (name) return name;
+    }
+  }
+
+  return null;
+};
+
+export const mapCircleTierToPlan = (tierName: string): CirclePlan | null => {
+  const normalizedTier = normalizeTier(tierName);
+  if (!normalizedTier) return null;
+
+  const envMap: Record<CirclePlan, string> = {
+    free: process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free,
+    pro: process.env.CIRCLE_TIER_PRO || CIRCLE_TIER_DEFAULTS.pro,
+    business: process.env.CIRCLE_TIER_BUSINESS || CIRCLE_TIER_DEFAULTS.business,
+  };
+
+  for (const [plan, tier] of Object.entries(envMap) as Array<
+    [CirclePlan, string]
+  >) {
+    if (normalizeTier(tier) === normalizedTier) {
+      return plan;
+    }
+  }
+
+  for (const [plan, aliases] of Object.entries(CIRCLE_TIER_ALIASES) as Array<
+    [CirclePlan, string[]]
+  >) {
+    if (aliases.some((alias) => normalizedTier.includes(normalizeTier(alias)))) {
+      return plan;
+    }
+  }
+
+  return null;
+};
+
+const searchCircleMembers = async (
+  email: string,
+): Promise<CircleMemberLookup | null> => {
+  const config = getCircleMemberSearchConfig();
+  const normalizedEmail = normalizeEmail(email);
+  const endpoint = '/api/headless/v1/search/community_members';
+  const baseBody = config.communityId
+    ? { community_id: config.communityId }
+    : {};
+
+  const bodies: Array<Record<string, unknown>> = [
+    {
+      ...baseBody,
+      per_page: 25,
+      filters: [{ key: 'email', operator: 'eq', value: normalizedEmail }],
+      search_text: normalizedEmail,
+    },
+    {
+      ...baseBody,
+      per_page: 25,
+      search_text: normalizedEmail,
+    },
+  ];
+
+  for (const [bodyIndex, body] of bodies.entries()) {
+    const response = await fetch(`${config.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.warn('[circle] headless search: API request failed', {
+        attempt: bodyIndex + 1,
+        status: response.status,
+      });
+      continue;
+    }
+
+    const raw = (await response.json()) as unknown;
+    const members = extractArrayCandidates(raw);
+
+    if (members.length === 0) {
+      continue;
+    }
+
+    // Only use an exact email match - never fall back to first result to
+    // avoid accidentally granting a different member's subscription tier.
+    const exactMatch = members.find(
+      (member) => extractMemberEmail(member) === normalizedEmail,
+    );
+
+    if (!exactMatch) {
+      continue;
+    }
+
+    const tierName = extractMemberTierName(exactMatch);
+    if (!tierName) {
+      continue;
+    }
+
+    return {
+      id: extractMemberId(exactMatch),
+      email: extractMemberEmail(exactMatch),
+      tierName,
+      mappedPlan: mapCircleTierToPlan(tierName),
+      raw: exactMatch,
+    };
+  }
+
+  return null;
+};
+
+export const getMemberByEmail = async (
+  email: string,
+): Promise<CircleMemberLookup | null> => {
+  if (!email || !email.includes('@')) {
+    throw new Error('A valid email address is required');
+  }
+
+  // Try the headless API first (fast, single request)
+  const headlessResult = await searchCircleMembers(email);
+  if (headlessResult) return headlessResult;
+
+  // Fall back to admin v2 API if headless tokens are not configured or returned 401
+  console.log('[circle] getMemberByEmail: headless search failed, trying admin v2 API', { email });
+  return searchCircleMembersViaAdmin(email);
+};
+
+const parseWebhookSignature = (signature: string): string | null => {
+  const trimmed = signature.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.includes('v1=')) {
+    const match = trimmed.match(/v1=([a-fA-F0-9]+)/);
+    return match?.[1]?.toLowerCase() || null;
+  }
+
+  if (trimmed.includes('=')) {
+    const [, value] = trimmed.split('=', 2);
+    return value?.trim().toLowerCase() || null;
+  }
+
+  return trimmed.toLowerCase();
+};
+
+const safeCompare = (left: string, right: string): boolean => {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+export const verifyWebhookSignature = (
+  payload: string,
+  signature: string | null | undefined,
+  secret = process.env.CIRCLE_WEBHOOK_SECRET,
+): boolean => {
+  if (!secret || !signature) {
+    return false;
+  }
+
+  const normalizedSignature = parseWebhookSignature(signature);
+  if (!normalizedSignature) {
+    return false;
+  }
+
+  const expectedHex = createHmac('sha256', secret).update(payload).digest('hex');
+  if (safeCompare(expectedHex, normalizedSignature)) {
+    return true;
+  }
+
+  const expectedBase64 = createHmac('sha256', secret)
+    .update(payload)
+    .digest('base64');
+  return safeCompare(expectedBase64, normalizedSignature);
+};
 
 /**
  * Get Circle.so API configuration from environment variables

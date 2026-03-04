@@ -8,6 +8,7 @@ import {
   orgMemberRole,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { resolveCirclePlanFromEmail } from '@/lib/integrations/circle-plan-resolver';
 
 export async function POST(request: NextRequest) {
   try {
@@ -155,7 +156,13 @@ export async function POST(request: NextRequest) {
           session.user.id,
         )
       : null;
-    const newPlan = individualPlan || 'free';
+    const newPlan =
+      user.subscriptionSource === 'circle'
+        ? await resolveCirclePlanFromEmail(user.email, 'leave-org', {
+            fallbackOnLookupError: user.plan,
+            alternateEmail: user.circleMemberEmail,
+          })
+        : individualPlan || 'free';
 
     // Store orgId before clearing (needed for role cleanup)
     const userOrgId = user.orgId;

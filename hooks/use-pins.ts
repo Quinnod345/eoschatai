@@ -142,6 +142,11 @@ export function usePins({
         const data = await response.json();
 
         if (!response.ok) {
+          if (response.status === 403 && data?.code === 'FEATURE_LOCKED') {
+            rollbackOptimisticOperation(operationId);
+            window.dispatchEvent(new Event('open-premium-modal'));
+            return;
+          }
           throw new Error(data.error || 'Failed to toggle pin');
         }
 

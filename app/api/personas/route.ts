@@ -38,6 +38,21 @@ export async function GET() {
   }
 
   try {
+    const { getAccessContext } = await import('@/lib/entitlements');
+    const accessContext = await getAccessContext(session.user.id);
+
+    if (!accessContext.entitlements.features.personas.custom) {
+      return NextResponse.json(
+        {
+          error: 'AI personas are a Pro feature',
+          code: 'FEATURE_LOCKED',
+          requiredPlan: 'pro',
+          feature: 'personas.custom',
+        },
+        { status: 403 },
+      );
+    }
+
     // Dynamically import EOS implementer functions to avoid server-only import issues
     const { hasEOSImplementerAccess, EOS_IMPLEMENTER_PERSONA } = await import(
       '@/lib/ai/eos-implementer'

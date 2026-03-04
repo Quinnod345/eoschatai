@@ -111,7 +111,7 @@ function SidebarHistoryInner({
 }: {
   user: User | undefined;
 }) {
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, state } = useSidebar();
   const { id } = useParams();
 
   const {
@@ -528,11 +528,11 @@ function SidebarHistoryInner({
               }}
             />
 
-            {hasReachedEnd ? (
+            {hasReachedEnd && state === 'expanded' ? (
               <div className="px-1 text-zinc-500 w-full flex flex-row justify-center items-center text-sm gap-2 mt-8">
                 You have reached the end of your chat history.
               </div>
-            ) : (
+            ) : hasReachedEnd ? null : (
               <div className="p-1 text-zinc-500 dark:text-zinc-400 flex flex-row gap-2 items-center mt-8">
                 <div className="animate-spin">
                   <LoaderIcon />

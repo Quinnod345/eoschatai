@@ -184,7 +184,12 @@ describe('Billing Webhook Handler', () => {
       const json = await response.json();
       expect(json.received).toBe(true);
 
-      expect(updateUserPlan).toHaveBeenCalledWith('user_123', 'pro', 'cus_test_123');
+      expect(updateUserPlan).toHaveBeenCalledWith(
+        'user_123',
+        'pro',
+        'cus_test_123',
+        'stripe',
+      );
     });
 
     it('should handle customer.subscription.deleted event (Pro)', async () => {

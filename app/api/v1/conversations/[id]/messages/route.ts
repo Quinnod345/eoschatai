@@ -139,6 +139,7 @@ export async function POST(
     return validation.error;
   }
   context = validation.context;
+  const apiKeyId = context.apiKey.id;
 
   const { id: conversationId } = await params;
 
@@ -331,7 +332,7 @@ export async function POST(
             // Log usage
             const responseTime = Date.now() - startTime;
             await logApiKeyUsage({
-              apiKeyId: context!.apiKey.id,
+              apiKeyId,
               endpoint: `/v1/conversations/${conversationId}/messages`,
               method: 'POST',
               promptTokens: userTokens,
@@ -418,7 +419,7 @@ export async function POST(
     // Log usage
     const responseTime = Date.now() - startTime;
     await logApiKeyUsage({
-      apiKeyId: context.apiKey.id,
+      apiKeyId,
       endpoint: `/v1/conversations/${conversationId}/messages`,
       method: 'POST',
       promptTokens: userTokens,

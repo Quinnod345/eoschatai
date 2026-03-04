@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
       return validation.error;
     }
     context = validation.context;
+    const apiKeyId = context.apiKey.id;
 
     // Parse request body
     let body: unknown;
@@ -270,7 +271,7 @@ export async function POST(request: NextRequest) {
             // Log usage after stream completes
             const responseTime = Date.now() - startTime;
             await logApiKeyUsage({
-              apiKeyId: context!.apiKey.id,
+              apiKeyId,
               endpoint: '/v1/chat',
               method: 'POST',
               promptTokens: messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0),
@@ -332,7 +333,7 @@ export async function POST(request: NextRequest) {
 
     // Log usage
     await logApiKeyUsage({
-      apiKeyId: context.apiKey.id,
+      apiKeyId,
       endpoint: '/v1/chat',
       method: 'POST',
       promptTokens,

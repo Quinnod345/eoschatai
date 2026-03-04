@@ -10,8 +10,10 @@ import {
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 import { PremiumFeaturesModal } from '@/components/premium-features-modal';
 import { BusinessUpgradeFlow } from '@/components/business-upgrade-flow';
+import { CircleConnectFlow } from '@/components/circle-connect-flow';
 import type { UpgradeFeature } from '@/types/upgrade';
 import { toast } from 'sonner';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 async function fetchBootstrap(): Promise<AccountBootstrap | null> {
   const response = await fetch('/api/me', { cache: 'no-store' });
@@ -44,6 +46,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const { open, feature, onAutoRetry, closeModal, openModal } =
     useUpgradeStore();
   const [showBusinessFlow, setShowBusinessFlow] = useState(false);
+  const [showCircleFlow, setShowCircleFlow] = useState(false);
 
   useEffect(() => {
     console.log('[AccountProvider] Modal state changed:', {
@@ -66,12 +69,19 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       openModal('premium');
     };
 
+    const handleOpenCircleFlow = () => {
+      console.log('[AccountProvider] Opening Circle connect flow from event');
+      setShowCircleFlow(true);
+    };
+
     window.addEventListener('open-business-flow', handleOpenBusinessFlow);
     window.addEventListener('open-premium-modal', handleOpenPremiumModal);
+    window.addEventListener('open-circle-connect-flow', handleOpenCircleFlow);
 
     return () => {
       window.removeEventListener('open-business-flow', handleOpenBusinessFlow);
       window.removeEventListener('open-premium-modal', handleOpenPremiumModal);
+      window.removeEventListener('open-circle-connect-flow', handleOpenCircleFlow);
     };
   }, [openModal]);
 
@@ -144,43 +154,38 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           );
           break;
         case 'already_in_org':
-          toast.info('You are already in an organization.');
+          void showEdgeCaseToast(toast, { code: 'ALREADY_IN_ORG' });
           break;
         case 'invalid':
-          toast.error('Invitation link is invalid or has expired.');
+          void showEdgeCaseToast(toast, {
+            code: 'INVITE_INVALID_OR_EXPIRED',
+          });
           break;
         case 'org_missing':
-          toast.error('Organization not found for this invitation.');
+          void showEdgeCaseToast(toast, { code: 'ORG_NOT_FOUND' });
           break;
         case 'denied':
-          toast.error(`Cannot join organization${reason ? `: ${reason}` : ''}`);
+          void showEdgeCaseToast(
+            toast,
+            reason?.toLowerCase().includes('seat limit')
+              ? {
+                  code: 'ORG_SEAT_LIMIT_REACHED',
+                  message: reason,
+                }
+              : {
+                  message: `Cannot join organization${reason ? `: ${reason}` : ''}`,
+                },
+            {
+              fallback: 'Cannot join organization.',
+            },
+          );
           break;
         case 'wrong_account': {
-          const message = targetEmail
-            ? `This invite was sent to ${targetEmail}. Please switch accounts.`
-            : 'This invite is for a different account. Please switch accounts.';
-          const id = toast.warning(message, {
-            action: inviteCode
-              ? {
-                  label: 'Re-open after switch',
-                  onClick: () => {
-                    const base = window.location.origin;
-                    const acceptUrl = new URL(
-                      '/api/organizations/accept',
-                      base,
-                    );
-                    if (inviteCode)
-                      acceptUrl.searchParams.set('code', inviteCode);
-                    if (targetEmail)
-                      acceptUrl.searchParams.set('email', targetEmail);
-                    window.location.href = `/login?callbackUrl=${encodeURIComponent(acceptUrl.toString())}`;
-                  },
-                }
-              : undefined,
-            duration: 8000,
+          void showEdgeCaseToast(toast, {
+            code: 'INVITE_WRONG_ACCOUNT',
+            targetEmail,
+            inviteCode,
           });
-          // no-op using id for possible future flows
-          void id;
           break;
         }
         default:
@@ -194,7 +199,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       window.history.replaceState({}, '', url.toString());
 
       // Refresh account/org data after handling
-      refreshRef.current?.();
+      refreshRef.current?.().catch((error) => {
+        console.error('[account] Refresh after invite flow failed', error);
+      });
     } catch {
       // ignore
     }
@@ -204,7 +211,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleRefreshEvent = () => {
       console.log('[AccountProvider] Received account-refresh event');
-      refresh();
+      refresh().catch((error) => {
+        console.error('[account] Refresh event failed', error);
+      });
     };
 
     window.addEventListener('account-refresh', handleRefreshEvent);
@@ -246,20 +255,73 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, featureFlags.entitlements_ws, user?.id]);
 
-  // Listen for manual refresh events
+  // Silently re-verify Circle subscription once per 24 hours for Circle-sourced users.
+  // Runs in the background after bootstrap so it never blocks the UI.
   useEffect(() => {
-    const handleRefresh = () => {
-      console.log('[AccountProvider] Manual refresh triggered');
-      refresh().catch((error) => {
-        console.error('[account] Manual refresh failed', error);
-      });
+    if (!ready || !user || user.subscriptionSource !== 'circle') return;
+
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const storageKey = `circle_verify_ts_${user.id}`;
+
+    try {
+      const lastCheck = Number(localStorage.getItem(storageKey) ?? '0');
+      if (Date.now() - lastCheck < COOLDOWN_MS) return;
+    } catch {
+      // localStorage unavailable — proceed anyway
+    }
+
+    const verify = async () => {
+      try {
+        const res = await fetch('/api/integrations/circle/verify', {
+          method: 'POST',
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          const failedData = (await res.json().catch(() => null)) as
+            | Record<string, unknown>
+            | null;
+          await showEdgeCaseToast(toast, failedData, {
+            fallback: 'Unable to verify Circle membership right now.',
+          });
+          return;
+        }
+
+        const data = (await res.json()) as {
+          verified?: boolean;
+          changed?: boolean;
+          plan?: string;
+          code?: string;
+          reason?: string;
+        };
+
+        try {
+          localStorage.setItem(storageKey, String(Date.now()));
+        } catch {
+          // ignore
+        }
+
+        if (
+          data.code &&
+          data.code !== 'CIRCLE_PLAN_VERIFIED' &&
+          data.code !== 'NOT_CIRCLE_SUBSCRIBER'
+        ) {
+          await showEdgeCaseToast(toast, data);
+        }
+
+        if (data.verified && data.changed) {
+          // Plan changed — refresh account state to pick up new entitlements
+          console.log('[account] Circle subscription re-verified, plan changed to', data.plan);
+          refresh().catch(() => {});
+        }
+      } catch {
+        // Network failure — silently ignore, will retry on next load
+      }
     };
 
-    window.addEventListener('account-refresh', handleRefresh);
-    return () => {
-      window.removeEventListener('account-refresh', handleRefresh);
-    };
-  }, [refresh]);
+    // Delay slightly so bootstrap renders first
+    const timer = setTimeout(verify, 3000);
+    return () => clearTimeout(timer);
+  }, [ready, user, refresh]);
 
   // Dev-only helpers to force-open the upgrade modal for testing
   useEffect(() => {
@@ -333,7 +395,18 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         onSuccess={() => {
           setShowBusinessFlow(false);
           // Refresh account data after successful upgrade
-          refresh();
+          refresh().catch((error) => {
+            console.error('[account] Refresh after business upgrade failed', error);
+          });
+        }}
+      />
+      <CircleConnectFlow
+        open={showCircleFlow}
+        onClose={() => setShowCircleFlow(false)}
+        onSuccess={() => {
+          refresh().catch((error) => {
+            console.error('[account] Refresh after Circle connect failed', error);
+          });
         }}
       />
     </>

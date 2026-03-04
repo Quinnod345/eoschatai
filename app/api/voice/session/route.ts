@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { persona } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/utils/secure-logger';
+import { getAccessContext } from '@/lib/entitlements';
 
 const logger = createLogger('VoiceSessionAPI');
 
@@ -33,6 +34,17 @@ export async function POST(request: NextRequest) {
     let selectedPersonaId: string | undefined;
     let selectedProfileId: string | undefined;
     let chatId: string | undefined;
+    let personaWarning:
+      | {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT';
+          message: string;
+          requiredPlan: 'pro';
+          feature: 'personas.custom';
+          action: 'open_premium_modal';
+          selectedPersonaId?: string;
+          selectedProfileId?: string;
+        }
+      | undefined;
 
     try {
       const body = await request.json();
@@ -42,6 +54,32 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       // If no body or invalid JSON, use defaults
       logger.debug('No request body provided, using defaults');
+    }
+
+    if (selectedPersonaId || selectedProfileId) {
+      const accessContext = await getAccessContext(session.user.id);
+      if (!accessContext.entitlements.features.personas.custom) {
+        logger.warn(
+          'Free plan persona selection blocked for voice session, falling back to default assistant',
+          {
+            userId: session.user.id,
+            selectedPersonaId,
+            selectedProfileId,
+          },
+        );
+        personaWarning = {
+          code: 'PERSONA_FALLBACK_TO_DEFAULT',
+          message:
+            'AI personas are a Pro feature. Voice session started with the default assistant.',
+          requiredPlan: 'pro',
+          feature: 'personas.custom',
+          action: 'open_premium_modal',
+          selectedPersonaId,
+          selectedProfileId,
+        };
+        selectedPersonaId = undefined;
+        selectedProfileId = undefined;
+      }
     }
 
     // Create ephemeral token for browser WebRTC connection
@@ -125,6 +163,7 @@ export async function POST(request: NextRequest) {
       personaName,
       profileName,
       chatId, // Return the chat ID for the client to use
+      warning: personaWarning,
     });
   } catch (error) {
     console.error('Voice session error:', error);

@@ -35,6 +35,7 @@ import type { Persona, UserDocument } from '@/lib/db/schema';
 import { ComposerPickerModal } from '@/components/composer-picker-modal';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { Lock, LockOpen, Shield } from 'lucide-react';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 interface PersonaWizardProps {
   isOpen: boolean;
@@ -722,23 +723,16 @@ export function PersonaWizard({
       } else {
         const error = await response.json();
         console.error('Error saving persona:', error);
-
-        // Handle feature locked error
-        if (error.code === 'FEATURE_LOCKED') {
-          toast.error(error.error || 'This feature requires an upgrade');
+        const handled = await showEdgeCaseToast(toast, error, {
+          fallback: 'Failed to save persona',
+        });
+        if (
+          handled &&
+          (error.code === 'FEATURE_LOCKED' ||
+            error.code === 'LIMIT_REACHED' ||
+            error.code === 'ENTITLEMENT_BLOCK')
+        ) {
           onClose();
-          // Dispatch event to open premium features modal
-          setTimeout(() => {
-            window.dispatchEvent(new Event('open-premium-modal'));
-          }, 100);
-          return;
-        }
-
-        // Handle limit reached error
-        if (error.code === 'LIMIT_REACHED') {
-          toast.error(error.error || 'You have reached your limit');
-          onClose();
-          // Dispatch event to open premium features modal
           setTimeout(() => {
             window.dispatchEvent(new Event('open-premium-modal'));
           }, 100);

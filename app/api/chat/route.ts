@@ -418,7 +418,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const {
+    let {
       id,
       message,
       selectedChatModel,
@@ -429,6 +429,7 @@ export async function POST(request: Request) {
       selectedResearchMode,
       composerDocumentId,
     } = requestBody;
+    let personaFallbackApplied = false;
 
     console.log('PERSONA_CHAT_API: Request received', {
       chatId: id,
@@ -458,6 +459,22 @@ export async function POST(request: Request) {
 
     const accessContext = await getAccessContext(session.user.id);
     const chatLimit = accessContext.entitlements.features.chats_per_day;
+
+    if (
+      selectedPersonaId &&
+      !accessContext.entitlements.features.personas.custom
+    ) {
+      console.warn(
+        '[CHAT] Free plan persona selection blocked, falling back to default assistant',
+        {
+          userId: session.user.id,
+          selectedPersonaId,
+        },
+      );
+      personaFallbackApplied = true;
+      selectedPersonaId = undefined;
+      selectedProfileId = undefined;
+    }
 
     if (
       chatLimit > 0 &&
@@ -3914,7 +3931,14 @@ Always prioritize the user's document content over generic information. If speci
     // locks the ReadableStream (incompatible with AI SDK 5 UIMessage protocol).
     // Standard mode also bypasses resumable streams for the same protocol reason.
     console.log('Using direct UI message stream response (AI SDK 5)');
-    return createUIMessageStreamResponse({ stream: responseStream });
+    return createUIMessageStreamResponse({
+      stream: responseStream,
+      headers: personaFallbackApplied
+        ? {
+            'x-eos-edge-case': 'PERSONA_FALLBACK_TO_DEFAULT',
+          }
+        : undefined,
+    });
   } catch (error) {
     console.error('[Chat API] Unhandled error in POST route:', error);
     return handleApiError(error);

@@ -19,11 +19,14 @@ import {
   Calendar,
   Mic,
   Search,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { trackClientEvent } from '@/lib/analytics/client';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 interface PremiumFeaturesModalProps {
   open: boolean;
@@ -105,10 +108,14 @@ export function PremiumFeaturesModal({
   const [loading, setLoading] = useState(false);
   const prices = useAccountStore((state) => state.prices);
   const userPlan = useAccountStore((state) => state.user?.plan ?? 'free');
+  const userSubscriptionSource = useAccountStore(
+    (state) => state.user?.subscriptionSource,
+  );
   const org = useAccountStore((state) => state.org);
 
-  // Use organization's plan if user belongs to an organization, otherwise use user's plan
-  const currentPlan = org?.plan ?? userPlan;
+  const currentPlan =
+    org?.subscriptionSource === 'circle' ? userPlan : (org?.plan ?? userPlan);
+  const isCircleLinked = userSubscriptionSource === 'circle';
 
   // Debug org loading
   useEffect(() => {
@@ -148,6 +155,13 @@ export function PremiumFeaturesModal({
       }).catch(() => {});
     }
   }, [open, currentPlan]);
+
+  const openCircleConnect = useCallback(() => {
+    onClose();
+    setTimeout(() => {
+      window.dispatchEvent(new Event('open-circle-connect-flow'));
+    }, 100);
+  }, [onClose]);
 
   const handleCheckout = useCallback(async () => {
     console.log('[PremiumModal] Checkout clicked:', {
@@ -192,8 +206,11 @@ export function PremiumFeaturesModal({
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create checkout session');
+        const data = (await response.json().catch(() => ({}))) as unknown;
+        await showEdgeCaseToast(toast, data, {
+          fallback: 'Failed to start checkout. Please try again.',
+        });
+        return;
       }
 
       const { url } = await response.json();
@@ -202,17 +219,15 @@ export function PremiumFeaturesModal({
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-
-      // Check if the error is about organization already having a subscription
-      if (error?.message?.includes('organization already has')) {
-        alert(error.message);
-      } else {
-        alert('Failed to start checkout. Please try again.');
-      }
+      await showEdgeCaseToast(
+        toast,
+        error,
+        { fallback: 'Failed to start checkout. Please try again.' },
+      );
     } finally {
       setLoading(false);
     }
-  }, [selectedPlan, currentPlan, org]);
+  }, [selectedPlan, org, onClose]);
 
   return (
     <>
@@ -235,13 +250,32 @@ export function PremiumFeaturesModal({
           </DialogHeader>
 
           {/* Show organization subscription status */}
-          {org && org.plan !== 'free' && (
+          {org && org.plan !== 'free' && org.subscriptionSource !== 'circle' && (
             <div className="mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
               <p className="text-sm text-green-900 dark:text-green-100">
                 <strong>Organization Subscription Active:</strong> Your
                 organization &quot;{org.name}&quot; has a {org.plan} subscription. All
                 members have access to {org.plan} features.
               </p>
+            </div>
+          )}
+
+          {isCircleLinked && (
+            <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                <Link2 className="w-4 h-4 shrink-0" />
+                <span>
+                  Your plan is synced from Circle. Manage paid tier changes in
+                  Circle, then reconnect only if you need to re-sync.
+                </span>
+              </p>
+              <Button
+                variant="link"
+                className="h-auto p-0 mt-2 text-xs text-blue-900 dark:text-blue-100"
+                onClick={openCircleConnect}
+              >
+                Re-sync Circle membership
+              </Button>
             </div>
           )}
 
@@ -339,6 +373,18 @@ export function PremiumFeaturesModal({
                     {PLAN_FEATURES.pro.priceInterval}
                   </span>
                 </div>
+                {!isCircleLinked && (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 mt-2 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openCircleConnect();
+                    }}
+                  >
+                    Already have Circle? Connect membership
+                  </Button>
+                )}
               </div>
               <ul className="space-y-3">
                 {PLAN_FEATURES.pro.features.map((feature) => (
@@ -409,6 +455,18 @@ export function PremiumFeaturesModal({
                 <p className="text-xs text-muted-foreground mt-1">
                   Minimum 2 seats • Requires organization
                 </p>
+                {!isCircleLinked && (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 mt-2 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openCircleConnect();
+                    }}
+                  >
+                    Already have Circle? Connect membership
+                  </Button>
+                )}
               </div>
               <ul className="space-y-3">
                 {PLAN_FEATURES.business.features.map((feature) => (

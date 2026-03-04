@@ -3,6 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db';
 import { user as userTable, org as orgTable } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { resolveCirclePlanFromEmail } from '@/lib/integrations/circle-plan-resolver';
 
 /**
  * Check if an organization has available seats
@@ -11,6 +12,7 @@ export async function hasAvailableSeats(orgId: string): Promise<boolean> {
   const [org] = await db
     .select({
       seatCount: orgTable.seatCount,
+      subscriptionSource: orgTable.subscriptionSource,
       currentMembers: sql<number>`
         (SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})
       `,
@@ -20,6 +22,10 @@ export async function hasAvailableSeats(orgId: string): Promise<boolean> {
 
   if (!org) {
     return false;
+  }
+
+  if (org.subscriptionSource === 'circle') {
+    return true;
   }
 
   return Number(org.currentMembers) < org.seatCount;
@@ -36,6 +42,7 @@ export async function getOrgSeatUsage(orgId: string): Promise<{
   const [org] = await db
     .select({
       seatCount: orgTable.seatCount,
+      subscriptionSource: orgTable.subscriptionSource,
       currentMembers: sql<number>`
         (SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})
       `,
@@ -48,6 +55,10 @@ export async function getOrgSeatUsage(orgId: string): Promise<{
   }
 
   const used = Number(org.currentMembers);
+  if (org.subscriptionSource === 'circle') {
+    return { used, total: used, available: Number.MAX_SAFE_INTEGER };
+  }
+
   const total = org.seatCount;
   const available = Math.max(0, total - used);
 
@@ -72,6 +83,20 @@ export async function updateOrgSeatCount(
   orgId: string,
   newSeatCount: number,
 ): Promise<void> {
+  const [organization] = await db
+    .select({ subscriptionSource: orgTable.subscriptionSource })
+    .from(orgTable)
+    .where(eq(orgTable.id, orgId))
+    .limit(1);
+
+  if (!organization) {
+    throw new Error('Organization not found');
+  }
+
+  if (organization.subscriptionSource === 'circle') {
+    return;
+  }
+
   let normalizedSeatCount = newSeatCount;
 
   // Validate seat count to prevent invalid data
@@ -138,7 +163,14 @@ export async function removeExcessMembers(
   // Get members to remove (excluding the owner)
   // In production, you'd have more sophisticated logic for who to remove
   const membersToRemove = await db
-    .select({ id: userTable.id, stripeCustomerId: userTable.stripeCustomerId })
+    .select({
+      id: userTable.id,
+      email: userTable.email,
+      circleMemberEmail: userTable.circleMemberEmail,
+      plan: userTable.plan,
+      stripeCustomerId: userTable.stripeCustomerId,
+      subscriptionSource: userTable.subscriptionSource,
+    })
     .from(userTable)
     .where(eq(userTable.orgId, orgId))
     .orderBy(userTable.id) // Skip the first (owner)
@@ -165,7 +197,13 @@ export async function removeExcessMembers(
     const individualPlan = stripe
       ? await getUserIndividualSubscriptionPlan(member.stripeCustomerId, stripe)
       : null;
-    const newPlan = individualPlan || 'free';
+    const newPlan =
+      member.subscriptionSource === 'circle'
+        ? await resolveCirclePlanFromEmail(member.email, 'removeExcessMembers', {
+            fallbackOnLookupError: member.plan,
+            alternateEmail: member.circleMemberEmail,
+          })
+        : individualPlan || 'free';
 
     // Remove from org and reset plan
     await db

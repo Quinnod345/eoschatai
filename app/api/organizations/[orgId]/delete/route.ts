@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { validateUuidField } from '@/lib/api/validation';
+import { resolveCirclePlanFromEmail } from '@/lib/integrations/circle-plan-resolver';
 
 interface RouteParams {
   params: Promise<{
@@ -59,7 +60,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const members = await db
       .select({
         id: userTable.id,
+        email: userTable.email,
+        circleMemberEmail: userTable.circleMemberEmail,
+        plan: userTable.plan,
         stripeCustomerId: userTable.stripeCustomerId,
+        subscriptionSource: userTable.subscriptionSource,
       })
       .from(userTable)
       .where(eq(userTable.orgId, orgIdValue));
@@ -112,6 +117,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const memberPlanMap = new Map<string, PlanType>();
     for (const member of members) {
+      if (member.subscriptionSource === 'circle') {
+        memberPlanMap.set(
+          member.id,
+          await resolveCirclePlanFromEmail(member.email, 'delete-org', {
+            fallbackOnLookupError: member.plan,
+            alternateEmail: member.circleMemberEmail,
+          }),
+        );
+        continue;
+      }
+
       const individualPlan = stripe
         ? await getUserIndividualSubscriptionPlan(
             member.stripeCustomerId,

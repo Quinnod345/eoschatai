@@ -30,6 +30,8 @@ const Composer = dynamic(
 import { unstable_serialize } from 'swr/infinite';
 import { getChatHistoryPaginationKey } from './sidebar-history';
 import { toast } from '@/lib/toast-system';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
+import { useAccountStore } from '@/lib/stores/account-store';
 import type { Session } from 'next-auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
@@ -341,6 +343,12 @@ export function Chat({
         profileIncluded: !!requestBody.selectedProfileId,
       });
 
+      const personasEntitlement =
+        useAccountStore.getState().entitlements?.features?.personas?.custom;
+      if (requestBody.selectedPersonaId && personasEntitlement === false) {
+        void showEdgeCaseToast(toast, { code: 'PERSONA_FALLBACK_TO_DEFAULT' });
+      }
+
       return { body: requestBody };
     },
   });
@@ -482,23 +490,8 @@ export function Chat({
         if (error?.message) {
           try {
             const errorData = JSON.parse(error.message);
-            if (errorData.error === 'DAILY_LIMIT_REACHED') {
-              // Show a toast message for daily limit
-              toast.error(
-                'Daily message limit reached. Limit resets at midnight.',
-                {
-                  duration: 5000,
-                },
-              );
-
-              // Open the upgrade modal if user is on free plan
-              if (errorData.plan === 'free') {
-                const upgradeModule = await import(
-                  '@/lib/stores/upgrade-store'
-                );
-                upgradeModule.useUpgradeStore.getState().openModal('premium');
-              }
-
+            const handled = await showEdgeCaseToast(toast, errorData);
+            if (handled) {
               return;
             }
           } catch {
@@ -598,8 +591,11 @@ export function Chat({
           }
         }
 
-        // Show general error message for other errors
-        toast.error(error.message);
+        const handledError = await showEdgeCaseToast(toast, error);
+        if (!handledError) {
+          // Show general error message for other errors
+          toast.error(error.message);
+        }
       },
     });
 
@@ -1416,15 +1412,25 @@ export function Chat({
           });
 
           if (!response.ok) {
-            const errorText = await response.text();
+            const errorData = await response.json().catch(() => ({}));
             console.error('PERSONA_CLIENT: API request failed', {
               chatId: id,
               status: response.status,
               statusText: response.statusText,
-              errorText: errorText,
+              errorData,
             });
+            if (
+              response.status === 403 &&
+              (errorData?.code === 'FEATURE_LOCKED' ||
+                errorData?.code === 'ENTITLEMENT_BLOCK')
+            ) {
+              window.dispatchEvent(new Event('open-premium-modal'));
+              setSelectedPersonaId(initialPersonaId);
+              return;
+            }
             throw new Error(
-              `HTTP error! status: ${response.status}, message: ${errorText}`,
+              errorData?.error ||
+                `HTTP error! status: ${response.status}`,
             );
           }
 

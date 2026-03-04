@@ -16,7 +16,7 @@ import {
   resetUserPlanToFree,
 } from '@/lib/db/users';
 import { db } from '@/lib/db';
-import { webhookEvent, user } from '@/lib/db/schema';
+import { org as orgTable, webhookEvent, user } from '@/lib/db/schema';
 import {
   broadcastEntitlementsUpdated,
   getUserEntitlements,
@@ -89,6 +89,23 @@ export const createCheckoutSession = async (
   const record = await getUserWithOrg(userId);
   if (!record) {
     throw new Error('User not found');
+  }
+
+  const hasActiveCircleSubscription =
+    record.user.subscriptionSource === 'circle' && record.user.plan !== 'free';
+  if (hasActiveCircleSubscription) {
+    throw new Error(
+      'You have an active Circle subscription. Please manage your subscription through Circle, or disconnect Circle first.',
+    );
+  }
+
+  if (
+    payload.plan === 'business' &&
+    record.org?.subscriptionSource === 'circle'
+  ) {
+    throw new Error(
+      'This organization is a Circle resource-sharing organization. Business subscriptions for this org must be managed through Circle.',
+    );
   }
 
   // Check if user's organization already has a paid plan
@@ -351,7 +368,13 @@ const applyProSubscription = async (
     if (!customerId) return;
     const userRecord = await findUserByStripeCustomerId(customerId);
     if (!userRecord) return;
-    await updateUserPlan(userRecord.id, 'pro', customerId);
+    if (userRecord.subscriptionSource === 'circle') {
+      console.log(
+        `[stripe] Skipping pro apply for Circle-managed user ${userRecord.id}`,
+      );
+      return;
+    }
+    await updateUserPlan(userRecord.id, 'pro', customerId, 'stripe');
     await recomputeUserEntitlements(userRecord.id);
     // Reset daily usage counters when upgrading to premium
     const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');
@@ -364,10 +387,22 @@ const applyProSubscription = async (
     return;
   }
 
+  const [sourceRecord] = await db
+    .select({ subscriptionSource: user.subscriptionSource })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (sourceRecord?.subscriptionSource === 'circle') {
+    console.log(`[stripe] Skipping pro apply for Circle-managed user ${userId}`);
+    return;
+  }
+
   await updateUserPlan(
     userId,
     'pro',
     subscription.customer as string | undefined,
+    'stripe',
   );
   await recomputeUserEntitlements(userId);
   // Reset daily usage counters when upgrading to premium
@@ -388,25 +423,54 @@ const applyBusinessSubscription = async (
   if (!orgId) {
     // Fallback: If user purchased Business without an org, apply Business to the user
     const customerId = subscription.customer as string | undefined;
-    const userId = context.userId;
+    const userIdFromContext = context.userId;
 
-    let resolvedUserId = userId;
-    if (!resolvedUserId && customerId) {
-      const userRecord = await findUserByStripeCustomerId(customerId);
-      resolvedUserId = userRecord?.id;
+    let resolvedUser:
+      | { id: string; subscriptionSource: 'stripe' | 'circle' }
+      | null = null;
+
+    if (userIdFromContext) {
+      const [userRecord] = await db
+        .select({
+          id: user.id,
+          subscriptionSource: user.subscriptionSource,
+        })
+        .from(user)
+        .where(eq(user.id, userIdFromContext))
+        .limit(1);
+      if (userRecord) {
+        resolvedUser = userRecord;
+      }
     }
 
-    if (resolvedUserId) {
-      await updateUserPlan(resolvedUserId, 'business', customerId);
-      await recomputeUserEntitlements(resolvedUserId);
+    if (!resolvedUser && customerId) {
+      const userRecord = await findUserByStripeCustomerId(customerId);
+      if (userRecord) {
+        resolvedUser = {
+          id: userRecord.id,
+          subscriptionSource: userRecord.subscriptionSource,
+        };
+      }
+    }
+
+    if (resolvedUser) {
+      if (resolvedUser.subscriptionSource === 'circle') {
+        console.log(
+          `[stripe] Skipping business apply for Circle-managed user ${resolvedUser.id}`,
+        );
+        return;
+      }
+
+      await updateUserPlan(resolvedUser.id, 'business', customerId, 'stripe');
+      await recomputeUserEntitlements(resolvedUser.id);
       // Reset daily usage counters when upgrading to premium
       const { resetUserDailyUsageCounters } = await import(
         '@/lib/entitlements'
       );
-      await resetUserDailyUsageCounters(resolvedUserId);
+      await resetUserDailyUsageCounters(resolvedUser.id);
       await trackSubscriptionActivated({
         plan: 'business',
-        user_id: resolvedUserId,
+        user_id: resolvedUser.id,
       });
     }
     return;
@@ -416,7 +480,13 @@ const applyBusinessSubscription = async (
     context.seatCount ?? subscription.items.data[0]?.quantity,
   );
 
-  await updateOrgSubscription(orgId, 'business', seatCount, subscription.id);
+  await updateOrgSubscription(
+    orgId,
+    'business',
+    seatCount,
+    subscription.id,
+    'stripe',
+  );
 
   // Enforce seat count limits
   try {
@@ -426,10 +496,20 @@ const applyBusinessSubscription = async (
     // Continue processing even if seat enforcement fails
   }
 
-  const memberIds = await listOrgUserIds(orgId);
+  const members = await db
+    .select({
+      id: user.id,
+      subscriptionSource: user.subscriptionSource,
+    })
+    .from(user)
+    .where(eq(user.orgId, orgId));
+  const memberIds = members.map((member) => member.id);
 
-  for (const memberId of memberIds) {
-    await updateUserPlan(memberId, 'business');
+  for (const member of members) {
+    if (member.subscriptionSource === 'circle') {
+      continue;
+    }
+    await updateUserPlan(member.id, 'business', undefined, 'stripe');
   }
 
   await recomputeEntitlementsForUsers(memberIds);
@@ -449,6 +529,20 @@ const applyBusinessSubscription = async (
 
 const clearBusinessSubscription = async (context: SubscriptionContext) => {
   if (!context.orgId) return;
+
+  const [organization] = await db
+    .select({ subscriptionSource: orgTable.subscriptionSource })
+    .from(orgTable)
+    .where(eq(orgTable.id, context.orgId))
+    .limit(1);
+
+  if (organization?.subscriptionSource === 'circle') {
+    console.log(
+      `[stripe] Skipping business downgrade for Circle org ${context.orgId}`,
+    );
+    return;
+  }
+
   await resetOrgPlanToFree(context.orgId);
   const memberIds = await listOrgUserIds(context.orgId);
   await recomputeEntitlementsForUsers(memberIds);
@@ -461,6 +555,17 @@ const clearProSubscription = async (
   const customerId = subscription.customer as string | undefined;
   const userId = context.userId;
   if (userId) {
+    const [planSource] = await db
+      .select({ subscriptionSource: user.subscriptionSource })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (planSource?.subscriptionSource === 'circle') {
+      console.log(`[stripe] Skipping pro downgrade for Circle user ${userId}`);
+      return;
+    }
+
     await resetUserPlanToFree(userId);
     await recomputeUserEntitlements(userId);
     return;
@@ -470,6 +575,14 @@ const clearProSubscription = async (
 
   const userRecord = await findUserByStripeCustomerId(customerId);
   if (!userRecord) return;
+
+  if (userRecord.subscriptionSource === 'circle') {
+    console.log(
+      `[stripe] Skipping pro downgrade for Circle user ${userRecord.id}`,
+    );
+    return;
+  }
+
   await resetUserPlanToFree(userRecord.id);
   await recomputeUserEntitlements(userRecord.id);
 };
@@ -716,7 +829,7 @@ const processCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
 
   const plan =
     (session.metadata?.plan as 'pro' | 'business' | undefined) || 'pro';
-  await updateUserPlan(userId, plan, customerId);
+  await updateUserPlan(userId, plan, customerId, 'stripe');
   await recomputeUserEntitlements(userId);
   // Reset daily usage counters when purchasing a subscription
   const { resetUserDailyUsageCounters } = await import('@/lib/entitlements');

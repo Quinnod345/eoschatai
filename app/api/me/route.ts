@@ -23,6 +23,7 @@ export async function GET() {
           email: context.user.email,
           plan: context.user.plan,
           orgId: context.user.orgId,
+          subscriptionSource: context.user.subscriptionSource,
         },
         org: context.org,
         entitlements: context.entitlements,

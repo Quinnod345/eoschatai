@@ -138,6 +138,13 @@ export function BookmarksModal({
 
         // Revalidate data
         mutate();
+      } else {
+        const data = await response.json();
+        if (response.status === 403 && data?.code === 'FEATURE_LOCKED') {
+          window.dispatchEvent(new Event('open-premium-modal'));
+        } else {
+          toast.error('Failed to remove bookmark');
+        }
       }
     } catch (error) {
       console.error('Error removing bookmark:', error);

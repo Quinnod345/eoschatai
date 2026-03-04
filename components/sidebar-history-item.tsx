@@ -120,6 +120,8 @@ const PureChatItem = ({
             },
           }),
         );
+      } else if (response.status === 403 && data?.code === 'FEATURE_LOCKED') {
+        window.dispatchEvent(new Event('open-premium-modal'));
       } else {
         toast.error('Failed to update bookmark');
       }

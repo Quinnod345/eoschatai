@@ -551,15 +551,32 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
     try {
       setCalendarConnecting(true);
       localStorage.setItem('calendarAuthReturnTo', window.location.href);
-      toast.success('Redirecting to Google authentication...');
 
-      // Small delay to show the loading state
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      window.location.href = '/api/calendar/auth';
+      const res = await fetch('/api/calendar/auth', { redirect: 'manual' });
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (
+          data?.code === 'FEATURE_LOCKED' || data?.code === 'ENTITLEMENT_BLOCK'
+        ) {
+          window.dispatchEvent(new Event('open-premium-modal'));
+          return;
+        }
+        toast.error(data?.error || 'Failed to connect to Google Calendar');
+        return;
+      }
+      if (res.status === 302 || res.status === 301) {
+        const redirectUrl = res.headers.get('Location');
+        if (redirectUrl) {
+          toast.success('Redirecting to Google authentication...');
+          window.location.href = redirectUrl;
+          return;
+        }
+      }
+      toast.error('Failed to connect to Google Calendar');
     } catch (error) {
       console.error('Failed to initiate Google Calendar auth:', error);
       toast.error('Failed to connect to Google Calendar');
+    } finally {
       setCalendarConnecting(false);
     }
   };
@@ -2178,10 +2195,10 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                               </div>
                               <div className="flex-1 min-w-0">
                                 <h4 className="font-semibold mb-2">
-                                  Context Uploads
+                                  Context Uploads Today
                                 </h4>
                                 <p className="text-sm text-muted-foreground mb-4">
-                                  Total files uploaded for context (PDFs,
+                                  Files uploaded today for context (PDFs,
                                   documents, images, etc.).
                                 </p>
                                 {accountUser && (
@@ -2233,8 +2250,8 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                                           .context_uploads_total -
                                           (usageCounters?.uploads_total ?? 0) >
                                         0
-                                          ? `${entitlements.features.context_uploads_total - (usageCounters?.uploads_total ?? 0)} uploads remaining`
-                                          : 'Upload limit reached. Upgrade for more.'}
+                                          ? `${entitlements.features.context_uploads_total - (usageCounters?.uploads_total ?? 0)} uploads remaining today`
+                                          : 'Daily upload limit reached. Upgrade for more.'}
                                       </p>
                                     )}
                                   </div>

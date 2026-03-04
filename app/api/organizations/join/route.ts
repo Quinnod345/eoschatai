@@ -14,20 +14,26 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized', code: 'UNAUTHORIZED' },
+        { status: 401 },
+      );
     }
 
     let body: unknown;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid JSON body', code: 'INVALID_JSON_BODY' },
+        { status: 400 },
+      );
     }
     const { inviteCode } = body as { inviteCode?: unknown };
 
     if (!inviteCode || typeof inviteCode !== 'string') {
       return NextResponse.json(
-        { error: 'Invite code is required' },
+        { error: 'Invite code is required', code: 'INVITE_CODE_REQUIRED' },
         { status: 400 },
       );
     }
@@ -40,7 +46,10 @@ export async function POST(request: NextRequest) {
 
     if (existingUser?.orgId) {
       return NextResponse.json(
-        { error: 'You already belong to an organization' },
+        {
+          error: 'You already belong to an organization',
+          code: 'ALREADY_IN_ORG',
+        },
         { status: 400 },
       );
     }
@@ -50,7 +59,10 @@ export async function POST(request: NextRequest) {
 
     if (!inviteData) {
       return NextResponse.json(
-        { error: 'Invalid or expired invite code' },
+        {
+          error: 'Invalid or expired invite code',
+          code: 'INVITE_INVALID_OR_EXPIRED',
+        },
         { status: 400 },
       );
     }
@@ -63,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (!organization) {
       return NextResponse.json(
-        { error: 'Organization not found' },
+        { error: 'Organization not found', code: 'ORG_NOT_FOUND' },
         { status: 404 },
       );
     }
@@ -106,11 +118,19 @@ export async function POST(request: NextRequest) {
     await db.transaction(async (tx) => {
       // Re-verify user still doesn't have orgId (prevent double-join)
       const [currentUser] = await tx
-        .select({ orgId: userTable.orgId })
+        .select({
+          orgId: userTable.orgId,
+          plan: userTable.plan,
+          subscriptionSource: userTable.subscriptionSource,
+        })
         .from(userTable)
         .where(eq(userTable.id, session.user.id));
 
-      if (currentUser?.orgId) {
+      if (!currentUser) {
+        throw new Error('User no longer exists');
+      }
+
+      if (currentUser.orgId) {
         throw new Error('You already belong to an organization');
       }
 
@@ -119,6 +139,7 @@ export async function POST(request: NextRequest) {
         .select({
           id: orgTable.id,
           plan: orgTable.plan,
+          subscriptionSource: orgTable.subscriptionSource,
           seatCount: orgTable.seatCount,
           memberCount: sql<number>`(SELECT COUNT(*) FROM "User" WHERE "orgId" = ${orgTable.id})`,
         })
@@ -129,16 +150,24 @@ export async function POST(request: NextRequest) {
         throw new Error('Organization no longer exists');
       }
 
-      if (Number(org.memberCount) >= org.seatCount) {
+      if (
+        org.subscriptionSource !== 'circle' &&
+        Number(org.memberCount) >= org.seatCount
+      ) {
         throw new Error('Organization has reached its seat limit');
       }
 
       // Update user to belong to this organization and sync plan (atomically)
+      const nextPlan =
+        org.subscriptionSource === 'circle' ||
+        currentUser.subscriptionSource === 'circle'
+          ? currentUser.plan
+          : org.plan;
       await tx
         .update(userTable)
         .set({
           orgId: org.id,
-          plan: org.plan, // Sync user plan to match org plan
+          plan: nextPlan,
         })
         .where(eq(userTable.id, session.user.id));
 
@@ -175,6 +204,10 @@ export async function POST(request: NextRequest) {
       warning: hasRedundantSubscription
         ? 'You have an active Pro subscription. Since this organization has a Business plan, your individual Pro subscription is now redundant. You may want to cancel it to avoid double billing.'
         : undefined,
+      warningCode: hasRedundantSubscription
+        ? 'REDUNDANT_STRIPE_SUBSCRIPTION'
+        : undefined,
+      warningAction: hasRedundantSubscription ? 'open_billing_portal' : undefined,
     });
   } catch (error) {
     console.error('Error joining organization:', error);
@@ -183,27 +216,36 @@ export async function POST(request: NextRequest) {
 
     if (message.includes('already belong to an organization')) {
       return NextResponse.json(
-        { error: 'You already belong to an organization' },
+        {
+          error: 'You already belong to an organization',
+          code: 'ALREADY_IN_ORG',
+        },
         { status: 409 },
       );
     }
 
     if (message.includes('seat limit')) {
       return NextResponse.json(
-        { error: 'Organization has reached its seat limit' },
+        {
+          error: 'Organization has reached its seat limit',
+          code: 'ORG_SEAT_LIMIT_REACHED',
+        },
         { status: 409 },
       );
     }
 
     if (message.includes('Organization no longer exists')) {
       return NextResponse.json(
-        { error: 'Organization not found' },
+        { error: 'Organization not found', code: 'ORG_NOT_FOUND' },
         { status: 404 },
       );
     }
 
     return NextResponse.json(
-      { error: message || 'Failed to join organization' },
+      {
+        error: message || 'Failed to join organization',
+        code: 'JOIN_ORGANIZATION_FAILED',
+      },
       { status: 500 },
     );
   }

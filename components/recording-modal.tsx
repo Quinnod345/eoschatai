@@ -55,6 +55,7 @@ import { Gate } from '@/components/gate';
 import { UpgradePrompt } from '@/components/upgrade-prompt';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { Markdown } from './markdown';
+import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
 interface RecordingModalProps {
   isOpen: boolean;
@@ -410,8 +411,10 @@ function RecordingModalInner({
       });
 
       if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || 'Upload failed');
+        const err = await uploadRes.json().catch(() => ({}));
+        await showEdgeCaseToast(toast, err);
+        setIsAnalyzing(false);
+        return;
       }
 
       toast.success('Recording saved! Processing transcript...');
@@ -523,7 +526,8 @@ function RecordingModalInner({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create event');
+        await showEdgeCaseToast(toast, err);
+        return;
       }
       const data = await res.json();
       toast.success('Follow-up scheduled');
@@ -1183,8 +1187,13 @@ function RecordingModalInner({
                                           }),
                                         },
                                       );
-                                      if (!res.ok)
-                                        throw new Error('Retry failed');
+                                      if (!res.ok) {
+                                        const err = await res
+                                          .json()
+                                          .catch(() => ({}));
+                                        await showEdgeCaseToast(toast, err);
+                                        return;
+                                      }
                                       toast.success(
                                         'Retrying transcription...',
                                       );

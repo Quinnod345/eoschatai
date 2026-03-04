@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { CheckCircleFillIcon, ChevronDownIcon, SearchIcon } from './icons';
 import { Telescope } from 'lucide-react';
 import { useAccountStore } from '@/lib/stores/account-store';
-import { DeepResearchModal } from '@/components/deep-research-modal';
 import GlassSurface from '@/components/GlassSurface';
 
 export type ResearchMode = 'off' | 'nexus';
@@ -54,7 +53,6 @@ export function NexusResearchSelector({
 }: NexusResearchSelectorProps) {
   const [open, setOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<ResearchMode | null>(null);
-  const [showDeepResearchModal, setShowDeepResearchModal] = useState(false);
   const entitlements = useAccountStore((state) => state.entitlements);
   // IMPORTANT: Avoid allocating a new object in Zustand selector (can cause useSyncExternalStore loop)
   const ready = useAccountStore((state) => state.ready);
@@ -131,9 +129,9 @@ export function NexusResearchSelector({
                     mode.id === 'nexus' &&
                     !entitlements?.features.deep_research.enabled
                   ) {
-                    console.log('[NexusSelector] Opening deep research modal');
-                    setShowDeepResearchModal(true);
+                    console.log('[NexusSelector] Opening premium modal');
                     setOpen(false);
+                    window.dispatchEvent(new Event('open-premium-modal'));
                     return;
                   }
 
@@ -167,10 +165,6 @@ export function NexusResearchSelector({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeepResearchModal
-        open={showDeepResearchModal}
-        onClose={() => setShowDeepResearchModal(false)}
-      />
     </>
   );
 }
