@@ -255,20 +255,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, featureFlags.entitlements_ws, user?.id]);
 
-  // Silently re-verify Circle subscription once per 24 hours for Circle-sourced users.
-  // Runs in the background after bootstrap so it never blocks the UI.
+  // Re-verify Circle subscription on every load for Circle-sourced users.
+  // The UI renders immediately from the database value. This runs in the background
+  // and updates the DB + refreshes the store only if Circle reports a different plan.
+  // Upgrades apply instantly; downgrades (lost subscription) also apply on next load.
   useEffect(() => {
     if (!ready || !user || user.subscriptionSource !== 'circle') return;
-
-    const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
-    const storageKey = `circle_verify_ts_${user.id}`;
-
-    try {
-      const lastCheck = Number(localStorage.getItem(storageKey) ?? '0');
-      if (Date.now() - lastCheck < COOLDOWN_MS) return;
-    } catch {
-      // localStorage unavailable — proceed anyway
-    }
 
     const verify = async () => {
       try {
@@ -294,12 +286,6 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           reason?: string;
         };
 
-        try {
-          localStorage.setItem(storageKey, String(Date.now()));
-        } catch {
-          // ignore
-        }
-
         if (
           data.code &&
           data.code !== 'CIRCLE_PLAN_VERIFIED' &&
@@ -309,18 +295,16 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data.verified && data.changed) {
-          // Plan changed — refresh account state to pick up new entitlements
-          console.log('[account] Circle subscription re-verified, plan changed to', data.plan);
+          // Plan changed (upgrade or downgrade) — refresh store to pick up new entitlements.
+          console.log('[account] Circle subscription changed, updating plan to', data.plan);
           refresh().catch(() => {});
         }
       } catch {
-        // Network failure — silently ignore, will retry on next load
+        // Network failure — silently ignore, DB value stays in effect until next load.
       }
     };
 
-    // Delay slightly so bootstrap renders first
-    const timer = setTimeout(verify, 3000);
-    return () => clearTimeout(timer);
+    verify();
   }, [ready, user, refresh]);
 
   // Dev-only helpers to force-open the upgrade modal for testing

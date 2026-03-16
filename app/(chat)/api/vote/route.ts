@@ -31,21 +31,27 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const {
-    chatId,
-    messageId,
-    type,
-  }: { chatId: string; messageId: string; type: 'up' | 'down' } =
-    await request.json();
-
-  if (!chatId || !messageId || !type) {
-    return new Response('messageId and type are required', { status: 400 });
-  }
-
   const session = await auth();
 
   if (!session || !session.user || !session.user.email) {
     return new Response('Unauthorized', { status: 401 });
+  }
+
+  let payload: { chatId: string; messageId: string; type: 'up' | 'down' };
+  try {
+    payload = await request.json();
+  } catch {
+    return new Response('Invalid JSON body', { status: 400 });
+  }
+
+  const {
+    chatId,
+    messageId,
+    type,
+  } = payload;
+
+  if (!chatId || !messageId || !type) {
+    return new Response('messageId and type are required', { status: 400 });
   }
 
   const chat = await getChatById({ id: chatId });

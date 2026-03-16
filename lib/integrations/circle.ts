@@ -37,6 +37,7 @@ export type CircleMemberLookup = {
   email: string | null;
   tierName: string;
   mappedPlan: CirclePlan | null;
+  isOnTrial: boolean;
   raw: GenericRecord;
 };
 
@@ -61,6 +62,36 @@ const CIRCLE_TIER_ALIASES: Record<CirclePlan, string[]> = {
   free: ['discover', 'discoverer', 'starter'],
   pro: ['explorer', 'strengthen', 'pro', 'professional'],
   business: ['mastery', 'business', 'team'],
+};
+
+// Trial access group names that map to a specific plan.
+// Keys are normalized tier name fragments; values are the plan they grant.
+// Also supports CIRCLE_TRIAL_GROUP_IDS env var: comma-separated "groupId:plan" pairs
+// e.g. CIRCLE_TRIAL_GROUP_IDS="abc123:business,def456:pro"
+const CIRCLE_TRIAL_ALIASES: Record<string, CirclePlan> = {
+  'mastery trial': 'business',
+  'mastery bundle trial': 'business',
+  'mastery free trial': 'business',
+  'explorer trial': 'pro',
+  'strengthen trial': 'pro',
+  'pro trial': 'pro',
+};
+
+/**
+ * Parses CIRCLE_TRIAL_GROUP_IDS env var into a map of groupId → plan.
+ * Format: comma-separated "groupId:plan" pairs, e.g. "abc123:business,def456:pro"
+ */
+export const getTrialGroupIdMap = (): Map<string, CirclePlan> => {
+  const map = new Map<string, CirclePlan>();
+  const raw = process.env.CIRCLE_TRIAL_GROUP_IDS;
+  if (!raw) return map;
+  for (const entry of raw.split(',')) {
+    const [groupId, plan] = entry.trim().split(':');
+    if (groupId && (plan === 'free' || plan === 'pro' || plan === 'business')) {
+      map.set(groupId.trim(), plan as CirclePlan);
+    }
+  }
+  return map;
 };
 
 const isRecord = (value: unknown): value is GenericRecord =>
@@ -236,6 +267,7 @@ const searchCircleMembersViaAdmin = async (
         email: normalizedEmail,
         tierName,
         mappedPlan: plan,
+        isOnTrial: false,
         raw: member,
       };
     }
@@ -262,6 +294,7 @@ const searchCircleMembersViaAdmin = async (
         email: normalizedEmail,
         tierName,
         mappedPlan: 'free',
+        isOnTrial: false,
         raw: match,
       };
     }
@@ -422,6 +455,25 @@ export const mapCircleTierToPlan = (tierName: string): CirclePlan | null => {
     }
   }
 
+  // Check trial tier aliases — exact substring match on normalized tier name
+  for (const [trialAlias, plan] of Object.entries(CIRCLE_TRIAL_ALIASES)) {
+    if (normalizedTier.includes(normalizeTier(trialAlias))) {
+      return plan;
+    }
+  }
+
+  // Generic trial detection: if the tier name contains a known plan keyword
+  // AND "trial", map it to that plan (e.g. "Mastery Bundle - Trial" → business)
+  if (normalizedTier.includes('trial') || normalizedTier.includes('free trial')) {
+    for (const [plan, aliases] of Object.entries(CIRCLE_TIER_ALIASES) as Array<
+      [CirclePlan, string[]]
+    >) {
+      if (aliases.some((alias) => normalizedTier.includes(normalizeTier(alias)))) {
+        return plan;
+      }
+    }
+  }
+
   return null;
 };
 
@@ -495,11 +547,75 @@ const searchCircleMembers = async (
       email: extractMemberEmail(exactMatch),
       tierName,
       mappedPlan: mapCircleTierToPlan(tierName),
+      isOnTrial: false,
       raw: exactMatch,
     };
   }
 
   return null;
+};
+
+/**
+ * Checks whether a Circle member currently has a free_trial subscription status
+ * on any paywall, using the v1 API subscriptions endpoint.
+ *
+ * Returns false (not on trial) if the API token is missing, the request fails,
+ * or no free_trial subscription is found — so this is always fail-open.
+ */
+export const fetchMemberTrialStatus = async (memberId: string): Promise<boolean> => {
+  const apiToken = process.env.CIRCLE_API_TOKEN;
+  if (!apiToken) return false;
+
+  const baseUrl = (
+    process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1'
+  ).replace(/\/$/, '');
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/community_members/${memberId}/subscriptions`,
+      {
+        headers: {
+          Authorization: `Token ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      },
+    );
+
+    if (!response.ok) {
+      console.warn('[circle] fetchMemberTrialStatus: API request failed', {
+        memberId,
+        status: response.status,
+      });
+      return false;
+    }
+
+    const data = (await response.json()) as unknown;
+    const subscriptions = Array.isArray(data)
+      ? (data as GenericRecord[])
+      : isRecord(data) && Array.isArray((data as GenericRecord).subscriptions)
+        ? ((data as GenericRecord).subscriptions as GenericRecord[])
+        : [];
+
+    const isOnTrial = subscriptions.some(
+      (sub) =>
+        isRecord(sub) &&
+        (toStringValue(sub.status) === 'free_trial' ||
+          toStringValue(sub.subscription_status) === 'free_trial'),
+    );
+
+    if (isOnTrial) {
+      console.log('[circle] fetchMemberTrialStatus: member is on free trial', { memberId });
+    }
+
+    return isOnTrial;
+  } catch (error) {
+    console.warn('[circle] fetchMemberTrialStatus: request error', {
+      memberId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 };
 
 export const getMemberByEmail = async (
@@ -511,11 +627,21 @@ export const getMemberByEmail = async (
 
   // Try the headless API first (fast, single request)
   const headlessResult = await searchCircleMembers(email);
-  if (headlessResult) return headlessResult;
+  if (headlessResult) {
+    // Enrich with trial status from v1 subscriptions API if we have a member ID
+    if (headlessResult.id) {
+      headlessResult.isOnTrial = await fetchMemberTrialStatus(headlessResult.id);
+    }
+    return headlessResult;
+  }
 
   // Fall back to admin v2 API if headless tokens are not configured or returned 401
   console.log('[circle] getMemberByEmail: headless search failed, trying admin v2 API', { email });
-  return searchCircleMembersViaAdmin(email);
+  const adminResult = await searchCircleMembersViaAdmin(email);
+  if (adminResult?.id) {
+    adminResult.isOnTrial = await fetchMemberTrialStatus(adminResult.id);
+  }
+  return adminResult;
 };
 
 const parseWebhookSignature = (signature: string): string | null => {

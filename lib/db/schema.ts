@@ -42,6 +42,7 @@ export const user = pgTable(
     circleMemberId: text('circleMemberId'),
     circleId: text('circleId'),
     circleMemberEmail: text('circleMemberEmail'),
+    circleMemberIsOnTrial: boolean('circleMemberIsOnTrial').default(false),
     subscriptionSource: subscriptionSourceEnum('subscriptionSource')
       .notNull()
       .default('stripe'),

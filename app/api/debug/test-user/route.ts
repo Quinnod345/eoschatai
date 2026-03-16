@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { updateUserPlan } from '@/lib/db/users';
 import { planTypeEnum } from '@/lib/db/schema';
+import { requireAdmin } from '@/lib/auth/admin';
 import {
   defaultUsageCounters,
   getAccessContext,
@@ -25,6 +26,8 @@ function debugEndpointsEnabled() {
 }
 
 export async function POST(request: Request) {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   if (!debugEndpointsEnabled()) {
     return NextResponse.json(
       { error: 'Debug endpoints not available in production' },
@@ -35,6 +38,11 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (isProduction) {
+    const adminError = await requireAdmin(session);
+    if (adminError) return adminError;
   }
 
   let body: RequestBody;

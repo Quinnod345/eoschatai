@@ -38,6 +38,7 @@ export async function POST() {
       circleMemberEmail: user.circleMemberEmail,
       plan: user.plan,
       subscriptionSource: user.subscriptionSource,
+      circleMemberIsOnTrial: user.circleMemberIsOnTrial,
     })
     .from(user)
     .where(eq(user.id, session.user.id))
@@ -171,7 +172,7 @@ export async function POST() {
     });
   }
 
-  if (mappedPlan !== currentUser.plan) {
+  if (mappedPlan !== currentUser.plan || member.isOnTrial !== (currentUser.circleMemberIsOnTrial ?? false)) {
     await db
       .update(user)
       .set({
@@ -179,6 +180,7 @@ export async function POST() {
         circleId: member.id ?? undefined,
         circleMemberId: member.id ?? undefined,
         circleMemberEmail: member.email ?? lookupCandidates[0],
+        circleMemberIsOnTrial: member.isOnTrial,
       })
       .where(eq(user.id, currentUser.id));
 
@@ -191,6 +193,7 @@ export async function POST() {
       from: currentUser.plan,
       to: mappedPlan,
       tierName: member.tierName,
+      isOnTrial: member.isOnTrial,
     });
 
     return NextResponse.json({
@@ -199,6 +202,7 @@ export async function POST() {
       code: 'CIRCLE_PLAN_UPDATED',
       message: `Your Circle plan was refreshed to ${mappedPlan}.`,
       plan: mappedPlan,
+      isOnTrial: member.isOnTrial,
       tierName: member.tierName,
     });
   }
@@ -209,6 +213,7 @@ export async function POST() {
     code: 'CIRCLE_PLAN_VERIFIED',
     message: 'Your Circle plan is already up to date.',
     plan: currentUser.plan,
+    isOnTrial: member.isOnTrial,
     tierName: member.tierName,
   });
 }

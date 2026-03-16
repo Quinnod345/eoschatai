@@ -83,11 +83,7 @@ function getStreamContext() {
     try {
       // Get REDIS_URL from environment and clean it (remove quotes if present)
       const redisUrl = process.env.REDIS_URL;
-      console.log('Redis URL check:', {
-        hasRedisUrl: !!redisUrl,
-        redisUrlLength: redisUrl?.length || 0,
-        redisUrlPrefix: redisUrl?.substring(0, 10) || 'none',
-      });
+      console.log('Redis URL configured for resumable streams:', !!redisUrl);
 
       if (!redisUrl || typeof redisUrl !== 'string' || redisUrl.trim() === '') {
         console.log(
@@ -105,15 +101,12 @@ function getStreamContext() {
         !cleanRedisUrl.startsWith('rediss://')
       ) {
         console.warn(
-          `[Chat Route] Invalid REDIS_URL format (expected redis:// or rediss://): ${cleanRedisUrl.substring(0, 20)}...`,
+          '[Chat Route] Invalid REDIS_URL format (expected redis:// or rediss://)',
         );
         return null;
       }
 
-      console.log(
-        'Creating resumable stream context with Redis URL:',
-        `${cleanRedisUrl.substring(0, 20)}...`,
-      );
+      console.log('Creating resumable stream context');
 
       // Set the cleaned Redis URL back to the environment for the resumable stream context
       process.env.REDIS_URL = cleanRedisUrl;

@@ -1,6 +1,25 @@
 import { z } from 'zod/v3';
 import { PROVIDERS } from '@/lib/ai/providers';
 
+const isTrustedAttachmentUrl = (rawUrl: string) => {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') return false;
+
+    const hostname = parsed.hostname.toLowerCase();
+    return (
+      hostname === 'public.blob.vercel-storage.com' ||
+      hostname.endsWith('.public.blob.vercel-storage.com')
+    );
+  } catch {
+    return false;
+  }
+};
+
+const trustedAttachmentUrlSchema = z.string().url().refine(isTrustedAttachmentUrl, {
+  message: 'File URL must use a trusted storage origin',
+});
+
 // AI SDK 5 text part
 const textPartSchema = z.object({
   text: z.string().min(1).max(100000),
@@ -10,7 +29,7 @@ const textPartSchema = z.object({
 // AI SDK 5 file part (URL-based)
 const filePartSchema = z.object({
   type: z.literal('file'),
-  url: z.string(), // File URL
+  url: trustedAttachmentUrlSchema, // File URL (trusted origins only)
   mediaType: z.string().default('application/octet-stream'), // Required by UIMessage type
   mimeType: z.string().optional(), // SDK 4 compatibility
 });
@@ -37,7 +56,7 @@ export const postRequestBodySchema = z.object({
     experimental_attachments: z
       .array(
         z.object({
-          url: z.string().url(),
+          url: trustedAttachmentUrlSchema,
           name: z.string().min(1).max(2000),
           contentType: z.enum([
             'image/png',
@@ -59,7 +78,7 @@ export const postRequestBodySchema = z.object({
   selectedPersonaId: z.string().optional(),
   selectedProfileId: z.string().optional(),
   selectedResearchMode: z.enum(['off', 'nexus']).optional(),
-  composerDocumentId: z.string().optional(),
+  composerDocumentId: z.string().uuid().optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

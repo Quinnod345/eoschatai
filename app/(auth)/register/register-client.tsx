@@ -30,6 +30,8 @@ export default function RegisterClient() {
   useEffect(() => {
     if (state.status === 'user_exists') {
       toast.error('Account already exists!');
+    } else if (state.status === 'rate_limited') {
+      toast.error('Too many sign-up attempts. Please try again in a few minutes.');
     } else if (state.status === 'failed') {
       toast.error('Failed to create account!');
     } else if (state.status === 'invalid_data') {

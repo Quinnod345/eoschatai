@@ -16,7 +16,7 @@ import {
  *   }]
  * }
  */
-export async function GET(request: Request) {
+async function runGracePeriodReminderCron(request: Request) {
   try {
     // Verify this is a cron request (Vercel adds this header)
     const authHeader = request.headers.get('authorization');
@@ -54,7 +54,16 @@ export async function GET(request: Request) {
   }
 }
 
-// Allow POST as well for manual triggering
 export async function POST(request: Request) {
-  return GET(request);
+  return runGracePeriodReminderCron(request);
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Method not allowed. Use POST.' },
+    {
+      status: 405,
+      headers: { Allow: 'POST' },
+    },
+  );
 }

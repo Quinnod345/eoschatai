@@ -3,6 +3,7 @@
 import { z } from 'zod/v3';
 import { randomBytes } from 'node:crypto';
 import { eq, and, gt, isNull } from 'drizzle-orm';
+import { headers } from 'next/headers';
 
 import { createUser, getUser } from '@/lib/db/queries';
 import { db } from '@/lib/db';
@@ -10,6 +11,7 @@ import { user, passwordResetToken } from '@/lib/db/schema';
 import { generateHashedPassword } from '@/lib/db/utils';
 import { getResendClient, getFromAddress } from '@/lib/email/resend';
 import PasswordResetEmail from '@/emails/PasswordResetEmail';
+import { getRedisClient } from '@/lib/redis/client';
 
 import { signIn } from './auth';
 import { buildAppUrl } from '@/lib/utils/app-url';
@@ -17,11 +19,147 @@ import { createLogger } from '@/lib/utils/secure-logger';
 
 const authFormSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8),
 });
 
+const AUTH_RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
+const AUTH_RATE_LIMIT_MAX_ATTEMPTS = 5;
+const AUTH_RATE_LIMIT_PREFIX = 'auth:attempts';
+const inMemoryAuthBuckets = new Map<string, { count: number; resetAt: number }>();
+
+type BucketState = {
+  count: number;
+  resetAfterSeconds: number;
+};
+
+const sanitizeRateLimitKeyPart = (value: string) =>
+  value.replace(/[^a-zA-Z0-9:._@-]/g, '_').slice(0, 160);
+
+async function buildRateLimitKeys(email: string): Promise<string[]> {
+  const normalizedEmail = sanitizeRateLimitKeyPart(email.trim().toLowerCase());
+  const keys = [`${AUTH_RATE_LIMIT_PREFIX}:email:${normalizedEmail}`];
+
+  try {
+    const headerStore = await headers();
+    const forwardedFor = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim();
+    const realIp = headerStore.get('x-real-ip')?.trim();
+    const cfIp = headerStore.get('cf-connecting-ip')?.trim();
+    const ipAddress = cfIp || forwardedFor || realIp;
+
+    if (ipAddress) {
+      keys.push(
+        `${AUTH_RATE_LIMIT_PREFIX}:ip:${sanitizeRateLimitKeyPart(ipAddress)}`,
+      );
+    }
+  } catch {
+    // Ignore header access errors and fallback to email-only rate limiting.
+  }
+
+  return keys;
+}
+
+function consumeInMemoryBucket(key: string): BucketState {
+  const now = Date.now();
+  const existing = inMemoryAuthBuckets.get(key);
+
+  if (!existing || existing.resetAt <= now) {
+    const next = {
+      count: 1,
+      resetAt: now + AUTH_RATE_LIMIT_WINDOW_SECONDS * 1000,
+    };
+    inMemoryAuthBuckets.set(key, next);
+    return {
+      count: next.count,
+      resetAfterSeconds: AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    };
+  }
+
+  existing.count += 1;
+  inMemoryAuthBuckets.set(key, existing);
+
+  return {
+    count: existing.count,
+    resetAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
+  };
+}
+
+async function consumeRedisBucket(redis: any, key: string): Promise<BucketState> {
+  const count = Number(await redis.incr(key));
+  if (count === 1) {
+    await redis.expire(key, AUTH_RATE_LIMIT_WINDOW_SECONDS);
+  }
+
+  const ttl = Number(await redis.ttl(key));
+  return {
+    count,
+    resetAfterSeconds: ttl > 0 ? ttl : AUTH_RATE_LIMIT_WINDOW_SECONDS,
+  };
+}
+
+async function consumeAuthRateLimit(email: string): Promise<{
+  allowed: boolean;
+  retryAfterSeconds: number;
+  keys: string[];
+}> {
+  const keys = await buildRateLimitKeys(email);
+  const redis = getRedisClient();
+  let useInMemory = !redis;
+  let retryAfterSeconds = 0;
+
+  for (const key of keys) {
+    let bucketState: BucketState;
+
+    if (useInMemory) {
+      bucketState = consumeInMemoryBucket(key);
+    } else {
+      try {
+        bucketState = await consumeRedisBucket(redis, key);
+      } catch (error) {
+        console.warn(
+          '[auth] Redis rate limiter unavailable, falling back to in-memory buckets',
+          error,
+        );
+        useInMemory = true;
+        bucketState = consumeInMemoryBucket(key);
+      }
+    }
+
+    if (bucketState.count > AUTH_RATE_LIMIT_MAX_ATTEMPTS) {
+      retryAfterSeconds = Math.max(retryAfterSeconds, bucketState.resetAfterSeconds);
+    }
+  }
+
+  return {
+    allowed: retryAfterSeconds === 0,
+    retryAfterSeconds,
+    keys,
+  };
+}
+
+async function clearAuthRateLimit(keys: string[]) {
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      await Promise.all(keys.map((key) => redis.del(key)));
+      return;
+    } catch (error) {
+      console.warn('[auth] Failed to clear Redis auth rate limit keys', error);
+    }
+  }
+
+  for (const key of keys) {
+    inMemoryAuthBuckets.delete(key);
+  }
+}
+
 export interface LoginActionState {
-  status: 'idle' | 'in_progress' | 'success' | 'failed' | 'invalid_data';
+  status:
+    | 'idle'
+    | 'in_progress'
+    | 'success'
+    | 'failed'
+    | 'invalid_data'
+    | 'rate_limited';
 }
 
 export const login = async (
@@ -34,8 +172,10 @@ export const login = async (
       password: formData.get('password'),
     });
 
-    // Get the callback URL from form data, default to '/chat'
-    const callbackUrl = formData.get('callbackUrl')?.toString() || '/chat';
+    const rateLimit = await consumeAuthRateLimit(validatedData.email);
+    if (!rateLimit.allowed) {
+      return { status: 'rate_limited' };
+    }
 
     try {
       await signIn('credentials', {
@@ -43,6 +183,7 @@ export const login = async (
         password: validatedData.password,
         redirect: false, // Change to false to handle redirect manually
       });
+      await clearAuthRateLimit(rateLimit.keys);
 
       return { status: 'success' };
     } catch (signInError) {
@@ -56,6 +197,7 @@ export const login = async (
         const digest = (signInError as any).digest;
         if (digest?.includes('NEXT_REDIRECT')) {
           // This is actually a successful login with a redirect
+          await clearAuthRateLimit(rateLimit.keys);
           return { status: 'success' };
         }
       }
@@ -78,7 +220,8 @@ export interface RegisterActionState {
     | 'success'
     | 'failed'
     | 'user_exists'
-    | 'invalid_data';
+    | 'invalid_data'
+    | 'rate_limited';
 }
 
 export const register = async (
@@ -91,8 +234,10 @@ export const register = async (
       password: formData.get('password'),
     });
 
-    // Get the callback URL from form data, default to '/chat'
-    const callbackUrl = formData.get('callbackUrl')?.toString() || '/chat';
+    const rateLimit = await consumeAuthRateLimit(validatedData.email);
+    if (!rateLimit.allowed) {
+      return { status: 'rate_limited' };
+    }
 
     // Check if the user already exists
     const users = await getUser(validatedData.email);
@@ -113,6 +258,7 @@ export const register = async (
         password: validatedData.password,
         redirect: false, // Change to false to handle redirect manually
       });
+      await clearAuthRateLimit(rateLimit.keys);
 
       return { status: 'success' };
     } catch (signInError) {
@@ -126,10 +272,12 @@ export const register = async (
         const digest = (signInError as any).digest;
         if (digest?.includes('NEXT_REDIRECT')) {
           // This is actually a successful login with a redirect
+          await clearAuthRateLimit(rateLimit.keys);
           return { status: 'success' };
         }
       }
       // Even if sign-in fails, registration was successful
+      await clearAuthRateLimit(rateLimit.keys);
       return { status: 'success' };
     }
   } catch (error) {

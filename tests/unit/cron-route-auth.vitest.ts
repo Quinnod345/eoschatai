@@ -46,7 +46,7 @@ import {
   GET as monthlyCronGet,
 } from '@/app/api/cron/usage/monthly/route';
 import { GET as subscriptionHealthCron } from '@/app/api/cron/subscription-health-check/route';
-import { GET as gracePeriodCron } from '@/app/api/cron/grace-period-reminders/route';
+import { POST as gracePeriodCron } from '@/app/api/cron/grace-period-reminders/route';
 
 describe('cron route auth hardening', () => {
   const originalCronSecret = process.env.CRON_SECRET;
@@ -81,7 +81,9 @@ describe('cron route auth hardening', () => {
           new Request('http://localhost/api/cron/subscription-health-check'),
         ),
         gracePeriodCron(
-          new Request('http://localhost/api/cron/grace-period-reminders'),
+          new Request('http://localhost/api/cron/grace-period-reminders', {
+            method: 'POST',
+          }),
         ),
       ],
     );
@@ -122,6 +124,7 @@ describe('cron route auth hardening', () => {
         ),
         gracePeriodCron(
           new Request('http://localhost/api/cron/grace-period-reminders', {
+            method: 'POST',
             headers,
           }),
         ),

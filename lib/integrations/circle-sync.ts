@@ -20,7 +20,7 @@ import { updateUserPlan } from '@/lib/db/users';
 import { buildAppUrl } from '@/lib/utils/app-url';
 // Canonical tier mapping - imported here so all sync paths use the same logic
 // (supports env var overrides and aliases like 'explorer' -> pro).
-import { mapCircleTierToPlan } from '@/lib/integrations/circle';
+import { mapCircleTierToPlan, getTrialGroupIdMap, fetchMemberTrialStatus } from '@/lib/integrations/circle';
 // Re-export so callers who import mapCircleTierToPlan from this module continue to work.
 export { mapCircleTierToPlan } from '@/lib/integrations/circle';
 
@@ -75,6 +75,7 @@ type ParsedCirclePaymentPayload = {
   circleMemberId: string | null;
   tierPurchased: string;
   mappedPlan: PlanType;
+  isOnTrial?: boolean;
   amount: number | null;
   currency: string | null;
   occurredAt: Date;
@@ -479,12 +480,16 @@ const parseCircleNativePayload = async (
     );
   }
 
+  const memberId = String(parsed.data.community_member_id);
+  const isOnTrial = await fetchMemberTrialStatus(memberId);
+
   return {
     email: normalizeEmail(memberInfo.email),
     name: memberInfo.name,
-    circleMemberId: String(parsed.data.community_member_id),
+    circleMemberId: memberId,
     tierPurchased: paywallInfo.name,
     mappedPlan,
+    isOnTrial,
     amount: null,
     currency: null,
     occurredAt: new Date(),
@@ -702,6 +707,7 @@ const upsertCircleMemberIdentity = async (
   userId: string,
   circleMemberId: string | null,
   circleMemberEmail: string | null,
+  isOnTrial?: boolean,
 ): Promise<void> => {
   if (!circleMemberId && !circleMemberEmail) return;
   await db
@@ -711,6 +717,7 @@ const upsertCircleMemberIdentity = async (
       circleId: circleMemberId ?? undefined,
       circleMemberEmail: circleMemberEmail ?? undefined,
       subscriptionSource: 'circle',
+      ...(isOnTrial !== undefined && { circleMemberIsOnTrial: isOnTrial }),
     })
     .where(eq(user.id, userId));
 };
@@ -778,6 +785,7 @@ type ApplyCirclePlanAssignmentInput = {
   circleMemberId: string | null;
   tierPurchased: string;
   mappedPlan: PlanType;
+  isOnTrial?: boolean;
   amount: number | null;
   currency: string | null;
   occurredAt: Date;
@@ -815,6 +823,7 @@ const applyCirclePlanAssignment = async (
       existingUser.id,
       input.circleMemberId,
       input.email,
+      input.isOnTrial,
     );
 
     if (currentRank >= incomingRank) {
@@ -1104,9 +1113,13 @@ const fetchTierMemberships = async (): Promise<{
   memberships: CircleMembership[];
 }> => {
   const groups = await listCircleAccessGroups();
+  const trialGroupIdMap = getTrialGroupIdMap();
+
   const tierGroups = groups
     .map((group) => {
-      const mappedPlan = mapCircleTierToPlan(group.name);
+      // Check explicit trial group ID map first (env var override)
+      const trialPlan = trialGroupIdMap.get(group.id);
+      const mappedPlan = trialPlan ?? mapCircleTierToPlan(group.name);
       if (!mappedPlan) return null;
       return {
         ...group,

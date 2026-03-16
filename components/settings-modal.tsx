@@ -518,8 +518,8 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
   const handleUpdatePassword = async () => {
     setPasswordError('');
 
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
       return;
     }
 
@@ -870,7 +870,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                               />
                               <Input
                                 type="password"
-                                placeholder="New password (min 6 characters)"
+                                placeholder="New password (min 8 characters)"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                               />

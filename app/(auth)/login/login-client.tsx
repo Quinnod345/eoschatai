@@ -69,6 +69,8 @@ function LoginForm() {
   useEffect(() => {
     if (state.status === 'failed') {
       toast.error('Invalid credentials!');
+    } else if (state.status === 'rate_limited') {
+      toast.error('Too many login attempts. Please try again in a few minutes.');
     } else if (state.status === 'invalid_data') {
       toast.error('Failed validating your submission!');
     } else if (state.status === 'success') {

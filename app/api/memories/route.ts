@@ -33,6 +33,28 @@ const createMemorySchema = z.object({
   sourceMessageId: z.string().uuid().optional(),
 });
 
+const updateMemorySchema = z
+  .object({
+    id: z.string().uuid('Invalid memory id'),
+    summary: z
+      .string()
+      .min(1, 'Summary is required')
+      .max(500, 'Summary must be 500 characters or less')
+      .optional(),
+    content: z
+      .string()
+      .max(10000, 'Content must be 10000 characters or less')
+      .nullable()
+      .optional(),
+    topic: z.string().max(100, 'Topic must be 100 characters or less').nullable().optional(),
+    memoryType: memoryTypeFilterSchema.optional(),
+    confidence: z.number().int().min(0).max(100).optional(),
+    status: memoryStatusFilterSchema.optional(),
+    tags: z.array(z.string().max(50)).max(20).nullable().optional(),
+    expiresAt: z.union([z.coerce.date(), z.null()]).optional(),
+  })
+  .strict();
+
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id)
@@ -219,28 +241,41 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, ...updates } = body || {};
-    if (!id)
-      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    const parseResult = updateMemorySchema.safeParse(body);
+    if (!parseResult.success) {
+      const details = parseResult.error.errors
+        .map((error) => `${error.path.join('.')}: ${error.message}`)
+        .join(', ');
+      return NextResponse.json(
+        { error: 'Validation failed', details },
+        { status: 400 },
+      );
+    }
 
-    const allowed = [
-      'summary',
-      'content',
-      'topic',
-      'memoryType',
-      'confidence',
-      'status',
-      'tags',
-      'expiresAt',
-    ] as const;
-    const set: any = { updatedAt: new Date() };
-    for (const key of allowed) if (key in updates) set[key] = updates[key];
+    const { id, ...updates } = parseResult.data;
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        set[key] = value;
+      }
+    }
+
+    if (Object.keys(set).length === 1) {
+      return NextResponse.json(
+        { error: 'No fields provided to update' },
+        { status: 400 },
+      );
+    }
 
     const [row] = await db
       .update(userMemory)
       .set(set)
       .where(and(eq(userMemory.id, id), eq(userMemory.userId, session.user.id)))
       .returning();
+
+    if (!row) {
+      return NextResponse.json({ error: 'Memory not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ memory: row });
   } catch (error) {

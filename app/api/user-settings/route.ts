@@ -4,6 +4,43 @@ import { auth } from '@/app/(auth)/auth';
 import { getUserSettings, updateUserSettings } from '@/lib/db/queries';
 import { API_CACHE } from '@/lib/api/cache-headers';
 
+const ALLOWED_SETTINGS_KEYS = new Set([
+  'notificationsEnabled',
+  'language',
+  'timezone',
+  'fontSize',
+  'displayName',
+  'companyName',
+  'companyType',
+  'companyDescription',
+  'companyIndustry',
+  'companySize',
+  'companyWebsite',
+  'companyCountry',
+  'companyState',
+  'profilePicture',
+  'selectedChatModel',
+  'selectedProvider',
+  'selectedVisibilityType',
+  'selectedPersonaId',
+  'selectedProfileId',
+  'selectedResearchMode',
+  'primaryAccountabilityId',
+  'primaryVtoId',
+  'primaryScorecardId',
+  'currentBundleId',
+  'contextDocumentIds',
+  'contextComposerDocumentIds',
+  'contextRecordingIds',
+  'usePrimaryDocsForContext',
+  'usePrimaryDocsForPersona',
+  'personaContextDocumentIds',
+  'autocompleteEnabled',
+  'disableGlassEffects',
+  'disableEosGradient',
+  'lastFeaturesVersion',
+]);
+
 const normalizeSettingsPayload = (
   payload: unknown,
 ):
@@ -13,8 +50,19 @@ const normalizeSettingsPayload = (
     return { ok: false, error: 'Invalid settings payload' };
   }
 
+  const payloadRecord = payload as Record<string, unknown>;
+  const unknownKeys = Object.keys(payloadRecord).filter(
+    (key) => !ALLOWED_SETTINGS_KEYS.has(key),
+  );
+  if (unknownKeys.length > 0) {
+    return {
+      ok: false,
+      error: `Unsupported settings fields: ${unknownKeys.join(', ')}`,
+    };
+  }
+
   const normalized = {
-    ...(payload as Record<string, unknown>),
+    ...payloadRecord,
   };
 
   if (normalized.timezone !== undefined) {

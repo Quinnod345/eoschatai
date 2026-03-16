@@ -1143,6 +1143,22 @@ const runMigrate = async () => {
             ON "User" ("circleMemberId")
           `;
 
+          // Add circleMemberIsOnTrial column if it doesn't exist
+          const circleMemberIsOnTrialExists = await connection`
+            SELECT EXISTS (
+              SELECT FROM information_schema.columns
+              WHERE table_name = 'User' AND column_name = 'circleMemberIsOnTrial'
+            ) as "exists"
+          `;
+          if (!circleMemberIsOnTrialExists[0].exists) {
+            await connection`
+              ALTER TABLE "User" ADD COLUMN "circleMemberIsOnTrial" boolean DEFAULT false
+            `;
+            console.log('Added circleMemberIsOnTrial column to User table');
+          } else {
+            console.log('circleMemberIsOnTrial column already exists in User table');
+          }
+
           const circleSyncLogExists = await connection`
             SELECT EXISTS (
               SELECT FROM information_schema.tables
