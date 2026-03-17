@@ -41,12 +41,6 @@ export type CircleMemberLookup = {
   raw: GenericRecord;
 };
 
-interface CircleMemberSearchConfig {
-  token: string;
-  baseUrl: string;
-  communityId?: string;
-}
-
 interface CircleAdminSearchConfig {
   adminToken: string;
   adminBaseUrl: string;
@@ -155,24 +149,6 @@ const extractArrayCandidates = (value: unknown): GenericRecord[] => {
   return isRecord(value.member) ? [value.member] : [];
 };
 
-const getCircleMemberSearchConfig = (): CircleMemberSearchConfig => {
-  const token =
-    process.env.CIRCLE_API_TOKEN || process.env.CIRCLE_HEADLESS_AUTH_TOKEN;
-  if (!token) {
-    throw new Error(
-      'CIRCLE_API_TOKEN or CIRCLE_HEADLESS_AUTH_TOKEN must be configured',
-    );
-  }
-
-  return {
-    token,
-    baseUrl: (
-      process.env.CIRCLE_HEADLESS_API_BASE_URL || 'https://app.circle.so'
-    ).replace(/\/$/, ''),
-    communityId: process.env.CIRCLE_COMMUNITY_ID || undefined,
-  };
-};
-
 const getCircleAdminSearchConfig = (): CircleAdminSearchConfig | null => {
   const adminToken = process.env.CIRCLE_ADMIN_API_TOKEN;
   if (!adminToken) return null;
@@ -246,69 +222,50 @@ const searchCircleMembersViaAdmin = async (
 
   console.log('[circle] admin search: built tier map with', memberIdToPlan.size, 'entries');
 
-  // Now find the member by email - check tier-group members first (much smaller set)
-  // Resolve emails for only the members in tier groups
-  const candidateIds = [...memberIdToPlan.keys()];
+  // Use the admin v2 search to find the member directly by email — single request,
+  // then cross-reference the tier map. This replaces the old approach of fetching
+  // every tier-group member individually (192 requests) and full community pagination.
+  const searchRes = await fetch(
+    `${config.adminBaseUrl}/community_members?search=${encodeURIComponent(normalizedEmail)}&per_page=25`,
+    { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+  );
 
-  for (const memberId of candidateIds) {
-    const memberRes = await fetch(
-      `${config.adminBaseUrl}/community_members/${memberId}`,
-      { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
+  if (searchRes.ok) {
+    const searchData = (await searchRes.json()) as GenericRecord;
+    const searchRecords = Array.isArray(searchData.records)
+      ? (searchData.records as GenericRecord[])
+      : [];
+    const exactMatch = searchRecords.find(
+      (m) => typeof m.email === 'string' && normalizeEmail(m.email) === normalizedEmail,
     );
-    if (!memberRes.ok) continue;
-    const member = (await memberRes.json()) as GenericRecord;
-    const memberEmail = typeof member.email === 'string' ? normalizeEmail(member.email) : null;
-    if (memberEmail === normalizedEmail) {
-      const plan = memberIdToPlan.get(memberId) ?? 'free';
-      const tierName = tierGroups._names[plan] ?? plan;
-      console.log('[circle] admin search: found member in tier group', { email: normalizedEmail, plan, tierName });
+
+    if (exactMatch) {
+      const memberId = toStringValue(exactMatch.id);
+      const plan = memberId ? (memberIdToPlan.get(memberId) ?? 'free') : 'free';
+      const tierName =
+        plan !== 'free'
+          ? (tierGroups._names[plan] ?? plan)
+          : (process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free);
+
+      console.log('[circle] admin search: found member via email search', {
+        email: normalizedEmail,
+        plan,
+        tierName,
+        memberId,
+      });
+
       return {
         id: memberId,
         email: normalizedEmail,
         tierName,
         mappedPlan: plan,
         isOnTrial: false,
-        raw: member,
+        raw: exactMatch,
       };
     }
   }
 
-  // Member not in any tier group - check if they exist at all in the community
-  let page = 1;
-  while (true) {
-    const res = await fetch(
-      `${config.adminBaseUrl}/community_members?per_page=200&page=${page}`,
-      { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
-    );
-    if (!res.ok) break;
-    const data = (await res.json()) as GenericRecord;
-    const records = Array.isArray(data.records) ? (data.records as GenericRecord[]) : [];
-    const match = records.find(
-      (m) => typeof m.email === 'string' && normalizeEmail(m.email) === normalizedEmail,
-    );
-    if (match) {
-      // Member exists but not in any paid tier — treat as free/discoverer
-      const tierName = process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free;
-      return {
-        id: toStringValue(match.id),
-        email: normalizedEmail,
-        tierName,
-        mappedPlan: 'free',
-        isOnTrial: false,
-        raw: match,
-      };
-    }
-    if (!data.has_next_page) break;
-    page++;
-    if (page > maxCommunityPages) {
-      console.warn(
-        '[circle] admin search: reached configured community scan page limit before finding member',
-        { email: normalizedEmail, maxCommunityPages },
-      );
-      break;
-    }
-  }
-
+  // Search returned no exact match — member doesn't exist in this community.
   console.warn('[circle] admin search: member not found by email', { email: normalizedEmail });
   return null;
 };
@@ -316,16 +273,20 @@ const searchCircleMembersViaAdmin = async (
 type TierGroups = Record<CirclePlan, string[]> & { _names: Record<CirclePlan, string> };
 
 const getAdminTierGroups = async (config: CircleAdminSearchConfig): Promise<TierGroups> => {
-  // If explicit group IDs are set in env, use them
+  // If explicit group IDs are set in env, use them.
+  // Supports comma-separated IDs per plan, e.g. CIRCLE_TIER_BUSINESS_GROUP_ID="87672,87669"
   const explicitMastery = process.env.CIRCLE_TIER_BUSINESS_GROUP_ID;
   const explicitStrengthen = process.env.CIRCLE_TIER_PRO_GROUP_ID;
   const explicitDiscover = process.env.CIRCLE_TIER_FREE_GROUP_ID;
 
+  const splitIds = (val: string | undefined): string[] =>
+    val ? val.split(',').map((s) => s.trim()).filter(Boolean) : [];
+
   if (explicitMastery && explicitStrengthen) {
     return {
-      business: [explicitMastery],
-      pro: [explicitStrengthen],
-      free: explicitDiscover ? [explicitDiscover] : [],
+      business: splitIds(explicitMastery),
+      pro: splitIds(explicitStrengthen),
+      free: splitIds(explicitDiscover),
       _names: {
         business: process.env.CIRCLE_TIER_BUSINESS || CIRCLE_TIER_DEFAULTS.business,
         pro: process.env.CIRCLE_TIER_PRO || CIRCLE_TIER_DEFAULTS.pro,
@@ -477,147 +438,6 @@ export const mapCircleTierToPlan = (tierName: string): CirclePlan | null => {
   return null;
 };
 
-const searchCircleMembers = async (
-  email: string,
-): Promise<CircleMemberLookup | null> => {
-  const config = getCircleMemberSearchConfig();
-  const normalizedEmail = normalizeEmail(email);
-  const endpoint = '/api/headless/v1/search/community_members';
-  const baseBody = config.communityId
-    ? { community_id: config.communityId }
-    : {};
-
-  const bodies: Array<Record<string, unknown>> = [
-    {
-      ...baseBody,
-      per_page: 25,
-      filters: [{ key: 'email', operator: 'eq', value: normalizedEmail }],
-      search_text: normalizedEmail,
-    },
-    {
-      ...baseBody,
-      per_page: 25,
-      search_text: normalizedEmail,
-    },
-  ];
-
-  for (const [bodyIndex, body] of bodies.entries()) {
-    const response = await fetch(`${config.baseUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      console.warn('[circle] headless search: API request failed', {
-        attempt: bodyIndex + 1,
-        status: response.status,
-      });
-      continue;
-    }
-
-    const raw = (await response.json()) as unknown;
-    const members = extractArrayCandidates(raw);
-
-    if (members.length === 0) {
-      continue;
-    }
-
-    // Only use an exact email match - never fall back to first result to
-    // avoid accidentally granting a different member's subscription tier.
-    const exactMatch = members.find(
-      (member) => extractMemberEmail(member) === normalizedEmail,
-    );
-
-    if (!exactMatch) {
-      continue;
-    }
-
-    const tierName = extractMemberTierName(exactMatch);
-    if (!tierName) {
-      continue;
-    }
-
-    return {
-      id: extractMemberId(exactMatch),
-      email: extractMemberEmail(exactMatch),
-      tierName,
-      mappedPlan: mapCircleTierToPlan(tierName),
-      isOnTrial: false,
-      raw: exactMatch,
-    };
-  }
-
-  return null;
-};
-
-/**
- * Checks whether a Circle member currently has a free_trial subscription status
- * on any paywall, using the v1 API subscriptions endpoint.
- *
- * Returns false (not on trial) if the API token is missing, the request fails,
- * or no free_trial subscription is found — so this is always fail-open.
- */
-export const fetchMemberTrialStatus = async (memberId: string): Promise<boolean> => {
-  const apiToken = process.env.CIRCLE_API_TOKEN;
-  if (!apiToken) return false;
-
-  const baseUrl = (
-    process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1'
-  ).replace(/\/$/, '');
-
-  try {
-    const response = await fetch(
-      `${baseUrl}/community_members/${memberId}/subscriptions`,
-      {
-        headers: {
-          Authorization: `Token ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      },
-    );
-
-    if (!response.ok) {
-      console.warn('[circle] fetchMemberTrialStatus: API request failed', {
-        memberId,
-        status: response.status,
-      });
-      return false;
-    }
-
-    const data = (await response.json()) as unknown;
-    const subscriptions = Array.isArray(data)
-      ? (data as GenericRecord[])
-      : isRecord(data) && Array.isArray((data as GenericRecord).subscriptions)
-        ? ((data as GenericRecord).subscriptions as GenericRecord[])
-        : [];
-
-    const isOnTrial = subscriptions.some(
-      (sub) =>
-        isRecord(sub) &&
-        (toStringValue(sub.status) === 'free_trial' ||
-          toStringValue(sub.subscription_status) === 'free_trial'),
-    );
-
-    if (isOnTrial) {
-      console.log('[circle] fetchMemberTrialStatus: member is on free trial', { memberId });
-    }
-
-    return isOnTrial;
-  } catch (error) {
-    console.warn('[circle] fetchMemberTrialStatus: request error', {
-      memberId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return false;
-  }
-};
-
 export const getMemberByEmail = async (
   email: string,
 ): Promise<CircleMemberLookup | null> => {
@@ -625,23 +445,7 @@ export const getMemberByEmail = async (
     throw new Error('A valid email address is required');
   }
 
-  // Try the headless API first (fast, single request)
-  const headlessResult = await searchCircleMembers(email);
-  if (headlessResult) {
-    // Enrich with trial status from v1 subscriptions API if we have a member ID
-    if (headlessResult.id) {
-      headlessResult.isOnTrial = await fetchMemberTrialStatus(headlessResult.id);
-    }
-    return headlessResult;
-  }
-
-  // Fall back to admin v2 API if headless tokens are not configured or returned 401
-  console.log('[circle] getMemberByEmail: headless search failed, trying admin v2 API', { email });
-  const adminResult = await searchCircleMembersViaAdmin(email);
-  if (adminResult?.id) {
-    adminResult.isOnTrial = await fetchMemberTrialStatus(adminResult.id);
-  }
-  return adminResult;
+  return searchCircleMembersViaAdmin(email);
 };
 
 const parseWebhookSignature = (signature: string): string | null => {

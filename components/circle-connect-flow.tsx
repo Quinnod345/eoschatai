@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { toast } from '@/lib/toast-system';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
@@ -65,6 +66,7 @@ export function CircleConnectFlow({
 }: CircleConnectFlowProps) {
   const accountUser = useAccountStore((state) => state.user);
   const [orgName, setOrgName] = useState('');
+  const [wantsOrg, setWantsOrg] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFoundEmail, setNotFoundEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,6 +83,7 @@ export function CircleConnectFlow({
   useEffect(() => {
     if (!open) return;
     setOrgName('');
+    setWantsOrg(false);
     setError(null);
     setNotFoundEmail(null);
     setLoading(false);
@@ -166,7 +169,9 @@ export function CircleConnectFlow({
       return;
     }
 
-    await connectMembership();
+    await connectMembership(
+      wantsOrg ? { createOrg: true, orgName: orgName.trim() || defaultOrgName } : undefined,
+    );
   };
 
   const onCreateResourceOrg = async () => {
@@ -236,6 +241,48 @@ export function CircleConnectFlow({
                 <p className="text-xs text-muted-foreground mt-1">
                   {accountUser?.email || 'No account email found'}
                 </p>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="wants-org"
+                    checked={wantsOrg}
+                    onCheckedChange={(checked) => setWantsOrg(Boolean(checked))}
+                    disabled={loading}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="wants-org" className="text-sm font-medium cursor-pointer">
+                      Join or create an organization
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only available for Mastery tier. Lets you share personas
+                      and resources with your team.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Not sure?</strong> If your admin hasn&apos;t asked you to join an organization, leave this unchecked — you can always create one later from Settings.
+                    </p>
+                  </div>
+                </div>
+
+                {wantsOrg && (
+                  <div className="space-y-2 pt-1">
+                    <Label htmlFor="org-name-input" className="text-sm">
+                      Organization name
+                    </Label>
+                    <Input
+                      id="org-name-input"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      placeholder={defaultOrgName}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave blank to use the default name above.
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           ) : (

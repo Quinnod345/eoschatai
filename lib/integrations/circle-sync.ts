@@ -20,7 +20,7 @@ import { updateUserPlan } from '@/lib/db/users';
 import { buildAppUrl } from '@/lib/utils/app-url';
 // Canonical tier mapping - imported here so all sync paths use the same logic
 // (supports env var overrides and aliases like 'explorer' -> pro).
-import { mapCircleTierToPlan, getTrialGroupIdMap, fetchMemberTrialStatus } from '@/lib/integrations/circle';
+import { mapCircleTierToPlan, getTrialGroupIdMap } from '@/lib/integrations/circle';
 // Re-export so callers who import mapCircleTierToPlan from this module continue to work.
 export { mapCircleTierToPlan } from '@/lib/integrations/circle';
 
@@ -481,7 +481,6 @@ const parseCircleNativePayload = async (
   }
 
   const memberId = String(parsed.data.community_member_id);
-  const isOnTrial = await fetchMemberTrialStatus(memberId);
 
   return {
     email: normalizeEmail(memberInfo.email),
@@ -489,7 +488,7 @@ const parseCircleNativePayload = async (
     circleMemberId: memberId,
     tierPurchased: paywallInfo.name,
     mappedPlan,
-    isOnTrial,
+    isOnTrial: false,
     amount: null,
     currency: null,
     occurredAt: new Date(),

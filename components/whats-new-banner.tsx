@@ -5,26 +5,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useFeatures } from '@/hooks/use-features';
-import type { User } from 'next-auth';
 
 interface WhatsNewBannerProps {
-  user?: User;
+  hasNewFeatures: boolean;
+  newFeaturesCount: number;
+  lastSeenVersion?: string;
+  onExplore: () => void;
 }
 
-export function WhatsNewBanner({ user }: WhatsNewBannerProps) {
+export function WhatsNewBanner({
+  hasNewFeatures,
+  newFeaturesCount,
+  lastSeenVersion,
+  onExplore,
+}: WhatsNewBannerProps) {
   const [isDismissed, setIsDismissed] = useState(false);
-
-  const {
-    hasNewFeatures,
-    newFeaturesCount,
-    lastSeenVersion,
-    markAsSeen,
-    showModal,
-  } = useFeatures({
-    userId: user?.id,
-    autoShow: false, // We'll manually control when to show the modal
-  });
 
   // Check if banner was previously dismissed for this version
   useEffect(() => {
@@ -46,7 +41,7 @@ export function WhatsNewBanner({ user }: WhatsNewBannerProps) {
   };
 
   const handleExplore = () => {
-    showModal();
+    onExplore();
     handleDismiss(); // Auto-dismiss when user opens modal
   };
 
@@ -58,77 +53,52 @@ export function WhatsNewBanner({ user }: WhatsNewBannerProps) {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -50, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -50, scale: 0.95 }}
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
         transition={{
-          type: 'spring',
-          stiffness: 260,
-          damping: 20,
-          mass: 1,
+          duration: 0.2,
+          ease: 'easeOut',
         }}
-        className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4"
+        className="fixed top-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2"
       >
-        <div className="relative">
-          {/* Glassmorphism background */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 backdrop-blur-xl rounded-xl border border-primary/20 shadow-2xl" />
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
 
-          {/* Glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-transparent to-primary/20 rounded-xl blur-xl" />
-
-          {/* Content */}
-          <div className="relative bg-background/80 backdrop-blur-sm rounded-xl border border-border/50 p-4 shadow-lg">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {/* Animated icon */}
-                <motion.div
-                  animate={{
-                    rotate: [0, 10, -10, 0],
-                    scale: [1, 1.1, 1],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Number.POSITIVE_INFINITY,
-                    repeatType: 'loop',
-                  }}
-                  className="p-2 rounded-lg bg-primary/10 flex-shrink-0"
-                >
-                  <Sparkles className="h-5 w-5 text-primary" />
-                </motion.div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-sm">What&apos;s New!</h3>
-                    <Badge variant="secondary" className="h-5 text-xs">
-                      {newFeaturesCount}{' '}
-                      {newFeaturesCount === 1 ? 'feature' : 'features'}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Discover new features and improvements
-                  </p>
-                </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center gap-2">
+                <h3 className="truncate text-sm font-semibold">What&apos;s New</h3>
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                  {newFeaturesCount}{' '}
+                  {newFeaturesCount === 1 ? 'feature' : 'features'}
+                </Badge>
               </div>
+              <p className="truncate text-xs text-muted-foreground">
+                New features and improvements are ready to explore.
+              </p>
+            </div>
 
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Button
-                  size="sm"
-                  onClick={handleExplore}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 text-xs px-3 py-1 h-auto"
-                >
-                  Explore
-                  <ChevronRight className="h-3 w-3" />
-                </Button>
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <Button
+                size="sm"
+                onClick={handleExplore}
+                className="h-8 gap-1 px-3 text-xs"
+              >
+                Explore
+                <ChevronRight className="h-3 w-3" />
+              </Button>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDismiss}
-                  className="h-6 w-6 p-0 hover:bg-muted/50"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDismiss}
+                className="size-8 p-0"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         </div>

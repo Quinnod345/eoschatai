@@ -25,7 +25,9 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
     isModalOpen,
     lastSeenVersion,
     hasNewFeatures,
+    newFeaturesCount,
     markAsSeen,
+    showModal,
     hideModal,
   } = useFeatures({
     userId: user?.id,
@@ -66,7 +68,12 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
   return (
     <>
       {children}
-      <WhatsNewBanner user={user} />
+      <WhatsNewBanner
+        hasNewFeatures={hasNewFeatures}
+        newFeaturesCount={newFeaturesCount}
+        lastSeenVersion={lastSeenVersion}
+        onExplore={showModal}
+      />
       <RecordingSuiteBanner onOpenRecording={handleOpenRecording} />
       <WhatsNewModal
         isOpen={isModalOpen}

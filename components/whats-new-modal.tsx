@@ -59,6 +59,7 @@ export function WhatsNewModal({
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
     null,
   );
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
 
   const newFeatures = getNewFeatures(lastSeenVersion);
   const allFeatures = FEATURES;
@@ -66,6 +67,7 @@ export function WhatsNewModal({
   // Initialize selected feature when modal opens
   useEffect(() => {
     if (isOpen) {
+      setMobileView('list');
       if (activeTab === 'whats-new' && newFeatures.length > 0) {
         setSelectedFeatureId(newFeatures[0].id);
       } else if (activeTab === 'all-features' && allFeatures.length > 0) {
@@ -89,6 +91,7 @@ export function WhatsNewModal({
     if (features.length <= 1) return;
     const nextIndex = (currentIndex + 1) % features.length;
     setSelectedFeatureId(features[nextIndex].id);
+    setMobileView('detail');
   };
 
   const handlePrevious = () => {
@@ -96,6 +99,7 @@ export function WhatsNewModal({
     const prevIndex =
       currentIndex === 0 ? features.length - 1 : currentIndex - 1;
     setSelectedFeatureId(features[prevIndex].id);
+    setMobileView('detail');
   };
 
   const getIcon = (iconName: string) => {
@@ -138,21 +142,30 @@ export function WhatsNewModal({
   if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
       <DialogContent
         size="2xl"
-        className="h-[85vh] p-0 overflow-hidden"
+        className="h-[90vh] w-[calc(100%-1rem)] max-w-5xl overflow-hidden p-0 sm:w-full"
         hideCloseButton
       >
         <VisuallyHidden>
           <DialogTitle>What&apos;s New - Features and Updates</DialogTitle>
         </VisuallyHidden>
 
-        <div className="relative h-full">
-          {/* Sidebar */}
-          <div className="absolute left-0 top-0 bottom-0 w-80 bg-muted/30 border-r border-border flex flex-col">
+        <div className="flex h-full flex-col md:flex-row">
+          <div
+            className={[
+              'flex h-full flex-col border-border bg-background md:w-80 md:flex-shrink-0 md:border-r',
+              mobileView === 'detail' ? 'hidden md:flex' : 'flex',
+            ].join(' ')}
+          >
             {/* Header */}
-            <div className="p-6 border-b border-border flex-shrink-0">
+            <div className="flex-shrink-0 border-b border-border p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="size-6 text-primary" />
@@ -173,6 +186,7 @@ export function WhatsNewModal({
                 onValueChange={(value) => {
                   const newTab = value as 'whats-new' | 'all-features';
                   setActiveTab(newTab);
+                  setMobileView('list');
                   // Reset selection when changing tabs
                   const tabFeatures =
                     newTab === 'whats-new' ? newFeatures : allFeatures;
@@ -198,7 +212,7 @@ export function WhatsNewModal({
             </div>
 
             {/* Feature List */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-track]:bg-transparent">
               {activeTab === 'whats-new' ? (
                 // What's New Tab
                 newFeatures.length > 0 ? (
@@ -208,7 +222,10 @@ export function WhatsNewModal({
                         key={feature.id}
                         feature={feature}
                         isSelected={selectedFeatureId === feature.id}
-                        onClick={() => setSelectedFeatureId(feature.id)}
+                        onClick={() => {
+                          setSelectedFeatureId(feature.id);
+                          setMobileView('detail');
+                        }}
                         getCategoryColor={getCategoryColor}
                         getIcon={getIcon}
                       />
@@ -246,7 +263,10 @@ export function WhatsNewModal({
                               key={feature.id}
                               feature={feature}
                               isSelected={selectedFeatureId === feature.id}
-                              onClick={() => setSelectedFeatureId(feature.id)}
+                              onClick={() => {
+                                setSelectedFeatureId(feature.id);
+                                setMobileView('detail');
+                              }}
                               getCategoryColor={getCategoryColor}
                               getIcon={getIcon}
                             />
@@ -260,58 +280,66 @@ export function WhatsNewModal({
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="absolute left-80 right-0 top-0 bottom-0 flex flex-col">
+          <div
+            className={[
+              'flex min-h-0 flex-1 flex-col bg-background',
+              mobileView === 'list' ? 'hidden md:flex' : 'flex',
+            ].join(' ')}
+          >
             {selectedFeature ? (
               <>
-                {/* Header */}
-                <div className="p-6 border-b border-border flex items-center justify-between flex-shrink-0">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-shrink-0 items-center justify-between border-b border-border p-4 sm:p-6">
+                  <div className="flex min-w-0 items-center gap-3">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handlePrevious}
-                      disabled={features.length <= 1}
+                      onClick={() => setMobileView('list')}
+                      className="md:hidden"
                     >
                       <ChevronLeft className="size-4" />
                     </Button>
-                    <div className="flex items-center gap-2">
-                      {getIcon(selectedFeature.icon)}
-                      <h1 className="text-2xl font-bold">
-                        {selectedFeature.title}
-                      </h1>
-                      {selectedFeature.isNew && (
-                        <Badge
-                          variant="secondary"
-                          className="bg-primary/10 text-primary"
-                        >
-                          New
-                        </Badge>
-                      )}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex size-10 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40">
+                        {getIcon(selectedFeature.icon)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h1 className="truncate text-lg font-semibold sm:text-2xl">
+                            {selectedFeature.title}
+                          </h1>
+                          {selectedFeature.isNew && (
+                            <Badge
+                              variant="secondary"
+                              className="bg-primary/10 text-primary"
+                            >
+                              New
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                          {currentIndex + 1} of {features.length}
+                        </p>
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleNext}
-                      disabled={features.length <= 1}
-                    >
-                      <ChevronRight className="size-4" />
-                    </Button>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {currentIndex + 1} of {features.length}
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClose}
+                    className="md:hidden"
+                  >
+                    <X className="size-4" />
+                  </Button>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
-                  <div className="space-y-6 max-w-4xl mx-auto">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-track]:bg-transparent">
+                  <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
                     {/* Basic Info */}
                     <div>
-                      <p className="text-lg text-muted-foreground mb-4">
+                      <p className="mb-4 text-base text-muted-foreground sm:text-lg">
                         {selectedFeature.description}
                       </p>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:gap-4 sm:text-sm">
                         <div className="flex items-center gap-2">
                           <div
                             className={`size-2 rounded-full ${getCategoryColor(selectedFeature.category)}`}
@@ -337,7 +365,7 @@ export function WhatsNewModal({
 
                     {/* Screenshot */}
                     {selectedFeature.screenshot && (
-                      <div className="rounded-lg border border-border overflow-hidden">
+                      <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
                         <img
                           src={selectedFeature.screenshot}
                           alt={`${selectedFeature.title} screenshot`}
@@ -348,7 +376,7 @@ export function WhatsNewModal({
 
                     {/* Detailed Description */}
                     {selectedFeature.detailedDescription && (
-                      <div className="bg-muted/30 rounded-lg p-6">
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 sm:p-6">
                         <h3 className="font-semibold text-lg mb-3">
                           About This Feature
                         </h3>
@@ -359,7 +387,7 @@ export function WhatsNewModal({
                     )}
 
                     {/* Benefits */}
-                    <div>
+                    <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                       <h3 className="font-semibold text-lg mb-3">
                         Key Benefits
                       </h3>
@@ -379,7 +407,7 @@ export function WhatsNewModal({
                     {/* Examples */}
                     {selectedFeature.examples &&
                       selectedFeature.examples.length > 0 && (
-                        <div>
+                        <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                           <h3 className="font-semibold text-lg mb-3">
                             Use Cases & Examples
                           </h3>
@@ -402,7 +430,7 @@ export function WhatsNewModal({
                     {/* Improvements */}
                     {selectedFeature.improveExperience &&
                       selectedFeature.improveExperience.length > 0 && (
-                        <div>
+                        <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                           <h3 className="font-semibold text-lg mb-3">
                             Experience Improvements
                           </h3>
@@ -425,7 +453,7 @@ export function WhatsNewModal({
                     {/* Tags */}
                     {selectedFeature.tags &&
                       selectedFeature.tags.length > 0 && (
-                        <div>
+                        <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
                           <h3 className="font-semibold text-lg mb-3">
                             Related Topics
                           </h3>
@@ -444,24 +472,41 @@ export function WhatsNewModal({
                   </div>
                 </div>
 
-                {/* Footer */}
-                {selectedFeature.learnMoreUrl && (
-                  <div className="p-6 border-t border-border flex-shrink-0">
-                    <div className="flex justify-center">
-                      <Button variant="outline" asChild>
-                        <a
-                          href={selectedFeature.learnMoreUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="gap-2"
-                        >
-                          <ExternalLink className="size-4" />
-                          Learn More
-                        </a>
-                      </Button>
-                    </div>
+                <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                  <div className="flex items-center justify-between gap-2 sm:justify-start">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevious}
+                      disabled={features.length <= 1}
+                    >
+                      <ChevronLeft className="mr-1 size-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNext}
+                      disabled={features.length <= 1}
+                    >
+                      Next
+                      <ChevronRight className="ml-1 size-4" />
+                    </Button>
                   </div>
-                )}
+                  {selectedFeature.learnMoreUrl && (
+                    <Button variant="outline" asChild>
+                      <a
+                        href={selectedFeature.learnMoreUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="gap-2"
+                      >
+                        <ExternalLink className="size-4" />
+                        Learn More
+                      </a>
+                    </Button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center">
@@ -508,17 +553,20 @@ function FeatureCard({
         }
       }}
       className={`
-        w-full p-3 rounded-lg text-left transition-all cursor-pointer select-none
+        w-full rounded-xl border text-left transition-all cursor-pointer select-none
         ${
           isSelected
-            ? 'bg-primary/10 border-primary/20 border shadow-sm'
-            : 'hover:bg-muted/50 border border-transparent'
+            ? 'border-primary/30 bg-primary/5 shadow-sm'
+            : 'border-border/60 bg-card hover:bg-muted/40'
         }
       `}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 p-3">
         <div
-          className={`p-1.5 rounded-md ${getCategoryColor(feature.category)} text-white shrink-0`}
+          className={`w-1 self-stretch rounded-full ${getCategoryColor(feature.category)}`}
+        />
+        <div
+          className="flex shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 p-2"
         >
           {getIcon(feature.icon)}
         </div>
