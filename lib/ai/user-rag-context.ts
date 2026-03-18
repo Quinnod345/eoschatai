@@ -86,7 +86,7 @@ export async function getUserRagContextWithMetadata(
       precomputedEmbedding,
     );
 
-    const [_preferredDocumentIds, relevantDocs] = await Promise.all([
+    const [preferredDocumentIds, relevantDocs] = await Promise.all([
       settingsPromise,
       ragPromise,
     ]);
@@ -115,10 +115,30 @@ export async function getUserRagContextWithMetadata(
       return { context: '', documentIds: [], documentNames: [], chunkCount: 0 };
     }
 
-    // Extract unique document IDs and names from the results (using filtered docs)
+    // Prioritize pinned/primary documents — sort preferred docs to the top
+    const preferredSet = new Set(preferredDocumentIds);
+    const sortedDocs =
+      preferredDocumentIds.length > 0
+        ? [
+            ...filteredDocs.filter((d) =>
+              preferredSet.has(d.metadata?.documentId ?? ''),
+            ),
+            ...filteredDocs.filter(
+              (d) => !preferredSet.has(d.metadata?.documentId ?? ''),
+            ),
+          ]
+        : filteredDocs;
+
+    if (preferredDocumentIds.length > 0) {
+      console.log(
+        `User RAG: Pinned/primary docs boosted — ${sortedDocs.filter((d) => preferredSet.has(d.metadata?.documentId ?? '')).length} preferred docs at top`,
+      );
+    }
+
+    // Extract unique document IDs and names from the results (using sorted docs)
     const documentMap = new Map<string, string>();
 
-    for (const doc of filteredDocs) {
+    for (const doc of sortedDocs) {
       if (doc.metadata?.documentId && doc.metadata?.fileName) {
         documentMap.set(doc.metadata.documentId, doc.metadata.fileName);
       }
@@ -132,9 +152,9 @@ export async function getUserRagContextWithMetadata(
     contextText +=
       "The following information has been retrieved from the user's uploaded documents:\n\n";
 
-    // Group by category (using filtered docs)
+    // Group by category (using sorted docs)
     const documentsByCategory: Record<string, any[]> = {};
-    for (const doc of filteredDocs) {
+    for (const doc of sortedDocs) {
       const category = doc.metadata?.category || 'Other';
       if (!documentsByCategory[category]) {
         documentsByCategory[category] = [];
@@ -177,7 +197,7 @@ Do not mention that you are using "user documents" or "uploaded documents" - jus
       context: contextText,
       documentIds,
       documentNames,
-      chunkCount: filteredDocs.length,
+      chunkCount: sortedDocs.length,
     };
   } catch (error) {
     console.error('User RAG: Error fetching user documents:', error);

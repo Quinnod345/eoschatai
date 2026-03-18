@@ -744,6 +744,27 @@ export async function POST(request: Request) {
       queryText,
     );
 
+    // Fetch actual content for @mentioned composer documents.
+    // MentionProcessor only has the ID from the regex parse — no DB content yet.
+    if (mentionResult.composerMentions && mentionResult.composerMentions.length > 0) {
+      const { getDocumentById } = await import('@/lib/db/queries');
+      await Promise.all(
+        mentionResult.composerMentions.map(async (cm) => {
+          if (!cm.content && cm.composerId) {
+            try {
+              const doc = await getDocumentById({ id: cm.composerId });
+              if (doc) {
+                cm.content = doc.content?.trim() ?? '';
+                cm.title = doc.title ?? cm.title;
+              }
+            } catch {
+              // Non-fatal — mention hint still provides ID
+            }
+          }
+        }),
+      );
+    }
+
     console.log(
       `Detected ${extractedMentions.length} explicit @ mentions and ${implicitMentions.length} implicit mentions:`,
       { explicit: extractedMentions, implicit: implicitMentions },
@@ -763,20 +784,23 @@ export async function POST(request: Request) {
       console.log('Smart mention suggestions:', smartSuggestions);
     }
 
-    // Legacy compatibility flags
-    const hasMentionedCalendar = extractedMentions.some((m) =>
+    // Legacy compatibility flags — check allMentions (explicit + implicit) for complete coverage
+    const hasMentionedCalendar = allMentions.some((m) =>
       ['calendar', 'event', 'meeting'].includes(m.type),
     );
-    const hasMentionedDocument = extractedMentions.some((m) =>
+    const hasMentionedDocument = allMentions.some((m) =>
       ['document', 'file'].includes(m.type),
     );
-    const hasMentionedScorecard = extractedMentions.some(
+    const hasMentionedScorecard = allMentions.some(
       (m) => m.type === 'scorecard',
     );
-    const hasMentionedVTO = extractedMentions.some((m) => m.type === 'vto');
-    const hasMentionedRocks = extractedMentions.some((m) => m.type === 'rocks');
-    const hasMentionedPeople = extractedMentions.some((m) =>
+    const hasMentionedVTO = allMentions.some((m) => m.type === 'vto');
+    const hasMentionedRocks = allMentions.some((m) => m.type === 'rocks');
+    const hasMentionedPeople = allMentions.some((m) =>
       ['user', 'team', 'contact'].includes(m.type),
+    );
+    const hasMentionedAccountability = allMentions.some(
+      (m) => m.type === 'accountability',
     );
 
     // Execute RAG operations AND preflight in parallel for maximum performance.
@@ -793,7 +817,7 @@ export async function POST(request: Request) {
 
     // Skip RAG for very short or generic queries (<= 12 chars)
     // These queries like "hi", "ok", "yes", "mary antin" are too generic and match everything
-    const shouldSkipRAG = !queryText || queryText.trim().length <= 12;
+    const shouldSkipRAG = !queryText || queryText.trim().length <= 3;
     if (shouldSkipRAG) {
       console.log(
         `RAG: Skipping RAG for short/generic query (${queryText?.length || 0} chars)`,
@@ -1849,6 +1873,21 @@ The system has detected both explicit @ mentions and implicit intent. Context:
 
 ${mentionResult.enhancedPrompt}
 
+${
+  mentionResult.composerMentions && mentionResult.composerMentions.length > 0
+    ? `REFERENCED COMPOSER DOCUMENTS:
+${mentionResult.composerMentions
+  .filter((cm) => cm.content)
+  .map(
+    (cm) => `### "${cm.title}" (${cm.kind})
+${(cm.content ?? '').slice(0, 6000)}${(cm.content ?? '').length > 6000 ? '\n[... content truncated ...]' : ''}`,
+  )
+  .join('\n\n---\n\n')}
+
+When the user refers to these documents, use the content above. Use updateDocument to edit them.`
+    : ''
+}
+
 IMPLICIT MENTION DETECTION:
 ${
   implicitMentions.length > 0
@@ -1879,14 +1918,11 @@ ${
       hasMentionedScorecard ||
       hasMentionedVTO ||
       hasMentionedRocks ||
-      hasMentionedPeople
+      hasMentionedPeople ||
+      hasMentionedAccountability
     ) {
       try {
         console.log('Documents: Processing document-related @ mentions');
-
-        // Here we'll add special prompt instructions to focus on document context
-        // The document context is already loaded from fullSystemPrompt
-        // But we'll add additional emphasis based on the specific document type mentioned
 
         const documentTypes = {
           document: hasMentionedDocument,
@@ -1894,14 +1930,13 @@ ${
           vto: hasMentionedVTO,
           rocks: hasMentionedRocks,
           people: hasMentionedPeople,
+          accountability: hasMentionedAccountability,
         };
 
-        // Get the specific document types that were mentioned
         const mentionedTypes = Object.entries(documentTypes)
           .filter(([_, mentioned]) => mentioned)
           .map(([type]) => type);
 
-        // Create focused document context instructions
         if (mentionedTypes.length > 0) {
           enhancedSystemPrompt += `
 
@@ -1963,6 +1998,19 @@ PEOPLE ANALYZER MENTION:
 - Reference GWC (Get it, Want it, Capacity to do it)
 - Discuss core values alignment in their team
 - Provide specific information from their People Analyzer data if available
+`
+    : ''
+}
+
+${
+  hasMentionedAccountability
+    ? `
+ACCOUNTABILITY CHART MENTION:
+- Focus on the user's Accountability Chart content
+- Reference the structure of their Leadership Team, seats, and roles
+- Discuss who is in the Visionary vs Integrator seat if available
+- Highlight any open seats, GWC gaps, or structural issues
+- Connect to EOS best practices for the Accountability Chart
 `
     : ''
 }

@@ -35,13 +35,10 @@ export function RecordingSuiteBanner({
     // Don't auto-dismiss when exploring, let user decide
   };
 
-  if (isDismissed) {
-    return null;
-  }
-
   return (
     <AnimatePresence>
-      <motion.div
+      {!isDismissed && (
+        <motion.div
         initial={{ opacity: 0, x: 300, scale: 0.9 }}
         animate={{ opacity: 1, x: 0, scale: 1 }}
         exit={{ opacity: 0, x: 300, scale: 0.9 }}
@@ -153,6 +150,7 @@ export function RecordingSuiteBanner({
           </div>
         </div>
       </motion.div>
+      )}
     </AnimatePresence>
   );
 }

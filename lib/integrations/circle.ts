@@ -38,6 +38,10 @@ export type CircleMemberLookup = {
   tierName: string;
   mappedPlan: CirclePlan | null;
   isOnTrial: boolean;
+  /** True when the member exists in Circle but is not assigned to any paid tier group.
+   * Callers should treat this as "membership status unknown" and fail-open (preserve
+   * the current plan) rather than downgrading. This is distinct from a true 404 (null return). */
+  foundButUntiered: boolean;
   raw: GenericRecord;
 };
 
@@ -162,33 +166,36 @@ const getCircleAdminSearchConfig = (): CircleAdminSearchConfig | null => {
 
 /**
  * Search for a Circle member by email using the admin v2 API.
- * Checks tier-group memberships first (smaller lists), then falls back to
- * paging all community members.
+ *
+ * Flow:
+ * 1. Use GET /community_members/search?email= — a dedicated single-member email lookup
+ *    endpoint in the admin v2 API. Returns the member directly or 404.
+ * 2. Build a memberIdToPlan map by fetching paid tier group member lists (small lists,
+ *    only paid groups — free group has 25k+ members). Cross-reference the found member's
+ *    ID against this map to determine their plan.
+ * 3. If the member exists in Circle but is not in any paid group, treat as free.
+ * 4. If not found at all, return null (404 from connect route).
  */
-const searchCircleMembersViaAdmin = async (
-  email: string,
-): Promise<CircleMemberLookup | null> => {
-  const config = getCircleAdminSearchConfig();
-  if (!config) return null;
 
-  const normalizedEmail = normalizeEmail(email);
+// In-memory cache for the tier group member map — avoids re-fetching ~4 group pages
+// on every page load. TTL of 5 minutes is short enough to pick up new subscriptions
+// quickly while preventing the 30-60s scan from running on every verify call.
+let tierMapCache: { map: Map<string, CirclePlan>; groups: TierGroups; expiresAt: number } | null = null;
+const TIER_MAP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const buildTierMap = async (config: CircleAdminSearchConfig): Promise<{ memberIdToPlan: Map<string, CirclePlan>; tierGroups: TierGroups }> => {
+  const now = Date.now();
+  if (tierMapCache && now < tierMapCache.expiresAt) {
+    return { memberIdToPlan: tierMapCache.map, tierGroups: tierMapCache.groups };
+  }
+
+  const tierGroups = await getAdminTierGroups(config);
+  const paidPlans: CirclePlan[] = ['business', 'pro'];
+  const memberIdToPlan = new Map<string, CirclePlan>();
   const maxGroupPages =
     getOptionalPositiveInt(process.env.CIRCLE_ADMIN_GROUP_MEMBER_SCAN_MAX_PAGES) ??
     DEFAULT_ADMIN_GROUP_MEMBER_SCAN_MAX_PAGES;
-  const maxCommunityPages =
-    getOptionalPositiveInt(process.env.CIRCLE_ADMIN_COMMUNITY_SCAN_MAX_PAGES) ??
-    DEFAULT_ADMIN_COMMUNITY_SCAN_MAX_PAGES;
 
-  // First, discover which tier groups exist
-  const tierGroups = await getAdminTierGroups(config);
-
-  // Only search paid tier groups (pro and business) - the free group can have
-  // tens of thousands of members and is too expensive to iterate.
-  // If the email isn't in any paid group, treat as free/not-a-paid-member.
-  const paidPlans: CirclePlan[] = ['business', 'pro'];
-
-  // Build a map of community_member_id → plan by fetching tier group member lists
-  const memberIdToPlan = new Map<string, CirclePlan>();
   for (const plan of paidPlans) {
     const groupIds = tierGroups[plan];
     if (!Array.isArray(groupIds)) continue;
@@ -210,64 +217,80 @@ const searchCircleMembersViaAdmin = async (
         if (!data.has_next_page) break;
         mPage++;
         if (mPage > maxGroupPages) {
-          console.warn(
-            '[circle] admin search: reached configured group scan page limit',
-            { plan, groupId, maxGroupPages },
-          );
+          console.warn('[circle] admin search: reached configured group scan page limit', { plan, groupId, maxGroupPages });
           break;
         }
       }
     }
   }
 
-  console.log('[circle] admin search: built tier map with', memberIdToPlan.size, 'entries');
+  tierMapCache = { map: memberIdToPlan, groups: tierGroups, expiresAt: now + TIER_MAP_TTL_MS };
+  return { memberIdToPlan, tierGroups };
+};
+const searchCircleMembersViaAdmin = async (
+  email: string,
+): Promise<CircleMemberLookup | null> => {
+  const config = getCircleAdminSearchConfig();
+  if (!config) return null;
 
-  // Use the admin v2 search to find the member directly by email — single request,
-  // then cross-reference the tier map. This replaces the old approach of fetching
-  // every tier-group member individually (192 requests) and full community pagination.
+  const normalizedEmail = normalizeEmail(email);
+
+  // Step 1: Look up the member directly by email — single request, exact match.
+  // GET /api/admin/v2/community_members/search?email= returns one member or 404.
   const searchRes = await fetch(
-    `${config.adminBaseUrl}/community_members?search=${encodeURIComponent(normalizedEmail)}&per_page=25`,
+    `${config.adminBaseUrl}/community_members/search?email=${encodeURIComponent(normalizedEmail)}`,
     { headers: { Authorization: `Token ${config.adminToken}` }, cache: 'no-store' },
   );
 
-  if (searchRes.ok) {
-    const searchData = (await searchRes.json()) as GenericRecord;
-    const searchRecords = Array.isArray(searchData.records)
-      ? (searchData.records as GenericRecord[])
-      : [];
-    const exactMatch = searchRecords.find(
-      (m) => typeof m.email === 'string' && normalizeEmail(m.email) === normalizedEmail,
-    );
-
-    if (exactMatch) {
-      const memberId = toStringValue(exactMatch.id);
-      const plan = memberId ? (memberIdToPlan.get(memberId) ?? 'free') : 'free';
-      const tierName =
-        plan !== 'free'
-          ? (tierGroups._names[plan] ?? plan)
-          : (process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free);
-
-      console.log('[circle] admin search: found member via email search', {
+  if (!searchRes.ok) {
+    if (searchRes.status === 404) {
+      console.warn('[circle] admin search: member not found by email', { email: normalizedEmail });
+    } else {
+      console.error('[circle] admin search: unexpected error from search endpoint', {
         email: normalizedEmail,
-        plan,
-        tierName,
-        memberId,
+        status: searchRes.status,
       });
-
-      return {
-        id: memberId,
-        email: normalizedEmail,
-        tierName,
-        mappedPlan: plan,
-        isOnTrial: false,
-        raw: exactMatch,
-      };
     }
+    return null;
   }
 
-  // Search returned no exact match — member doesn't exist in this community.
-  console.warn('[circle] admin search: member not found by email', { email: normalizedEmail });
-  return null;
+  const memberData = (await searchRes.json()) as GenericRecord;
+  const memberId = toStringValue(memberData.id);
+
+  if (!memberId) {
+    console.warn('[circle] admin search: member not found by email', { email: normalizedEmail });
+    return null;
+  }
+
+  // Step 2: Get the cached tier map (or build it if stale/missing).
+  // The cache TTL is 5 minutes — fast for repeat page loads, fresh enough for new subscriptions.
+  const { memberIdToPlan, tierGroups } = await buildTierMap(config);
+
+  // Step 3: Cross-reference the found member against the plan map.
+  const plan = memberIdToPlan.get(memberId) ?? 'free';
+  const foundButUntiered = plan === 'free';
+  const tierName =
+    plan !== 'free'
+      ? (tierGroups._names[plan] ?? plan)
+      : (process.env.CIRCLE_TIER_FREE || CIRCLE_TIER_DEFAULTS.free);
+
+  console.log('[circle] admin search: found member', {
+    email: normalizedEmail,
+    plan,
+    tierName,
+    memberId,
+    foundButUntiered,
+  });
+
+  return {
+    id: memberId,
+    email: normalizedEmail,
+    tierName,
+    mappedPlan: plan,
+    foundButUntiered,
+    isOnTrial: false,
+    raw: memberData,
+  };
 };
 
 type TierGroups = Record<CirclePlan, string[]> & { _names: Record<CirclePlan, string> };

@@ -119,6 +119,7 @@ function SidebarHistoryInner({
     setSize,
     isValidating,
     isLoading,
+    error: historyError,
     mutate,
   } = useSWRInfinite<ChatHistory>(getChatHistoryPaginationKey, fetcher, {
     fallbackData: [],
@@ -320,6 +321,27 @@ function SidebarHistoryInner({
                 />
               </motion.div>
             ))}
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  if (historyError) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <div className="px-2 py-6 flex flex-col items-center gap-2 text-center">
+            <p className="text-xs text-muted-foreground">
+              Couldn't load chat history.
+            </p>
+            <button
+              type="button"
+              onClick={() => mutate()}
+              className="text-xs text-orange-500 hover:underline"
+            >
+              Try again
+            </button>
           </div>
         </SidebarGroupContent>
       </SidebarGroup>

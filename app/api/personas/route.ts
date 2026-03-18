@@ -42,15 +42,9 @@ export async function GET() {
     const accessContext = await getAccessContext(session.user.id);
 
     if (!accessContext.entitlements.features.personas.custom) {
-      return NextResponse.json(
-        {
-          error: 'AI personas are a Pro feature',
-          code: 'FEATURE_LOCKED',
-          requiredPlan: 'pro',
-          feature: 'personas.custom',
-        },
-        { status: 403 },
-      );
+      // Free users can still see system personas and subscribed course personas.
+      // Only block creating/editing custom personas (handled in POST/PUT handlers).
+      // Fall through to return the persona list below.
     }
 
     // Dynamically import EOS implementer functions to avoid server-only import issues

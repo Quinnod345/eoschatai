@@ -52,6 +52,57 @@ import { OrganizationSettings } from '@/components/organization-settings';
 import { ApiKeysManager } from '@/components/api-keys-manager';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
+
+function CircleConnectCard() {
+  const user = useAccountStore((s) => s.user);
+  const isCircleConnected = user?.subscriptionSource === 'circle';
+  const circlePlan = user?.plan;
+
+  const handleConnect = () => {
+    window.dispatchEvent(new CustomEvent('open-circle-connect-flow'));
+  };
+
+  return (
+    <div className="rounded-lg border border-border/30 bg-card">
+      <div className="p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 mt-1">
+            <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+              <Building2 className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <h4 className="font-semibold">EOS Academy Membership</h4>
+              {isCircleConnected && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/20 rounded-full">
+                  <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  <span className="text-xs text-green-700 dark:text-green-300 font-medium">
+                    Connected · {circlePlan}
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+              {isCircleConnected
+                ? 'Your EOS Academy membership is connected. Your plan is managed through Circle.'
+                : 'Connect your EOS Academy membership to unlock course personas, advanced features, and sync your subscription.'}
+            </p>
+            <Button
+              size="sm"
+              variant={isCircleConnected ? 'outline' : 'default'}
+              onClick={handleConnect}
+              className="flex-shrink-0"
+            >
+              <Building2 className="h-4 w-4 mr-1" />
+              {isCircleConnected ? 'Reconnect Membership' : 'Connect EOS Academy'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 import { useOrgRole } from '@/hooks/use-org-role';
 import { ProfileSettingsSkeleton } from '@/components/settings-skeleton';
 
@@ -1473,6 +1524,11 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                             </div>
                           </div>
                         </div>
+
+                        {/* Circle Membership Integration */}
+                        {session?.user?.type !== 'guest' && (
+                          <CircleConnectCard />
+                        )}
 
                         {/* Future Integrations Preview */}
                         <div className="rounded-lg border border-border/30 bg-muted/30 opacity-60">

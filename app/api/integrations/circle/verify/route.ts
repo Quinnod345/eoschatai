@@ -21,9 +21,15 @@ export const dynamic = 'force-dynamic';
  * Silently re-validates the authenticated user's Circle subscription tier.
  * Called in the background when the app loads for Circle-sourced users.
  *
- * - If the user is still an active member, their plan is updated to match current tier.
- * - If they are no longer found in Circle, they are downgraded to free.
- * - If Circle API is unavailable, the current plan is preserved (fail-open).
+ * Design principle — verify is upgrade-only:
+ * - If Circle confirms a paid tier → update DB to match (handles upgrades/tier changes).
+ * - If Circle finds the member but they appear untiered → fail-open, preserve current plan.
+ *   This covers transient group-membership propagation lag in Circle's API.
+ * - If Circle API errors → fail-open, preserve current plan.
+ * - Downgrades (removing paid access) ONLY happen via the Circle webhook, never here.
+ *   The one exception: if the member is completely absent from Circle (true 404) AND
+ *   their subscriptionSource is 'circle', we reset to free — but only after the webhook
+ *   has had a chance to fire. This case means the account was manually deleted in Circle.
  */
 export async function POST() {
   const session = await auth();
@@ -95,9 +101,7 @@ export async function POST() {
   for (const lookupEmail of lookupCandidates) {
     try {
       member = await getMemberByEmail(lookupEmail);
-      if (member) {
-        break;
-      }
+      if (member) break;
     } catch (err) {
       lookupHadError = true;
       console.warn('[circle.verify] Circle API lookup failed for candidate email', {
@@ -108,21 +112,24 @@ export async function POST() {
     }
   }
 
+  // Circle API error — fail-open, always preserve current plan.
   if (!member && lookupHadError) {
-    // Circle API unreachable for one or more candidates — fail-open: keep current plan
     return NextResponse.json({
       verified: true,
       changed: false,
       code: 'CIRCLE_VERIFY_TEMPORARY_FAILURE',
-      message:
-        'We could not verify Circle right now. Your current plan was preserved.',
+      message: 'We could not verify Circle right now. Your current plan was preserved.',
       plan: currentUser.plan,
       reason: 'circle_api_error_preserved',
     });
   }
 
+  // Member not found in Circle at all (true 404).
+  // Only downgrade if they're currently on a paid plan sourced from Circle.
+  // Free users just get their subscriptionSource cleaned up.
   if (!member) {
-    // Member no longer found in Circle — downgrade to free
+    const wasOnPaidPlan = currentUser.plan !== 'free';
+
     await db
       .update(user)
       .set({ plan: 'free', subscriptionSource: 'stripe' })
@@ -132,19 +139,18 @@ export async function POST() {
     await getUserEntitlements(currentUser.id);
     await broadcastEntitlementsUpdated(currentUser.id);
 
-    console.log('[circle.verify] Member no longer in Circle, downgraded to free', {
+    console.log('[circle.verify] Member not found in Circle, reset to free', {
       userId: currentUser.id,
       lookupCandidates,
       previousPlan: currentUser.plan,
-      previousSource: currentUser.subscriptionSource,
+      wasOnPaidPlan,
     });
 
     return NextResponse.json({
       verified: true,
-      changed: true,
+      changed: wasOnPaidPlan,
       code: 'CIRCLE_MEMBERSHIP_NOT_FOUND',
-      message:
-        'We could not find an active Circle membership for your account. Your plan was set to Free.',
+      message: 'We could not find an active Circle membership for your account. Your plan was set to Free.',
       action: 'open_circle_connect_flow',
       plan: 'free',
       subscriptionSource: 'stripe',
@@ -152,10 +158,30 @@ export async function POST() {
     });
   }
 
+  // Member exists in Circle but is not assigned to any paid tier group.
+  // This is a fail-open case — NEVER downgrade based on this signal.
+  // Causes: transient Circle group propagation lag, or genuinely free Circle member
+  // whose paid access should only be removed by a webhook cancel event.
+  if (member.foundButUntiered && currentUser.plan !== 'free') {
+    console.warn('[circle.verify] Member found but untiered — preserving paid plan (fail-open)', {
+      userId: currentUser.id,
+      currentPlan: currentUser.plan,
+      memberId: member.id,
+    });
+    return NextResponse.json({
+      verified: true,
+      changed: false,
+      code: 'CIRCLE_PLAN_VERIFIED',
+      message: 'Your Circle plan is already up to date.',
+      plan: currentUser.plan,
+      reason: 'untiered_preserved_paid',
+    });
+  }
+
   const mappedPlan = member.mappedPlan ?? mapCircleTierToPlan(member.tierName);
 
+  // Unknown tier — fail-open, preserve current plan.
   if (!mappedPlan) {
-    // Tier exists but is unmapped — fail-open: preserve current plan
     console.warn('[circle.verify] Unknown Circle tier, preserving current plan', {
       userId: currentUser.id,
       tierName: member.tierName,
@@ -164,15 +190,41 @@ export async function POST() {
       verified: true,
       changed: false,
       code: 'CIRCLE_TIER_UNMAPPED',
-      message:
-        'Your Circle tier is not mapped yet. Your current plan was preserved.',
+      message: 'Your Circle tier is not mapped yet. Your current plan was preserved.',
       plan: currentUser.plan,
       reason: 'unknown_tier_preserved',
       tierName: member.tierName,
     });
   }
 
-  if (mappedPlan !== currentUser.plan || member.isOnTrial !== (currentUser.circleMemberIsOnTrial ?? false)) {
+  // Verify is upgrade-only: if Circle resolves to a lower plan than what's in the DB,
+  // preserve the DB value. Downgrades are the webhook's job exclusively.
+  const planHierarchy: Record<string, number> = { free: 0, pro: 1, business: 2 };
+  const currentPlanRank = planHierarchy[currentUser.plan] ?? 0;
+  const newPlanRank = planHierarchy[mappedPlan] ?? 0;
+
+  if (newPlanRank < currentPlanRank) {
+    console.warn('[circle.verify] Circle returned lower plan than DB — preserving DB plan (downgrade via webhook only)', {
+      userId: currentUser.id,
+      dbPlan: currentUser.plan,
+      circlePlan: mappedPlan,
+      tierName: member.tierName,
+    });
+    return NextResponse.json({
+      verified: true,
+      changed: false,
+      code: 'CIRCLE_PLAN_VERIFIED',
+      message: 'Your Circle plan is already up to date.',
+      plan: currentUser.plan,
+      reason: 'downgrade_blocked_use_webhook',
+    });
+  }
+
+  // Plan matches or is an upgrade — write to DB only if something actually changed.
+  const planChanged = mappedPlan !== currentUser.plan;
+  const trialChanged = member.isOnTrial !== (currentUser.circleMemberIsOnTrial ?? false);
+
+  if (planChanged || trialChanged) {
     await db
       .update(user)
       .set({
@@ -188,7 +240,7 @@ export async function POST() {
     await getUserEntitlements(currentUser.id);
     await broadcastEntitlementsUpdated(currentUser.id);
 
-    console.log('[circle.verify] Plan updated', {
+    console.log('[circle.verify] Plan updated (upgrade)', {
       userId: currentUser.id,
       from: currentUser.plan,
       to: mappedPlan,

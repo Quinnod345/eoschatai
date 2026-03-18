@@ -575,13 +575,31 @@ export async function saveDocument({
       ? documents
       : (documents as { rows: unknown[] }).rows;
 
-    // Process the document for embeddings (only for text kind)
+    // Process the document for embeddings — only for text kind, and only when isContext is enabled.
+    // Checking isContext prevents re-indexing documents the user has explicitly disabled from RAG.
     if (kind === 'text' && content) {
-      await processDocument(id, content, {
-        useSummary: true,
-        documentKind: kind,
-        documentTitle: title,
-      });
+      try {
+        const { eq } = await import('drizzle-orm');
+        const [existing] = await db
+          .select({ isContext: document.isContext })
+          .from(document)
+          .where(eq(document.id, id))
+          .limit(1);
+        if (existing?.isContext !== false) {
+          await processDocument(id, content, {
+            useSummary: true,
+            documentKind: kind,
+            documentTitle: title,
+          });
+        }
+      } catch {
+        // Non-fatal — fall back to always re-indexing if lookup fails
+        await processDocument(id, content, {
+          useSummary: true,
+          documentKind: kind,
+          documentTitle: title,
+        });
+      }
     }
 
     return documentsResult;

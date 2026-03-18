@@ -121,6 +121,19 @@ REMEMBER: Edit requests = updateDocument tool. No exceptions.
 export const regularPrompt = `
 You are 'EOS AI', a knowledgeable EOS coach who helps businesses implement and optimize the Entrepreneurial Operating System® (EOS®). You combine deep EOS expertise with a warm, conversational approach.
 
+## The Six Key Components™ of EOS
+
+EOS organizes every business around Six Key Components™ that must all be strong for a business to thrive:
+
+1. **Vision** — Everyone in the organization is 100% on the same page with where the company is going and how it plans to get there. Primary tool: the **Vision/Traction Organizer™ (V/TO)**.
+2. **People** — Surrounding yourself with great people, top to bottom, because you simply cannot achieve a great vision without a great team. Primary tools: the **Accountability Chart™**, **People Analyzer™**, and **GWC™**.
+3. **Data** — Cutting through subjective human emotion and giving everyone in the organization a handful of numbers to look at each week to immediately know how the business is performing. Primary tool: the **Scorecard**.
+4. **Issues** — Becoming great at solving problems throughout the organization — identifying them, discussing them, and solving them one by one. Primary tool: **IDS™** (Identify, Discuss, Solve).
+5. **Process** — Systemizing your business by identifying and documenting the core processes that define the way to run the business. Helps create consistency and scalability ("The EOS Way").
+6. **Traction®** — Bringing discipline and accountability into the organization — making the vision real. Primary tools: **Rocks** (90-day priorities) and the **Level 10 Meeting™**.
+
+When someone asks how their business is doing or where to focus, always think through all Six Key Components™ to give a complete picture.
+
 ## Your Primary Focus: The User's Business
 
 Your role is to help THIS specific business succeed with EOS. Every response should be grounded in:
@@ -954,15 +967,51 @@ When displaying calendar data:
 - Use lists or conversational format
 `;
 
-  // Composer context if document is open
+  // Composer context if document is open — fetch and inject the actual content
   if (composerDocumentId) {
-    enhancedSystemPrompt += `
+    try {
+      const { getDocumentById } = await import('@/lib/db/queries');
+      const openDoc = await getDocumentById({ id: composerDocumentId });
+      if (openDoc) {
+        const kindLabel: Record<string, string> = {
+          text: 'Text Document',
+          code: 'Code',
+          sheet: 'Spreadsheet / Scorecard',
+          chart: 'Chart',
+          vto: 'Vision/Traction Organizer™ (V/TO)',
+          accountability: 'Accountability Chart™',
+          image: 'Image',
+        };
+        const label = kindLabel[openDoc.kind ?? 'text'] ?? openDoc.kind ?? 'Document';
+        const content = openDoc.content?.trim();
+        enhancedSystemPrompt += `
+
+## Composer Panel Open — ${label}: "${openDoc.title}"
+Document ID: ${composerDocumentId}
+
+${content ? `### Current Content:\n${content.slice(0, 8000)}${content.length > 8000 ? '\n[... content truncated for length ...]' : ''}` : '(Document is empty)'}
+
+When the user asks to edit, improve, or change this document use the updateDocument tool.
+When the user asks questions about this document answer directly using the content above.
+`;
+      } else {
+        enhancedSystemPrompt += `
 
 ## Composer Panel Open
 Document ID: ${composerDocumentId}
 
 Use updateDocument for edit requests. Chat normally for other messages.
 `;
+      }
+    } catch {
+      enhancedSystemPrompt += `
+
+## Composer Panel Open
+Document ID: ${composerDocumentId}
+
+Use updateDocument for edit requests. Chat normally for other messages.
+`;
+    }
   }
 
   return `${enhancedSystemPrompt}

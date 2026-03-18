@@ -421,8 +421,8 @@ export const getUserDocumentStats = async (
   try {
     console.log(`User RAG: Getting stats for user ${userId}`);
 
-    // Query vectors for the user (limited to avoid rate limits)
-    const allVectors = await getUserRagClient().query({
+    // Query vectors for the user in their namespace
+    const allVectors = await getUserRagClient().namespace(userId).query({
       vector: new Array(1536).fill(0), // Dummy vector
       topK: 100, // Reasonable limit to avoid exceeding read limits
       includeMetadata: true,

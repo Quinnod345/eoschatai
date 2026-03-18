@@ -2,6 +2,7 @@
 
 import cx from 'classnames';
 import { Badge } from '@/components/ui/badge';
+import { useUpgradeStore } from '@/lib/stores/upgrade-store';
 
 interface UsageChipProps {
   label: string;
@@ -11,6 +12,8 @@ interface UsageChipProps {
 }
 
 export function UsageChip({ label, used, limit, title }: UsageChipProps) {
+  const openUpgradeModal = useUpgradeStore((state) => state.openModal);
+
   if (!limit || limit <= 0) return null;
 
   const isExceeded = used >= limit;
@@ -21,8 +24,9 @@ export function UsageChip({ label, used, limit, title }: UsageChipProps) {
     <Badge
       variant="outline"
       title={title ?? `${label} usage ${used}/${limit}`}
+      onClick={() => openUpgradeModal('premium')}
       className={cx(
-        'flex h-6 items-center gap-1 rounded-full border border-muted-foreground/30 bg-muted/70 px-2 text-xs font-medium tabular-nums',
+        'flex h-6 cursor-pointer items-center gap-1 rounded-full border border-muted-foreground/30 bg-muted/70 px-2 text-xs font-medium tabular-nums transition-opacity hover:opacity-80',
         isApproaching && 'border-amber-200 bg-amber-100 text-amber-900',
         isExceeded &&
           'border-destructive/40 bg-destructive/10 text-destructive',
@@ -37,5 +41,4 @@ export function UsageChip({ label, used, limit, title }: UsageChipProps) {
     </Badge>
   );
 }
-
 
