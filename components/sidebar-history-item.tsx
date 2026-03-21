@@ -65,6 +65,7 @@ const PureChatItem = ({
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [isRenameLoading, setIsRenameLoading] = useState(false);
+  const [isTracing, setIsTracing] = useState(false);
   const { preloadChat } = useChatPreloader();
   const preloadTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -208,8 +209,12 @@ const PureChatItem = ({
     <>
       <SidebarMenuItem className="py-1 px-1 group/item relative">
         <motion.div
-          className="w-full rounded-md relative"
+          className={cn('w-full rounded-md relative', isTracing && 'sidebar-item-trace')}
           whileHover={{ y: -1 }}
+          onHoverStart={() => {
+            setIsTracing(true);
+            setTimeout(() => setIsTracing(false), 450);
+          }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
           <SidebarMenuButton

@@ -33,6 +33,10 @@ interface MessagesProps {
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
   dataStream?: any[];
+  deepResearchPhase?: string | null;
+  deepResearchMessage?: string | null;
+  deepResearchProgress?: number;
+  deepResearchSourceCount?: number;
   onStartReply?: (
     messageId: string,
     content: string,
@@ -53,6 +57,10 @@ function PureMessages({
   searchProgress,
   meetingMetadata,
   dataStream,
+  deepResearchPhase,
+  deepResearchMessage,
+  deepResearchProgress,
+  deepResearchSourceCount,
   onStartReply,
   onRetry,
 }: MessagesProps) {
@@ -242,11 +250,18 @@ function PureMessages({
   // Memoize filtered messages to avoid recalculating on every render
   // We now render assistant messages with reasoning content (no longer filtered)
   const filteredMessages = useMemo(() => {
-    return messages.filter((message, index) => {
+    // Deduplicate by ID first, keeping the last occurrence of each ID
+    const seenIds = new Map<string, UIMessage>();
+    for (const message of messages) {
+      seenIds.set(message.id, message);
+    }
+    const deduped = [...seenIds.values()];
+
+    return deduped.filter((message, index) => {
       // Don't render completely empty assistant messages when thinking
       if (
         message.role === 'assistant' &&
-        index === messages.length - 1 &&
+        index === deduped.length - 1 &&
         shouldShowThinking
       ) {
         // Check if message has ANY content (text OR reasoning)
@@ -277,24 +292,6 @@ function PureMessages({
   const isNewChat = pathname === '/chat' && messages.length === 0;
   const isLoading = messages.length === 0 && status === 'ready' && !isNewChat;
 
-  // Debug logging and set global class
-  useEffect(() => {
-    console.log('Chat mesh debug:', {
-      pathname,
-      isNewChat,
-      hasSentMessage,
-      messagesLength: messages.length,
-      shouldShowMesh: true,
-    });
-
-    // Always enable chat mesh styling for both new and existing chats
-    document.body.classList.add('has-chat-mesh');
-
-    return () => {
-      document.body.classList.remove('has-chat-mesh');
-    };
-  }, [pathname]);
-
   // Detect dashboard mode
   const [dashboardKind, setDashboardKind] = useState<string | null>(null);
   useEffect(() => {
@@ -318,11 +315,6 @@ function PureMessages({
     );
   }
 
-  const isExistingChatView = !(isNewChat && !hasSentMessage);
-  const meshClasses = `eos-chat-mesh eos-chat-active${
-    isExistingChatView ? ' existing-chat-gradient' : ''
-  }`;
-
   return (
     <div
       ref={messagesContainerRef}
@@ -330,7 +322,7 @@ function PureMessages({
       aria-label="Chat messages"
       aria-live="polite"
       aria-relevant="additions"
-      className={`${meshClasses} flex flex-col min-w-0 gap-4 md:gap-6 flex-1 overflow-y-scroll pt-4 pb-32 md:pb-64 relative bg-transparent`}
+      className="flex flex-col min-w-0 gap-4 md:gap-6 flex-1 overflow-y-scroll pt-4 pb-32 md:pb-64 relative bg-transparent"
     >
       {/* Spacer (like SwiftUI Spacer()) */}
       <div className="shrink-0 h-2" />
@@ -382,6 +374,11 @@ function PureMessages({
             citations={citations}
             searchProgress={searchProgress}
             meetingMetadata={meetingMetadata}
+            isStreaming={
+              status === 'streaming' &&
+              index === filteredMessages.length - 1 &&
+              message.role === 'assistant'
+            }
           />
         ))
       )}
@@ -390,6 +387,10 @@ function PureMessages({
         <ThinkingMessage
           key="thinking-indicator"
           searchProgress={searchProgress}
+          deepResearchPhase={deepResearchPhase}
+          deepResearchMessage={deepResearchMessage}
+          deepResearchProgress={deepResearchProgress}
+          deepResearchSourceCount={deepResearchSourceCount}
           chatStatus={
             dataStream?.length &&
             dataStream[dataStream.length - 1]?.type === 'chat-status'

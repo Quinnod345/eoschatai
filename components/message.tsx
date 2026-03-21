@@ -15,7 +15,7 @@ import { Button } from './ui/button';
 import { SimpleMessageEditor } from './simple-message-editor';
 import { DocumentPreview } from './document-preview';
 import { ReplyContext } from './reply-context';
-import GlassSurface from './GlassSurface';
+
 import type { ChatHelpers, ReloadFunction } from './multimodal-input/types';
 import { TranslationUI } from './translation-ui';
 import { SmoothMarkdown } from './smooth-markdown';
@@ -314,6 +314,7 @@ const PurePreviewMessage = ({
   citations,
   searchProgress,
   meetingMetadata,
+  isStreaming = false,
 }: {
   chatId: string;
   message: ExtendedUIMessage;
@@ -330,6 +331,7 @@ const PurePreviewMessage = ({
   citations?: CitationReference[];
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
+  isStreaming?: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -523,7 +525,10 @@ const PurePreviewMessage = ({
       <motion.article
         data-testid={`message-${message.role}`}
         aria-label={`${message.role === 'assistant' ? 'AI' : 'Your'} message`}
-        className="w-full mx-auto max-w-3xl px-3 md:px-4 group/message"
+        className={cn(
+          'w-full mx-auto max-w-3xl px-3 md:px-4 group/message',
+          isStreaming && message.role === 'assistant' && 'message-streaming-trace',
+        )}
         initial={{ y: 5, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         data-role={message.role}
@@ -555,32 +560,21 @@ const PurePreviewMessage = ({
             {/* Show regular attachments */}
             {getMessageAttachments(message).length > 0 && (
                 <div className="flex flex-row justify-end">
-                  <GlassSurface
-                    width="auto"
-                    height="auto"
-                    borderRadius={12}
-                    borderWidth={0.04}
-                    brightness={48}
-                    opacity={0.92}
-                    blur={10}
-                    backgroundOpacity={0.1}
-                    showInsetShadow={true}
-                    insetShadowIntensity={0.35}
-                    useFallback={true}
-                    className="inline-flex"
-                  >
+                  <div className="inline-flex max-w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-muted/30">
                     <div
                       data-testid={`message-attachments`}
-                      className="flex flex-row gap-2 p-2"
+                      className="custom-scrollbar flex max-w-[min(100%,28rem)] snap-x snap-mandatory flex-row gap-3 overflow-x-auto scroll-smooth p-2"
                     >
-                      {getMessageAttachments(message).map((attachment) => (
-                        <PreviewAttachment
-                          key={attachment.url}
-                          attachment={attachment}
-                        />
-                      ))}
+                      {getMessageAttachments(message).map(
+                        (attachment, attIdx) => (
+                          <PreviewAttachment
+                            key={`${attachment.url}-${attIdx}`}
+                            attachment={attachment}
+                          />
+                        ),
+                      )}
                     </div>
-                  </GlassSurface>
+                  </div>
                 </div>
               )}
 
@@ -950,6 +944,7 @@ const MemoizedPreviewMessage = memo(
     // Re-render when chat status changes so children (MessageActions, badge)
     // receive the updated prop (e.g. streaming -> ready transition).
     if (prevProps.chatStatus !== nextProps.chatStatus) return false;
+    if (prevProps.isStreaming !== nextProps.isStreaming) return false;
 
     return true;
   },
@@ -1101,9 +1096,17 @@ const THINKING_PHRASES = [
 export const ThinkingMessage = ({
   searchProgress,
   chatStatus,
+  deepResearchPhase,
+  deepResearchMessage,
+  deepResearchProgress,
+  deepResearchSourceCount,
 }: {
   searchProgress?: SearchProgress;
   chatStatus?: { status: string; message: string };
+  deepResearchPhase?: string | null;
+  deepResearchMessage?: string | null;
+  deepResearchProgress?: number;
+  deepResearchSourceCount?: number;
 }) => {
   const role = 'assistant';
   const [dotCount, setDotCount] = useState(0);
@@ -1144,10 +1147,13 @@ export const ThinkingMessage = ({
   const searchCompleted = searchProgress?.searchesCompleted || 0;
   const searchTotal = searchProgress?.totalSearches || 0;
 
-  // Priority: search > chat status > cycling phrase
+  // Priority: deep research > search > chat status > cycling phrase
   let displayMessage = THINKING_PHRASES[phraseIndex];
+  const isDeepResearching = !!(deepResearchPhase && deepResearchPhase !== 'complete' && deepResearchPhase !== 'error');
 
-  if (searchProgress?.currentSearch) {
+  if (deepResearchPhase && deepResearchMessage) {
+    displayMessage = deepResearchMessage;
+  } else if (searchProgress?.currentSearch) {
     displayMessage = `Searching: ${searchProgress.currentSearch}`;
   } else if (isSearching) {
     displayMessage = 'Searching the web';
@@ -1168,32 +1174,60 @@ export const ThinkingMessage = ({
     >
       <div className="flex gap-4 w-full">
         {/* AI Icon */}
-        <div className="size-8 flex items-center rounded-full justify-center shrink-0">
-          <AIActiveLoaderIcon size={40} />
+        <div className="relative flex-shrink-0">
+          <div
+            className={cn(
+              'thinking-orb-pulse absolute inset-0 rounded-full',
+              isDeepResearching && 'thinking-orb-nexus',
+            )}
+            aria-hidden
+          />
+          <div className="size-8 flex items-center rounded-full justify-center">
+            <AIActiveLoaderIcon size={40} />
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-2">
-            <motion.span 
-              key={displayMessage}
-              initial={{ opacity: 0.5, y: 2 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="text-muted-foreground"
-            >
-              {displayMessage}
-              {'.'.repeat(dotCount)}
-            </motion.span>
+          <div className="flex flex-col gap-2 w-full">
+            <div className="flex items-center gap-2">
+              <motion.span 
+                key={displayMessage}
+                initial={{ opacity: 0.5, y: 2 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className={isDeepResearching ? 'text-purple-600 dark:text-purple-400 font-medium' : 'text-muted-foreground'}
+              >
+                {displayMessage}
+                {'.'.repeat(dotCount)}
+              </motion.span>
 
-            {/* Search progress */}
-            {isSearching && searchTotal > 0 && (
-              <span className="text-xs text-muted-foreground ml-2">
-                ({searchCompleted}/{searchTotal})
-              </span>
+              {/* Search progress */}
+              {isSearching && searchTotal > 0 && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  ({searchCompleted}/{searchTotal})
+                </span>
+              )}
+
+              {/* Deep research source count */}
+              {isDeepResearching && deepResearchSourceCount && deepResearchSourceCount > 0 && (
+                <span className="text-xs text-purple-500/70 ml-2">
+                  {deepResearchSourceCount} sources
+                </span>
+              )}
+            </div>
+
+            {/* Deep research progress bar */}
+            {isDeepResearching && deepResearchProgress !== undefined && deepResearchProgress > 0 && (
+              <div className="w-full max-w-xs bg-purple-500/15 rounded-full h-1">
+                <motion.div
+                  className="bg-purple-500 h-1 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(deepResearchProgress, 100)}%` }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                />
+              </div>
             )}
           </div>
-        </div>
       </div>
     </motion.div>
   );

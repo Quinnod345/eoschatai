@@ -57,6 +57,7 @@ export function SidebarUserNav({
     useState(false);
   const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
     useState(false);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
 
@@ -230,12 +231,13 @@ export function SidebarUserNav({
             styles.userAvatarContainer,
           )}
         >
-          <DropdownMenu>
+          <DropdownMenu open={avatarMenuOpen} onOpenChange={setAvatarMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 className={cn(
-                  'relative h-8 w-8 rounded-full hover:animate-pulse',
+                  'relative h-8 w-8 rounded-full',
+                  avatarMenuOpen ? 'avatar-open-bloom' : 'hover:animate-pulse',
                   styles.avatarButton,
                 )}
               >

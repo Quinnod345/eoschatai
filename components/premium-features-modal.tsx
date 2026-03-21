@@ -106,6 +106,7 @@ export function PremiumFeaturesModal({
 }: PremiumFeaturesModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'business'>('pro');
   const [loading, setLoading] = useState(false);
+  const [justSelected, setJustSelected] = useState<'pro' | 'business' | null>(null);
   const prices = useAccountStore((state) => state.prices);
   const userPlan = useAccountStore((state) => state.user?.plan ?? 'free');
   const userSubscriptionSource = useAccountStore(
@@ -337,14 +338,15 @@ export function PremiumFeaturesModal({
                   ? 'border-primary bg-primary/5 shadow-lg scale-105'
                   : 'border-border hover:border-primary/50',
                 currentPlan === 'pro' && 'ring-2 ring-primary/20',
+                justSelected === 'pro' && 'card-select-trace',
               )}
-              onClick={() => setSelectedPlan('pro')}
+              onClick={() => { setSelectedPlan('pro'); setJustSelected('pro'); setTimeout(() => setJustSelected(null), 550); }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setSelectedPlan('pro');
+                  setSelectedPlan('pro'); setJustSelected('pro'); setTimeout(() => setJustSelected(null), 550);
                 }
               }}
             >
@@ -416,14 +418,15 @@ export function PremiumFeaturesModal({
                   ? 'border-primary bg-primary/5 shadow-lg scale-105'
                   : 'border-border hover:border-primary/50',
                 currentPlan === 'business' && 'ring-2 ring-primary/20',
+                justSelected === 'business' && 'card-select-trace',
               )}
-              onClick={() => setSelectedPlan('business')}
+              onClick={() => { setSelectedPlan('business'); setJustSelected('business'); setTimeout(() => setJustSelected(null), 550); }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setSelectedPlan('business');
+                  setSelectedPlan('business'); setJustSelected('business'); setTimeout(() => setJustSelected(null), 550);
                 }
               }}
             >

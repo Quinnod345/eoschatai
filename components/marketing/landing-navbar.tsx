@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import GlassSurface from '@/components/GlassSurface';
+
 import CardNav from '@/components/CardNav';
 import { Button } from '@/components/ui/button';
 
@@ -27,18 +27,8 @@ export default function LandingNavbar({
             filter: 'blur(16px)',
           }}
         />
-        <GlassSurface
-          width="100%"
-          height="auto"
-          borderRadius={50}
-          blur={10}
-          displace={5}
-          opacity={0.7}
-          backgroundOpacity={0.1}
-          brightness={100}
-          className="w-full min-h-[64px]"
-          insetShadowIntensity={0.1}
-          style={{ overflow: 'visible' }}
+        <div
+          className="w-full min-h-[64px] rounded-[50px] backdrop-blur-[10px] bg-white/10 border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_4px_24px_rgba(0,0,0,0.15)] overflow-visible"
         >
           <div className="-m-2 w-full h-full">
             <CardNav
@@ -153,7 +143,7 @@ export default function LandingNavbar({
               className="w-full"
             />
           </div>
-        </GlassSurface>
+        </div>
       </div>
     </header>
   );

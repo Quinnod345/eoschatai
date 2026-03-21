@@ -165,15 +165,16 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
     }
   }
 
-  // Check for active streams in the database for auto-resume
+  // Check for active streams in the database for auto-resume.
+  // Only resume streams that are very fresh (< 10s) and truly 'active' —
+  // 'interrupted' streams cannot be recovered and cause infinite polling loops.
   let shouldAutoResume = false;
   try {
     const { getActiveStreamByChatId } = await import('@/lib/db/queries');
     const activeStream = await getActiveStreamByChatId({ chatId: id });
 
     if (activeStream) {
-      // Check if stream is still recent (not stale)
-      const staleThreshold = 60 * 1000; // 60 seconds
+      const staleThreshold = 10 * 1000; // 10 seconds — only resume very fresh streams
       const isStale =
         Date.now() - new Date(activeStream.lastActiveAt).getTime() >
         staleThreshold;
@@ -188,19 +189,9 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
             lastActiveAt: activeStream.lastActiveAt,
           },
         );
-      } else if (!isStale && activeStream.status === 'interrupted') {
-        // Also enable auto-resume for interrupted streams to recover content
-        // Apply stale check to avoid recovering very old interrupted streams
-        shouldAutoResume = true;
-        console.log(
-          '[ExistingChat] Found interrupted stream, enabling auto-resume:',
-          {
-            streamId: activeStream.id,
-            status: activeStream.status,
-            lastActiveAt: activeStream.lastActiveAt,
-          },
-        );
       }
+      // Note: 'interrupted' streams are NOT resumed — they've already been
+      // partially processed and resuming them causes infinite polling loops.
     }
   } catch (streamError) {
     console.error(

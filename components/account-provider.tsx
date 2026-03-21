@@ -39,22 +39,12 @@ async function fetchPrices(): Promise<PriceSummary[]> {
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  console.log('[AccountProvider] Component mounting');
-
   const { ready, user, featureFlags, setBootstrap, setLoading, setError } =
     useAccountStore();
   const { open, feature, onAutoRetry, closeModal, openModal } =
     useUpgradeStore();
   const [showBusinessFlow, setShowBusinessFlow] = useState(false);
   const [showCircleFlow, setShowCircleFlow] = useState(false);
-
-  useEffect(() => {
-    console.log('[AccountProvider] Modal state changed:', {
-      open,
-      feature,
-      time: new Date().toISOString(),
-    });
-  }, [open, feature]);
 
   // Listen for business flow and premium modal events
   useEffect(() => {
@@ -88,16 +78,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
 
   const refresh = useCallback(async () => {
-    console.log('[AccountProvider] Refresh called', {
-      time: new Date().toISOString(),
-      ready,
-      user: user?.email,
-    });
-
     setLoading(true);
     try {
       const payload = await fetchBootstrap();
-      console.log('[AccountProvider] Bootstrap payload:', payload);
 
       if (!payload) {
         setError('Failed to load account data');
@@ -108,34 +91,28 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       if (payload.feature_flags?.stripe_mvp) {
         try {
           prices = await fetchPrices();
-          console.log('[AccountProvider] Prices loaded:', prices);
         } catch (error) {
           console.warn('[account] Failed to load Stripe prices', error);
         }
       }
 
       setBootstrap({ ...payload, prices });
-      console.log('[AccountProvider] Bootstrap complete', {
-        user: payload.user,
-        entitlements: payload.entitlements,
-        featureFlags: payload.feature_flags,
-      });
     } catch (error) {
       console.error('[account] Bootstrap failed', error);
       setError('Failed to load account data');
     } finally {
       setLoading(false);
     }
-  }, [setBootstrap, setError, setLoading, ready, user?.email]);
+  }, [setBootstrap, setError, setLoading]);
 
   refreshRef.current = refresh;
 
   useEffect(() => {
-    console.log('[AccountProvider] Initial load effect triggered');
     refresh().catch((error) => {
       console.error('[account] Initial refresh failed', error);
     });
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle invite acceptance/invalid states via query param
   useEffect(() => {
@@ -255,12 +232,15 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [ready, featureFlags.entitlements_ws, user?.id]);
 
-  // Re-verify Circle subscription on every load for Circle-sourced users.
-  // The UI renders immediately from the database value. This runs in the background
-  // and updates the DB + refreshes the store only if Circle reports a different plan.
-  // Upgrades apply instantly; downgrades (lost subscription) also apply on next load.
+  // Re-verify Circle subscription once per mount for Circle-sourced users.
+  // Runs after the initial bootstrap is ready, then never again for this session.
+  // Uses a ref flag to prevent the infinite loop that would occur if verify
+  // triggered refresh() → new user object → effect re-runs → verify again.
+  const circleVerifiedRef = useRef(false);
   useEffect(() => {
     if (!ready || !user || user.subscriptionSource !== 'circle') return;
+    if (circleVerifiedRef.current) return;
+    circleVerifiedRef.current = true;
 
     const verify = async () => {
       try {
@@ -294,10 +274,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           await showEdgeCaseToast(toast, data);
         }
 
-        if (data.verified && data.changed) {
-          // Plan changed (upgrade or downgrade) — refresh store to pick up new entitlements.
-          console.log('[account] Circle subscription changed, updating plan to', data.plan);
-          refresh().catch(() => {});
+        // Refresh after verify so the client store reflects the confirmed server plan.
+        if (data.verified) {
+          refreshRef.current?.().catch(() => {});
         }
       } catch {
         // Network failure — silently ignore, DB value stays in effect until next load.
@@ -305,7 +284,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
 
     verify();
-  }, [ready, user, refresh]);
+  }, [ready, user?.subscriptionSource]);
 
   // Dev-only helpers to force-open the upgrade modal for testing
   useEffect(() => {

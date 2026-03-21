@@ -28,7 +28,7 @@ import type { UIMessage } from 'ai';
 import { useRouter } from 'next/navigation';
 import { useOptimizedNavigation } from '@/hooks/use-optimized-navigation';
 import { useLoading } from '@/hooks/use-loading';
-import GlassSurface from '@/components/GlassSurface';
+
 import { useRobustSavedContent } from '@/hooks/use-robust-saved-content';
 
 interface DropdownProps {
@@ -206,16 +206,9 @@ export function Dropdown({
         asChild
         id={`saved-content-dropdown-trigger-${currentChatId}`}
       >
-        <GlassSurface
-          width="auto"
-          height={40}
-          borderRadius={12}
-          displace={3}
-          insetShadowIntensity={0.2}
-          backgroundOpacity={0.25}
-          blur={11}
-          isButton={true}
-          className="h-10 cursor-pointer"
+        <button
+          type="button"
+          className="h-10 cursor-pointer flex items-center rounded-xl border border-zinc-200 dark:border-zinc-700 bg-background hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <div className="flex items-center gap-3 px-2 text-sm font-medium">
             <Archive className="h-4 w-4 shrink-0" />
@@ -230,7 +223,7 @@ export function Dropdown({
             )}
             <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           </div>
-        </GlassSurface>
+        </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent

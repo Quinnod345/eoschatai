@@ -140,7 +140,7 @@ export default function VoiceFAB({
               <Button
                 type="button"
                 onClick={handleClick}
-                className={cn(getVariantClasses(), className)}
+                className={cn(getVariantClasses(), isVoiceModeOpen && 'voice-recording-ring', className)}
                 size="icon"
               >
                 {buttonContent}
@@ -159,7 +159,7 @@ export default function VoiceFAB({
               onClick={handleClick}
               variant={variant === 'minimal' ? 'ghost' : 'outline'}
               size={showLabel ? 'sm' : 'icon'}
-              className={cn(getVariantClasses(), className)}
+              className={cn(getVariantClasses(), isVoiceModeOpen && 'voice-recording-ring', className)}
             >
               {buttonContent}
             </Button>

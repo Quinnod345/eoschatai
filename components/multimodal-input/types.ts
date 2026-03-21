@@ -5,9 +5,13 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 // AI SDK 5: Attachment type is no longer exported from 'ai'
 // Define locally for backward compatibility
 export type Attachment = {
+  /** Stable id for list keys, duplicate, and rename (client-generated). */
+  id?: string;
   name?: string;
   contentType?: string;
   url: string;
+  /** When true, server prompt notes these files as reference-only context. */
+  contextOnly?: boolean;
 };
 
 // AI SDK 5: UseChatHelpers requires a type parameter

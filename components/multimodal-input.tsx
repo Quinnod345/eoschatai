@@ -1,7 +1,14 @@
 'use client';
 
 import type { UIMessage } from 'ai';
-import type { Attachment, ChatHelpers, ChatStatus, SetInputFunction, AppendFunction, HandleSubmitFunction } from './multimodal-input/types';
+import type {
+  Attachment,
+  ChatHelpers,
+  ChatStatus,
+  SetInputFunction,
+  AppendFunction,
+  HandleSubmitFunction,
+} from './multimodal-input/types';
 import cx from 'classnames';
 import type React from 'react';
 import {
@@ -19,7 +26,6 @@ import { createPortal } from 'react-dom';
 import { toast } from '@/lib/toast-system';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
-import GlassSurface from '@/components/GlassSurface';
 import { ErrorBoundary } from './error-boundary';
 
 import {
@@ -65,7 +71,9 @@ import equal from 'fast-deep-equal';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
+import { UsageChip } from '@/components/multimodal-input/usage-chip';
 import { UsageLimitIndicator } from './usage-limit-indicator';
+import { toast as sonnerToast } from 'sonner';
 import type { VisibilityType } from './visibility-selector';
 import type { Session } from 'next-auth';
 import VoiceFAB from './voice-fab';
@@ -94,6 +102,10 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
+
+function withNewAttachmentId(a: Attachment & { id?: string }): Attachment {
+  return { ...a, id: a.id ?? crypto.randomUUID() };
+}
 
 // Interface for @ mention resources - Enhanced version
 interface MentionResource {
@@ -655,6 +667,23 @@ function PureMultimodalInput({
 
   // Track previous research mode to detect changes to nexus
   const prevResearchModeRef = useRef(selectedResearchMode);
+
+  // Track streaming→ready transition for the finish animation
+  const prevStatusRef = useRef(status);
+  const [showFinish, setShowFinish] = useState(false);
+  useEffect(() => {
+    const wasResponding =
+      prevStatusRef.current === 'streaming' ||
+      prevStatusRef.current === 'submitted';
+    const isNowReady = status === 'ready';
+
+    if (wasResponding && isNowReady) {
+      setShowFinish(true);
+      const t = setTimeout(() => setShowFinish(false), 950);
+      return () => clearTimeout(t);
+    }
+    prevStatusRef.current = status;
+  }, [status]);
   useEffect(() => {
     // Trigger purple animation when switching TO nexus mode
     if (
@@ -896,9 +925,9 @@ function PureMultimodalInput({
 
       try {
         // Build query params for composer documents
-        const composerParams = new URLSearchParams({ 
-          search: searchQuery, 
-          limit: '8' 
+        const composerParams = new URLSearchParams({
+          search: searchQuery,
+          limit: '8',
         });
         if (composerKind && composerKind !== 'all') {
           composerParams.set('kind', composerKind);
@@ -915,42 +944,66 @@ function PureMultimodalInput({
         // Helper to get icon for composer kind
         const getComposerIcon = (kind: string) => {
           switch (kind) {
-            case 'text': return <FileText className="size-4" />;
-            case 'code': return <Code className="size-4" />;
-            case 'sheet': return <Table className="size-4" />;
-            case 'chart': return <PieChart className="size-4" />;
-            case 'image': return <ImageIcon className="size-4" />;
-            case 'vto': return <Target className="size-4" />;
-            case 'accountability': return <Users className="size-4" />;
-            default: return <FileStack className="size-4" />;
+            case 'text':
+              return <FileText className="size-4" />;
+            case 'code':
+              return <Code className="size-4" />;
+            case 'sheet':
+              return <Table className="size-4" />;
+            case 'chart':
+              return <PieChart className="size-4" />;
+            case 'image':
+              return <ImageIcon className="size-4" />;
+            case 'vto':
+              return <Target className="size-4" />;
+            case 'accountability':
+              return <Users className="size-4" />;
+            default:
+              return <FileStack className="size-4" />;
           }
         };
 
         // Helper to get color for composer kind
         const getComposerColor = (kind: string) => {
           switch (kind) {
-            case 'text': return 'blue';
-            case 'code': return 'emerald';
-            case 'sheet': return 'violet';
-            case 'chart': return 'pink';
-            case 'image': return 'amber';
-            case 'vto': return 'red';
-            case 'accountability': return 'cyan';
-            default: return 'blue';
+            case 'text':
+              return 'blue';
+            case 'code':
+              return 'emerald';
+            case 'sheet':
+              return 'violet';
+            case 'chart':
+              return 'pink';
+            case 'image':
+              return 'amber';
+            case 'vto':
+              return 'red';
+            case 'accountability':
+              return 'cyan';
+            default:
+              return 'blue';
           }
         };
 
         // Helper to get type for composer kind
         const getComposerType = (kind: string): MentionResource['type'] => {
           switch (kind) {
-            case 'text': return 'text-composer';
-            case 'code': return 'code-composer';
-            case 'sheet': return 'sheet-composer';
-            case 'chart': return 'chart-composer';
-            case 'image': return 'image-composer';
-            case 'vto': return 'vto-composer';
-            case 'accountability': return 'accountability-composer';
-            default: return 'composer';
+            case 'text':
+              return 'text-composer';
+            case 'code':
+              return 'code-composer';
+            case 'sheet':
+              return 'sheet-composer';
+            case 'chart':
+              return 'chart-composer';
+            case 'image':
+              return 'image-composer';
+            case 'vto':
+              return 'vto-composer';
+            case 'accountability':
+              return 'accountability-composer';
+            default:
+              return 'composer';
           }
         };
 
@@ -1041,7 +1094,7 @@ function PureMultimodalInput({
   // Multi-line detection based on TEXT CONTENT ONLY (not pixel measurements)
   // This prevents feedback loops from layout width changes affecting measurements
   const lastMultiLineRef = useRef(false);
-  
+
   const adjustHeight = useCallback(() => {
     if (isSubmittingRef.current || !textareaRef.current) {
       return;
@@ -1049,38 +1102,40 @@ function PureMultimodalInput({
 
     const textarea = textareaRef.current;
     const text = textarea.value;
-    
+
     // FIRST: Decide layout based on text content (stable - doesn't depend on width)
     // Estimate if text would wrap: ~50 chars fit on single line with buttons
     // Count words and their lengths to estimate wrapping
     const hasNewlines = text.includes('\n');
     const charCount = text.length;
-    
+
     // Simple heuristic: if text is long enough that it would likely wrap
     // in the narrower single-line layout, use multi-line
     // Single-line textarea is roughly 50-60 chars wide, use 70 for buffer
     const likelyToWrap = charCount > 70;
-    
+
     const shouldBeMultiLine = hasNewlines || likelyToWrap;
-    
+
     // Update layout state BEFORE measuring height
     // Only update if changed to prevent unnecessary re-renders
     if (shouldBeMultiLine !== lastMultiLineRef.current) {
       lastMultiLineRef.current = shouldBeMultiLine;
       setIsMultiLine(shouldBeMultiLine);
     }
-    
+
     // THEN: Measure and set height (after layout decision is stable)
     const minHeight = 40;
-    const maxHeightPx = typeof window !== 'undefined' 
-      ? window.innerHeight * 0.35 
-      : 400;
-    
+    const maxHeightPx =
+      typeof window !== 'undefined' ? window.innerHeight * 0.35 : 400;
+
     const scrollTop = textarea.scrollTop;
     textarea.style.height = 'auto';
     const scrollHeight = textarea.scrollHeight;
-    
-    const finalHeight = Math.max(minHeight, Math.min(scrollHeight, maxHeightPx));
+
+    const finalHeight = Math.max(
+      minHeight,
+      Math.min(scrollHeight, maxHeightPx),
+    );
     textarea.style.height = `${finalHeight}px`;
     textarea.style.overflowY = scrollHeight > maxHeightPx ? 'auto' : 'hidden';
     textarea.scrollTop = scrollTop;
@@ -1383,8 +1438,8 @@ function PureMultimodalInput({
           // Skip if it repeats words from the prefix
           const prefixWords = prefix.toLowerCase().split(/\s+/).slice(-3);
           const itemWords = trimmed.toLowerCase().split(/\s+/);
-          const hasRepeatedWord = prefixWords.some(pw => 
-            pw.length > 3 && itemWords.includes(pw)
+          const hasRepeatedWord = prefixWords.some(
+            (pw) => pw.length > 3 && itemWords.includes(pw),
           );
           if (hasRepeatedWord) return false;
           return true;
@@ -1422,6 +1477,8 @@ function PureMultimodalInput({
   const [documentContents, setDocumentContents] = useState<DocumentContent[]>(
     [],
   );
+  // Track recently-ready audio IDs for upload completion flash
+  const [flashReadyIds, setFlashReadyIds] = useState<Set<string>>(new Set());
   // Removed imageContents - images now go via attachments and experimental_attachments
   // Add state for audio recordings
   const [audioContents, setAudioContents] = useState<
@@ -1817,14 +1874,30 @@ function PureMultimodalInput({
             contentType = typeMap[ext || ''] || 'image/jpeg';
           }
 
-          toast.success(`Image uploaded: ${file.name}`);
-
-          // Return attachment - AI model will analyze directly
-          return {
+          const imageAttachment = withNewAttachmentId({
             url: cleanUrl,
             name: file.name,
-            contentType: contentType,
-          };
+            contentType,
+          });
+
+          sonnerToast.success('Image attached', {
+            description: (
+              <span className="flex items-center gap-3 text-left">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cleanUrl}
+                  alt=""
+                  className="size-11 shrink-0 rounded-md border border-border object-cover shadow-sm"
+                />
+                <span className="text-sm text-muted-foreground">
+                  Added to your message — send when you&apos;re ready.
+                </span>
+              </span>
+            ),
+            duration: 4000,
+          });
+
+          return imageAttachment;
         } catch (error) {
           console.error('Failed to upload image:', error);
           toast.error('Failed to upload image, please try again!');
@@ -1946,6 +2019,20 @@ function PureMultimodalInput({
                     ),
                   );
 
+                  // Flash the thumbnail on completion
+                  setFlashReadyIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(recordingId);
+                    return next;
+                  });
+                  setTimeout(() => {
+                    setFlashReadyIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(recordingId);
+                      return next;
+                    });
+                  }, 550);
+
                   toast.success(`Transcription complete: ${file.name}`);
                 } else if (statusData.status === 'error') {
                   clearInterval(pollInterval);
@@ -1994,11 +2081,22 @@ function PureMultimodalInput({
         const data = await response.json();
         const { url, pathname, contentType } = data;
 
-        return {
+        const fileAttachment = withNewAttachmentId({
           url,
           name: pathname,
-          contentType: contentType,
-        };
+          contentType,
+        });
+
+        sonnerToast.success('File attached', {
+          description: (
+            <span className="text-sm text-muted-foreground">
+              {String(pathname || 'File')} — send when you&apos;re ready.
+            </span>
+          ),
+          duration: 3500,
+        });
+
+        return fileAttachment;
       }
       const err = await response.json().catch(() => ({}));
       await showEdgeCaseToast(toast, err);
@@ -2028,7 +2126,7 @@ function PureMultimodalInput({
 
         setAttachments((currentAttachments) => [
           ...currentAttachments,
-          ...successfullyUploadedAttachments,
+          ...successfullyUploadedAttachments.map((a) => withNewAttachmentId(a)),
         ]);
       } catch (error) {
         console.error('Error uploading files!', error);
@@ -2224,6 +2322,7 @@ function PureMultimodalInput({
         url: attachment.url,
         mediaType: attachment.contentType,
         name: attachment.name,
+        ...(attachment.contextOnly ? { contextOnly: true as const } : {}),
       }));
 
       if (hasProcessedContent) {
@@ -2231,10 +2330,7 @@ function PureMultimodalInput({
         // AI SDK 5: Attachments are now file parts in the parts array
         append({
           role: 'user',
-          parts: [
-            { type: 'text', text: finalInputContent },
-            ...fileParts,
-          ],
+          parts: [{ type: 'text', text: finalInputContent }, ...fileParts],
         });
         // Don't clear input state yet - will be cleared after height reset
       } else {
@@ -2258,20 +2354,14 @@ function PureMultimodalInput({
             // AI SDK 5: Attachments are now file parts in the parts array
             append({
               role: 'user',
-              parts: [
-                { type: 'text', text: content },
-                ...fileParts,
-              ],
+              parts: [{ type: 'text', text: content }, ...fileParts],
             });
           } else {
             // If we have text, use the finalInputContent with mentions appended
             // AI SDK 5: Attachments are now file parts in the parts array
             append({
               role: 'user',
-              parts: [
-                { type: 'text', text: finalInputContent },
-                ...fileParts,
-              ],
+              parts: [{ type: 'text', text: finalInputContent }, ...fileParts],
             });
           }
           // Don't clear input state yet - will be cleared after height reset
@@ -2290,7 +2380,7 @@ function PureMultimodalInput({
       setSelectedMentions([]);
       setShowPredictions(false);
       setPredictions([]);
-      
+
       // Delay shrinking input to avoid visible jump at submit moment
       setTimeout(() => {
         if (textareaRef.current) {
@@ -2301,7 +2391,7 @@ function PureMultimodalInput({
           textareaRef.current.style.transition = 'height 0.2s ease';
           textareaRef.current.style.overflowY = 'hidden';
         }
-        
+
         // Reset all submission state
         lockedHeightRef.current = null;
         inputValueAtSubmitRef.current = null;
@@ -2416,7 +2506,9 @@ function PureMultimodalInput({
           if (successfullyUploadedAttachments.length > 0) {
             setAttachments((currentAttachments) => [
               ...currentAttachments,
-              ...successfullyUploadedAttachments,
+              ...successfullyUploadedAttachments.map((a) =>
+                withNewAttachmentId(a),
+              ),
             ]);
 
             if (successfullyUploadedAttachments.length !== files.length) {
@@ -2645,7 +2737,9 @@ function PureMultimodalInput({
           if (successfullyUploadedAttachments.length > 0) {
             setAttachments((currentAttachments) => [
               ...currentAttachments,
-              ...successfullyUploadedAttachments,
+              ...successfullyUploadedAttachments.map((a) =>
+                withNewAttachmentId(a),
+              ),
             ]);
             toast.success('Image pasted successfully');
           } else if (uploadedAttachments.some((a) => a === null)) {
@@ -2681,31 +2775,13 @@ function PureMultimodalInput({
       role="region"
       aria-label="Message input with file drop zone"
     >
-      {/* Add style tag for the animations */}
+      {/* Mentions dropdown + drag affordance (single motion budget: no bounce/pulse on drop) */}
       <style jsx global>{`
-        @keyframes pulse {
-          0% { opacity: 0.6; }
-          50% { opacity: 0.8; }
-          100% { opacity: 0.6; }
-        }
-        
-        .drag-drop-overlay {
-          animation: pulse 1.5s infinite;
-          transition: all 0.3s ease;
-        }
-        
         .drag-active {
-          transform: scale(1.005);
-          transition: transform 0.2s ease;
-        }
-        
-        .drag-icon-bounce {
-          animation: bounce 1s infinite alternate;
-        }
-        
-        @keyframes bounce {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-10px); }
+          outline: 2px solid hsl(var(--primary) / 0.14);
+          outline-offset: 3px;
+          border-radius: 1.25rem;
+          transition: outline-color 0.2s ease;
         }
         
         .mention-dropdown {
@@ -2768,7 +2844,15 @@ function PureMultimodalInput({
             </div>
 
             {/* Group resources by category */}
-            {['composer', 'calendar', 'resource', 'person', 'tool', 'command', 'template']
+            {[
+              'composer',
+              'calendar',
+              'resource',
+              'person',
+              'tool',
+              'command',
+              'template',
+            ]
               .filter((category) =>
                 filteredMentionResources.some((r) => r.category === category),
               )
@@ -2937,23 +3021,22 @@ function PureMultimodalInput({
           document.body,
         )}
 
-      {/* Drag overlay with improved visuals */}
       {isDragging && (
         <div
-          className="absolute inset-0 bg-black/10 dark:bg-white/10 backdrop-blur-sm rounded-lg z-50 flex items-center justify-center drag-drop-overlay"
-          style={{
-            border: '3px dashed rgba(128, 128, 128, 0.5)',
-          }}
+          className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/40 bg-background/75 backdrop-blur-[3px] dark:bg-background/60"
           aria-live="polite"
           role="status"
         >
-          <div className="bg-background/90 dark:bg-background/80 rounded-lg p-6 shadow-lg flex flex-col items-center">
-            <div className="drag-icon-bounce">
-              <Paperclip className="mx-auto mb-3 text-primary size-9" />
-            </div>
-            <p className="text-base font-medium">Drop files to upload</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Supports images, documents, PDFs, and more
+          <div className="max-w-sm rounded-2xl border border-border bg-card px-6 py-5 text-center shadow-lg">
+            <Paperclip
+              className="mx-auto mb-3 size-8 text-primary"
+              aria-hidden
+            />
+            <p className="text-base font-semibold tracking-tight">
+              Drop to attach
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Up to 10 files · 50MB each · images, PDFs, documents, audio
             </p>
           </div>
         </div>
@@ -3015,234 +3098,248 @@ function PureMultimodalInput({
               ease: [0.4, 0, 0.2, 1],
             }}
           >
-            <GlassSurface
-              width="100%"
-              height="auto"
-              borderRadius={12}
-              borderWidth={0.04}
-              brightness={48}
-              opacity={0.92}
-              blur={10}
-              backgroundOpacity={0.08}
-              showInsetShadow={true}
-              insetShadowIntensity={0.3}
-              useFallback={true}
-              className={cx(
-                isWide
-                  ? 'grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2 p-3 overflow-y-auto'
-                  : 'flex flex-row gap-2 p-3 overflow-x-auto',
-                'relative items-end',
-                isEmbedded ? 'max-h-28' : 'max-h-40',
-              )}
-            >
-              {/* Total files counter when there are many */}
-              {attachments.length +
-                pdfContents.length +
-                documentContents.length +
-                audioContents.length >
-                5 && (
-                <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full shadow-sm">
-                  {attachments.length +
-                    pdfContents.length +
-                    documentContents.length +
-                    audioContents.length}{' '}
-                  files
-                </div>
-              )}
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-7 rounded-l-xl bg-gradient-to-r from-muted/60 to-transparent dark:from-muted/45"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-7 rounded-r-xl bg-gradient-to-l from-muted/60 to-transparent dark:from-muted/45"
+                aria-hidden
+              />
+              <div
+                className={cx(
+                  'relative custom-scrollbar flex flex-row items-end gap-3 overflow-x-auto overflow-y-visible scroll-smooth snap-x snap-mandatory px-3 py-3 pt-4',
+                  'rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50',
+                  isEmbedded ? 'max-h-36' : 'max-h-48',
+                )}
+              >
+                {attachments.length +
+                  pdfContents.length +
+                  documentContents.length +
+                  audioContents.length >
+                  5 && (
+                  <div className="pointer-events-none absolute bottom-2 right-3 z-[2] rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-md tabular-nums">
+                    {attachments.length +
+                      pdfContents.length +
+                      documentContents.length +
+                      audioContents.length}{' '}
+                    files
+                  </div>
+                )}
 
-              {attachments.map((attachment) => (
-                <PreviewAttachment
-                  key={attachment.url}
-                  attachment={attachment}
-                  onRemove={() => {
-                    setAttachments((currentAttachments) =>
-                      currentAttachments.filter(
-                        (a) => a.url !== attachment.url,
-                      ),
-                    );
-                  }}
-                />
-              ))}
-
-              {pdfContents.map((pdf, index) => (
-                <div
-                  key={`pdf-${pdf.name}-${index}`}
-                  className="flex flex-col gap-2 relative"
-                >
-                  <GlassSurface
-                    width="80px"
-                    height="64px"
-                    borderRadius={8}
-                    borderWidth={0.05}
-                    brightness={45}
-                    opacity={0.95}
-                    blur={8}
-                    backgroundOpacity={0.15}
-                    showInsetShadow={true}
-                    insetShadowIntensity={0.4}
-                    useFallback={true}
-                    className="relative"
-                  >
-                    <svg
-                      className="size-8 text-red-500"
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <path d="M9 13h6" />
-                      <path d="M9 17h6" />
-                      <path d="M9 9h1" />
-                    </svg>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
-                      onClick={() => {
-                        setPdfContents((current) =>
-                          current.filter((_, i) => i !== index),
+                {attachments.map((attachment) => {
+                  const attId = attachment.id ?? attachment.url;
+                  return (
+                    <PreviewAttachment
+                      key={attId}
+                      attachment={attachment}
+                      onRemove={() => {
+                        setAttachments((currentAttachments) =>
+                          currentAttachments.filter(
+                            (a) => (a.id ?? a.url) !== attId,
+                          ),
                         );
                       }}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </GlassSurface>
-                  <div className="text-xs text-zinc-500 max-w-16 truncate">
-                    {pdf.name}
-                  </div>
-                </div>
-              ))}
+                      onDuplicate={() => {
+                        setAttachments((prev) => [
+                          ...prev,
+                          withNewAttachmentId({
+                            ...attachment,
+                            id: undefined,
+                            contextOnly: attachment.contextOnly,
+                          }),
+                        ]);
+                      }}
+                      onRename={(nextName) => {
+                        setAttachments((prev) =>
+                          prev.map((a) =>
+                            (a.id ?? a.url) === attId
+                              ? { ...a, name: nextName }
+                              : a,
+                          ),
+                        );
+                      }}
+                      onContextOnlyChange={(v) => {
+                        setAttachments((prev) =>
+                          prev.map((a) =>
+                            (a.id ?? a.url) === attId
+                              ? { ...a, contextOnly: v }
+                              : a,
+                          ),
+                        );
+                      }}
+                    />
+                  );
+                })}
 
-              {documentContents.map((doc, index) => (
-                <div
-                  key={`doc-${doc.name}-${index}`}
-                  className="flex flex-col gap-2 relative"
-                >
-                  <GlassSurface
-                    width="80px"
-                    height="64px"
-                    borderRadius={8}
-                    borderWidth={0.05}
-                    brightness={45}
-                    opacity={0.95}
-                    blur={8}
-                    backgroundOpacity={0.15}
-                    showInsetShadow={true}
-                    insetShadowIntensity={0.4}
-                    useFallback={true}
-                    className="relative"
+                {pdfContents.map((pdf, index) => (
+                  <div
+                    key={`pdf-${pdf.name}-${index}`}
+                    className="relative flex shrink-0 snap-start flex-col gap-1.5 pt-2"
                   >
-                    <svg
-                      className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : doc.type === 'pptx' ? 'text-orange-500' : 'text-green-500'}`}
-                      fill="none"
-                      height="24"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      {doc.type === 'docx' ? (
-                        <>
-                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                          <line x1="10" y1="9" x2="8" y2="9" />
-                        </>
-                      ) : doc.type === 'pptx' ? (
-                        <>
-                          <rect
-                            width="18"
-                            height="18"
-                            x="3"
-                            y="3"
-                            rx="2"
-                            ry="2"
-                          />
-                          <path d="M7 3v18" />
-                          <path d="M3 7.5h18" />
-                          <path d="M3 12h18" />
-                          <path d="M3 16.5h18" />
-                        </>
-                      ) : (
-                        <>
-                          <rect
-                            width="18"
-                            height="18"
-                            x="3"
-                            y="3"
-                            rx="2"
-                            ry="2"
-                          />
-                          <line x1="7" y1="3" x2="7" y2="21" />
-                          <line x1="3" y1="9" x2="21" y2="9" />
-                          <line x1="3" y1="15" x2="21" y2="15" />
-                        </>
+                    <div className="relative w-20 h-16 flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm upload-done-flash">
+                      <svg
+                        className="size-8 text-red-500"
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <path d="M9 13h6" />
+                        <path d="M9 17h6" />
+                        <path d="M9 9h1" />
+                      </svg>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -top-2.5 -right-2.5 size-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-red-500 hover:text-white shadow-md z-20 transition-colors"
+                        onClick={() => {
+                          setPdfContents((current) =>
+                            current.filter((_, i) => i !== index),
+                          );
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 max-w-[80px] truncate text-center">
+                      {pdf.name}
+                    </div>
+                  </div>
+                ))}
+
+                {documentContents.map((doc, index) => (
+                  <div
+                    key={`doc-${doc.name}-${index}`}
+                    className="relative flex shrink-0 snap-start flex-col gap-1.5 pt-2"
+                  >
+                    <div className="relative w-20 h-16 flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm upload-done-flash">
+                      <svg
+                        className={`size-8 ${doc.type === 'docx' ? 'text-blue-500' : doc.type === 'pptx' ? 'text-orange-500' : 'text-green-500'}`}
+                        fill="none"
+                        height="24"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        {doc.type === 'docx' ? (
+                          <>
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <line x1="10" y1="9" x2="8" y2="9" />
+                          </>
+                        ) : doc.type === 'pptx' ? (
+                          <>
+                            <rect
+                              width="18"
+                              height="18"
+                              x="3"
+                              y="3"
+                              rx="2"
+                              ry="2"
+                            />
+                            <path d="M7 3v18" />
+                            <path d="M3 7.5h18" />
+                            <path d="M3 12h18" />
+                            <path d="M3 16.5h18" />
+                          </>
+                        ) : (
+                          <>
+                            <rect
+                              width="18"
+                              height="18"
+                              x="3"
+                              y="3"
+                              rx="2"
+                              ry="2"
+                            />
+                            <line x1="7" y1="3" x2="7" y2="21" />
+                            <line x1="3" y1="9" x2="21" y2="9" />
+                            <line x1="3" y1="15" x2="21" y2="15" />
+                          </>
+                        )}
+                      </svg>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute -top-2.5 -right-2.5 size-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-red-500 hover:text-white shadow-md z-20 transition-colors"
+                        onClick={() => {
+                          setDocumentContents((current) =>
+                            current.filter((_, i) => i !== index),
+                          );
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 max-w-[80px] truncate text-center">
+                      {doc.name}
+                    </div>
+                  </div>
+                ))}
+
+                {audioContents.map((audio) => (
+                  <div
+                    key={`audio-${audio.id}`}
+                    className="relative flex shrink-0 snap-start flex-col gap-1.5 pt-2"
+                  >
+                    <div
+                      className={cx(
+                        'relative w-20 h-16 flex flex-col items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm',
+                        flashReadyIds.has(audio.id) && 'upload-done-flash',
                       )}
-                    </svg>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm hover:bg-destructive hover:text-destructive-foreground z-20"
-                      onClick={() => {
-                        setDocumentContents((current) =>
-                          current.filter((_, i) => i !== index),
-                        );
-                      }}
                     >
-                      <X className="size-3" />
-                    </Button>
-                  </GlassSurface>
-                  <div className="text-xs text-zinc-500 max-w-16 truncate">
-                    {doc.name}
-                  </div>
-                </div>
-              ))}
-
-              {audioContents.map((audio) => (
-                <div
-                  key={`audio-${audio.id}`}
-                  className="flex flex-col gap-2 relative"
-                >
-                  <GlassSurface
-                    width="80px"
-                    height="64px"
-                    borderRadius={8}
-                    borderWidth={0.05}
-                    brightness={45}
-                    opacity={0.95}
-                    blur={8}
-                    backgroundOpacity={0.15}
-                    showInsetShadow={true}
-                    insetShadowIntensity={0.4}
-                    useFallback={true}
-                    className="relative"
-                  >
-                    {audio.status === 'uploading' ? (
-                      <>
-                        <div className="animate-spin text-zinc-500">
-                          <LoaderIcon size={24} />
-                        </div>
-                        <span className="text-[10px] text-zinc-500 mt-1">
-                          Uploading
-                        </span>
-                      </>
-                    ) : audio.status === 'transcribing' ? (
-                      <>
+                      {audio.status === 'uploading' ? (
+                        <>
+                          <div className="animate-spin text-zinc-500">
+                            <LoaderIcon size={24} />
+                          </div>
+                          <span className="text-[10px] text-zinc-500 mt-1">
+                            Uploading
+                          </span>
+                        </>
+                      ) : audio.status === 'transcribing' ? (
+                        <>
+                          <svg
+                            className="size-8 text-purple-500 animate-pulse"
+                            fill="none"
+                            height="24"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            width="24"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="12" x2="12" y1="19" y2="22" />
+                          </svg>
+                          <span className="text-[10px] text-zinc-500 mt-1">
+                            Transcribing
+                          </span>
+                        </>
+                      ) : audio.status === 'ready' ? (
                         <svg
-                          className="size-8 text-purple-500 animate-pulse"
+                          className="size-8 text-purple-500"
                           fill="none"
                           height="24"
                           stroke="currentColor"
@@ -3257,84 +3354,66 @@ function PureMultimodalInput({
                           <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                           <line x1="12" x2="12" y1="19" y2="22" />
                         </svg>
-                        <span className="text-[10px] text-zinc-500 mt-1">
-                          Transcribing
-                        </span>
-                      </>
-                    ) : audio.status === 'ready' ? (
-                      <svg
-                        className="size-8 text-purple-500"
-                        fill="none"
-                        height="24"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        width="24"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                        <line x1="12" x2="12" y1="19" y2="22" />
-                      </svg>
-                    ) : (
-                      <div
-                        className="flex flex-col items-center justify-center cursor-help"
-                        title={audio.transcript || 'Transcription failed'}
-                      >
-                        <div className="text-red-500">
-                          <XIcon size={24} />
+                      ) : (
+                        <div
+                          className="flex flex-col items-center justify-center cursor-help"
+                          title={audio.transcript || 'Transcription failed'}
+                        >
+                          <div className="text-red-500">
+                            <XIcon size={24} />
+                          </div>
+                          <span className="text-[10px] text-red-500 mt-1">
+                            Failed
+                          </span>
                         </div>
-                        <span className="text-[10px] text-red-500 mt-1">
-                          Failed
-                        </span>
-                      </div>
-                    )}
+                      )}
 
-                    {audio.status !== 'uploading' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          'absolute -top-1 -right-1 size-5 rounded-full bg-background border shadow-sm z-20',
-                          audio.status === 'error'
-                            ? 'hover:bg-destructive hover:text-destructive-foreground bg-destructive/10'
-                            : 'hover:bg-destructive hover:text-destructive-foreground',
-                        )}
-                        title={
-                          audio.status === 'error'
-                            ? 'Remove failed audio'
-                            : 'Remove audio'
-                        }
-                        onClick={() => {
-                          setAudioContents((current) =>
-                            current.filter((a) => a.id !== audio.id),
-                          );
-                        }}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    )}
-                  </GlassSurface>
-                  <div className="text-xs text-zinc-500 max-w-16 truncate">
-                    {audio.name}
+                      {audio.status !== 'uploading' && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'absolute -top-2.5 -right-2.5 size-5 rounded-full shadow-md z-20 transition-colors',
+                            audio.status === 'error'
+                              ? 'bg-red-500 text-white hover:bg-red-600'
+                              : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-red-500 hover:text-white',
+                          )}
+                          title={
+                            audio.status === 'error'
+                              ? 'Remove failed audio'
+                              : 'Remove audio'
+                          }
+                          onClick={() => {
+                            setAudioContents((current) =>
+                              current.filter((a) => a.id !== audio.id),
+                            );
+                          }}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 max-w-[80px] truncate text-center">
+                      {audio.name}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              {uploadQueue.map((filename) => (
-                <PreviewAttachment
-                  key={filename}
-                  attachment={{
-                    url: '',
-                    name: filename,
-                    contentType: '',
-                  }}
-                  isUploading={true}
-                />
-              ))}
-            </GlassSurface>
+                {uploadQueue.map((filename, qIdx) => (
+                  <PreviewAttachment
+                    key={`upload-${qIdx}-${filename}`}
+                    attachment={{
+                      url: '',
+                      name: filename,
+                      contentType: '',
+                    }}
+                    isUploading={true}
+                    uploadStatusLabel="Uploading…"
+                  />
+                ))}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -3418,40 +3497,40 @@ function PureMultimodalInput({
                 `textarea-motion-${chatId}`,
               );
               if (element) {
-                // Elastic shrink animation (faster)
+                // Elastic shrink animation
                 element.animate(
                   [
                     { transform: 'scale(1)' },
-                    { transform: 'scale(0.97)' }, // Slightly more shrink for elastic feel
+                    { transform: 'scale(0.97)' },
                     { transform: 'scale(1)' },
                   ],
                   {
-                    duration: 300, // Faster duration for the physical movement
-                    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)', // Elastic bounce
+                    duration: 300,
+                    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                   },
                 );
 
-                // Shadow explosion (starts slightly later, lasts longer)
+                // Orange burst glow explosion
                 element.animate(
                   [
                     {
-                      filter: 'drop-shadow(0 0 0px rgba(255, 118, 0, 0))',
+                      filter: 'drop-shadow(0 0 0px rgba(249, 115, 22, 0))',
                       offset: 0,
                     },
                     {
-                      filter: 'drop-shadow(0 0 20px rgba(255, 118, 0, 0.6))',
-                      offset: 0.2,
+                      filter: 'drop-shadow(0 0 24px rgba(249, 115, 22, 0.9))',
+                      offset: 0.15,
                     },
                     {
-                      filter: 'drop-shadow(0 0 60px rgba(255, 118, 0, 0))',
+                      filter: 'drop-shadow(0 0 48px rgba(249, 115, 22, 0.4))',
+                      offset: 0.4,
+                    },
+                    {
+                      filter: 'drop-shadow(0 0 0px rgba(249, 115, 22, 0))',
                       offset: 1,
                     },
                   ],
-                  {
-                    duration: 800, // Slower expansion
-                    delay: 50, // Slight delay to sync with the "hit"
-                    easing: 'ease-out',
-                  },
+                  { duration: 700, delay: 30, easing: 'ease-out' },
                 );
               }
             }
@@ -3462,6 +3541,14 @@ function PureMultimodalInput({
           }}
           className={cn(
             'transition-all duration-300',
+            // Animated border trace while AI is responding
+            (status === 'streaming' || status === 'submitted') && (
+              selectedResearchMode === 'nexus'
+                ? 'input-loading-border input-loading-border-nexus'
+                : 'input-loading-border'
+            ),
+            // Finish flash when response completes
+            showFinish && 'input-finish-border',
             selectedResearchMode === 'nexus' &&
               'ring-1 ring-purple-500/40 shadow-[0_0_15px_2px_rgba(147,51,234,0.12),0_0_30px_4px_rgba(147,51,234,0.06)]',
           )}
@@ -3471,454 +3558,464 @@ function PureMultimodalInput({
             ease: [0.19, 1, 0.22, 1],
           }}
         >
-          <GlassSurface
-            width="100%"
-            height="auto"
-            borderRadius={24}
-            displace={6}
-            backgroundOpacity={0.25}
-            blur={11}
-            insetShadowIntensity={0.3}
-            className="w-full relative overflow-hidden"
-          >
-            <div
-              className={cx(
-                'grid w-full transition-all duration-200 ease-in-out',
-                // Expand layout when multiline OR when persona/profile is selected (to show indicator)
-                isMultiLine || selectedPersona || selectedProfile
-                  ? "grid-cols-[auto_1fr_auto] grid-rows-[auto_auto] [grid-template-areas:'primary_primary_primary'_'leading_footer_trailing'] gap-y-2 p-2"
-                  : "grid-cols-[auto_1fr_auto] [grid-template-areas:'leading_primary_trailing'] items-center",
-              )}
+          <div
+            className={cn(
+              'w-full relative z-[2] overflow-hidden rounded-3xl border border-zinc-200 dark:border-zinc-700/60 bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.1),0_2px_16px_0_rgba(0,0,0,0.05),inset_0_1px_0_0_rgba(255,255,255,0.6),inset_0_-1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[0_4px_16px_0_rgba(0,0,0,0.3),inset_0_1px_0_0_rgba(255,255,255,0.06),inset_0_-1px_0_0_rgba(255,255,255,0.03)] p-2',
+              isDragging && 'input-drag-swell-inner',
+            )}
             >
               <div
-                style={{ gridArea: 'primary' }}
-                className="relative w-full min-w-0"
-              >
-                <Textarea
-                  data-testid="multimodal-input"
-                  ref={textareaRef}
-                  aria-label="Message input - Type your message here, press Enter to send"
-                  aria-describedby="input-hint"
-                  placeholder={
-                    selectedMentions.length > 0
-                      ? 'Continue your message...'
-                      : 'Ask Anything...'
-                  }
-                  value={
-                    inputValueAtSubmitRef.current !== null
-                      ? inputValueAtSubmitRef.current
-                      : input
-                  }
-                  onChange={handleInputChange}
-                  onPaste={handlePaste}
-                  onDragOver={handleTextareaDragOver}
-                  onKeyDown={(event) => {
-                    // Handle @ mention dropdown navigation
-                    if (showMentions) {
-                      handleMentionKeyDown(event);
-                      return;
-                    }
-
-                    // Normal enter key handling
-                    if (
-                      event.key === 'Enter' &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault();
-
-                      if (status !== 'ready') {
-                        toast.error(
-                          'Please wait for the model to finish its response!',
-                        );
-                      } else {
-                        // Submit the form manually
-                        submitForm();
-                      }
-                    }
-                  }}
-                  className={cx(
-                    'min-h-[40px] resize-none rounded-2xl !text-base',
-                    'bg-transparent border-0 shadow-none',
-                    disableInputTransitions
-                      ? 'transition-none'
-                      : 'transition-[height,padding] duration-200 ease-in-out',
-                    'custom-scrollbar',
-                    'px-3 py-2',
-                    isDragging && 'pointer-events-none',
-                    className,
-                  )}
-                  style={{
-                    maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
-                    overflowY: 'hidden',
-                  }}
-                  rows={1}
-                  autoFocus
-                />
-              </div>
-
-              {/* Leading Area: Attach Button + Settings Menu */}
-              <div
-                style={{ gridArea: 'leading' }}
                 className={cx(
-                  'flex items-center gap-1.5 pl-2 z-20',
+                  'grid w-full transition-all duration-200 ease-in-out',
+                  // Expand layout when multiline OR when persona/profile is selected (to show indicator)
                   isMultiLine || selectedPersona || selectedProfile
-                    ? 'pb-1'
-                    : '',
+                    ? "grid-cols-[auto_1fr_auto] grid-rows-[auto_auto] [grid-template-areas:'primary_primary_primary'_'leading_footer_trailing'] gap-y-2"
+                    : "grid-cols-[auto_1fr_auto] [grid-template-areas:'leading_primary_trailing'] items-center",
                 )}
               >
-                {/* Attach Dropdown */}
-                <DropdownMenu
-                  open={isPlusDropdownOpen}
-                  onOpenChange={setIsPlusDropdownOpen}
+                <div
+                  style={{ gridArea: 'primary' }}
+                  className="relative w-full min-w-0"
                 >
-                  <DropdownMenuTrigger
-                    asChild
-                    id={`composer-attach-dropdown-trigger-${chatId}`}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        'rounded-xl p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 touch-target-sm',
-                        selectedPersonaId &&
-                          'ring-2 ring-eos-orange/30 bg-eos-orange/5',
-                      )}
-                    >
-                      <PlusIcon size={18} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    side="top"
-                    className="w-56 z-[200]"
-                    onCloseAutoFocus={(e) => e.preventDefault()}
-                    onPointerDownOutside={(e) => {
-                      // Prevent clicks inside submenus from triggering focus changes
-                      const target = e.target as HTMLElement;
+                  <Textarea
+                    data-testid="multimodal-input"
+                    ref={textareaRef}
+                    aria-label="Message input - Type your message here, press Enter to send"
+                    aria-describedby="input-hint"
+                    placeholder={
+                      selectedMentions.length > 0
+                        ? 'Continue your message…'
+                        : 'Ask anything…'
+                    }
+                    value={
+                      inputValueAtSubmitRef.current !== null
+                        ? inputValueAtSubmitRef.current
+                        : input
+                    }
+                    onChange={handleInputChange}
+                    onPaste={handlePaste}
+                    onDragOver={handleTextareaDragOver}
+                    onKeyDown={(event) => {
+                      // Handle @ mention dropdown navigation
+                      if (showMentions) {
+                        handleMentionKeyDown(event);
+                        return;
+                      }
+
+                      // Normal enter key handling
                       if (
-                        target.closest('[role="menu"]') ||
-                        target.closest('[data-radix-popper-content-wrapper]')
+                        event.key === 'Enter' &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing
                       ) {
-                        e.preventDefault();
+                        event.preventDefault();
+
+                        if (status !== 'ready') {
+                          toast.error(
+                            'Please wait for the model to finish its response!',
+                          );
+                        } else {
+                          // Submit the form manually
+                          submitForm();
+                        }
                       }
                     }}
-                  >
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault();
-                        fileInputRef.current?.click();
-                      }}
-                    >
-                      <Paperclip className="mr-2 size-4" />
-                      <span>Upload File</span>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator />
-
-                    {/* Research Mode Submenu */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        {selectedResearchMode === 'nexus' ? (
-                          <Telescope className="mr-2 size-4 text-purple-500" />
-                        ) : (
-                          <Search className="mr-2 size-4" />
-                        )}
-                        <span>Research Mode</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onResearchModeChange?.('off');
-                            }}
-                            className="gap-2"
-                          >
-                            <Search className="size-4" />
-                            <span>Standard</span>
-                            {selectedResearchMode === 'off' && (
-                              <Check className="ml-auto size-4" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onResearchModeChange?.('nexus');
-                            }}
-                            className="gap-2"
-                          >
-                            <Telescope className="size-4 text-purple-500" />
-                            <span>Nexus Research</span>
-                            {selectedResearchMode === 'nexus' && (
-                              <Check className="ml-auto size-4" />
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuSub>
-
-                    {/* AI Persona Submenu */}
-                    {onPersonaSelect && onCreatePersona && onEditPersona && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <PersonaSubmenu
-                          selectedPersonaId={selectedPersonaId}
-                          selectedProfileId={selectedProfileId}
-                          onPersonaSelect={onPersonaSelect}
-                          onCreatePersona={onCreatePersona}
-                          onEditPersona={onEditPersona}
-                          onProfileSelect={onProfileSelect}
-                          onCreateProfile={onCreateProfile}
-                          onEditProfile={onEditProfile}
-                          messages={messages}
-                          onCloseDropdown={() => setIsPlusDropdownOpen(false)}
-                        />
-                      </>
+                    className={cx(
+                      'min-h-[40px] resize-none rounded-2xl !text-base',
+                      'bg-transparent border-0 shadow-none',
+                      disableInputTransitions
+                        ? 'transition-none'
+                        : 'transition-[height,padding] duration-200 ease-in-out',
+                      'custom-scrollbar',
+                      'px-3 py-2',
+                              isDragging && 'pointer-events-none',
+                      className,
                     )}
-
-                    {/* Visibility Submenu */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        {selectedVisibilityType === 'public' ? (
-                          <GlobeIcon size={16} />
-                        ) : (
-                          <LockIcon size={16} />
-                        )}
-                        <span className="ml-2">Visibility</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setVisibilityType('private');
-                            }}
-                            className="gap-2"
-                          >
-                            <LockIcon size={16} />
-                            <span>Private</span>
-                            {selectedVisibilityType === 'private' && (
-                              <Check className="ml-auto size-4" />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setVisibilityType('public');
-                            }}
-                            className="gap-2"
-                          >
-                            <GlobeIcon size={16} />
-                            <span>Public</span>
-                            {selectedVisibilityType === 'public' && (
-                              <Check className="ml-auto size-4" />
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuSub>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Footer Area: Shows selected persona/profile indicators and other context */}
-              {(isMultiLine || selectedPersona || selectedProfile) && (
-                <div
-                  style={{ gridArea: 'footer' }}
-                  className="min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none ml-2"
-                >
-                  {/* Selected Persona Indicator */}
-                  <AnimatePresence mode="popLayout">
-                    {selectedPersona && (
-                      <motion.div
-                        key={`persona-${selectedPersona.id}`}
-                        initial={{ opacity: 0, scale: 0.9, x: -8 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, x: -8 }}
-                        transition={{
-                          type: 'spring',
-                          stiffness: 400,
-                          damping: 25,
-                        }}
-                        whileHover={{ scale: 1.02 }}
-                        className="flex-shrink-0"
-                      >
-                        <div className="group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full bg-gradient-to-r from-eos-orange/15 to-eos-orange/5 dark:from-eos-orange/25 dark:to-eos-orange/10 text-eos-orange dark:text-eos-orangeLight text-[13px] font-medium border border-eos-orange/25 dark:border-eos-orange/35 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-eos-orange/40 transition-all duration-200">
-                          <span className="flex items-center gap-1.5">
-                            {selectedPersona.iconUrl ? (
-                              <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-eos-orange/20">
-                                <Image
-                                  src={selectedPersona.iconUrl}
-                                  alt=""
-                                  width={20}
-                                  height={20}
-                                  className="object-cover w-full h-full"
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-eos-orange to-eos-orangeLight flex items-center justify-center flex-shrink-0 shadow-sm text-white">
-                                <UserIcon size={10} />
-                              </div>
-                            )}
-                            <span className="font-medium max-w-[140px] truncate">
-                              {selectedPersona.name}
-                            </span>
-                          </span>
-                          {onPersonaSelect && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onPersonaSelect(null);
-                              }}
-                              className="ml-0.5 text-eos-orange/50 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
-                              aria-label="Clear persona selection"
-                              title="Use Default EOS AI"
-                            >
-                              <X className="size-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Selected Profile Indicator */}
-                    {selectedProfile &&
-                      (() => {
-                        const theme = getProfileTheme(selectedProfile.id);
-                        const textColorClass = theme.gradient.from.replace(
-                          'from-',
-                          'text-',
-                        );
-                        return (
-                          <motion.div
-                            key={`profile-${selectedProfile.id}`}
-                            initial={{ opacity: 0, scale: 0.9, x: -8 }}
-                            animate={{ opacity: 1, scale: 1, x: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, x: -8 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 400,
-                              damping: 25,
-                              delay: 0.05,
-                            }}
-                            whileHover={{ scale: 1.02 }}
-                            className="flex-shrink-0"
-                          >
-                            <div
-                              className={cn(
-                                'group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full text-[13px] font-medium border backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-200',
-                                theme.borderColor,
-                                textColorClass,
-                                'bg-gradient-to-r from-white/80 to-white/40 dark:from-zinc-800/80 dark:to-zinc-800/40',
-                                'hover:border-opacity-60',
-                              )}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <div
-                                  className={cn(
-                                    'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 shadow-sm',
-                                    theme.iconBg,
-                                  )}
-                                >
-                                  {selectedProfile.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="font-medium max-w-[140px] truncate">
-                                  {selectedProfile.name}
-                                </span>
-                              </span>
-                              {onProfileSelect && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onProfileSelect(null);
-                                  }}
-                                  className="ml-0.5 opacity-50 hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
-                                  aria-label="Clear profile selection"
-                                  title="Remove Profile"
-                                >
-                                  <X className="size-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })()}
-                  </AnimatePresence>
+                    style={{
+                      maxHeight: `calc(${effectiveTextareaMaxVh}dvh)`,
+                      overflowY: 'hidden',
+                    }}
+                    rows={1}
+                    autoFocus
+                  />
                 </div>
-              )}
 
-              {/* Trailing Area: Voice, Stop, Send */}
-              <div
-                style={{ gridArea: 'trailing' }}
-                className={cx(
-                  'flex items-center gap-1.5 pr-2 z-20',
-                  isMultiLine || selectedPersona || selectedProfile
-                    ? 'pb-1'
-                    : '',
-                )}
-              >
-                {/* Show stop button during both thinking (submitted) and streaming phases */}
-                {(status === 'submitted' || status === 'streaming') ? (
-                  <motion.div
-                    key={`stop-${chatId}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                {/* Leading Area: Attach Button + Settings Menu */}
+                <div
+                  style={{ gridArea: 'leading' }}
+                  className={cx(
+                    'flex items-center gap-1.5 pl-2 z-20',
+                    isMultiLine || selectedPersona || selectedProfile
+                      ? 'pb-1'
+                      : '',
+                  )}
+                >
+                  <div className="flex items-center gap-0.5 rounded-full border border-zinc-200/80 bg-muted/35 p-0.5 dark:border-zinc-700/60 dark:bg-muted/25">
+                    {/* Attach Dropdown */}
+                    <DropdownMenu
+                      open={isPlusDropdownOpen}
+                      onOpenChange={setIsPlusDropdownOpen}
+                    >
+                      <DropdownMenuTrigger
+                        asChild
+                        id={`composer-attach-dropdown-trigger-${chatId}`}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            'rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/60 dark:hover:bg-zinc-800/55 transition-all duration-200 touch-target-sm',
+                            selectedPersonaId &&
+                              'ring-2 ring-eos-orange/30 bg-eos-orange/5',
+                          )}
+                        >
+                          <PlusIcon size={18} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        side="top"
+                        className="w-56 z-[200]"
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                        onPointerDownOutside={(e) => {
+                          // Prevent clicks inside submenus from triggering focus changes
+                          const target = e.target as HTMLElement;
+                          if (
+                            target.closest('[role="menu"]') ||
+                            target.closest(
+                              '[data-radix-popper-content-wrapper]',
+                            )
+                          ) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          <Paperclip className="mr-2 size-4" />
+                          <span>Upload File</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+
+                        {/* Research Mode Submenu */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            {selectedResearchMode === 'nexus' ? (
+                              <Telescope className="mr-2 size-4 text-purple-500" />
+                            ) : (
+                              <Search className="mr-2 size-4" />
+                            )}
+                            <span>Research Mode</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  onResearchModeChange?.('off');
+                                }}
+                                className="gap-2"
+                              >
+                                <Search className="size-4" />
+                                <span>Standard</span>
+                                {selectedResearchMode === 'off' && (
+                                  <Check className="ml-auto size-4" />
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  onResearchModeChange?.('nexus');
+                                }}
+                                className="gap-2"
+                              >
+                                <Telescope className="size-4 text-purple-500" />
+                                <span>Nexus Research</span>
+                                {selectedResearchMode === 'nexus' && (
+                                  <Check className="ml-auto size-4" />
+                                )}
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        {/* AI Persona Submenu */}
+                        {onPersonaSelect &&
+                          onCreatePersona &&
+                          onEditPersona && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <PersonaSubmenu
+                                selectedPersonaId={selectedPersonaId}
+                                selectedProfileId={selectedProfileId}
+                                onPersonaSelect={onPersonaSelect}
+                                onCreatePersona={onCreatePersona}
+                                onEditPersona={onEditPersona}
+                                onProfileSelect={onProfileSelect}
+                                onCreateProfile={onCreateProfile}
+                                onEditProfile={onEditProfile}
+                                messages={messages}
+                                onCloseDropdown={() =>
+                                  setIsPlusDropdownOpen(false)
+                                }
+                              />
+                            </>
+                          )}
+
+                        {/* Visibility Submenu */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            {selectedVisibilityType === 'public' ? (
+                              <GlobeIcon size={16} />
+                            ) : (
+                              <LockIcon size={16} />
+                            )}
+                            <span className="ml-2">Visibility</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setVisibilityType('private');
+                                }}
+                                className="gap-2"
+                              >
+                                <LockIcon size={16} />
+                                <span>Private</span>
+                                {selectedVisibilityType === 'private' && (
+                                  <Check className="ml-auto size-4" />
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setVisibilityType('public');
+                                }}
+                                className="gap-2"
+                              >
+                                <GlobeIcon size={16} />
+                                <span>Public</span>
+                                {selectedVisibilityType === 'public' && (
+                                  <Check className="ml-auto size-4" />
+                                )}
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+
+                {/* Footer Area: Shows selected persona/profile indicators and other context */}
+                {(isMultiLine || selectedPersona || selectedProfile) && (
+                  <div
+                    style={{ gridArea: 'footer' }}
+                    className="min-w-0 flex items-center gap-2.5 overflow-x-auto scrollbar-none ml-2"
                   >
-                    <StopButton
-                      stop={stop}
-                      setMessages={setMessages}
-                      chatId={chatId}
-                    />
-                  </motion.div>
-                ) : (
-                  <>
-                    {session?.user && (
+                    {/* Selected Persona Indicator */}
+                    <AnimatePresence mode="popLayout">
+                      {selectedPersona && (
+                        <motion.div
+                          key={`persona-${selectedPersona.id}`}
+                          initial={{ opacity: 0, scale: 0.9, x: -8 }}
+                          animate={{ opacity: 1, scale: 1, x: 0 }}
+                          exit={{ opacity: 0, scale: 0.9, x: -8 }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 400,
+                            damping: 25,
+                          }}
+                          whileHover={{ scale: 1.02 }}
+                          className="flex-shrink-0"
+                        >
+                          <div className="group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full bg-gradient-to-r from-eos-orange/15 to-eos-orange/5 dark:from-eos-orange/25 dark:to-eos-orange/10 text-eos-orange dark:text-eos-orangeLight text-[13px] font-medium border border-eos-orange/25 dark:border-eos-orange/35 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-eos-orange/40 transition-all duration-200">
+                            <span className="flex items-center gap-1.5">
+                              {selectedPersona.iconUrl ? (
+                                <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-eos-orange/20">
+                                  <Image
+                                    src={selectedPersona.iconUrl}
+                                    alt=""
+                                    width={20}
+                                    height={20}
+                                    className="object-cover w-full h-full"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-eos-orange to-eos-orangeLight flex items-center justify-center flex-shrink-0 shadow-sm text-white">
+                                  <UserIcon size={10} />
+                                </div>
+                              )}
+                              <span className="font-medium max-w-[140px] truncate">
+                                {selectedPersona.name}
+                              </span>
+                            </span>
+                            {onPersonaSelect && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onPersonaSelect(null);
+                                }}
+                                className="ml-0.5 text-eos-orange/50 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
+                                aria-label="Clear persona selection"
+                                title="Use Default EOS AI"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Selected Profile Indicator */}
+                      {selectedProfile &&
+                        (() => {
+                          const theme = getProfileTheme(selectedProfile.id);
+                          const textColorClass = theme.gradient.from.replace(
+                            'from-',
+                            'text-',
+                          );
+                          return (
+                            <motion.div
+                              key={`profile-${selectedProfile.id}`}
+                              initial={{ opacity: 0, scale: 0.9, x: -8 }}
+                              animate={{ opacity: 1, scale: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, x: -8 }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 400,
+                                damping: 25,
+                                delay: 0.05,
+                              }}
+                              whileHover={{ scale: 1.02 }}
+                              className="flex-shrink-0"
+                            >
+                              <div
+                                className={cn(
+                                  'group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full text-[13px] font-medium border backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-200',
+                                  theme.borderColor,
+                                  textColorClass,
+                                  'bg-gradient-to-r from-white/80 to-white/40 dark:from-zinc-800/80 dark:to-zinc-800/40',
+                                  'hover:border-opacity-60',
+                                )}
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <div
+                                    className={cn(
+                                      'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 shadow-sm',
+                                      theme.iconBg,
+                                    )}
+                                  >
+                                    {selectedProfile.name
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </div>
+                                  <span className="font-medium max-w-[140px] truncate">
+                                    {selectedProfile.name}
+                                  </span>
+                                </span>
+                                {onProfileSelect && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onProfileSelect(null);
+                                    }}
+                                    className="ml-0.5 opacity-50 hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 rounded-full transition-all duration-150 p-1 -mr-0.5 hover:bg-red-500/10 dark:hover:bg-red-500/20"
+                                    aria-label="Clear profile selection"
+                                    title="Remove Profile"
+                                  >
+                                    <X className="size-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </motion.div>
+                          );
+                        })()}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {/* Trailing Area: Voice, Stop, Send */}
+                <div
+                  style={{ gridArea: 'trailing' }}
+                  className={cx(
+                    'flex items-center gap-1.5 pr-2 z-20',
+                    isMultiLine || selectedPersona || selectedProfile
+                      ? 'pb-1'
+                      : '',
+                  )}
+                >
+                  {/* Show stop button during both thinking (submitted) and streaming phases */}
+                  {status === 'submitted' || status === 'streaming' ? (
+                    <motion.div
+                      key={`stop-${chatId}`}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                    >
+                      <StopButton
+                        stop={stop}
+                        setMessages={setMessages}
+                        chatId={chatId}
+                      />
+                    </motion.div>
+                  ) : (
+                    <>
+                      {session?.user && (
+                        <motion.div
+                          key={`voice-${chatId}`}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                        >
+                          <VoiceFAB
+                            variant="inline"
+                            size="sm"
+                            selectedModelId={selectedModelId}
+                            selectedProviderId={selectedProviderId}
+                            selectedPersonaId={selectedPersonaId || undefined}
+                            selectedProfileId={selectedProfileId || undefined}
+                            chatId={chatId}
+                            onAppendMessage={append}
+                            onUpdateMessages={setMessages}
+                          />
+                        </motion.div>
+                      )}
+                      <div
+                        className="mx-0.5 hidden h-8 w-px shrink-0 bg-border sm:block"
+                        aria-hidden
+                      />
                       <motion.div
-                        key={`voice-${chatId}`}
+                        key={`send-${chatId}`}
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                       >
-                        <VoiceFAB
-                          variant="inline"
-                          size="sm"
-                          selectedModelId={selectedModelId}
-                          selectedProviderId={selectedProviderId}
-                          selectedPersonaId={selectedPersonaId || undefined}
-                          selectedProfileId={selectedProfileId || undefined}
-                          chatId={chatId}
-                          onAppendMessage={append}
-                          onUpdateMessages={setMessages}
+                        <SendButton
+                          input={input}
+                          submitForm={submitForm}
+                          uploadQueue={uploadQueue}
+                          attachmentsCount={attachmentsCount}
+                          pdfCount={pdfCount}
+                          docCount={docCount}
+                          audioCount={audioCount}
+                          audioProcessing={audioProcessing}
+                          handleSubmit={handleSubmit}
+                          attachments={attachments}
                         />
                       </motion.div>
-                    )}
-                    <motion.div
-                      key={`send-${chatId}`}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                    >
-                      <SendButton
-                        input={input}
-                        submitForm={submitForm}
-                        uploadQueue={uploadQueue}
-                        attachmentsCount={attachmentsCount}
-                        pdfCount={pdfCount}
-                        docCount={docCount}
-                        audioCount={audioCount}
-                        audioProcessing={audioProcessing}
-                        handleSubmit={handleSubmit}
-                        attachments={attachments}
-                      />
-                    </motion.div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </GlassSurface>
         </motion.div>
 
         {/* Predictive suggestions list - positioned BELOW the textarea */}
@@ -3931,10 +4028,10 @@ function PureMultimodalInput({
                   initial={{ opacity: 0, filter: 'blur(4px)' }}
                   animate={{ opacity: 1, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, filter: 'blur(4px)' }}
-                  transition={{ 
-                    duration: 0.2, 
+                  transition={{
+                    duration: 0.2,
                     delay: index * 0.05,
-                    ease: 'easeOut'
+                    ease: 'easeOut',
                   }}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -3942,42 +4039,50 @@ function PureMultimodalInput({
                     // Smart fill behavior for prediction completion
                     const current = (input || '').trimEnd();
                     const remainder = p.trim();
-                    
+
                     // Determine the best way to join the current input with the prediction
                     let finalText = current;
-                    
+
                     // Check if current input ends with a partial word (no space at end)
                     const lastSpaceIndex = current.lastIndexOf(' ');
-                    const lastWord = lastSpaceIndex === -1 ? current : current.slice(lastSpaceIndex + 1);
+                    const lastWord =
+                      lastSpaceIndex === -1
+                        ? current
+                        : current.slice(lastSpaceIndex + 1);
                     const remainderFirstWord = remainder.split(/\s+/)[0] || '';
-                    
+
                     // Check if the remainder starts with the partial word (case-insensitive)
                     // If so, replace the partial word with the full completion
-                    const partialMatch = 
-                      lastWord.length > 0 && 
-                      lastWord.length < 4 && 
-                      remainderFirstWord.toLowerCase().startsWith(lastWord.toLowerCase());
-                    
+                    const partialMatch =
+                      lastWord.length > 0 &&
+                      lastWord.length < 4 &&
+                      remainderFirstWord
+                        .toLowerCase()
+                        .startsWith(lastWord.toLowerCase());
+
                     if (partialMatch) {
                       // Replace partial word with completion
-                      const baseText = lastSpaceIndex === -1 ? '' : current.slice(0, lastSpaceIndex + 1);
+                      const baseText =
+                        lastSpaceIndex === -1
+                          ? ''
+                          : current.slice(0, lastSpaceIndex + 1);
                       finalText = baseText + remainder;
                     } else {
                       // Normal append with smart spacing
-                      const needsSpace = 
-                        current.length > 0 && 
-                        !current.endsWith(' ') && 
+                      const needsSpace =
+                        current.length > 0 &&
+                        !current.endsWith(' ') &&
                         !remainder.startsWith(' ') &&
                         !/^[.,!?;:]/.test(remainder); // Don't add space before punctuation
-                      
+
                       finalText = current + (needsSpace ? ' ' : '') + remainder;
                     }
-                    
+
                     setInput(finalText);
                     setShowPredictions(false);
                     setPredictions([]);
                     textareaRef.current?.focus();
-                    
+
                     // Track prediction usage for ranking
                     try {
                       await fetch('/api/predictions/rank', {
@@ -4010,7 +4115,8 @@ function PureMultimodalInput({
                 label="Uploads"
                 used={uploadsUsed}
                 limit={uploadLimit}
-                title="Context uploads used today"
+                title="Free plan: uploads and context files count toward this limit (hover for detail)."
+                tooltipDescription="Counts files you attach in chat and items added as context (e.g. pulled into a conversation). Resets per your plan; upgrade for higher caps."
               />
             )}
           </div>
@@ -4071,73 +4177,6 @@ export const MultimodalInput: React.FC<
     <MemoizedMultimodalInput {...props} />
   </ErrorBoundary>
 );
-
-function PureAttachmentsButton({
-  fileInputRef,
-  status,
-}: {
-  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: ChatStatus;
-}) {
-  return (
-    <Button
-      data-testid="attachments-button"
-      className="rounded-xl p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-all duration-200 touch-target-sm"
-      onClick={(event) => {
-        event.preventDefault();
-        fileInputRef.current?.click();
-      }}
-      disabled={status !== 'ready'}
-      variant="ghost"
-      aria-label="Attach files"
-    >
-      <Paperclip className="size-4 text-muted-foreground" aria-hidden="true" />
-    </Button>
-  );
-}
-
-const AttachmentsButton = memo(PureAttachmentsButton);
-
-function UsageChip({
-  label,
-  used,
-  limit,
-  title,
-}: {
-  label: string;
-  used: number;
-  limit: number | null;
-  title?: string;
-}) {
-  const openUpgradeModal = useUpgradeStore((state) => state.openModal);
-
-  if (!limit || limit <= 0) return null;
-
-  const isExceeded = used >= limit;
-  const ratio = limit > 0 ? used / limit : 0;
-  const isApproaching = !isExceeded && ratio >= 0.8;
-
-  return (
-    <Badge
-      variant="outline"
-      title={title ?? `${label} usage ${used}/${limit}`}
-      onClick={() => openUpgradeModal('premium')}
-      className={cx(
-        'flex h-6 cursor-pointer items-center gap-1 rounded-full border border-muted-foreground/30 bg-muted/70 px-2 text-xs font-medium tabular-nums transition-opacity hover:opacity-80',
-        isApproaching && 'border-amber-200 bg-amber-100 text-amber-900',
-        isExceeded &&
-          'border-destructive/40 bg-destructive/10 text-destructive',
-      )}
-    >
-      <span className="text-[11px] font-semibold tracking-tight text-muted-foreground/80">
-        {label}
-      </span>
-      <span className="tabular-nums">
-        {used}/{limit}
-      </span>
-    </Badge>
-  );
-}
 
 function PureStopButton({
   stop,
@@ -4240,19 +4279,23 @@ function PureSendButton({
     docCount === 0 &&
     audioCount === 0;
   const isDisabled = nothingToSend || uploadQueue.length > 0 || audioProcessing;
+  const [isBursting, setIsBursting] = useState(false);
 
   return (
     <Button
       data-testid="send-button"
       className={cx(
-        'rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center transition-all duration-200 shadow-sm touch-target-sm',
+        'relative rounded-full p-2 h-10 w-10 flex items-center justify-center transition-all duration-200 touch-target-sm',
         isDisabled
-          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 cursor-not-allowed'
-          : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md hover:scale-105 active:scale-95',
+          ? 'border border-zinc-200 bg-zinc-100 text-zinc-400 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed'
+          : 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30 hover:bg-primary/90 hover:shadow-lg hover:ring-primary/45 active:scale-[0.97]',
+        isBursting && 'send-burst',
       )}
       onClick={(event) => {
         event.preventDefault();
         if (!isDisabled) {
+          setIsBursting(true);
+          setTimeout(() => setIsBursting(false), 420);
           submitForm();
         }
       }}

@@ -50,7 +50,7 @@ const circleNativePayloadSchema = z.object({
 });
 
 type JsonRecord = Record<string, unknown>;
-type CircleSyncSource = 'webhook' | 'nightly_reconciliation';
+type CircleSyncSource = 'webhook' | 'nightly_reconciliation' | 'manual';
 
 export type CircleSyncAction =
   | 'created_user'

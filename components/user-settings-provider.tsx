@@ -28,7 +28,6 @@ interface UserSettings {
   notificationsEnabled?: boolean;
   autocompleteEnabled?: boolean;
   disableGlassEffects?: boolean;
-  disableEosGradient?: boolean;
 }
 
 interface UserSettingsContextType {
@@ -45,7 +44,6 @@ const defaultSettings: UserSettings = {
   timezone: 'UTC',
   fontSize: 'medium',
   disableGlassEffects: true,
-  disableEosGradient: true,
 };
 
 const UserSettingsContext = createContext<UserSettingsContextType | undefined>(

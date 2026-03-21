@@ -107,8 +107,6 @@ export default async function RootLayout({
       lang="en"
       suppressHydrationWarning
       className={`${montserrat.variable} ${robotoCondensed.variable} ${geistMono.variable} ${geist.variable}`}
-      data-glass-effects="disabled"
-      data-eos-gradients="disabled"
     >
       <head>
         {(process.env.NODE_ENV === 'development' ||

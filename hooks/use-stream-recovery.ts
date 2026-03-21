@@ -171,6 +171,9 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
       return;
     }
 
+    let emptyPollCount = 0;
+    const MAX_EMPTY_POLLS = 6; // Give up after 6 consecutive empty responses (~3s)
+
     // Start polling for new chunks
     const pollForChunks = async () => {
       try {
@@ -224,12 +227,23 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
 
         if (!response.ok) {
           console.error('[StreamRecovery] Poll failed:', response.status);
+          emptyPollCount++;
+          if (emptyPollCount >= MAX_EMPTY_POLLS) {
+            console.log('[StreamRecovery] Too many failed polls, giving up');
+            setRecoveryState((prev) =>
+              prev ? { ...prev, isActive: false } : null,
+            );
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+          }
           return;
         }
 
         const state: StreamRecoveryState = await response.json();
 
-        // Check if stream has completed
+        // Check if stream has completed or is no longer recoverable
         if (!state.isActive || state.status !== 'active') {
           console.log('[StreamRecovery] Stream completed, stopping poll');
           setRecoveryState(state);
@@ -253,6 +267,23 @@ export function useStreamRecovery(chatId: string): UseStreamRecoveryReturn {
             setRecoveredChunks((prev) => [...prev, ...newChunks]);
             lastSeqRef.current =
               Math.max(...state.chunks.map((c) => c.seq)) + 1;
+            emptyPollCount = 0; // Reset counter on new chunks
+          } else {
+            emptyPollCount++;
+          }
+        } else {
+          emptyPollCount++;
+          if (emptyPollCount >= MAX_EMPTY_POLLS) {
+            console.log(
+              '[StreamRecovery] No new chunks after multiple polls, stream appears dead — giving up',
+            );
+            setRecoveryState((prev) =>
+              prev ? { ...prev, isActive: false, status: 'interrupted' } : null,
+            );
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
           }
         }
       } catch (err) {
@@ -320,10 +351,10 @@ export function applyRecoveredChunks(
       );
     }
 
-    // Handle AI SDK 5 text-delta chunks (from toUIMessageStream)
-    // AI SDK 5 uses 'delta' property for text-delta chunks
-    if (chunkData?.type === 'text-delta') {
-      // Try 'delta' first (AI SDK 5 format), then fallbacks
+    // Handle streamed text chunks.
+    // Deep research currently writes chunks as { type: 'text', text } while the
+    // regular AI SDK path uses { type: 'text-delta', delta }. Support both.
+    if (chunkData?.type === 'text-delta' || chunkData?.type === 'text') {
       const text =
         (chunkData.delta as string) ||
         (chunkData.textDelta as string) ||
@@ -341,7 +372,7 @@ export function applyRecoveredChunks(
       } else {
         // Log unexpected structure with all keys
         console.warn(
-          `[StreamRecovery] text-delta chunk ${i} has no recognized text property. Keys:`,
+          `[StreamRecovery] text/text-delta chunk ${i} has no recognized text property. Keys:`,
           Object.keys(chunkData),
           'Values:',
           chunkData,

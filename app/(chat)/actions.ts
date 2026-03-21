@@ -25,26 +25,37 @@ export async function generateTitleFromUserMessage({
 }: {
   message: UIMessage;
 }) {
-  // Get the current provider from cookies
   const cookieStore = await cookies();
   const providerFromCookie = cookieStore.get('ai-provider');
   const selectedProvider = providerFromCookie?.value || DEFAULT_PROVIDER;
 
-  // Create the provider based on the cookie value
-  const provider = createCustomProvider(selectedProvider);
-
-  const { text: title } = await generateText({
-    model: provider.languageModel('title-model'),
-    system: `You generate short chat titles. Rules:
+  const system = `You generate short chat titles. Rules:
 - Output ONLY the title text, nothing else
 - Maximum 80 characters
 - No quotes, colons, or explanations
 - If the message is a simple greeting like "hi" or "hello", title it as "New Conversation"
-- Summarize the user's intent or topic concisely`,
-    prompt: JSON.stringify(message),
-  });
+- Summarize the user's intent or topic concisely`;
 
-  return title;
+  // Try the user's selected provider first, then fall back to openai
+  const providersToTry = selectedProvider === 'openai'
+    ? ['openai']
+    : [selectedProvider, 'openai'];
+
+  for (const providerName of providersToTry) {
+    try {
+      const provider = createCustomProvider(providerName);
+      const { text: title } = await generateText({
+        model: provider.languageModel('title-model'),
+        system,
+        prompt: JSON.stringify(message),
+      });
+      return title;
+    } catch {
+      // Try next provider
+    }
+  }
+
+  return 'New Conversation';
 }
 
 export async function deleteTrailingMessages({ id }: { id: string }) {

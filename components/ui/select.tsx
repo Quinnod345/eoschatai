@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import GlassSurface from '@/components/GlassSurface';
+
 
 // Animation variants for select content
 const selectContentVariants = {
@@ -162,7 +162,7 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          'relative z-select max-h-[400px] min-w-[8rem] overflow-hidden rounded-lg text-popover-foreground',
+          'relative z-select max-h-[400px] min-w-[8rem] overflow-hidden rounded-lg text-popover-foreground bg-popover',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className,
@@ -175,16 +175,6 @@ const SelectContent = React.forwardRef<
         sideOffset={5}
         {...props}
       >
-        <GlassSurface
-          width="100%"
-          height="100%"
-          borderRadius={8}
-          displace={2}
-          backgroundOpacity={0.2}
-          blur={10}
-          insetShadowIntensity={0.4}
-          isBackdrop={true}
-        />
         <motion.div
           initial="closed"
           animate="open"

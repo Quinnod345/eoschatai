@@ -140,7 +140,7 @@ const BASE_FEATURES: Record<PlanType, FeatureEntitlements> = {
   },
 };
 
-const ENTITLEMENTS_CACHE_TTL_SECONDS = 60 * 10; // 10 minutes
+const ENTITLEMENTS_CACHE_TTL_SECONDS = 60; // 60 seconds — short enough that plan changes propagate quickly
 
 const DEEP_RESEARCH_REFILL_MS = 20_000;
 const DEEP_RESEARCH_BUCKET_TTL_MS = 5 * 60 * 1000;

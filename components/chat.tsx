@@ -14,7 +14,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
-import { fetcher, generateUUID } from '@/lib/utils';
+import { fetcher, generateUUID, cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
@@ -116,15 +116,15 @@ export function Chat({
   // Add research mode state with proper validation
   const [selectedResearchMode, setSelectedResearchMode] =
     useState<ResearchMode>(() => {
-      // Validate and sanitize initial research mode
       const validMode = initialResearchMode === 'nexus' ? 'nexus' : 'off';
-      console.log('[Chat] Initializing research mode:', {
-        initialResearchMode,
-        validatedMode: validMode,
-        chatId: id,
-      });
       return validMode;
     });
+
+  // Ref so the transport closure always reads the latest mode without stale capture
+  const selectedResearchModeRef = useRef(selectedResearchMode);
+  useEffect(() => {
+    selectedResearchModeRef.current = selectedResearchMode;
+  }, [selectedResearchMode]);
 
   // Add loading state for research mode changes
   const [researchModeChanging, setResearchModeChanging] = useState(false);
@@ -304,44 +304,16 @@ export function Chat({
         id,
         message: chatMessages.at(-1),
         selectedChatModel: activeModel,
-        selectedProvider: activeProvider, // Use the current active provider
+        selectedProvider: activeProvider,
         selectedVisibilityType: visibilityType,
         selectedPersonaId: selectedPersonaId,
         selectedProfileId: selectedProfileId,
-        selectedResearchMode: selectedResearchMode,
+        selectedResearchMode: selectedResearchModeRef.current,
         composerDocumentId:
           composer?.isVisible && composer?.documentId
             ? composer.documentId
             : undefined,
       };
-
-      console.log('[Chat] Request body prepared with research mode:', {
-        chatId: id,
-        selectedResearchMode: selectedResearchMode,
-        researchModeInBody: requestBody.selectedResearchMode,
-        initialResearchMode: initialResearchMode,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Enhanced composer debugging
-      console.log('[ARTIFACT DEBUG] Request body composer info:', {
-        composerState: {
-          isVisible: composer?.isVisible,
-          documentId: composer?.documentId,
-          kind: composer?.kind,
-          status: composer?.status,
-          title: composer?.title,
-        },
-        composerDocumentId: requestBody.composerDocumentId,
-        wasIncluded: !!requestBody.composerDocumentId,
-      });
-
-      console.log('PERSONA_CLIENT: Full request body:', {
-        chatId: id,
-        requestBody: requestBody,
-        personaIncluded: !!requestBody.selectedPersonaId,
-        profileIncluded: !!requestBody.selectedProfileId,
-      });
 
       const personasEntitlement =
         useAccountStore.getState().entitlements?.features?.personas?.custom;
@@ -702,6 +674,28 @@ export function Chat({
     );
 
     try {
+      // Also process any data events (deep research progress, etc.) from recovered chunks
+      for (const chunk of newChunks) {
+        const c = chunk as Record<string, unknown>;
+        if (c && typeof c.type === 'string' && c.type.startsWith('data-')) {
+          const inner = (c.data ?? c) as Record<string, unknown>;
+          if (inner && typeof inner.type === 'string') {
+            handleStreamEvent(inner);
+          }
+        }
+        // Also handle direct data events stored without wrapper
+        if (c && typeof c.type === 'string' &&
+          (c.type === 'deep-research-progress' ||
+           c.type === 'deep-research-complete' ||
+           c.type === 'nexus-mode-active' ||
+           c.type === 'deep-research-citations' ||
+           c.type === 'deep-research-error' ||
+           c.type === 'nexus-followup-questions' ||
+           c.type === 'nexus-complete-response')) {
+          handleStreamEvent(c);
+        }
+      }
+
       // Apply the new chunks to messages
       applyRecoveredChunks(newChunks, setMessages);
       appliedChunkCountRef.current = recoveredChunks.length;
@@ -713,7 +707,6 @@ export function Chat({
         // Recover composer state if available
         const composerState = getRecoveredComposerState(recoveryState);
         if (composerState) {
-          console.log('[Chat] Recovering composer state:', composerState);
           setComposer((prev) => ({
             ...prev,
             documentId: composerState.documentId,
@@ -726,11 +719,7 @@ export function Chat({
         }
 
         // Show recovery notification
-        if (recoveryState?.status === 'interrupted') {
-          toast.info(
-            'Previous response was interrupted. Content has been recovered.',
-          );
-        } else if (recoveryState?.status === 'active') {
+        if (recoveryState?.status === 'active') {
           toast.info('Reconnecting to active stream...');
         }
       }
@@ -749,6 +738,7 @@ export function Chat({
     clearRecoveryState,
     setMessages,
     setComposer,
+    handleStreamEvent,
   ]);
 
   // Reset recovery tracking when chat ID changes
@@ -832,6 +822,101 @@ export function Chat({
   // Track processed Nexus events to avoid duplicates
   const processedEventsRef = useRef<Set<string>>(new Set());
 
+  function handleStreamEvent(item: any) {
+    if (!item || typeof item !== 'object' || !('type' in item)) return;
+
+    // Keep web-search progress state in sync
+    processDataStreamMessage(item);
+
+    const eventType = item.type as string;
+
+    switch (eventType) {
+      case 'nexus-mode-active':
+        setIsNexusResearching(true);
+        setDeepResearchPhase('planning');
+        setDeepResearchMessage('Starting deep research...');
+        setDeepResearchProgress(0);
+        setDeepResearchSourceCount(0);
+        break;
+      case 'deep-research-progress': {
+        setIsNexusResearching(true);
+        const phase = item.phase || item.detail?.phase || 'searching';
+        const message = item.message || 'Researching...';
+        const progress = item.overallProgress || 0;
+        setDeepResearchPhase(phase);
+        setDeepResearchMessage(message);
+        setDeepResearchProgress(progress);
+        if (item.detail?.sourcesFound !== undefined) {
+          setDeepResearchSourceCount(item.detail.sourcesFound);
+        } else if (item.detail?.totalSources !== undefined) {
+          setDeepResearchSourceCount(item.detail.totalSources);
+        }
+        if (item.detail?.currentQuery) {
+          setCurrentNexusQuery(item.detail.currentQuery);
+        }
+        break;
+      }
+      case 'deep-research-citations':
+        if (item.citations) {
+          setNexusCitations(
+            item.citations.map((c: any) => ({
+              number: c.index,
+              title: c.title,
+              url: c.url,
+            })),
+          );
+        }
+        break;
+      case 'deep-research-complete':
+        setDeepResearchPhase('complete');
+        setDeepResearchMessage(
+          `Research complete: ${item.totalSources || 0} sources, ${item.totalSearches || 0} searches`,
+        );
+        setDeepResearchProgress(100);
+        break;
+      case 'deep-research-error':
+        setDeepResearchPhase('error');
+        setDeepResearchMessage(`Research error: ${item.error}`);
+        break;
+      case 'nexus-search-progress':
+        setIsNexusResearching(true);
+        setCurrentNexusQuery(item.query || 'Searching...');
+        break;
+      case 'nexus-followup-questions':
+        setFollowUpQuestions(item.questions || []);
+        break;
+      case 'nexus-complete-response':
+        if (item.content) {
+          setMessages((prevMessages) => {
+            const lastAssistantIndex = prevMessages.findLastIndex(
+              (m) => m.role === 'assistant',
+            );
+
+            if (lastAssistantIndex !== -1) {
+              const updatedMessages = [...prevMessages];
+              updatedMessages[lastAssistantIndex] = {
+                ...updatedMessages[lastAssistantIndex],
+                parts: [{ type: 'text', text: item.content }],
+              };
+              return updatedMessages;
+            }
+
+            return [
+              ...prevMessages,
+              {
+                id: generateUUID(),
+                role: 'assistant',
+                content: item.content,
+                parts: [{ type: 'text', text: item.content }],
+                createdAt: new Date(),
+              },
+            ];
+          });
+        }
+        break;
+    }
+  }
+
   // Handle Nexus search progress events from data stream
   useEffect(() => {
     if (!data || data.length === 0) return;
@@ -845,71 +930,9 @@ export function Chat({
       if (processedEventsRef.current.has(eventKey)) return;
       processedEventsRef.current.add(eventKey);
 
-      const eventType = item.type as string;
-
-      // Handle Nexus / Deep Research events
-      switch (eventType) {
-        case 'nexus-mode-active':
-          console.log('[Chat] Deep research mode activated');
-          setIsNexusResearching(true);
-          setDeepResearchPhase('planning');
-          setDeepResearchMessage('Starting deep research...');
-          setDeepResearchProgress(0);
-          setDeepResearchSourceCount(0);
-          break;
-        case 'deep-research-progress': {
-          setIsNexusResearching(true);
-          const phase = item.phase || item.detail?.phase || 'searching';
-          const message = item.message || 'Researching...';
-          const progress = item.overallProgress || 0;
-          setDeepResearchPhase(phase);
-          setDeepResearchMessage(message);
-          setDeepResearchProgress(progress);
-          // Extract source count from detail
-          if (item.detail?.sourcesFound !== undefined) {
-            setDeepResearchSourceCount(item.detail.sourcesFound);
-          } else if (item.detail?.totalSources !== undefined) {
-            setDeepResearchSourceCount(item.detail.totalSources);
-          }
-          if (item.detail?.currentQuery) {
-            setCurrentNexusQuery(item.detail.currentQuery);
-          }
-          console.log('[Chat] Deep research progress:', { phase, message, progress });
-          break;
-        }
-        case 'deep-research-citations':
-          console.log('[Chat] Deep research citations received:', item.citations?.length);
-          if (item.citations) {
-            setNexusCitations(item.citations.map((c: any) => ({
-              number: c.index,
-              title: c.title,
-              url: c.url,
-            })));
-          }
-          break;
-        case 'deep-research-complete':
-          console.log('[Chat] Deep research complete:', item);
-          setDeepResearchPhase('complete');
-          setDeepResearchMessage(`Research complete: ${item.totalSources || 0} sources, ${item.totalSearches || 0} searches`);
-          setDeepResearchProgress(100);
-          break;
-        case 'deep-research-error':
-          console.error('[Chat] Deep research error:', item.error);
-          setDeepResearchPhase('error');
-          setDeepResearchMessage(`Research error: ${item.error}`);
-          break;
-        // Legacy nexus events (backward compat)
-        case 'nexus-search-progress':
-          setIsNexusResearching(true);
-          setCurrentNexusQuery(item.query || 'Searching...');
-          break;
-        case 'nexus-followup-questions':
-          console.log('[Chat] Follow-up questions received:', item.questions);
-          setFollowUpQuestions(item.questions || []);
-          break;
-      }
+      handleStreamEvent(item);
     });
-  }, [data]);
+  }, [data, handleStreamEvent]);
 
   // Clear Nexus / Deep Research state when streaming completes
   useEffect(() => {
@@ -926,49 +949,6 @@ export function Chat({
       return () => clearTimeout(timer);
     }
   }, [status]);
-
-  // Process data stream for web search events
-  useEffect(() => {
-    if (!data) return;
-
-    // Process each data item in the stream
-    data.forEach((item: any) => {
-      processDataStreamMessage(item);
-
-      // Handle nexus complete response
-      if (item.type === 'nexus-complete-response' && item.content) {
-        console.log('[Chat] Nexus complete response received');
-
-        // Find the last assistant message and update it with the complete content
-        setMessages((prevMessages) => {
-          const lastAssistantIndex = prevMessages.findLastIndex(
-            (m) => m.role === 'assistant',
-          );
-
-          if (lastAssistantIndex !== -1) {
-            const updatedMessages = [...prevMessages];
-            updatedMessages[lastAssistantIndex] = {
-              ...updatedMessages[lastAssistantIndex],
-              parts: [{ type: 'text', text: item.content }],
-            };
-            return updatedMessages;
-          }
-
-          // If no assistant message exists, create one
-          return [
-            ...prevMessages,
-            {
-              id: generateUUID(),
-              role: 'assistant',
-              content: item.content,
-              parts: [{ type: 'text', text: item.content }],
-              createdAt: new Date(),
-            },
-          ];
-        });
-      }
-    });
-  }, [data, processDataStreamMessage]);
 
   // Listen for provider change events
   useEffect(() => {
@@ -1986,41 +1966,16 @@ export function Chat({
     // Dashboard param is consumed by dashboard UI component; no-op here.
   }, [setComposer]);
 
-  // Handle research mode changes and save to user settings
+  // Handle research mode changes (session-only — not persisted to DB)
   const handleResearchModeChange = useCallback(
     (mode: ResearchMode) => {
-      console.log('[Chat] handleResearchModeChange called:', {
-        currentMode: selectedResearchMode,
-        newMode: mode,
-        chatId: id,
-      });
-
-      // Prevent unnecessary updates
-      if (mode === selectedResearchMode) {
-        console.log('[Chat] Research mode unchanged, skipping update', mode);
-        return;
-      }
+      if (mode === selectedResearchMode) return;
 
       setResearchModeChanging(true);
       setSelectedResearchMode(mode);
-
-      // Update user preference in the database
-      fetch('/api/user-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedResearchMode: mode }),
-      })
-        .then(() => {
-          console.log('[Chat] Research mode saved to database:', mode);
-        })
-        .catch((error) => {
-          console.error('[Chat] Failed to save research mode:', error);
-        })
-        .finally(() => {
-          setResearchModeChanging(false);
-        });
+      setTimeout(() => setResearchModeChanging(false), 300);
     },
-    [selectedResearchMode, id],
+    [selectedResearchMode],
   );
 
   // Auto-submit pending message
@@ -2094,9 +2049,80 @@ export function Chat({
     }
   }, [shouldAnimatePosition]);
 
+  // ─── First-send energy sequence ──────────────────────────────────────────
+  // idle → orb (input travels) → impact (lands at bottom) → tracing (ongoing)
+  type FirstSendPhase = 'idle' | 'orb' | 'impact' | 'tracing';
+  const [firstSendPhase, setFirstSendPhase] = useState<FirstSendPhase>('idle');
+  const firstSendFiredRef = useRef(false);
+
+  useEffect(() => {
+    // Only trigger for the very first message of a new chat (input was centered)
+    if (
+      firstSendFiredRef.current ||
+      messages.length !== 1 ||
+      !isNewChatRef.current ||
+      (status !== 'submitted' && status !== 'streaming')
+    ) return;
+
+    firstSendFiredRef.current = true;
+    setFirstSendPhase('orb');
+
+    // Spring settles in ~700ms. Give a 150ms beat after landing before the traces begin.
+    const impactTimer = setTimeout(() => {
+      setFirstSendPhase('impact');
+      // Traces take 2.8s — transition to ongoing ambient trace after they finish
+      const traceTimer = setTimeout(() => {
+        setFirstSendPhase('tracing');
+      }, 2900);
+      return () => clearTimeout(traceTimer);
+    }, 850);
+
+    return () => clearTimeout(impactTimer);
+  }, [messages.length, status]);
+
+  // When AI finishes, clear the trace state
+  useEffect(() => {
+    if (status === 'ready' && firstSendPhase === 'tracing') {
+      setFirstSendPhase('idle');
+    }
+  }, [status, firstSendPhase]);
+
   return (
     <ErrorBoundary context="Chat">
-      <div className="flex flex-col min-w-0 h-dvh bg-transparent relative">
+      <div
+        className={cn(
+          'flex flex-col min-w-0 h-dvh bg-transparent relative',
+          (firstSendPhase === 'tracing' ||
+            (firstSendPhase !== 'impact' && firstSendPhase !== 'orb' &&
+             (status === 'streaming' || status === 'submitted') &&
+             messages.length > 1)) && (
+            selectedResearchMode === 'nexus'
+              ? 'chat-frame-trace chat-frame-trace-nexus'
+              : 'chat-frame-trace'
+          ),
+        )}
+      >
+        {/* Impact traces — two comets starting at the bottom going opposite ways */}
+        {firstSendPhase === 'impact' && (
+          <>
+            <div
+              aria-hidden
+              className={cn(
+                'chat-impact-trace-right pointer-events-none',
+                selectedResearchMode === 'nexus' && 'chat-impact-trace-nexus',
+              )}
+            />
+            <div
+              aria-hidden
+              className={cn(
+                'chat-impact-trace-left pointer-events-none',
+                selectedResearchMode === 'nexus' && 'chat-impact-trace-nexus',
+              )}
+            />
+            <div aria-hidden className="chat-impact-floor pointer-events-none" />
+          </>
+        )}
+
         <ChatHeader
           chatId={id}
           selectedModelId={activeModel}
@@ -2174,6 +2200,10 @@ export function Chat({
             onStartReply={startReply}
             onRetry={handleRetry}
             dataStream={data}
+            deepResearchPhase={deepResearchPhase}
+            deepResearchMessage={deepResearchMessage}
+            deepResearchProgress={deepResearchProgress}
+            deepResearchSourceCount={deepResearchSourceCount}
           />
         </ErrorBoundary>
 
@@ -2256,6 +2286,16 @@ export function Chat({
           }
           className="absolute left-0 right-0 flex flex-col mx-auto px-3 md:px-4 bg-transparent pb-4 md:pb-6 pt-2 w-full md:max-w-3xl z-10 safe-area-bottom"
         >
+          {/* Energy orb — glows beneath the input as it travels to the bottom on first send */}
+          {firstSendPhase === 'orb' && (
+            <div
+              aria-hidden
+              className={cn(
+                'chat-energy-orb pointer-events-none',
+                selectedResearchMode === 'nexus' && 'chat-energy-orb-nexus',
+              )}
+            />
+          )}
           {/* Reply Indicator */}
           <AnimatePresence initial={false}>
             {isReplying && (

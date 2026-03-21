@@ -20,7 +20,7 @@ import {
   PROFILE_THEMES,
   getProfileTheme,
 } from '@/lib/constants/profile-themes';
-import GlassSurface from '@/components/GlassSurface';
+
 import { cn } from '@/lib/utils';
 
 interface ProfilesDropdownProps {
@@ -239,18 +239,11 @@ export function ProfilesDropdown({
       <TooltipTrigger asChild>
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <GlassSurface
-              width="auto"
-              height={40}
-              borderRadius={12}
-              displace={3}
-              insetShadowIntensity={0.2}
-              backgroundOpacity={0.25}
-              blur={11}
-              isButton={true}
+            <button
+              type="button"
               disabled={disabled || isLoading}
               className={cn(
-                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium',
+                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center',
                 isOpen && 'ring-2 ring-eos-orange/30',
                 selectedProfile &&
                   `ring-2 ring-opacity-20 ${selectedTheme.borderColor.replace('border-', 'ring-')}`,
@@ -304,7 +297,7 @@ export function ProfilesDropdown({
                   />
                 </motion.div>
               )}
-            </GlassSurface>
+            </button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent

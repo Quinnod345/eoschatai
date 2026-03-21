@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import type { UIMessage } from 'ai';
-import GlassSurface from '@/components/GlassSurface';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Menu } from 'lucide-react';
@@ -319,21 +318,14 @@ function PureChatHeader({
             {isMobile && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <GlassSurface
-                    width={40}
-                    height={40}
-                    borderRadius={10}
-                    displace={3}
-                    backgroundOpacity={0.25}
-                    blur={11}
-                    insetShadowIntensity={0.2}
-                    isButton={true}
-                    className="h-10 w-10 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors touch-target-sm"
+                  <button
+                    type="button"
+                    className="h-10 w-10 cursor-pointer rounded-lg hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors touch-target-sm flex items-center justify-center"
                   >
                     <SidebarTrigger className="h-10 w-10 p-0 border-0 bg-transparent hover:bg-transparent">
                       <Menu className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />
                     </SidebarTrigger>
-                  </GlassSurface>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>Open menu</TooltipContent>
               </Tooltip>
@@ -346,22 +338,15 @@ function PureChatHeader({
               {/* Search Button */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <GlassSurface
-                    width={36}
-                    height={36}
-                    borderRadius={10}
-                    displace={3}
-                    backgroundOpacity={0.25}
-                    blur={11}
-                    insetShadowIntensity={0.2}
-                    isButton={true}
+                  <button
+                    type="button"
                     onClick={() => searchButtonElement?.click()}
-                    className="h-9 w-9 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
+                    className="h-9 w-9 cursor-pointer rounded-lg hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors flex items-center justify-center"
                   >
-                    <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
+                    <span className="text-zinc-900 dark:text-zinc-100">
                       <Search className="h-4 w-4" />
                     </span>
-                  </GlassSurface>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>Search</TooltipContent>
               </Tooltip>
@@ -384,24 +369,17 @@ function PureChatHeader({
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <GlassSurface
-                    width="auto"
-                    height={36}
-                    borderRadius={12}
-                    displace={3}
-                    backgroundOpacity={0.25}
-                    insetShadowIntensity={0.2}
-                    blur={11}
-                    isButton={true}
+                  <button
+                    type="button"
                     onClick={() => {
                       router.push('/chat');
                       router.refresh();
                     }}
-                    className="h-9 px-2 md:px-3 cursor-pointer hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
+                    className="h-9 px-2 md:px-3 cursor-pointer rounded-xl hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1"
                   >
                     <PlusIcon size={16} />
                     <span className="hidden md:inline ml-1">New Chat</span>
-                  </GlassSurface>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>New Chat</TooltipContent>
               </Tooltip>
@@ -423,31 +401,22 @@ function PureChatHeader({
             {shouldShowBookmark && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <GlassSurface
-                    width={36}
-                    height={36}
-                    borderRadius={10}
-                    displace={3}
-                    backgroundOpacity={0.25}
-                    blur={11}
-                    insetShadowIntensity={0.2}
-                    isButton={true}
+                  <button
+                    type="button"
                     onClick={handleBookmarkToggle}
                     disabled={isBookmarkLoading}
                     className={cn(
-                      'h-9 w-9 cursor-pointer text-zinc-900 dark:text-zinc-100',
-                      isBookmarked && 'text-blue-500',
+                      'h-9 w-9 cursor-pointer rounded-lg hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors flex items-center justify-center',
+                      isBookmarked ? 'text-blue-500' : 'text-zinc-900 dark:text-zinc-100',
                     )}
                   >
-                    <span className="relative z-20 text-zinc-900 dark:text-zinc-100">
-                      <Bookmark
-                        className={cn(
-                          'h-4 w-4 transition-all',
-                          isBookmarked && 'fill-current',
-                        )}
-                      />
-                    </span>
-                  </GlassSurface>
+                    <Bookmark
+                      className={cn(
+                        'h-4 w-4 transition-all',
+                        isBookmarked && 'fill-current',
+                      )}
+                    />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>
                   {isBookmarked ? 'Remove bookmark' : 'Bookmark this chat'}

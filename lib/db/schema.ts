@@ -721,7 +721,6 @@ export const userSettings = pgTable('UserSettings', {
   personaContextDocumentIds: jsonb('personaContextDocumentIds'),
   // UI preferences
   disableGlassEffects: boolean('disableGlassEffects').default(true),
-  disableEosGradient: boolean('disableEosGradient').default(true),
 });
 
 export const bundleDocument = pgTable(
@@ -1686,9 +1685,7 @@ export const contextUsageLog = pgTable(
   {
     id: uuid('id').primaryKey().notNull().defaultRandom(),
     chatId: uuid('chatId').references(() => chat.id, { onDelete: 'cascade' }),
-    messageId: uuid('messageId').references(() => message.id, {
-      onDelete: 'cascade',
-    }),
+    messageId: uuid('messageId'), // No FK — logged before message is committed to DB
     userId: uuid('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),

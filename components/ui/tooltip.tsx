@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import GlassSurface from '@/components/GlassSurface';
+
 
 // Simple no-op provider for backwards compatibility
 export const TooltipProvider = ({
@@ -298,21 +298,9 @@ export const TooltipContent = React.forwardRef<
         }}
         {...props}
       >
-        <GlassSurface
-          width="auto"
-          height="auto"
-          borderRadius={15}
-          displace={3}
-          backgroundOpacity={0.2}
-          blur={10}
-          insetShadowIntensity={0.4}
-          isBackdrop={false}
-          noTransition={true}
-          useFallback={false}
-          className="px-1.5 py-0.5"
-        >
+        <div className="px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 dark:bg-zinc-100 text-zinc-50 dark:text-zinc-900 shadow-md">
           {children}
-        </GlassSurface>
+        </div>
       </div>,
       document.body,
     );

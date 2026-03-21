@@ -15,7 +15,7 @@ import {
   LockIcon,
 } from './icons';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
-import GlassSurface from '@/components/GlassSurface';
+
 
 export type VisibilityType = 'private' | 'public';
 
@@ -64,25 +64,17 @@ export function VisibilitySelector({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <GlassSurface
+        <button
+          type="button"
           data-testid="visibility-selector"
-          width="auto"
-          height={34}
-          borderRadius={15}
-          displace={5}
-          insetShadowIntensity={0.2}
-          backgroundOpacity={0.5}
-          
-          blur={0}
-          isButton={true}
-          className={cn('md:px-2 md:h-[34px] cursor-pointer', className)}
+          className={cn('md:px-2 md:h-[34px] h-8 cursor-pointer flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors px-2', className)}
         >
           {selectedVisibility?.icon}
           <span className="hidden md:inline ml-1">
             {selectedVisibility?.label}
           </span>
           <ChevronDownIcon />
-        </GlassSurface>
+        </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" className={cn('min-w-[300px]')}>

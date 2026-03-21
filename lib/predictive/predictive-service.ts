@@ -417,7 +417,9 @@ async function getAIPrediction({
   intent: QueryIntent;
 }): Promise<PredictiveResult> {
   try {
-    const provider = createCustomProvider();
+    // Always use OpenAI for predictions — fast, cheap, and not subject to
+    // per-project rate limits that may affect the user's selected provider.
+    const provider = createCustomProvider('openai');
     
     // Build a smarter system prompt based on intent
     let systemPrompt = `You are a text completion assistant for EOS (Entrepreneurial Operating System) business software.

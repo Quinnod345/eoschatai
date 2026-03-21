@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { FEATURE_FLAGS } from '@/lib/config/feature-flags';
-import { verifyWebhookSignature } from '@/lib/integrations/circle';
 import {
   claimCircleWebhookEvent,
   deriveCircleEventId,
@@ -89,27 +88,25 @@ export async function POST(request: NextRequest) {
 
   const rawBody = await request.text();
 
-  // Verify signature if CIRCLE_WEBHOOK_SECRET is configured.
-  // In production-like environments, reject unsigned requests entirely.
-  const signatureSecret = process.env.CIRCLE_WEBHOOK_SECRET;
-  if (signatureSecret) {
-    const signature =
-      request.headers.get('x-circle-signature') ||
-      request.headers.get('circle-signature') ||
-      request.headers.get('x-signature');
-    const valid = verifyWebhookSignature(rawBody, signature, signatureSecret);
-    if (!valid) {
-      console.warn('[circle.webhook] Rejected request with invalid signature', {
-        hasSignature: Boolean(signature),
+  // Circle workflow webhooks do not provide a signing secret — they simply POST
+  // to whatever URL is configured. We secure the endpoint by embedding a secret
+  // token as a query parameter in the webhook URL configured inside Circle
+  // (e.g. /api/webhooks/circle?token=<CIRCLE_WEBHOOK_TOKEN>).
+  const webhookToken = process.env.CIRCLE_WEBHOOK_TOKEN;
+  if (webhookToken) {
+    const providedToken = request.nextUrl.searchParams.get('token');
+    if (providedToken !== webhookToken) {
+      console.warn('[circle.webhook] Rejected request with invalid token', {
+        hasToken: Boolean(providedToken),
       });
       return NextResponse.json(
-        { error: 'Invalid webhook signature' },
+        { error: 'Invalid webhook token' },
         { status: 401 },
       );
     }
   } else if (process.env.NODE_ENV === 'production') {
     console.error(
-      '[circle.webhook] CIRCLE_WEBHOOK_SECRET is not configured in production',
+      '[circle.webhook] CIRCLE_WEBHOOK_TOKEN is not configured in production',
     );
     return NextResponse.json(
       { error: 'Circle webhook is not configured securely' },

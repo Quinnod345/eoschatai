@@ -109,8 +109,8 @@ export function ChatOverview({
   if (!greeting) return null;
 
   return (
-    <div className="chat-overview-container mb-16 flex flex-col items-center justify-center px-4 text-center sm:mb-24 sm:px-6 md:mb-48">
-      <h1 className="chat-overview-title mx-auto w-full max-w-5xl break-words text-3xl font-medium tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+    <div className="chat-overview-container mb-24 flex flex-col items-center justify-center px-4 text-center sm:mb-32 sm:px-6 md:mb-56">
+      <h1 className="chat-overview-title mx-auto w-full max-w-5xl break-words text-3xl font-medium tracking-tight sm:text-4xl md:text-[2.75rem] lg:text-5xl">
         <BlurRevealText
           text={greeting}
           className="text-orange-500"

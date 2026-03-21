@@ -85,7 +85,6 @@ export interface UserSettingsUpdate {
   autocompleteEnabled?: boolean;
   profilePicture?: string;
   disableGlassEffects?: boolean;
-  disableEosGradient?: boolean;
   contextDocumentIds?: unknown;
   contextComposerDocumentIds?: unknown;
   contextRecordingIds?: unknown;
@@ -1201,7 +1200,6 @@ export async function getUserSettings({ userId }: { userId: string }) {
         personaContextDocumentIds: userSettings.personaContextDocumentIds,
         autocompleteEnabled: userSettings.autocompleteEnabled,
         disableGlassEffects: userSettings.disableGlassEffects,
-        disableEosGradient: userSettings.disableEosGradient,
         lastFeaturesVersion: user.lastFeaturesVersion,
       })
       .from(userSettings)
@@ -1254,7 +1252,6 @@ export async function updateUserSettings({
     autocompleteEnabled?: boolean;
     profilePicture?: string;
     disableGlassEffects?: boolean;
-    disableEosGradient?: boolean;
     // context document settings
     contextDocumentIds?: unknown;
     contextComposerDocumentIds?: unknown;
@@ -1341,7 +1338,6 @@ export async function updateUserSettings({
     allow('personaContextDocumentIds', incoming.personaContextDocumentIds);
     allow('autocompleteEnabled', incoming.autocompleteEnabled);
     allow('disableGlassEffects', incoming.disableGlassEffects);
-    allow('disableEosGradient', incoming.disableEosGradient);
 
     // Update user table if lastFeaturesVersion is provided
     if (lastFeaturesVersion !== undefined) {

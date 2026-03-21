@@ -7,7 +7,6 @@ import {
   Calendar,
   Lightbulb,
 } from 'lucide-react';
-import { useGradientClass } from '@/hooks/use-gradient-classes';
 
 const templates = [
   {
@@ -103,12 +102,11 @@ export function ChatTemplates({
   className,
 }: ChatTemplatesProps) {
   const categories = [...new Set(templates.map((t) => t.category))];
-  const gradientClass = useGradientClass('eos-gradient-text');
 
   return (
     <div className={`space-y-6 ${className}`}>
       <div className="text-center">
-        <h3 className={`text-lg font-semibold mb-2 ${gradientClass}`}>
+        <h3 className="text-lg font-semibold mb-2 text-orange-500">
           EOS Conversation Starters
         </h3>
         <p className="text-muted-foreground text-sm">

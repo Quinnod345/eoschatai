@@ -76,12 +76,13 @@ export async function POST(request: NextRequest) {
 
     // Create chat if it doesn't exist (first message)
     if (userMessage && !assistantMessage) {
+      // Generate title — try current provider first, fall back to openai, then use default
+      let title = '🎤 Voice Chat';
       try {
-        // Generate a proper title from the first user message
         const { generateTitleFromUserMessage } = await import(
           '@/app/(chat)/actions'
         );
-        const title = await generateTitleFromUserMessage({
+        title = await generateTitleFromUserMessage({
           message: {
             id: userMessage.id,
             role: 'user',
@@ -89,27 +90,44 @@ export async function POST(request: NextRequest) {
             createdAt: new Date(userMessage.timestamp),
             parts: [{ type: 'text', text: userMessage.content }],
           } as any,
-        });
+        }) || title;
+      } catch (titleError) {
+        // Title generation failed (e.g. provider rate-limited) — try OpenAI fallback
+        try {
+          const { createCustomProvider } = await import('@/lib/ai/providers');
+          const { generateText } = await import('ai');
+          const fallbackProvider = createCustomProvider('openai');
+          const { text } = await generateText({
+            model: fallbackProvider.languageModel('title-model'),
+            system: `You generate short chat titles. Output ONLY the title, max 80 chars, no quotes.`,
+            prompt: userMessage.content,
+          });
+          if (text) title = text;
+        } catch {
+          // Both providers failed — use default title, continue saving
+        }
+      }
 
+      // Always create the chat, even if title generation failed
+      try {
         await saveChat({
           id: chatId,
           userId: session.user.id,
-          title: title || '🎤 Voice Chat',
-          visibility: 'private', // Default to private for voice chats
+          title,
+          visibility: 'private',
           personaId: selectedPersonaId,
           profileId: selectedProfileId,
           metadata: { isVoiceChat: true } as any,
         });
-        console.log(
-          'Voice chat created successfully with title:',
-          title,
-          'chatId:',
-          chatId,
-        );
         chatCreated = true;
-      } catch (error) {
-        // Chat might already exist, which is fine
-        console.log('Chat may already exist:', error);
+      } catch (chatError) {
+        // If the chat already exists that's fine — check for other errors
+        const msg = chatError instanceof Error ? chatError.message : String(chatError);
+        if (!msg.includes('duplicate key') && !msg.includes('unique constraint')) {
+          // Real error — can't save messages without a chat row
+          throw chatError;
+        }
+        // Chat already exists, messages can be saved
       }
     }
 

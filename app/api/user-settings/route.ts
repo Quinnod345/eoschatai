@@ -37,7 +37,6 @@ const ALLOWED_SETTINGS_KEYS = new Set([
   'personaContextDocumentIds',
   'autocompleteEnabled',
   'disableGlassEffects',
-  'disableEosGradient',
   'lastFeaturesVersion',
 ]);
 

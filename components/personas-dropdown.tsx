@@ -25,7 +25,7 @@ import Image from 'next/image';
 import type { Persona } from '@/lib/db/schema';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { Sparkles, Users } from 'lucide-react';
-import GlassSurface from '@/components/GlassSurface';
+
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast-system';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
@@ -305,18 +305,11 @@ export function PersonasDropdown({
       <TooltipTrigger asChild>
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
           <DropdownMenuTrigger asChild>
-            <GlassSurface
-              width="auto"
-              height={40}
-              borderRadius={12}
-              displace={3}
-              insetShadowIntensity={0.2}
-              backgroundOpacity={0.25}
-              blur={11}
-              isButton={true}
+            <button
+              type="button"
               disabled={isLoading}
               className={cn(
-                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium',
+                'relative overflow-hidden group h-10 px-4 transition-all duration-300 ease-out cursor-pointer text-sm font-medium rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex items-center',
                 isOpen && 'ring-2 ring-eos-orange/30',
                 selectedPersona && 'ring-2 ring-eos-orange/20',
               )}
@@ -394,7 +387,7 @@ export function PersonasDropdown({
                   <div className="w-4 h-4 border-2 border-eos-orange/30 border-t-eos-orange rounded-full animate-spin" />
                 </motion.div>
               )}
-            </GlassSurface>
+            </button>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent

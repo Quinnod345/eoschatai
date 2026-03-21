@@ -286,7 +286,6 @@ interface UserSettings {
   autocompleteEnabled?: boolean;
   googleCalendarConnected?: boolean;
   disableGlassEffects?: boolean;
-  disableEosGradient?: boolean;
 }
 
 export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModalProps) {
@@ -324,7 +323,6 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
     autocompleteEnabled: true,
     googleCalendarConnected: false,
     disableGlassEffects: true,
-    disableEosGradient: true,
   });
 
   // UI state
@@ -424,7 +422,6 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
         notificationsEnabled: globalUserSettings.notificationsEnabled ?? true,
         autocompleteEnabled: globalUserSettings.autocompleteEnabled ?? true,
         disableGlassEffects: globalUserSettings.disableGlassEffects ?? true,
-        disableEosGradient: globalUserSettings.disableEosGradient ?? true,
       }));
     }
   }, [globalUserSettings, isOpen]);
@@ -466,7 +463,6 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
         autocompleteEnabled: settingsData.autocompleteEnabled ?? true,
         googleCalendarConnected: calendarData.connected ?? false,
         disableGlassEffects: settingsData.disableGlassEffects ?? true,
-        disableEosGradient: settingsData.disableEosGradient ?? true,
       });
     } catch (error) {
       console.error('Failed to fetch settings:', error);
@@ -1135,40 +1131,6 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                               type="button"
                             >
                               {!(globalUserSettings?.disableGlassEffects ?? true) ? 'On' : 'Off'}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* EOS Gradient toggle */}
-                        <div className="rounded-xl border border-border/30 bg-card p-4">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="font-medium">
-                                EOS Gradient Backgrounds
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                Enable animated EOS brand gradient backgrounds
-                              </div>
-                            </div>
-                            <button
-                              className="inline-flex items-center px-3 py-2 rounded-md border hover:bg-accent text-sm"
-                              onClick={async () => {
-                                const currentValue = globalUserSettings?.disableEosGradient ?? true;
-                                const newValue = !currentValue;
-                                console.log('[Gradient Toggle] Current:', currentValue, 'New:', newValue);
-                                try {
-                                  await updateGlobalSettings({
-                                    disableEosGradient: newValue,
-                                  });
-                                  toast.success(`EOS gradients ${newValue ? 'disabled' : 'enabled'}`);
-                                } catch (error) {
-                                  console.error('[Gradient Toggle] Error:', error);
-                                  toast.error('Failed to update setting');
-                                }
-                              }}
-                              type="button"
-                            >
-                              {!(globalUserSettings?.disableEosGradient ?? true) ? 'On' : 'Off'}
                             </button>
                           </div>
                         </div>

@@ -2,17 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { MessageSquare, Loader2 } from 'lucide-react';
-import { useEffect } from 'react';
 
 export function ChatLoading() {
-  useEffect(() => {
-    document.body.classList.add('has-chat-mesh');
-    return () => {
-      document.body.classList.remove('has-chat-mesh');
-    };
-  }, []);
   return (
-    <div className="eos-chat-mesh eos-chat-active existing-chat-gradient flex flex-col items-center justify-center h-full min-h-[60vh] gap-6 relative bg-transparent">
+    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-6 relative bg-transparent">
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

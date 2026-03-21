@@ -84,13 +84,9 @@ export default async function ChatPage({
     }
 
     if (userSettings?.selectedResearchMode) {
-      const rawMode = userSettings.selectedResearchMode;
-      // Ensure we only accept valid research modes
-      userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
-      console.log('[NewChat] Research mode set:', {
-        rawMode,
-        validatedMode: userResearchMode,
-      });
+      // Do not restore research mode from DB — it's a session-only choice.
+      // Always start new chats in standard mode.
+      userResearchMode = 'off';
     }
   } catch (error) {
     console.error(

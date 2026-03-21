@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronRight, Circle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import GlassSurface from '@/components/GlassSurface';
+
 
 // Animation variants for dropdown content
 const dropdownContentVariants = {
@@ -102,7 +102,7 @@ const DropdownMenuSubContent = React.forwardRef<
     <DropdownMenuPrimitive.SubContent
       ref={ref}
       className={cn(
-        'relative z-dropdown min-w-[8rem] overflow-hidden rounded-xl text-popover-foreground p-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        'relative z-dropdown min-w-[8rem] overflow-hidden rounded-xl text-popover-foreground bg-popover p-1 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className,
       )}
       style={{
@@ -111,16 +111,6 @@ const DropdownMenuSubContent = React.forwardRef<
       }}
       {...props}
     >
-      <GlassSurface
-        width="100%"
-        height="100%"
-        borderRadius={12}
-        displace={2}
-        backgroundOpacity={0.2}
-        blur={10}
-        insetShadowIntensity={0.4}
-        isBackdrop={true}
-      />
       <div className="relative z-10">{children}</div>
     </DropdownMenuPrimitive.SubContent>
   </DropdownMenuPrimitive.Portal>
@@ -139,7 +129,7 @@ const DropdownMenuContent = React.forwardRef<
         sideOffset={sideOffset}
         collisionPadding={16}
         className={cn(
-          'relative z-dropdown min-w-[8rem] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl text-popover-foreground p-1',
+          'relative z-dropdown min-w-[8rem] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl text-popover-foreground bg-popover p-1',
           className,
         )}
         style={{
@@ -148,16 +138,6 @@ const DropdownMenuContent = React.forwardRef<
         }}
         {...props}
       >
-        <GlassSurface
-          width="100%"
-          height="100%"
-          borderRadius={12}
-          displace={4}
-          backgroundOpacity={0.2}
-          blur={10}
-          insetShadowIntensity={0.4}
-          isBackdrop={true}
-        />
         <motion.div
           initial="closed"
           animate="open"

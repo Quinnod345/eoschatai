@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { CheckCircleFillIcon, ChevronDownIcon, SearchIcon } from './icons';
 import { Telescope } from 'lucide-react';
 import { useAccountStore } from '@/lib/stores/account-store';
-import GlassSurface from '@/components/GlassSurface';
+
 
 export type ResearchMode = 'off' | 'nexus';
 
@@ -53,6 +53,7 @@ export function NexusResearchSelector({
 }: NexusResearchSelectorProps) {
   const [open, setOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<ResearchMode | null>(null);
+  const [traceNexus, setTraceNexus] = useState(false);
   const entitlements = useAccountStore((state) => state.entitlements);
   // IMPORTANT: Avoid allocating a new object in Zustand selector (can cause useSyncExternalStore loop)
   const ready = useAccountStore((state) => state.ready);
@@ -62,6 +63,15 @@ export function NexusResearchSelector({
     () => researchModes.find((mode) => mode.id === selectedResearchMode),
     [selectedResearchMode],
   );
+
+  // Trace animation when switching to Nexus mode
+  useEffect(() => {
+    if (selectedResearchMode === 'nexus') {
+      setTraceNexus(true);
+      const t = setTimeout(() => setTraceNexus(false), 650);
+      return () => clearTimeout(t);
+    }
+  }, [selectedResearchMode]);
 
   // Intensive logging for debugging in chat context
   useEffect(() => {
@@ -80,21 +90,14 @@ export function NexusResearchSelector({
     <>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
-          <GlassSurface
+          <button
+            type="button"
             data-testid="research-mode-selector"
-            width="auto"
-            height={34}
-            borderRadius={15}
-            displace={5}
-            backgroundOpacity={0.5}
-            insetShadowIntensity={0.2}
-            blur={0}
-            isButton={true}
             className={cn(
-              'md:px-2 md:h-[34px] cursor-pointer',
+              'md:px-2 md:h-[34px] h-8 cursor-pointer flex items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors px-2',
               className,
-              selectedMode?.color,
               selectedResearchMode === 'nexus' && 'ring-2 ring-purple-500/50',
+              traceNexus && 'nexus-pill-trace',
             )}
           >
             <span className={cn('transition-all', selectedMode?.color)}>
@@ -104,7 +107,7 @@ export function NexusResearchSelector({
               {selectedMode?.label}
             </span>
             <ChevronDownIcon />
-          </GlassSurface>
+          </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="start" className={cn('min-w-[300px]')}>

@@ -382,6 +382,49 @@ If requires_document_creation is false, suggested_document_kind must be null. No
   };
 }
 
+/** Appended to system prompt when the user marks uploads as reference-only. */
+function buildReferenceOnlyAttachmentsNote(parts: unknown): string {
+  if (!Array.isArray(parts)) return '';
+  const files = parts.filter(
+    (p): p is { type: string; name?: string } =>
+      typeof p === 'object' &&
+      p !== null &&
+      (p as { type?: string }).type === 'file' &&
+      (p as { contextOnly?: boolean }).contextOnly === true,
+  );
+  if (files.length === 0) return '';
+  const names = files
+    .map((f) =>
+      typeof f.name === 'string' && f.name.trim() ? f.name : 'attachment',
+    )
+    .join(', ');
+  return `\n\n## Reference-only attachments\nThe user marked these uploads as **reference context** (supporting material, not necessarily the main question): ${names}. Use them together with the user's message.\n`;
+}
+
+/** Strip client-only flags from file parts before conversion to provider format. */
+function stripContextOnlyFromMessagesForModel(msgs: UIMessage[]): UIMessage[] {
+  return msgs.map((m) => ({
+    ...m,
+    parts: Array.isArray(m.parts)
+      ? m.parts.map((p: unknown) => {
+          if (
+            typeof p === 'object' &&
+            p !== null &&
+            (p as { type?: string }).type === 'file' &&
+            'contextOnly' in (p as object)
+          ) {
+            const { contextOnly: _drop, ...rest } = p as Record<
+              string,
+              unknown
+            >;
+            return rest;
+          }
+          return p;
+        })
+      : m.parts,
+  })) as UIMessage[];
+}
+
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
   let rawBody: unknown;
@@ -2210,7 +2253,10 @@ Always prioritize the user's document content over generic information. If speci
         // If Nexus mode is enabled, perform web search with progress updates
         // Set up variables that will be used later
         // Keep original messages - we'll add User RAG context to system prompt instead
-        const modifiedMessages = messages;
+        const referenceOnlyAttachmentsNote = buildReferenceOnlyAttachmentsNote(
+          message.parts,
+        );
+        const modifiedMessages = stripContextOnlyFromMessagesForModel(messages);
 
         // If the user supplied URLs, instruct the model to fetch them via searchWeb before answering
         const urlRegex = /(https?:\/\/[^\s)]+)|(www\.[^\s)]+)/gi;
@@ -2236,7 +2282,8 @@ Always prioritize the user's document content over generic information. If speci
           nexusResearchContext +
           nexusPromptAddition +
           urlFetchInstruction +
-          toolResponseInstructions;
+          toolResponseInstructions +
+          referenceOnlyAttachmentsNote;
 
         // Await the preflight promise that was fired in parallel with RAG.
         let preflightEnableThinking = false;

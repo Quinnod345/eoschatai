@@ -2,7 +2,6 @@ import type { UIMessage } from 'ai';
 import { useSWRConfig } from 'swr';
 import { useCopyToClipboard } from 'usehooks-ts';
 import { useState } from 'react';
-
 import type { Vote } from '@/lib/db/schema';
 
 import { CopyIcon, ThumbDownIcon, ThumbUpIcon, PencilEditIcon } from './icons';
@@ -62,15 +61,14 @@ export function PureMessageActions({
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [sourcesDialogOpen, setSourcesDialogOpen] = useState(false);
   const [contextSourcesDialogOpen, setContextSourcesDialogOpen] = useState(false);
-  const [pendingVoteType, setPendingVoteType] = useState<'up' | 'down' | null>(
-    null,
-  );
+  const [pendingVoteType, setPendingVoteType] = useState<'up' | 'down' | null>(null);
+  const [isCopySparking, setIsCopySparking] = useState(false);
+  const [isPinBlooming, setIsPinBlooming] = useState(false);
 
   // Check if this message has citations
   const hasCitations = citations && citations.length > 0;
 
   const handleCopy = async () => {
-    // Process message parts to get clean text with formatted mentions
     const textFromParts = processMessageParts(message.parts);
 
     if (!textFromParts) {
@@ -78,12 +76,13 @@ export function PureMessageActions({
       return;
     }
 
+    setIsCopySparking(true);
+    setTimeout(() => setIsCopySparking(false), 340);
+
     try {
-      // Try to copy as rich text (HTML)
       await copyRichText(textFromParts);
       toastUtils.copySuccess();
     } catch (error) {
-      // Fallback to plain text copy
       await copyToClipboard(textFromParts);
       toastUtils.copySuccess();
     }
@@ -240,10 +239,17 @@ export function PureMessageActions({
                     className={cn(
                       'py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
                       isPinned && 'text-eos-orange',
+                      isPinBlooming && 'pin-bloom',
                     )}
                     variant="ghost"
                     size="sm"
-                    onClick={() => onPin?.(message.id)}
+                    onClick={() => {
+                      if (!isPinned) {
+                        setIsPinBlooming(true);
+                        setTimeout(() => setIsPinBlooming(false), 420);
+                      }
+                      onPin?.(message.id);
+                    }}
                   >
                     <Pin
                       className={cn('h-3 w-3', isPinned && 'fill-current')}
@@ -282,7 +288,10 @@ export function PureMessageActions({
                   whileTap={{ scale: 0.97 }}
                 >
                   <Button
-                    className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
+                    className={cn(
+                      'relative py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10',
+                      isCopySparking && 'copy-spark',
+                    )}
                     variant="ghost"
                     size="sm"
                     onClick={handleCopy}
@@ -290,7 +299,7 @@ export function PureMessageActions({
                     <CopyIcon />
                   </Button>
                 </motion.div>
-              </TooltipTrigger>
+            </TooltipTrigger>
               <TooltipContent>Copy message</TooltipContent>
             </Tooltip>
 
