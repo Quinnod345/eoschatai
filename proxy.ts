@@ -19,10 +19,11 @@ function validateOrigin(request: NextRequest): boolean {
     return true;
   }
 
-  // Skip for webhook endpoints that need to receive external requests
+  // Skip for webhook endpoints and machine-to-machine API endpoints
   if (
     request.nextUrl.pathname.startsWith('/api/webhooks') ||
-    request.nextUrl.pathname.startsWith('/api/billing/webhook')
+    request.nextUrl.pathname.startsWith('/api/billing/webhook') ||
+    request.nextUrl.pathname.startsWith('/api/admin/circle/provision')
   ) {
     return true;
   }
