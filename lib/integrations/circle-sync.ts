@@ -174,10 +174,13 @@ const MEMBER_ID_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
   ['member', 'member_id'],
   ['user', 'id'],
   ['user_id'],
+  // Native Circle event format (tag triggers, etc.)
+  ['community_member_id'],
   ['data', 'member_id'],
   ['data', 'memberId'],
   ['data', 'member', 'id'],
   ['data', 'user_id'],
+  ['data', 'community_member_id'],
 ];
 
 const TIER_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
@@ -193,6 +196,10 @@ const TIER_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
   ['accessGroupName'],
   ['price', 'name'],
   ['product', 'name'],
+  // Tag-based workflow triggers (member tag added/changed)
+  ['tag'],
+  ['tag_name'],
+  ['tagName'],
   ['data', 'tier'],
   ['data', 'tier_name'],
   ['data', 'paywall'],
@@ -201,6 +208,10 @@ const TIER_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
   ['data', 'access_group_name'],
   ['data', 'price', 'name'],
   ['data', 'product', 'name'],
+  ['data', 'tag'],
+  ['data', 'tag_name'],
+  ['data', 'tag', 'name'],
+  ['data', 'tagName'],
 ];
 
 const AMOUNT_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
@@ -526,13 +537,34 @@ export const parseCircleWebhookPayload = async (
     throw new Error(`Unsupported Circle tier: ${tierPurchased}`);
   }
 
-  const email = normalizeEmail(toStringValue(readFirst(rawPayload, EMAIL_PATHS)));
-  const name = toStringValue(readFirst(rawPayload, NAME_PATHS));
+  let email = normalizeEmail(toStringValue(readFirst(rawPayload, EMAIL_PATHS)));
+  let name = toStringValue(readFirst(rawPayload, NAME_PATHS));
   const circleMemberId = toStringValue(readFirst(rawPayload, MEMBER_ID_PATHS));
   const amount = toNumberValue(readFirst(rawPayload, AMOUNT_PATHS));
   const currency = toStringValue(readFirst(rawPayload, CURRENCY_PATHS));
   const occurredAt =
     toDateValue(readFirst(rawPayload, TIMESTAMP_PATHS)) ?? new Date();
+
+  // If no email in payload but we have a Circle member ID, look up the member
+  // via the admin API to get their email. This handles tag-based workflow triggers
+  // where Circle only sends community_member_id without inline email data.
+  if (!email && circleMemberId) {
+    try {
+      const memberId = Number(circleMemberId);
+      if (!Number.isNaN(memberId)) {
+        const communityId = toNumberValue(readFirst(rawPayload, [['community_id'], ['data', 'community_id']]));
+        const memberInfo = await fetchCircleMemberById(memberId, communityId ?? undefined);
+        email = normalizeEmail(memberInfo.email);
+        name = name ?? memberInfo.name;
+        console.log('[circle-sync] Resolved member email via admin API lookup', { circleMemberId, email });
+      }
+    } catch (lookupErr) {
+      console.warn('[circle-sync] Failed to look up member by ID, continuing without email', {
+        circleMemberId,
+        error: lookupErr instanceof Error ? lookupErr.message : lookupErr,
+      });
+    }
+  }
 
   return {
     email,

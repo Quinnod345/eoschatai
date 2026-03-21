@@ -6,6 +6,10 @@ import { generateUUID } from '@/lib/utils';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+export async function GET() {
+  return NextResponse.json({ status: 'ok', endpoint: '/api/admin/circle/provision', accepts: 'POST' });
+}
+
 /**
  * POST /api/admin/circle/provision
  *
