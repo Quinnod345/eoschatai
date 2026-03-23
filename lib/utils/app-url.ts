@@ -4,9 +4,10 @@ const DEFAULT_APP_URL = 'http://localhost:3000';
 
 export const getAppBaseUrl = (): string => {
   // Check various environment variables for the base URL
-  const url = 
+  const url =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
     process.env.VERCEL_PROJECT_PRODUCTION_URL ||
     DEFAULT_APP_URL;
 
