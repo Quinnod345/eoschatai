@@ -411,6 +411,25 @@ const PAYWALL_ID_TO_TIER: Record<number, string> = (() => {
   return {};
 })();
 
+// Paywalls live on the v1 API, not admin v2 — use a dedicated request helper.
+const circleV1Request = async <T = unknown>(path: string): Promise<T> => {
+  const apiToken = process.env.CIRCLE_API_TOKEN;
+  if (!apiToken) throw new Error('CIRCLE_API_TOKEN is not configured');
+  const baseUrl = (process.env.CIRCLE_API_BASE_URL || 'https://app.circle.so/api/v1').replace(/\/$/, '');
+  const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  console.log(`[circle-sync] v1 API request: ${url}`);
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Token ${apiToken}`, 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Circle v1 API ${response.status}: ${text.slice(0, 200)}`);
+  }
+  return response.json() as Promise<T>;
+};
+
 const fetchCirclePaywallById = async (
   paywallId: number,
   _communityId?: number,
@@ -423,25 +442,23 @@ const fetchCirclePaywallById = async (
     return { id: paywallId, name: envName };
   }
 
+  // Try v1 API for single paywall lookup
   try {
-    const result = await circleSyncRequest<JsonRecord>(
-      `/paywalls/${paywallId}`,
-    );
+    const result = await circleV1Request<JsonRecord>(`/paywalls/${paywallId}`);
     const name = toStringValue(result.name ?? result.title ?? result.paywall_name);
     if (name) {
+      console.log(`[circle-sync] Resolved paywall ${paywallId} name via v1 API: ${name}`);
       return { id: paywallId, name };
     }
   } catch (error) {
     console.warn(
-      `[circle-sync] Failed to fetch paywall ${paywallId} from API, trying paywalls list`,
+      `[circle-sync] Failed to fetch paywall ${paywallId} from v1 API, trying paywalls list`,
       error instanceof Error ? error.message : error,
     );
   }
 
   try {
-    const list = await circleSyncRequest<JsonRecord[] | JsonRecord>(
-      '/paywalls',
-    );
+    const list = await circleV1Request<JsonRecord[] | JsonRecord>('/paywalls');
     const paywalls = Array.isArray(list) ? list : [];
     for (const pw of paywalls) {
       if (!isRecord(pw)) continue;
@@ -507,9 +524,57 @@ const parseCircleNativePayload = async (
   };
 };
 
+// Circle tag events send only a numeric member_tag_id with no tag name.
+// Resolve the member's tier by looking up their access groups instead.
+const parseCircleTagEventPayload = async (
+  payload: JsonRecord,
+): Promise<ParsedCirclePaymentPayload | null> => {
+  const eventType = toStringValue(payload.type);
+  if (!eventType?.includes('tag')) return null;
+
+  const data = isRecord(payload.data) ? payload.data : payload;
+  const memberId = toNumberValue(data.community_member_id);
+  if (!memberId) return null;
+
+  console.log(`[circle-sync] Detected tag event (${eventType}), looking up member ${memberId} via access groups`);
+
+  const memberInfo = await fetchCircleMemberById(memberId);
+  const { getMemberByEmail } = await import('@/lib/integrations/circle');
+  const circleData = await getMemberByEmail(memberInfo.email);
+
+  if (!circleData?.mappedPlan) {
+    throw new Error(
+      `Circle member ${memberId} (${memberInfo.email}) has no recognized tier in their access groups. Ensure they belong to a Mastery or Strengthen access group.`,
+    );
+  }
+
+  console.log(`[circle-sync] Tag event resolved: member=${memberInfo.email} tier=${circleData.tierName} plan=${circleData.mappedPlan}`);
+
+  return {
+    email: memberInfo.email,
+    name: memberInfo.name,
+    circleMemberId: String(memberId),
+    tierPurchased: circleData.tierName,
+    mappedPlan: circleData.mappedPlan,
+    isOnTrial: circleData.isOnTrial,
+    amount: null,
+    currency: null,
+    occurredAt: new Date(),
+    rawPayload: payload,
+  };
+};
+
 export const parseCircleWebhookPayload = async (
   payload: unknown,
 ): Promise<ParsedCirclePaymentPayload> => {
+  if (isRecord(payload)) {
+    const tagResult = await parseCircleTagEventPayload(payload).catch((err) => {
+      console.warn('[circle-sync] Tag event parsing failed', err instanceof Error ? err.message : err);
+      return null;
+    });
+    if (tagResult) return tagResult;
+  }
+
   if (isCircleNativePayload(payload)) {
     console.log(
       '[circle-sync] Detected Circle native payload format, resolving IDs via API',
