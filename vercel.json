@@ -1,4 +1,12 @@
 {
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "eosbot.ai" }],
+      "destination": "https://www.eosbot.ai/$1",
+      "permanent": true
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/usage/daily",

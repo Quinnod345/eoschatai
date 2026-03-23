@@ -475,8 +475,15 @@ const fetchCirclePaywallById = async (
     );
   }
 
+  // Log the exact env var update needed so it's easy to fix
+  const currentMap = process.env.CIRCLE_PAYWALL_ID_MAP ?? '{}';
+  console.error(
+    `[circle-sync] Unknown paywall_id ${paywallId}. To fix, update CIRCLE_PAYWALL_ID_MAP in Vercel env vars to include this ID. ` +
+    `Current value: ${currentMap}. ` +
+    `Example fix: add "${paywallId}":"Mastery" to the map.`,
+  );
   throw new Error(
-    `Could not resolve paywall name for paywall_id ${paywallId}. Set CIRCLE_PAYWALL_ID_MAP env var, e.g. '{"1":"Discover","2":"Strengthen","3":"Mastery"}'`,
+    `Could not resolve paywall name for paywall_id ${paywallId}. Add "${paywallId}":"<TierName>" to CIRCLE_PAYWALL_ID_MAP in Vercel environment variables.`,
   );
 };
 
@@ -524,8 +531,12 @@ const parseCircleNativePayload = async (
   };
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Circle tag events send only a numeric member_tag_id with no tag name.
 // Resolve the member's tier by looking up their access groups instead.
+// Retries up to 3 times with 2-second delays to handle the race condition
+// where Circle fires the webhook before updating the member's access group.
 const parseCircleTagEventPayload = async (
   payload: JsonRecord,
 ): Promise<ParsedCirclePaymentPayload | null> => {
@@ -540,11 +551,23 @@ const parseCircleTagEventPayload = async (
 
   const memberInfo = await fetchCircleMemberById(memberId);
   const { getMemberByEmail } = await import('@/lib/integrations/circle');
-  const circleData = await getMemberByEmail(memberInfo.email);
+
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000;
+
+  let circleData = await getMemberByEmail(memberInfo.email);
+
+  for (let attempt = 1; attempt < MAX_RETRIES && !circleData?.mappedPlan; attempt++) {
+    console.log(
+      `[circle-sync] Member ${memberInfo.email} not yet in a recognized tier (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms...`,
+    );
+    await sleep(RETRY_DELAY_MS);
+    circleData = await getMemberByEmail(memberInfo.email);
+  }
 
   if (!circleData?.mappedPlan) {
     throw new Error(
-      `Circle member ${memberId} (${memberInfo.email}) has no recognized tier in their access groups. Ensure they belong to a Mastery or Strengthen access group.`,
+      `Circle member ${memberId} (${memberInfo.email}) has no recognized tier in their access groups after ${MAX_RETRIES} attempts. Ensure they belong to a Mastery or Strengthen access group.`,
     );
   }
 
@@ -821,7 +844,7 @@ const upsertCircleMemberIdentity = async (
 const createSetupPasswordToken = async (userId: string): Promise<string> => {
   const token = randomBytes(32).toString('hex');
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  expiresAt.setDate(expiresAt.getDate() + 30);
 
   await db.delete(passwordResetToken).where(eq(passwordResetToken.userId, userId));
   await db.insert(passwordResetToken).values({
@@ -871,6 +894,26 @@ const sendCircleProvisioningEmail = async ({
   }
 
   return { success: true, errorMessage: null };
+};
+
+/**
+ * Resends a Circle welcome / password-setup email to an existing EOS AI user.
+ * Invalidates any prior token and generates a fresh 30-day link.
+ */
+export const resendCircleWelcomeEmail = async (
+  userId: string,
+  userEmail: string,
+  memberName: string | null,
+  tierName: string,
+): Promise<{ success: boolean; errorMessage: string | null }> => {
+  const resetToken = await createSetupPasswordToken(userId);
+  const setupLink = buildAppUrl('/reset-password', { token: resetToken });
+  return sendCircleProvisioningEmail({
+    toEmail: userEmail,
+    memberName,
+    tierName,
+    setupLink,
+  });
 };
 
 type ApplyCirclePlanAssignmentInput = {
