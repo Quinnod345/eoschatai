@@ -1,6 +1,8 @@
 import type { UIMessage } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
+import { springChat, springSnappy, useNoMotion, INSTANT } from '@/lib/motion/presets';
+import { formatDistanceToNow } from 'date-fns';
 import React, { memo, useState, useMemo, useEffect } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
@@ -53,6 +55,7 @@ interface CitationReference {
 // AI SDK 5: content is now in parts, experimental_attachments replaced with file parts
 interface ExtendedUIMessage extends UIMessage {
   provider?: string;
+  createdAt?: Date | string;
   // AI SDK 5 compatibility: these properties may not exist on UIMessage
   content?: string;
   experimental_attachments?: Array<{ name?: string; contentType?: string; url: string }>;
@@ -315,6 +318,7 @@ const PurePreviewMessage = ({
   searchProgress,
   meetingMetadata,
   isStreaming = false,
+  listIndex = 0,
 }: {
   chatId: string;
   message: ExtendedUIMessage;
@@ -332,6 +336,7 @@ const PurePreviewMessage = ({
   searchProgress?: SearchProgress;
   meetingMetadata?: any;
   isStreaming?: boolean;
+  listIndex?: number;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -518,19 +523,29 @@ const PurePreviewMessage = ({
     });
   }
 
+  const noMotion = useNoMotion();
+  const mountDelay = Math.min(listIndex * 0.02, 0.25);
+  const roleX = message.role === 'user' ? 6 : -6;
+
   // AI SDK 5: Attachments are now file parts in the parts array
   // The getMessageAttachments helper handles both formats for backward compatibility
   return (
-    <AnimatePresence>
       <motion.article
+        id={`message-${message.id}`}
         data-testid={`message-${message.role}`}
         aria-label={`${message.role === 'assistant' ? 'AI' : 'Your'} message`}
         className={cn(
           'w-full mx-auto max-w-3xl px-3 md:px-4 group/message',
           isStreaming && message.role === 'assistant' && 'message-streaming-trace',
         )}
-        initial={{ y: 5, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        {...(noMotion
+          ? INSTANT
+          : {
+              initial: { y: 5, x: roleX, opacity: 0 },
+              animate: { y: 0, x: 0, opacity: 1 },
+              exit: { opacity: 0, y: 6, transition: { duration: 0.15 } },
+              transition: { ...(message.role === 'user' ? springSnappy : springChat), delay: mountDelay },
+            })}
         data-role={message.role}
       >
         <div
@@ -543,7 +558,7 @@ const PurePreviewMessage = ({
           )}
         >
           {message.role === 'assistant' && (
-            <div className="size-8 flex items-center rounded-full justify-center shrink-0 bg-background">
+            <div className={cn('size-8 flex items-center rounded-full justify-center shrink-0 bg-background', isStreaming && 'avatar-active-ring')}>
               <div className="translate-y-px">
                 <AILoaderIcon size={40} />
               </div>
@@ -923,10 +938,16 @@ const PurePreviewMessage = ({
                 citations={citations}
               />
             )}
+
+            {/* Hover timestamp */}
+            {message.createdAt && (
+              <span className="text-[10px] text-muted-foreground/40 opacity-0 group-hover/message:opacity-100 transition-opacity duration-200 mt-0.5 block select-none">
+                {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+              </span>
+            )}
           </div>
         </div>
       </motion.article>
-    </AnimatePresence>
   );
 };
 
@@ -1165,8 +1186,10 @@ export const ThinkingMessage = ({
     <motion.div
       data-testid="message-assistant-loading"
       className="w-full mx-auto max-w-3xl px-4 group/message"
-      initial={{ y: 5, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
+      initial={{ y: 5, x: -6, opacity: 0 }}
+      animate={{ y: 0, x: 0, opacity: 1 }}
+      exit={{ opacity: 0, y: 4, transition: { duration: 0.12 } }}
+      transition={springChat}
       data-role={role}
       role="status"
       aria-live="polite"
@@ -1215,6 +1238,28 @@ export const ThinkingMessage = ({
                 </span>
               )}
             </div>
+
+            {/* Source constellation dots — light up as each search completes */}
+            {isSearching && searchTotal > 0 && (
+              <div className="flex items-center gap-1 mt-1.5" aria-hidden>
+                {(['s1','s2','s3','s4','s5','s6','s7','s8'] as const).slice(0, Math.min(searchTotal, 8)).map((slotId, position) => (
+                  <motion.span
+                    key={slotId}
+                    className="h-1.5 w-1.5 rounded-full"
+                    animate={{
+                      backgroundColor:
+                        position < searchCompleted
+                          ? isDeepResearching
+                            ? 'rgb(168 85 247)'
+                            : 'rgb(249 115 22)'
+                          : 'rgb(228 228 231)',
+                      scale: position === searchCompleted - 1 ? [1, 1.5, 1] : 1,
+                    }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Deep research progress bar */}
             {isDeepResearching && deepResearchProgress !== undefined && deepResearchProgress > 0 && (

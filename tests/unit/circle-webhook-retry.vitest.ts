@@ -72,7 +72,7 @@ describe('circle webhook retry behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.claimedEventIds.clear();
-    delete process.env.CIRCLE_WEBHOOK_SECRET;
+    process.env.CIRCLE_WEBHOOK_SECRET = undefined;
     mocks.deriveCircleEventId.mockReturnValue('circle:evt-retry-1');
   });
 

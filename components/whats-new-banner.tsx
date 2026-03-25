@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { springChat } from '@/lib/motion/presets';
 import { X, Sparkles, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,10 +57,7 @@ export function WhatsNewBanner({
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
-        transition={{
-          duration: 0.2,
-          ease: 'easeOut',
-        }}
+        transition={springChat}
         className="fixed top-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2"
       >
         <div className="rounded-lg border border-border bg-card p-3 shadow-sm">

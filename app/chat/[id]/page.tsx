@@ -8,42 +8,17 @@ import {
   getChatById,
   getMessagesByChatId,
   getUserSettings,
+  getActiveStreamByChatId,
 } from '@/lib/db/queries';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { DEFAULT_PROVIDER } from '@/lib/ai/providers';
 import type { ResearchMode } from '@/components/nexus-research-selector';
-import type { DBMessage, Chat as ChatType } from '@/lib/db/schema';
+import type { DBMessage } from '@/lib/db/schema';
 import type { UIMessage } from 'ai';
 import { Suspense } from 'react';
 import { ChatLoading } from '@/components/chat-loading';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 import { isAdminEmail } from '@/lib/auth/admin';
-
-// Silent logger to prevent errors from showing on screen during development
-const silentLog = {
-  debug: (message: string, ...args: any[]) => {
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      process.env.SILENT_LOGS !== 'true'
-    ) {
-      // Use a more subtle console method that won't trigger browser error displays
-      console.groupCollapsed(`[Debug] ${message}`);
-      if (args.length > 0) console.debug(...args);
-      console.groupEnd();
-    }
-  },
-  error: (message: string, error?: unknown) => {
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      process.env.SILENT_LOGS !== 'true'
-    ) {
-      // Log errors in a way that doesn't trigger the browser's error UI
-      console.groupCollapsed(`[Error] ${message}`);
-      if (error) console.debug(error);
-      console.groupEnd();
-    }
-  },
-};
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   return (
@@ -57,11 +32,8 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { id } = params;
 
-  // Function to convert DB messages to UI messages
-  // AI SDK 5: Use conversion function to handle v4 → v5 format changes
   function convertToUIMessages(messages: Array<DBMessage>): Array<UIMessage> {
     return messages.map((message, index) => {
-      // Convert attachments to file parts and merge with existing parts
       const attachmentParts = Array.isArray(message.attachments)
         ? message.attachments.map((att: any) => ({
             type: 'file' as const,
@@ -73,13 +45,10 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
 
       const existingParts = Array.isArray(message.parts) ? message.parts : [];
 
-      // If message has reasoning from the database, add it as a reasoning part
-      // This enables displaying Claude's extended thinking when revisiting chats
       const reasoningParts = message.reasoning
         ? [{ type: 'reasoning' as const, text: message.reasoning }]
         : [];
 
-      // Build base message with parts (reasoning first, then existing, then attachments)
       const baseMessage = {
         id: message.id,
         parts: [...reasoningParts, ...existingParts, ...attachmentParts],
@@ -87,194 +56,74 @@ async function ChatPageContent(props: { params: Promise<{ id: string }> }) {
         createdAt: message.createdAt,
       };
 
-      // Apply v4 → v5 conversion for any legacy parts (tool-invocation, etc.)
       return convertV4MessageToV5(baseMessage as any, index) as UIMessage;
     });
   }
 
-  // Add error handling and retry logic for getting the chat
-  let chat: ChatType | null = null;
-  let retryCount = 0;
-  const maxRetries = 3;
+  // Phase 1: fetch chat row and session in parallel — neither depends on the other
+  let [chat, session] = await Promise.all([
+    getChatById({ id }),
+    auth(),
+  ]);
 
-  while (!chat && retryCount < maxRetries) {
-    try {
-      chat = await getChatById({ id });
-      if (!chat) {
-        silentLog.debug(
-          `Chat with ID ${id} not found, retry ${retryCount + 1}/${maxRetries}`,
-        );
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        retryCount++;
-      }
-    } catch (error: unknown) {
-      silentLog.error(`Error fetching chat with ID ${id}`, error);
-      retryCount++;
-      // Wait before retrying
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-
+  // Single fast retry for chat (handles new-chat navigation race; saves up to 1.3s vs old 3×500ms)
   if (!chat) {
-    silentLog.error(
-      `Chat with ID ${id} still not found after ${maxRetries} retries`,
-    );
-    return notFound();
+    await new Promise((r) => setTimeout(r, 200));
+    chat = await getChatById({ id });
   }
 
-  const session = await auth();
+  if (!chat) return notFound();
 
   if (!session) {
     return <ClientRedirect path="/login" />;
   }
 
   if (chat.visibility === 'private') {
-    if (!session.user) {
-      return notFound();
-    }
-
-    // Allow configured platform admins to access private chats for support
+    if (!session.user) return notFound();
     const isAdminUser = isAdminEmail(session.user.email);
-
-    if (session.user.id !== chat.userId && !isAdminUser) {
-      return notFound();
-    }
+    if (session.user.id !== chat.userId && !isAdminUser) return notFound();
   }
 
-  // Add error handling and retry for message fetching
-  let messagesFromDb: DBMessage[] = [];
-  retryCount = 0;
+  // Phase 2: fetch messages, active stream, user settings, and cookies all in parallel
+  const [messagesFromDb, activeStreamResult, userSettings, cookieStore] =
+    await Promise.all([
+      getMessagesByChatId({ id }).catch(() => [] as DBMessage[]),
+      getActiveStreamByChatId({ chatId: id }).catch(() => null),
+      getUserSettings({ userId: session.user.id }).catch(() => null),
+      cookies(),
+    ]);
 
-  while (messagesFromDb.length === 0 && retryCount < maxRetries) {
-    try {
-      messagesFromDb = await getMessagesByChatId({ id });
-      if (messagesFromDb.length === 0 && retryCount < maxRetries - 1) {
-        silentLog.debug(
-          `No messages found for chat ${id}, retry ${retryCount + 1}/${maxRetries}`,
-        );
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        retryCount++;
-      }
-    } catch (error: unknown) {
-      silentLog.error(`Error fetching messages for chat ${id}`, error);
-      retryCount++;
-      // Wait before retrying
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-
-  // Check for active streams in the database for auto-resume.
-  // Only resume streams that are very fresh (< 10s) and truly 'active' —
-  // 'interrupted' streams cannot be recovered and cause infinite polling loops.
+  // Determine auto-resume — only resume very fresh (< 10s) 'active' streams
   let shouldAutoResume = false;
-  try {
-    const { getActiveStreamByChatId } = await import('@/lib/db/queries');
-    const activeStream = await getActiveStreamByChatId({ chatId: id });
-
-    if (activeStream) {
-      const staleThreshold = 10 * 1000; // 10 seconds — only resume very fresh streams
-      const isStale =
-        Date.now() - new Date(activeStream.lastActiveAt).getTime() >
-        staleThreshold;
-
-      if (!isStale && activeStream.status === 'active') {
-        shouldAutoResume = true;
-        console.log(
-          '[ExistingChat] Found active stream, enabling auto-resume:',
-          {
-            streamId: activeStream.id,
-            status: activeStream.status,
-            lastActiveAt: activeStream.lastActiveAt,
-          },
-        );
-      }
-      // Note: 'interrupted' streams are NOT resumed — they've already been
-      // partially processed and resuming them causes infinite polling loops.
+  if (activeStreamResult) {
+    const staleThreshold = 10 * 1000;
+    const isStale =
+      Date.now() - new Date(activeStreamResult.lastActiveAt).getTime() >
+      staleThreshold;
+    if (!isStale && activeStreamResult.status === 'active') {
+      shouldAutoResume = true;
     }
-  } catch (streamError) {
-    console.error(
-      '[ExistingChat] Error checking for active stream:',
-      streamError,
-    );
-    // Continue without auto-resume on error
   }
 
-  const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get('chat-model');
   const providerFromCookie = cookieStore.get('ai-provider');
 
-  // Get user settings to retrieve research mode preferences only
-  // For existing chats, persona/profile come ONLY from the chat record
+  // Research mode from user settings; persona/profile come from the chat record for existing chats
   let userResearchMode: ResearchMode = 'off';
-  try {
-    const userSettings = await getUserSettings({ userId: session.user.id });
-    console.log('[ExistingChat] User settings fetched:', {
-      userId: session.user.id,
-      selectedResearchMode: userSettings?.selectedResearchMode,
-    });
-
-    if (userSettings?.selectedResearchMode) {
-      const rawMode = userSettings.selectedResearchMode;
-      // Ensure we only accept valid research modes
-      userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
-      console.log('[ExistingChat] Research mode set:', {
-        rawMode,
-        validatedMode: userResearchMode,
-      });
-    }
-  } catch (error) {
-    console.error(
-      '[ExistingChat] Error fetching user settings for research mode:',
-      error,
-    );
+  if (userSettings?.selectedResearchMode) {
+    const rawMode = userSettings.selectedResearchMode;
+    userResearchMode = rawMode === 'nexus' ? 'nexus' : 'off';
   }
 
-  // For existing chats, ONLY use the chat's persona/profile (not userSettings)
-  // This ensures that when a user clears the persona, it stays cleared
   const initialPersonaId = chat.personaId || undefined;
   const initialProfileId = chat.profileId || undefined;
-
-  console.log('[ExistingChat] Persona/profile from chat record:', {
-    chatId: id,
-    chatPersonaId: chat.personaId,
-    chatProfileId: chat.profileId,
-    initialPersonaId,
-    initialProfileId,
-  });
-
-  console.log('[ExistingChat] Final persona/profile/research config:', {
-    chatId: id,
-    initialPersonaId,
-    initialProfileId,
-    userResearchMode,
-  });
-
-  if (!chatModelFromCookie || !providerFromCookie) {
-    return (
-      <ChatClientWrapper
-        id={chat.id}
-        initialMessages={convertToUIMessages(messagesFromDb)}
-        initialChatModel={DEFAULT_CHAT_MODEL}
-        initialProvider={DEFAULT_PROVIDER}
-        initialVisibilityType={chat.visibility}
-        isReadonly={session?.user?.id !== chat.userId}
-        session={session}
-        autoResume={shouldAutoResume}
-        initialPersonaId={initialPersonaId}
-        initialProfileId={initialProfileId}
-        initialResearchMode={userResearchMode}
-      />
-    );
-  }
 
   return (
     <ChatClientWrapper
       id={chat.id}
       initialMessages={convertToUIMessages(messagesFromDb)}
-      initialChatModel={chatModelFromCookie.value}
-      initialProvider={providerFromCookie.value}
+      initialChatModel={chatModelFromCookie?.value ?? DEFAULT_CHAT_MODEL}
+      initialProvider={providerFromCookie?.value ?? DEFAULT_PROVIDER}
       initialVisibilityType={chat.visibility}
       isReadonly={session?.user?.id !== chat.userId}
       session={session}

@@ -8,7 +8,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Mic, AudioWaveform } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import VoiceModeBatchSave from './voice-mode-batch-save';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
@@ -42,6 +43,7 @@ export default function VoiceFAB({
   onUpdateMessages,
 }: VoiceFABProps) {
   const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
   
   // Get entitlements and upgrade modal
   const entitlements = useAccountStore((state) => state.entitlements);
@@ -154,15 +156,21 @@ export default function VoiceFAB({
       ) : (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleClick}
-              variant={variant === 'minimal' ? 'ghost' : 'outline'}
-              size={showLabel ? 'sm' : 'icon'}
-              className={cn(getVariantClasses(), isVoiceModeOpen && 'voice-recording-ring', className)}
+            <motion.div
+              whileHover={prefersReducedMotion ? undefined : { scale: 1.05 }}
+              whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
+              transition={springSnappy}
             >
-              {buttonContent}
-            </Button>
+              <Button
+                type="button"
+                onClick={handleClick}
+                variant={variant === 'minimal' ? 'ghost' : 'outline'}
+                size={showLabel ? 'sm' : 'icon'}
+                className={cn(getVariantClasses(), isVoiceModeOpen && 'voice-recording-ring', className)}
+              >
+                {buttonContent}
+              </Button>
+            </motion.div>
           </TooltipTrigger>
           <TooltipContent>
             {variant === 'minimal'

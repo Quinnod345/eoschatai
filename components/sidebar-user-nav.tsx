@@ -23,6 +23,7 @@ import {
 import { FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { springChat } from '@/lib/motion/presets';
 import { styles } from '@/lib/styles';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -224,7 +225,7 @@ export function SidebarUserNav({
         <motion.div
           initial={{ y: -10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.4 }}
+          transition={{ ...springChat, delay: 0.4 }}
           className={cn(
             'flex items-center w-auto md:flex-col gap-2',
             isInHeader && 'flex-row md:flex-row', // Make sure it stays in row layout in header

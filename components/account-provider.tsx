@@ -15,8 +15,8 @@ import type { UpgradeFeature } from '@/types/upgrade';
 import { toast } from 'sonner';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
-async function fetchBootstrap(): Promise<AccountBootstrap | null> {
-  const response = await fetch('/api/me', { cache: 'no-store' });
+async function fetchBootstrap(forceNoCache = false): Promise<AccountBootstrap | null> {
+  const response = await fetch('/api/me', forceNoCache ? { cache: 'no-store' } : undefined);
   if (!response.ok) {
     console.error(
       '[AccountProvider] Failed to fetch account data:',
@@ -77,14 +77,33 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (forceNoCache = false) => {
     setLoading(true);
     try {
-      const payload = await fetchBootstrap();
+      // Fire /api/me and Circle verify simultaneously — Circle verify returns fast
+      // for non-Circle users (early exit on server), so it's safe to always call it.
+      const [payload, verifyResult] = await Promise.all([
+        fetchBootstrap(forceNoCache),
+        fetch('/api/integrations/circle/verify', {
+          method: 'POST',
+          cache: 'no-store',
+        })
+          .then((r) => (r.ok ? (r.json() as Promise<{ verified?: boolean; changed?: boolean; plan?: string; code?: string; reason?: string }>) : null))
+          .catch(() => null),
+      ]);
 
       if (!payload) {
         setError('Failed to load account data');
         return;
+      }
+
+      // Show edge-case toasts for non-trivial Circle verify results
+      if (
+        verifyResult?.code &&
+        verifyResult.code !== 'CIRCLE_PLAN_VERIFIED' &&
+        verifyResult.code !== 'NOT_CIRCLE_SUBSCRIBER'
+      ) {
+        showEdgeCaseToast(toast, verifyResult).catch(() => {});
       }
 
       let prices: PriceSummary[] | undefined;
@@ -93,6 +112,15 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           prices = await fetchPrices();
         } catch (error) {
           console.warn('[account] Failed to load Stripe prices', error);
+        }
+      }
+
+      // If Circle verify detected a plan change, re-fetch bootstrap to get the updated plan
+      if (verifyResult?.changed) {
+        const refreshedPayload = await fetchBootstrap(true);
+        if (refreshedPayload) {
+          setBootstrap({ ...refreshedPayload, prices });
+          return;
         }
       }
 
@@ -231,60 +259,6 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       eventSource.close();
     };
   }, [ready, featureFlags.entitlements_ws, user?.id]);
-
-  // Re-verify Circle subscription once per mount for Circle-sourced users.
-  // Runs after the initial bootstrap is ready, then never again for this session.
-  // Uses a ref flag to prevent the infinite loop that would occur if verify
-  // triggered refresh() → new user object → effect re-runs → verify again.
-  const circleVerifiedRef = useRef(false);
-  useEffect(() => {
-    if (!ready || !user || user.subscriptionSource !== 'circle') return;
-    if (circleVerifiedRef.current) return;
-    circleVerifiedRef.current = true;
-
-    const verify = async () => {
-      try {
-        const res = await fetch('/api/integrations/circle/verify', {
-          method: 'POST',
-          cache: 'no-store',
-        });
-        if (!res.ok) {
-          const failedData = (await res.json().catch(() => null)) as
-            | Record<string, unknown>
-            | null;
-          await showEdgeCaseToast(toast, failedData, {
-            fallback: 'Unable to verify Circle membership right now.',
-          });
-          return;
-        }
-
-        const data = (await res.json()) as {
-          verified?: boolean;
-          changed?: boolean;
-          plan?: string;
-          code?: string;
-          reason?: string;
-        };
-
-        if (
-          data.code &&
-          data.code !== 'CIRCLE_PLAN_VERIFIED' &&
-          data.code !== 'NOT_CIRCLE_SUBSCRIBER'
-        ) {
-          await showEdgeCaseToast(toast, data);
-        }
-
-        // Refresh after verify so the client store reflects the confirmed server plan.
-        if (data.verified) {
-          refreshRef.current?.().catch(() => {});
-        }
-      } catch {
-        // Network failure — silently ignore, DB value stays in effect until next load.
-      }
-    };
-
-    verify();
-  }, [ready, user?.subscriptionSource]);
 
   // Dev-only helpers to force-open the upgrade modal for testing
   useEffect(() => {

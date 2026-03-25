@@ -14,6 +14,7 @@ import {
 } from './ui/tooltip';
 import { memo } from 'react';
 import { motion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import equal from 'fast-deep-equal';
 import { toast, toastUtils } from '@/lib/toast-system';
 import { Pin, MessageCircle, Share, RefreshCw, FileText } from 'lucide-react';
@@ -207,6 +208,7 @@ export function PureMessageActions({
                   <motion.div
                     whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.97 }}
+                    transition={springSnappy}
                   >
                     <Button
                       className="py-1 px-2 h-fit text-muted-foreground hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-400"
@@ -234,6 +236,7 @@ export function PureMessageActions({
                 <motion.div
                   whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  transition={springSnappy}
                 >
                   <Button
                     className={cn(
@@ -267,6 +270,7 @@ export function PureMessageActions({
                 <motion.div
                   whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  transition={springSnappy}
                 >
                   <Button
                     className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
@@ -286,6 +290,7 @@ export function PureMessageActions({
                 <motion.div
                   whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  transition={springSnappy}
                 >
                   <Button
                     className={cn(
@@ -308,6 +313,7 @@ export function PureMessageActions({
                 <motion.div
                   whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  transition={springSnappy}
                 >
                   <Button
                     className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
@@ -329,6 +335,7 @@ export function PureMessageActions({
                   <motion.div
                     whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.97 }}
+                    transition={springSnappy}
                   >
                     <Button
                       className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"
@@ -351,6 +358,7 @@ export function PureMessageActions({
                 <motion.div
                   whileHover={{ scale: 1.03, y: -1 }}
                   whileTap={{ scale: 0.97 }}
+                  transition={springSnappy}
                 >
                   <ContextIndicatorBadge
                     messageId={message.id}
@@ -368,6 +376,7 @@ export function PureMessageActions({
                       <motion.div
                         whileHover={{ scale: 1.03, y: -1 }}
                         whileTap={{ scale: 0.97 }}
+                        transition={springSnappy}
                       >
                         <Button
                           data-testid="message-upvote"
@@ -392,6 +401,7 @@ export function PureMessageActions({
                       <motion.div
                         whileHover={{ scale: 1.03, y: -1 }}
                         whileTap={{ scale: 0.97 }}
+                        transition={springSnappy}
                       >
                         <Button
                           data-testid="message-downvote"
@@ -420,6 +430,7 @@ export function PureMessageActions({
                           <motion.div
                             whileHover={{ scale: 1.03, y: -1 }}
                             whileTap={{ scale: 0.97 }}
+                            transition={springSnappy}
                           >
                             <Button
                               className="py-1 px-2 h-fit text-muted-foreground hover:bg-eos-orange/10"

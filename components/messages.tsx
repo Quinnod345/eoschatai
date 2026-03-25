@@ -4,13 +4,15 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
 import type { ChatHelpers, ChatStatus, ReloadFunction } from './multimodal-input/types';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { MessageSkeleton } from './message-skeleton';
 import { usePathname } from 'next/navigation';
 import { ComposerDashboard } from './composer-dashboard';
+import { Pin } from 'lucide-react';
+import { springSnappy } from '@/lib/motion/presets';
 
 interface CitationReference {
   number: number;
@@ -293,6 +295,16 @@ function PureMessages({
   const isLoading = messages.length === 0 && status === 'ready' && !isNewChat;
 
   // Detect dashboard mode
+  // Pinned jump pill — must come after filteredMessages is declared
+  const pinnedCount = useMemo(
+    () => filteredMessages.filter((m) => isPinned(m.id)).length,
+    [filteredMessages, isPinned],
+  );
+  const firstPinnedId = useMemo(
+    () => filteredMessages.find((m) => isPinned(m.id))?.id,
+    [filteredMessages, isPinned],
+  );
+
   const [dashboardKind, setDashboardKind] = useState<string | null>(null);
   useEffect(() => {
     try {
@@ -326,61 +338,89 @@ function PureMessages({
     >
       {/* Spacer (like SwiftUI Spacer()) */}
       <div className="shrink-0 h-2" />
+
+      {/* Pinned messages jump pill */}
+      <AnimatePresence>
+        {pinnedCount > 0 && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={springSnappy}
+            className="sticky top-2 z-10 mx-auto flex items-center gap-1.5 rounded-full bg-eos-orange/90 px-3 py-1 text-[11px] font-medium text-white shadow-md backdrop-blur-sm hover:bg-eos-orange transition-colors self-center"
+            onClick={() => {
+              if (firstPinnedId) {
+                document
+                  .getElementById(`message-${firstPinnedId}`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
+            aria-label={`${pinnedCount} pinned message${pinnedCount === 1 ? '' : 's'} — click to jump`}
+          >
+            <Pin className="h-3 w-3" />
+            {pinnedCount} pinned
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {isLoading ? (
         <MessageSkeleton count={3} />
       ) : (
-        filteredMessages.map((message, index) => (
-          <PreviewMessage
-            key={message.id}
-            chatId={chatId}
-            message={message}
-            isLoading={
-              status === 'streaming' &&
-              filteredMessages.length - 1 === index &&
-              !shouldShowThinking
-            }
-            chatStatus={status}
-            vote={
-              votes
-                ? votes.find((vote) => vote.messageId === message.id)
-                : undefined
-            }
-            setMessages={setMessages}
-            reload={reload}
-            isReadonly={isReadonly}
-            requiresScrollPadding={
-              hasSentMessage && index === filteredMessages.length - 1
-            }
-            onPin={handlePin}
-            onReply={(messageId) => {
-              const msg = messages.find((m) => m.id === messageId);
-              if (msg) {
-                const textContent =
-                  msg.parts
-                    ?.filter((part) => part.type === 'text')
-                    .map((part) => part.text)
-                    .join('\n')
-                    .trim() || '';
-
-                // Only allow replies to user and assistant messages
-                const validRole =
-                  msg.role === 'user' || msg.role === 'assistant'
-                    ? msg.role
-                    : 'assistant';
-                handleReply(messageId, textContent, validRole);
+        <AnimatePresence initial={false}>
+          {filteredMessages.map((message, index) => (
+            <PreviewMessage
+              key={message.id}
+              chatId={chatId}
+              message={message}
+              listIndex={index}
+              isLoading={
+                status === 'streaming' &&
+                filteredMessages.length - 1 === index &&
+                !shouldShowThinking
               }
-            }}
-            isPinned={isPinned(message.id)}
-            citations={citations}
-            searchProgress={searchProgress}
-            meetingMetadata={meetingMetadata}
-            isStreaming={
-              status === 'streaming' &&
-              index === filteredMessages.length - 1 &&
-              message.role === 'assistant'
-            }
-          />
-        ))
+              chatStatus={status}
+              vote={
+                votes
+                  ? votes.find((vote) => vote.messageId === message.id)
+                  : undefined
+              }
+              setMessages={setMessages}
+              reload={reload}
+              isReadonly={isReadonly}
+              requiresScrollPadding={
+                hasSentMessage && index === filteredMessages.length - 1
+              }
+              onPin={handlePin}
+              onReply={(messageId) => {
+                const msg = messages.find((m) => m.id === messageId);
+                if (msg) {
+                  const textContent =
+                    msg.parts
+                      ?.filter((part) => part.type === 'text')
+                      .map((part) => part.text)
+                      .join('\n')
+                      .trim() || '';
+
+                  const validRole =
+                    msg.role === 'user' || msg.role === 'assistant'
+                      ? msg.role
+                      : 'assistant';
+                  handleReply(messageId, textContent, validRole);
+                }
+              }}
+              isPinned={isPinned(message.id)}
+              citations={citations}
+              searchProgress={searchProgress}
+              meetingMetadata={meetingMetadata}
+              isStreaming={
+                status === 'streaming' &&
+                index === filteredMessages.length - 1 &&
+                message.role === 'assistant'
+              }
+            />
+          ))}
+        </AnimatePresence>
       )}
 
       {shouldShowThinking && (

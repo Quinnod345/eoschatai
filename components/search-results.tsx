@@ -19,6 +19,7 @@ interface SearchResultsProps {
 
 export function SearchResults({ results, query }: SearchResultsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   if (!results || results.length === 0) {
     return null;
@@ -98,6 +99,8 @@ export function SearchResults({ results, query }: SearchResultsProps) {
                         delay: index * 0.05,
                         ease: [0.4, 0, 0.2, 1],
                       }}
+                      onHoverStart={() => setHoveredIndex(index)}
+                      onHoverEnd={() => setHoveredIndex(null)}
                       className="block group"
                     >
                       <div className="p-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 hover:shadow-sm">
@@ -124,9 +127,14 @@ export function SearchResults({ results, query }: SearchResultsProps) {
                           </div>
                         </div>
 
-                        {/* Snippet */}
+                        {/* Snippet — expands on hover with max-height transition */}
                         {result.snippet && (
-                          <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 ml-6 leading-relaxed">
+                          <p
+                            className="text-xs text-zinc-600 dark:text-zinc-400 ml-6 leading-relaxed overflow-hidden transition-[max-height] duration-200 ease-in-out"
+                            style={{
+                              maxHeight: hoveredIndex === index ? '10rem' : '2.6rem',
+                            }}
+                          >
                             {result.snippet}
                           </p>
                         )}

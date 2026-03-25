@@ -6,6 +6,7 @@ import {
   useMotionValue,
   useTransform,
 } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import {
   type Dispatch,
   memo,
@@ -107,16 +108,10 @@ const Tool = ({
           }}
           initial={{ scale: 1, opacity: 0 }}
           animate={{ opacity: 1, transition: { delay: 0.1 } }}
-          whileHover={{
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            transition: { duration: 0.2, ease: 'easeOut' },
-          }}
-          whileTap={{ scale: 0.95, transition: { duration: 0.1 } }}
-          exit={{
-            scale: 0.9,
-            opacity: 0,
-            transition: { duration: 0.1 },
-          }}
+          whileHover={{ scale: 1.04, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)' }}
+          whileTap={{ scale: 0.95 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={springSnappy}
           onClick={() => {
             handleSelect();
           }}

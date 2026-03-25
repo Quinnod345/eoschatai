@@ -1,6 +1,7 @@
 import type { Chat } from '@/lib/db/schema';
 import { SidebarMenuButton, SidebarMenuItem } from './ui/sidebar';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -278,6 +279,9 @@ const PureChatItem = ({
               >
                 <span className="truncate block min-w-0 text-[14px] font-normal">
                   {getDisplayTitle(chat.title)}
+                </span>
+                <span className="text-[10px] text-muted-foreground/40 truncate block opacity-0 group-hover/item:opacity-100 transition-opacity duration-150 leading-tight">
+                  {formatDistanceToNow(new Date(chat.createdAt), { addSuffix: true })}
                 </span>
               </div>
 

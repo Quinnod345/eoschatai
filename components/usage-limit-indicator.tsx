@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { cn } from '@/lib/utils';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
+import { springSnappy } from '@/lib/motion/presets';
 
 export function UsageLimitIndicator() {
   const entitlements = useAccountStore((state) => state.entitlements);
@@ -13,6 +14,7 @@ export function UsageLimitIndicator() {
   const openUpgradeModal = useUpgradeStore((state) => state.openModal);
 
   const [isHovered, setIsHovered] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   if (!entitlements || !usageCounters || !user) {
     return null;
@@ -42,13 +44,16 @@ export function UsageLimitIndicator() {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.15 }}
+      transition={springSnappy}
       className="flex items-center justify-end"
     >
       <motion.button
         type="button"
         onHoverStart={() => setIsHovered(true)}
         onHoverEnd={() => setIsHovered(false)}
+        whileHover={prefersReducedMotion || user.plan !== 'free' ? undefined : { scale: 1.04 }}
+        whileTap={prefersReducedMotion || user.plan !== 'free' ? undefined : { scale: 0.97 }}
+        transition={springSnappy}
         onClick={() => user.plan === 'free' && openUpgradeModal('premium')}
         className={cn(
           'group relative flex items-center gap-1.5 rounded-full px-2.5 py-1',

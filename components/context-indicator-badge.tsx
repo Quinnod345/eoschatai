@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 
 interface ContextIndicatorProps {
   messageId: string;
@@ -130,9 +131,9 @@ export function ContextIndicatorBadge({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
+      initial={{ opacity: 0, scale: 0.92, y: 4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={springSnappy}
     >
       <TooltipProvider>
         <Tooltip>

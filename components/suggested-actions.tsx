@@ -4,6 +4,8 @@ import { memo } from 'react';
 import type { AppendFunction } from './multimodal-input/types';
 import type { VisibilityType } from './visibility-selector';
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { springChat, useNoMotion, INSTANT } from '@/lib/motion/presets';
 import '../styles/animations.css';
 
 // Time-based greeting options - conversational and warm
@@ -80,10 +82,12 @@ function PureSuggestedActions({
     setGreeting(getRandomGreeting());
   }, []);
 
+  const noMotion = useNoMotion();
+
   return (
     <div
       data-testid="suggested-actions"
-      className="flex flex-col max-w-3xl mx-auto px-4 sm:px-6 animate-fadeIn suggestions-container min-h-screen"
+      className="flex flex-col max-w-3xl mx-auto px-4 sm:px-6 suggestions-container min-h-screen"
       style={{
         overflow: 'visible',
         minHeight: 'fit-content',
@@ -91,24 +95,31 @@ function PureSuggestedActions({
     >
       {/* Header section - centered container with left-justified text */}
       <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="w-full max-w-2xl">
+        <motion.div
+          className="w-full max-w-2xl"
+          {...(noMotion
+            ? INSTANT
+            : {
+                initial: { opacity: 0, y: 12 },
+                animate: { opacity: 1, y: 0 },
+                transition: springChat,
+              })}
+        >
           <h2 className="font-bold text-left text-orange-500 dark:text-orange-400 w-full px-4 responsive-title">
             <span className="inline-block animate-blur-in-text whitespace-nowrap-words">
-              {greeting.split(' ').map((word, wordIndex) => (
+              {greeting.split(' ').map((word, wordIndex) => {
+                const wordStartIndex = greeting
+                  .split(' ')
+                  .slice(0, wordIndex)
+                  .join(' ')
+                  .length + (wordIndex > 0 ? 1 : 0);
+                return (
                 <span
-                  key={`word-${word}-${Date.now()}-${wordIndex}`}
+                  key={`word-${wordStartIndex}`}
                   className="inline-block mr-2 whitespace-nowrap"
                 >
                   {word.split('').map((char, charIndex) => {
-                    const globalIndex = greeting
-                      .split('')
-                      .slice(
-                        0,
-                        greeting.split(' ').slice(0, wordIndex).join(' ')
-                          .length +
-                          (wordIndex > 0 ? 1 : 0) +
-                          charIndex,
-                      ).length;
+                    const globalIndex = wordStartIndex + charIndex;
                     return (
                       <span
                         key={`char-${char}-${globalIndex}-${word}`}
@@ -124,10 +135,11 @@ function PureSuggestedActions({
                     );
                   })}
                 </span>
-              ))}
+                );
+              })}
             </span>
           </h2>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

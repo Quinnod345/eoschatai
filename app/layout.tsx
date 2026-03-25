@@ -17,6 +17,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import './globals.css';
 import { SessionProvider } from 'next-auth/react';
+import { AppSplash } from '@/components/app-splash';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://eosbot.ai'),
@@ -128,6 +129,10 @@ export default async function RootLayout({
         className="antialiased bg-white dark:bg-zinc-950"
         suppressHydrationWarning
       >
+        {/* Full-screen splash — renders immediately with first HTML bytes,
+            fades out once React hydrates. Covers the white flash during
+            server-side auth/DB resolution in child layouts. */}
+        <AppSplash />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

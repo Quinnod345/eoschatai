@@ -2,6 +2,7 @@
 
 import { isAfter } from 'date-fns';
 import { motion } from 'framer-motion';
+import { springComposer } from '@/lib/motion/presets';
 import { useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { useWindowSize } from 'usehooks-ts';
@@ -40,7 +41,7 @@ export const VersionFooter = ({
       initial={{ y: isMobile ? 200 : 77 }}
       animate={{ y: 0 }}
       exit={{ y: isMobile ? 200 : 77 }}
-      transition={{ type: 'spring', stiffness: 140, damping: 20 }}
+      transition={springComposer}
     >
       <div>
         <div>You are viewing a previous version</div>

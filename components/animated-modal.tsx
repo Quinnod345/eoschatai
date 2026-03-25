@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import { X } from 'lucide-react';
 
 interface AnimatedModalProps {
@@ -66,11 +67,7 @@ export function AnimatedModal({
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              transition={{
-                type: 'spring',
-                stiffness: 400,
-                damping: 30,
-              }}
+              transition={springSnappy}
               className={`rounded-2xl shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col border border-white/25 dark:border-zinc-700/40 bg-background/90 backdrop-blur-[12px] isolate`}
               onClick={(e) => e.stopPropagation()}
             >

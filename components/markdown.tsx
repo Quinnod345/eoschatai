@@ -1,12 +1,14 @@
 import Link from 'next/link';
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChartRenderer } from './chart-renderer';
 import { CitationButton } from './citation-button';
 import type { ChartData } from '@/composer/chart/client';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ErrorBoundary } from './error-boundary';
+import { Copy, Check } from 'lucide-react';
+import { springSnappy } from '@/lib/motion/presets';
 
 interface CitationReference {
   number: number;
@@ -17,7 +19,7 @@ interface CitationReference {
 
 // Cursor component for streaming text
 const Cursor = () => (
-  <span className="inline-block w-[3px] h-[1.1em] bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-pulse align-text-bottom ml-0.5 rounded-full opacity-90" />
+  <span className="inline-block w-[3px] h-[1.1em] bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-pulse cursor-sweep align-text-bottom ml-0.5 rounded-full opacity-90" />
 );
 
 // Helper to replace cursor token with Cursor component in a string
@@ -123,6 +125,8 @@ function EnhancedCodeBlock({
   children,
   ...props
 }: any) {
+  const [copied, setCopied] = useState(false);
+
   if (!inline) {
     // Get the text content
     const content =
@@ -153,16 +157,70 @@ function EnhancedCodeBlock({
       );
     }
 
-    // Fallback to regular code block
+    // Derive language label from className (e.g. "language-javascript" → "javascript")
+    const lang = className?.replace('language-', '') || null;
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(content).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+    };
+
+    // Fallback to regular code block with copy button and language badge
     return (
       <motion.div
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
+        className="relative group/codeblock"
       >
+        {/* Header bar: language badge + copy button */}
+        <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-b-0 border-zinc-200 dark:border-zinc-700 rounded-t-xl">
+          <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 select-none">
+            {lang ?? 'code'}
+          </span>
+          <motion.button
+            type="button"
+            onClick={handleCopy}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            transition={springSnappy}
+            aria-label={copied ? 'Copied' : 'Copy code'}
+            className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors rounded px-1.5 py-0.5 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              {copied ? (
+                <motion.span
+                  key="check"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={springSnappy}
+                  className="flex items-center gap-1 text-emerald-500"
+                >
+                  <Check className="h-3 w-3" />
+                  Copied
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="copy"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={springSnappy}
+                  className="flex items-center gap-1"
+                >
+                  <Copy className="h-3 w-3" />
+                  Copy
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        </div>
         <pre
           {...props}
-          className="text-sm w-full overflow-x-auto dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl dark:text-zinc-50 text-zinc-900"
+          className="text-sm w-full overflow-x-auto dark:bg-zinc-900 p-4 border border-zinc-200 dark:border-zinc-700 rounded-b-xl dark:text-zinc-50 text-zinc-900"
         >
           <code className="whitespace-pre-wrap break-words">
             {renderStringWithCursor(content)}
@@ -820,7 +878,7 @@ export const Markdown = memo(function MarkdownWithErrorBoundary(
         <div className="p-3 rounded-lg bg-muted/50 border border-muted">
           <p className="text-sm text-muted-foreground">
             Failed to render content.{' '}
-            <button onClick={reset} className="text-primary underline">
+            <button type="button" onClick={reset} className="text-primary underline">
               Try again
             </button>
           </p>

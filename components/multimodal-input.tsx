@@ -68,7 +68,8 @@ import {
   UserIcon,
 } from './icons';
 import equal from 'fast-deep-equal';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import { ArrowDown as ArrowDownLucide } from 'lucide-react';
 import { useScrollToBottom } from '@/hooks/use-scroll-to-bottom';
 import { UsageChip } from '@/components/multimodal-input/usage-chip';
@@ -541,6 +542,7 @@ function PureMultimodalInput({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
+  const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
@@ -3839,7 +3841,11 @@ function PureMultimodalInput({
                           <div className="group inline-flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full bg-gradient-to-r from-eos-orange/15 to-eos-orange/5 dark:from-eos-orange/25 dark:to-eos-orange/10 text-eos-orange dark:text-eos-orangeLight text-[13px] font-medium border border-eos-orange/25 dark:border-eos-orange/35 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-eos-orange/40 transition-all duration-200">
                             <span className="flex items-center gap-1.5">
                               {selectedPersona.iconUrl ? (
-                                <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-eos-orange/20">
+                                <motion.div
+                                  className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-eos-orange/20"
+                                  animate={prefersReducedMotion ? {} : { scale: [1, 1.06, 1] }}
+                                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut', repeatDelay: 0.5 }}
+                                >
                                   <Image
                                     src={selectedPersona.iconUrl}
                                     alt=""
@@ -3847,11 +3853,15 @@ function PureMultimodalInput({
                                     height={20}
                                     className="object-cover w-full h-full"
                                   />
-                                </div>
+                                </motion.div>
                               ) : (
-                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-eos-orange to-eos-orangeLight flex items-center justify-center flex-shrink-0 shadow-sm text-white">
+                                <motion.div
+                                  className="w-5 h-5 rounded-full bg-gradient-to-br from-eos-orange to-eos-orangeLight flex items-center justify-center flex-shrink-0 shadow-sm text-white"
+                                  animate={prefersReducedMotion ? {} : { scale: [1, 1.06, 1] }}
+                                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut', repeatDelay: 0.5 }}
+                                >
                                   <UserIcon size={10} />
-                                </div>
+                                </motion.div>
                               )}
                               <span className="font-medium max-w-[140px] truncate">
                                 {selectedPersona.name}
@@ -4225,23 +4235,31 @@ function PureStopButton({
     }
   };
 
+  const prefersReducedMotion = useReducedMotion();
+
   return (
-    <Button
-      data-testid="stop-button"
-      className="rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 bg-background shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200 touch-target-sm"
-      onClick={handleStop}
-      disabled={isStopping}
-      title="Stop generation"
-      aria-label={isStopping ? 'Stopping response' : 'Stop response generation'}
+    <motion.div
+      whileHover={prefersReducedMotion ? undefined : { scale: 1.04 }}
+      whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
+      transition={springSnappy}
     >
-      {isStopping ? (
-        <div className="size-4 animate-spin text-zinc-500">
-          <LoaderIcon size={16} />
-        </div>
-      ) : (
-        <Square className="size-4 text-zinc-500 fill-zinc-500" />
-      )}
-    </Button>
+      <Button
+        data-testid="stop-button"
+        className="rounded-full p-2 h-10 w-10 md:h-9 md:w-9 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 bg-background shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-200 touch-target-sm"
+        onClick={handleStop}
+        disabled={isStopping}
+        title="Stop generation"
+        aria-label={isStopping ? 'Stopping response' : 'Stop response generation'}
+      >
+        {isStopping ? (
+          <div className="size-4 animate-spin text-zinc-500">
+            <LoaderIcon size={16} />
+          </div>
+        ) : (
+          <Square className="size-4 text-zinc-500 fill-zinc-500" />
+        )}
+      </Button>
+    </motion.div>
   );
 }
 
@@ -4280,47 +4298,54 @@ function PureSendButton({
     audioCount === 0;
   const isDisabled = nothingToSend || uploadQueue.length > 0 || audioProcessing;
   const [isBursting, setIsBursting] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   return (
-    <Button
-      data-testid="send-button"
-      className={cx(
-        'relative rounded-full p-2 h-10 w-10 flex items-center justify-center transition-all duration-200 touch-target-sm',
-        isDisabled
-          ? 'border border-zinc-200 bg-zinc-100 text-zinc-400 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed'
-          : 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30 hover:bg-primary/90 hover:shadow-lg hover:ring-primary/45 active:scale-[0.97]',
-        isBursting && 'send-burst',
-      )}
-      onClick={(event) => {
-        event.preventDefault();
-        if (!isDisabled) {
-          setIsBursting(true);
-          setTimeout(() => setIsBursting(false), 420);
-          submitForm();
-        }
-      }}
-      disabled={isDisabled}
-      aria-label={
-        audioProcessing
-          ? 'Waiting for audio transcription'
-          : uploadQueue.length > 0
-            ? 'Waiting for uploads'
-            : nothingToSend
-              ? 'Send message (empty)'
-              : 'Send message'
-      }
-      title={
-        audioProcessing
-          ? 'Waiting for audio transcription to complete...'
-          : uploadQueue.length > 0
-            ? 'Waiting for uploads to complete...'
-            : nothingToSend
-              ? 'Type a message or add files'
-              : 'Send message'
-      }
+    <motion.div
+      whileHover={prefersReducedMotion || isDisabled ? undefined : { scale: 1.05 }}
+      whileTap={prefersReducedMotion || isDisabled ? undefined : { scale: 0.96 }}
+      transition={springSnappy}
     >
-      <ArrowUp className="size-5" />
-    </Button>
+      <Button
+        data-testid="send-button"
+        className={cx(
+          'relative rounded-full p-2 h-10 w-10 flex items-center justify-center transition-[background-color,box-shadow,ring] duration-200 touch-target-sm',
+          isDisabled
+            ? 'border border-zinc-200 bg-zinc-100 text-zinc-400 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500 cursor-not-allowed'
+            : 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30 hover:bg-primary/90 hover:shadow-lg hover:ring-primary/45',
+          isBursting && 'send-burst',
+        )}
+        onClick={(event) => {
+          event.preventDefault();
+          if (!isDisabled) {
+            setIsBursting(true);
+            setTimeout(() => setIsBursting(false), 420);
+            submitForm();
+          }
+        }}
+        disabled={isDisabled}
+        aria-label={
+          audioProcessing
+            ? 'Waiting for audio transcription'
+            : uploadQueue.length > 0
+              ? 'Waiting for uploads'
+              : nothingToSend
+                ? 'Send message (empty)'
+                : 'Send message'
+        }
+        title={
+          audioProcessing
+            ? 'Waiting for audio transcription to complete...'
+            : uploadQueue.length > 0
+              ? 'Waiting for uploads to complete...'
+              : nothingToSend
+                ? 'Type a message or add files'
+                : 'Send message'
+        }
+      >
+        <ArrowUp className="size-5" />
+      </Button>
+    </motion.div>
   );
 }
 

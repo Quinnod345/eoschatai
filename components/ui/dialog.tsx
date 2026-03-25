@@ -26,7 +26,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 bg-black/30 backdrop-blur-[6px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200',
+      'fixed inset-0 bg-black/20 backdrop-blur-[8px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200',
       nested ? 'z-nested-modal-overlay' : 'z-modal-overlay',
       className,
     )}
@@ -73,7 +73,7 @@ const DialogContent = React.forwardRef<
         // Overflow handling
         'overflow-y-auto overflow-x-hidden overscroll-contain',
         // Visual styling
-        'bg-background border border-border/50 shadow-xl',
+        'bg-background/90 backdrop-blur-[12px] border border-white/25 dark:border-zinc-700/40 shadow-xl',
         'rounded-xl sm:rounded-2xl',
         // Padding - more compact on mobile
         'p-4 sm:p-6',

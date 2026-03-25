@@ -42,7 +42,7 @@ function AnimatedChar({
       transition={{
         duration: 0.2,
         delay,
-        ease: [0.2, 0.65, 0.3, 0.9],
+        ease: 'easeOut',
       }}
       className="inline-block"
       style={{ whiteSpace: char === ' ' ? 'pre' : 'normal' }}

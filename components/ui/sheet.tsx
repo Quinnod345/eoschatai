@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { motion } from 'framer-motion';
+import { springChat } from '@/lib/motion/presets';
 import * as SheetPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
@@ -74,7 +75,7 @@ const SheetContent = React.forwardRef<
           x: side === 'right' ? 20 : side === 'left' ? -20 : 0,
           y: side === 'bottom' ? 20 : side === 'top' ? -20 : 0,
         }}
-        transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+        transition={springChat}
         className={cn(sheetVariants({ side }), className)}
         {...(props as any)}
       >

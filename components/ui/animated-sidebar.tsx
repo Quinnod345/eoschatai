@@ -1,6 +1,8 @@
 import React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './sidebar';
+import { springChat } from '@/lib/motion/presets';
 
 type AnimatedSidebarWrapperProps = {
   children: React.ReactNode;
@@ -39,12 +41,29 @@ interface AnimatedSidebarItemProps {
   className?: string;
 }
 
-// SIMPLIFIED: No more staggered Framer Motion animations - just render children
 export function AnimatedSidebarItem({
   children,
+  index = 0,
   className,
 }: AnimatedSidebarItemProps) {
-  return <div className={cn(className)}>{children}</div>;
+  const { state } = useSidebar();
+  const prefersReducedMotion = useReducedMotion();
+  const isCollapsed = state === 'collapsed';
+
+  if (prefersReducedMotion || isCollapsed) {
+    return <div className={cn(className)}>{children}</div>;
+  }
+
+  return (
+    <motion.div
+      className={cn(className)}
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ ...springChat, delay: Math.min(index * 0.03, 0.25) }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 // SIMPLIFIED: Just a wrapper div

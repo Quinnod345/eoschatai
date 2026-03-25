@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { springSoft } from '@/lib/motion/presets';
 
 interface MessageSkeletonProps {
   count?: number;
@@ -12,16 +13,16 @@ export function MessageSkeleton({
   count = 3,
   className,
 }: MessageSkeletonProps) {
-  const skeletonIds = Array.from({ length: count }, (_, i) => `msg-skeleton-${Date.now()}-${i}`);
+  const skeletonIds = Array.from({ length: count }, (_, i) => `msg-skeleton-${i}`);
   
   return (
     <div className={cn('space-y-4 p-4', className)}>
       {skeletonIds.map((id, i) => (
         <motion.div
           key={id}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.1 }}
+          transition={{ ...springSoft, delay: i * 0.07 }}
           className="flex gap-3"
         >
           {/* Avatar skeleton */}

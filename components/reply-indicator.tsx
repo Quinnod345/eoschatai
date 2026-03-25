@@ -4,6 +4,7 @@ import { X, Reply, User, Bot } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 
 interface ReplyIndicatorProps {
   isVisible: boolean;
@@ -38,12 +39,7 @@ export function ReplyIndicator({
           initial={{ opacity: 0, y: 10, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
-          transition={{
-            type: 'spring',
-            stiffness: 400,
-            damping: 25,
-            duration: 0.2,
-          }}
+          transition={springSnappy}
           className={cn(
             'flex items-center gap-3 p-3 mx-4 mb-2',
             'bg-gradient-to-r from-blue-50/80 to-indigo-50/80',

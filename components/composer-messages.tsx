@@ -5,7 +5,7 @@ import { memo } from 'react';
 import equal from 'fast-deep-equal';
 import type { UIComposer } from './composer';
 import type { ChatHelpers, ChatStatus, ReloadFunction } from './multimodal-input/types';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useMessages } from '@/hooks/use-messages';
 import { useMessageActions } from '@/hooks/use-message-actions';
 
@@ -56,45 +56,47 @@ function PureComposerMessages({
       ref={messagesContainerRef}
       className="flex flex-col gap-4 h-full items-center overflow-y-scroll px-6 pt-20 pb-4 w-full"
     >
-      {messages.map((message, index) => (
-        <PreviewMessage
-          chatId={chatId}
-          key={message.id}
-          message={message}
-          isLoading={status === 'streaming' && index === messages.length - 1}
-          vote={
-            votes
-              ? votes.find((vote) => vote.messageId === message.id)
-              : undefined
-          }
-          setMessages={setMessages}
-          reload={reload}
-          isReadonly={isReadonly}
-          requiresScrollPadding={
-            hasSentMessage && index === messages.length - 1
-          }
-          onPin={handlePin}
-          onReply={(messageId) => {
-            const msg = messages.find((m) => m.id === messageId);
-            if (msg) {
-              const textContent =
-                msg.parts
-                  ?.filter((part) => part.type === 'text')
-                  .map((part) => part.text)
-                  .join('\n')
-                  .trim() || '';
-
-              // Only allow replies to user and assistant messages
-              const validRole =
-                msg.role === 'user' || msg.role === 'assistant'
-                  ? msg.role
-                  : 'assistant';
-              handleReply(messageId, textContent, validRole);
+      <AnimatePresence initial={false}>
+        {messages.map((message, index) => (
+          <PreviewMessage
+            chatId={chatId}
+            key={message.id}
+            message={message}
+            listIndex={index}
+            isLoading={status === 'streaming' && index === messages.length - 1}
+            vote={
+              votes
+                ? votes.find((vote) => vote.messageId === message.id)
+                : undefined
             }
-          }}
-          isPinned={isPinned(message.id)}
-        />
-      ))}
+            setMessages={setMessages}
+            reload={reload}
+            isReadonly={isReadonly}
+            requiresScrollPadding={
+              hasSentMessage && index === messages.length - 1
+            }
+            onPin={handlePin}
+            onReply={(messageId) => {
+              const msg = messages.find((m) => m.id === messageId);
+              if (msg) {
+                const textContent =
+                  msg.parts
+                    ?.filter((part) => part.type === 'text')
+                    .map((part) => part.text)
+                    .join('\n')
+                    .trim() || '';
+
+                const validRole =
+                  msg.role === 'user' || msg.role === 'assistant'
+                    ? msg.role
+                    : 'assistant';
+                handleReply(messageId, textContent, validRole);
+              }
+            }}
+            isPinned={isPinned(message.id)}
+          />
+        ))}
+      </AnimatePresence>
 
       {status === 'submitted' &&
         messages.length > 0 &&

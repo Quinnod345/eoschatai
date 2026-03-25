@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { useLoading } from '@/hooks/use-loading';
 import { mutate as swrMutate } from 'swr';
 import { useTheme } from 'next-themes';
+import { motion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 
 import {
   PlusIcon,
@@ -228,18 +230,25 @@ export function AppSidebar({ user }: { user: User | undefined }) {
               <AdvancedSearch />
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    className="p-2 h-10 w-10 md:h-8 md:w-8 rounded-lg hover:bg-sidebar-accent/60"
-                    onClick={() => {
-                      setOpenMobile(false);
-                      setSelectedComposerKind(null);
-                      router.replace('/chat');
-                    }}
+                  <motion.div
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    transition={springSnappy}
+                    className="new-chat-bloom"
                   >
-                    <PlusIcon />
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      className="p-2 h-10 w-10 md:h-8 md:w-8 rounded-lg hover:bg-sidebar-accent/60"
+                      onClick={() => {
+                        setOpenMobile(false);
+                        setSelectedComposerKind(null);
+                        router.replace('/chat');
+                      }}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </motion.div>
                 </TooltipTrigger>
                 <TooltipContent>New Chat</TooltipContent>
               </Tooltip>
@@ -263,18 +272,25 @@ export function AppSidebar({ user }: { user: User | undefined }) {
         <div className="flex flex-col items-center gap-1.5 pb-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                type="button"
-                className="p-2 h-10 w-10 md:h-9 md:w-9 rounded-lg hover:bg-sidebar-accent/60"
-                onClick={() => {
-                  setOpenMobile(false);
-                  setSelectedComposerKind(null);
-                  router.replace('/chat');
-                }}
+              <motion.div
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.94 }}
+                transition={springSnappy}
+                className="new-chat-bloom"
               >
-                <PlusIcon />
-              </Button>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  className="p-2 h-10 w-10 md:h-9 md:w-9 rounded-lg hover:bg-sidebar-accent/60"
+                  onClick={() => {
+                    setOpenMobile(false);
+                    setSelectedComposerKind(null);
+                    router.replace('/chat');
+                  }}
+                >
+                  <PlusIcon />
+                </Button>
+              </motion.div>
             </TooltipTrigger>
             <TooltipContent side="right">New Chat</TooltipContent>
           </Tooltip>

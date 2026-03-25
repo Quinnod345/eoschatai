@@ -3300,3 +3300,102 @@ body:has([data-radix-alert-dialog-overlay]) {
 .dark .upload-done-flash::after {
   filter: brightness(0.4) blur(5px);
 }
+
+/* ─── Streaming text cursor — horizontal glow sweep ──────────────────────── */
+
+@keyframes cursor-sweep {
+  0%   { box-shadow: -6px 0 8px rgba(249, 115, 22, 0); }
+  50%  { box-shadow: 0px 0 12px rgba(249, 115, 22, 0.7); }
+  100% { box-shadow: 6px 0 8px rgba(249, 115, 22, 0); }
+}
+
+.cursor-sweep {
+  animation: cursor-sweep 1.2s ease-in-out infinite;
+}
+
+/* ─── New chat button bloom ───────────────────────────────────────────────── */
+
+@keyframes new-chat-bloom-anim {
+  0%   { opacity: 0; transform: scale(0.6); }
+  40%  { opacity: 0.45; }
+  100% { opacity: 0; transform: scale(2.0); }
+}
+
+.new-chat-bloom {
+  position: relative;
+}
+
+.new-chat-bloom:hover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.35) 0%, transparent 70%);
+  filter: blur(4px);
+  animation: new-chat-bloom-anim 0.5s ease-out forwards;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ─── Assistant avatar — streaming active ring ────────────────────────────── */
+
+.avatar-active-ring {
+  position: relative;
+  isolation: isolate;
+}
+
+.avatar-active-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--input-border-angle),
+    transparent 0%, transparent 65%,
+    rgba(249, 115, 22, 0.2) 78%,
+    rgba(249, 115, 22, 0.7) 85%,
+    rgba(249, 115, 22, 0.2) 91%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: input-border-spin 2.5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── prefers-reduced-motion: stop looping chat-UI animations entirely ───── */
+/*
+ * The nuclear rule at the top of this file sets animation-duration: 0.01ms
+ * which still fires infinite loops in a fast-flicker mode. These overrides
+ * target each specific class that loops indefinitely in the chat UI and stop
+ * them cleanly instead.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .input-loading-border::before,
+  .input-loading-border::after,
+  .input-loading-border-nexus::after,
+  .input-finish-border::before,
+  .input-finish-border::after,
+  .message-streaming-trace::before,
+  .thinking-orb-pulse,
+  .voice-recording-ring::before,
+  .voice-recording-ring::after,
+  .avatar-open-bloom::before,
+  .pin-bloom::before,
+  .copy-spark::before,
+  .send-burst::before,
+  .nexus-pill-trace::before,
+  .chat-energy-orb,
+  .chat-energy-orb-nexus,
+  .sidebar-item-trace::before,
+  .upload-done-flash::after,
+  .avatar-active-ring::before,
+  .cursor-sweep,
+  .new-chat-bloom:hover::before {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}

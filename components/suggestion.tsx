@@ -1,6 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import { springSnappy } from '@/lib/motion/presets';
 import { useState } from 'react';
 import { useWindowSize } from 'usehooks-ts';
 
@@ -47,7 +48,7 @@ export const Suggestion = ({
         <motion.div
           key={suggestion.id}
           className="absolute bg-background p-3 flex flex-col gap-3 rounded-2xl border dark:border-gray-700 text-sm w-56 shadow-xl dark:shadow-none dark:bg-gray-900 z-50 -right-12 md:-right-16 font-sans"
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          transition={springSnappy}
           initial={{ opacity: 0, y: -10, scale: 0.95 }}
           animate={{ opacity: 1, y: -20, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}

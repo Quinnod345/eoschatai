@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai';
 import type { Attachment } from './multimodal-input/types';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
+import { springComposer, springChat } from '@/lib/motion/presets';
 import {
   type Dispatch,
   memo,
@@ -426,12 +427,7 @@ function PureComposer({
                 opacity: 1,
                 x: 0,
                 scale: 1,
-                transition: {
-                  delay: 0.2,
-                  type: 'spring',
-                  stiffness: 200,
-                  damping: 30,
-                },
+                transition: { ...springComposer, delay: 0.2 },
               }}
               exit={{
                 opacity: 0,
@@ -514,13 +510,7 @@ function PureComposer({
                     height: windowHeight,
                     width: windowWidth ? windowWidth : 'calc(100dvw)',
                     borderRadius: 0,
-                    transition: {
-                      delay: 0,
-                      type: 'spring',
-                      stiffness: 200,
-                      damping: 30,
-                      duration: 5000,
-                    },
+                    transition: springComposer,
                   }
                 : {
                     opacity: 1,
@@ -531,24 +521,13 @@ function PureComposer({
                       ? windowWidth - 420
                       : 'calc(100dvw-420px)',
                     borderRadius: 0,
-                    transition: {
-                      delay: 0,
-                      type: 'spring',
-                      stiffness: 200,
-                      damping: 30,
-                      duration: 5000,
-                    },
+                    transition: springComposer,
                   }
             }
             exit={{
               opacity: 0,
               scale: 0.5,
-              transition: {
-                delay: 0.1,
-                type: 'spring',
-                stiffness: 600,
-                damping: 30,
-              },
+              transition: { ...springChat, stiffness: 600, delay: 0.1 },
             }}
           >
             <div className="p-2 md:p-2 flex flex-row justify-between items-start gap-2">
