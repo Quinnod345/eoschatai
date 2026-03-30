@@ -339,22 +339,78 @@ IMPORTANT:
     return result;
   }
 
-  // Extract mentions from message text
+  /**
+   * Parse the structured `[MENTIONS_META_BEGIN]...[MENTIONS_META_END]` block
+   * that the UI appends on submit. Returns the parsed mentions and the text
+   * with the block stripped out.
+   */
+  static parseStructuredMentions(text: string): {
+    mentions: ProcessedMention[];
+    cleanedText: string;
+  } {
+    const mentions: ProcessedMention[] = [];
+    let cleanedText = text;
+
+    const metaRegex =
+      /\[MENTIONS_META_BEGIN\]([\s\S]*?)\[MENTIONS_META_END\]/;
+    const metaMatch = text.match(metaRegex);
+
+    if (metaMatch) {
+      cleanedText = text.replace(metaRegex, '').trim();
+      try {
+        const parsed = JSON.parse(metaMatch[1]);
+        const items: any[] = Array.isArray(parsed?.mentions)
+          ? parsed.mentions
+          : Array.isArray(parsed)
+            ? parsed
+            : [];
+
+        for (const item of items) {
+          if (item?.type) {
+            mentions.push({
+              type: item.type as MentionType,
+              id: item.id || item.type,
+              name: item.name || item.type,
+              metadata: {
+                category: item.category,
+                structured: true,
+                ...(item.metadata ?? {}),
+              },
+            });
+          }
+        }
+      } catch {
+        // Malformed JSON — ignore the block
+      }
+    }
+
+    return { mentions, cleanedText };
+  }
+
+  // Extract mentions from message text via regex (inline @type or @type:id patterns)
   static extractMentions(text: string): ProcessedMention[] {
     const mentions: ProcessedMention[] = [];
 
-    // Enhanced regex to capture more mention formats
-    const mentionRegex = /@(\w+)(?::([^\s]+))?(?:\[([^\]]+)\])?/g;
+    const mentionRegex = /@([\w-]+)(?::([^\s]+))?(?:\[([^\]]+)\])?/g;
 
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
-      const [fullMatch, type, id, metadata] = match;
+      const [, type, id, metadata] = match;
+
+      let parsedMeta: Record<string, any> | undefined;
+      if (metadata) {
+        try {
+          parsedMeta = JSON.parse(metadata);
+        } catch {
+          parsedMeta = { raw: metadata };
+        }
+      }
 
       mentions.push({
         type: type as MentionType,
         id: id || type,
         name: id || type,
-        metadata: metadata ? JSON.parse(metadata) : undefined,
+        metadata: parsedMeta,
       });
     }
 

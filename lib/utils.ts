@@ -86,7 +86,10 @@ export function getTrailingMessageId({
 }
 
 export function sanitizeText(text: string) {
-  return text.replace('<has_function_call>', '');
+  return text
+    .replace('<has_function_call>', '')
+    .replace(/\[MENTIONS_META_BEGIN\][\s\S]*?\[MENTIONS_META_END\]/, '')
+    .trim();
 }
 
 export function formatFileSize(bytes: number): string {

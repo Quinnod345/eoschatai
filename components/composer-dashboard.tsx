@@ -167,14 +167,19 @@ export function ComposerDashboard() {
     return () => clearTimeout(timer);
   }, [setLoading]);
 
-  const hasAccessToKind =
-    !accountEntitlements?.features?.composer?.types ||
-    accountEntitlements.features.composer.types.includes(kind);
+  const hasAccessToDashboard = isRecordings
+    ? (accountEntitlements?.features?.recordings?.enabled ?? true)
+    : !accountEntitlements?.features?.composer?.types ||
+      accountEntitlements.features.composer.types.includes(kind);
   const isFeatureLocked =
-    (error as any)?.info?.code === 'FEATURE_LOCKED' || !hasAccessToKind;
+    (error as any)?.info?.code === 'FEATURE_LOCKED' || !hasAccessToDashboard;
 
   const handleCreate = useCallback(() => {
     if (isRecordings) {
+      if (isFeatureLocked) {
+        openModal('recordings');
+        return;
+      }
       router.push('/chat?openRecordingModal=true');
     } else if (isFeatureLocked) {
       openModal('premium');

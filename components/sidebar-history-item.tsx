@@ -22,7 +22,7 @@ import {
   TrashIcon,
 } from './icons';
 import { memo, useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useChatVisibility } from '@/hooks/use-chat-visibility';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle } from '@/lib/utils/chat-utils';
@@ -272,9 +272,23 @@ const PureChatItem = ({
                   'group-hover/item:pr-6',
                 )}
               >
-                <span className="truncate block min-w-0 text-[14px] font-normal">
-                  {getDisplayTitle(chat.title)}
-                </span>
+                <div className="min-w-0 overflow-hidden">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={getDisplayTitle(chat.title)}
+                      initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -8, filter: 'blur(6px)' }}
+                      transition={{
+                        duration: 0.24,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className="truncate block min-w-0 text-[14px] font-normal will-change-transform"
+                    >
+                      {getDisplayTitle(chat.title)}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Right overlay: indicators (always visible) + three dots (hover/active) */}

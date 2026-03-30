@@ -22,7 +22,6 @@ import {
   type ChangeEvent,
   memo,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { toast } from '@/lib/toast-system';
 import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
@@ -41,10 +40,8 @@ import {
   Users,
   Search,
   TrendingUp,
-  HelpCircle,
   List,
   Clock,
-  Sparkles,
   ChevronRight,
   Mic,
   Telescope,
@@ -78,7 +75,6 @@ import { toast as sonnerToast } from 'sonner';
 import type { VisibilityType } from './visibility-selector';
 import type { Session } from 'next-auth';
 import VoiceFAB from './voice-fab';
-import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
 import type { ResearchMode } from './nexus-research-selector';
 import { createEmbeddedContentString } from '@/types/upload-content';
@@ -155,15 +151,71 @@ interface MentionResource {
   isDynamic?: boolean;
 }
 
-// Enhanced mention resources with categories
+// Static mention resources — individual documents/recordings are loaded dynamically
 const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
-  // Calendar category
+  // EOS Resources
+  {
+    id: 'scorecard',
+    name: 'Scorecard',
+    type: 'scorecard',
+    category: 'resource',
+    description: 'View your EOS Scorecard metrics & KPIs',
+    icon: <BarChart className="size-4" />,
+    color: 'orange',
+    aliases: ['metrics', 'kpis', 'score'],
+    shortcut: '@score',
+  },
+  {
+    id: 'vto',
+    name: 'V/TO',
+    type: 'vto',
+    category: 'resource',
+    description: 'Vision/Traction Organizer',
+    icon: <Target className="size-4" />,
+    color: 'indigo',
+    aliases: ['vision', 'traction', 'strategy'],
+    shortcut: '@vto',
+  },
+  {
+    id: 'rocks',
+    name: 'Rocks',
+    type: 'rocks',
+    category: 'resource',
+    description: 'Quarterly rocks & priorities',
+    icon: <Mountain className="size-4" />,
+    color: 'teal',
+    aliases: ['priorities', 'quarterly'],
+    shortcut: '@rocks',
+  },
+  {
+    id: 'accountability',
+    name: 'Accountability Chart',
+    type: 'accountability',
+    category: 'resource',
+    description: 'Org chart with roles & seats',
+    icon: <Users className="size-4" />,
+    color: 'indigo',
+    aliases: ['ac', 'orgchart', 'organization', 'roles', 'seats'],
+    shortcut: '@ac',
+  },
+  {
+    id: 'people',
+    name: 'People Analyzer',
+    type: 'people',
+    category: 'resource',
+    description: 'Right person, right seat analysis',
+    icon: <Users className="size-4" />,
+    color: 'pink',
+    aliases: ['gwo', 'analyzer'],
+    shortcut: '@people',
+  },
+  // Calendar
   {
     id: 'calendar',
     name: 'Calendar',
     type: 'calendar',
     category: 'calendar',
-    description: 'Access your calendar events and schedule',
+    description: 'Events & schedule',
     icon: <Calendar className="size-4" />,
     color: 'blue',
     aliases: ['cal', 'schedule', 'events'],
@@ -174,109 +226,19 @@ const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
     name: 'Find Available Time',
     type: 'availability',
     category: 'calendar',
-    description: 'Find free time slots in your calendar',
+    description: 'Free time slots',
     icon: <Clock className="size-4" />,
     color: 'green',
     aliases: ['free', 'available', 'slots'],
     shortcut: '@free',
   },
-  // Resource category
-  {
-    id: 'documents',
-    name: 'Documents',
-    type: 'document',
-    category: 'resource',
-    description: 'Access your documents and files',
-    icon: <FileText className="size-4" />,
-    color: 'purple',
-    aliases: ['docs', 'files'],
-    shortcut: '@doc',
-    isDynamic: true,
-  },
-  {
-    id: 'recordings',
-    name: 'Vocal Recordings',
-    type: 'recording',
-    category: 'resource',
-    description: 'Use voice recordings and transcripts as context',
-    icon: <Mic className="size-4" />,
-    color: 'pink',
-    aliases: ['audio', 'voice', 'transcript'],
-    shortcut: '@rec',
-    isDynamic: true,
-  },
-  {
-    id: 'scorecard',
-    name: 'Scorecard',
-    type: 'scorecard',
-    category: 'resource',
-    description: 'View your EOS Scorecard metrics',
-    icon: <BarChart className="size-4" />,
-    color: 'orange',
-    aliases: ['metrics', 'kpis'],
-    shortcut: '@score',
-  },
-  {
-    id: 'vto',
-    name: 'Vision/Traction Organizer',
-    type: 'vto',
-    category: 'resource',
-    description: 'Access your V/TO and strategic vision',
-    icon: <Target className="size-4" />,
-    color: 'indigo',
-    aliases: ['vision', 'traction', 'strategy'],
-    shortcut: '@vto',
-  },
-  {
-    id: 'accountability',
-    name: 'Accountability Chart',
-    type: 'accountability',
-    category: 'resource',
-    description: 'Build or view your EOS Accountability Chart',
-    icon: <Users className="size-4" />,
-    color: 'indigo',
-    aliases: ['ac', 'orgchart', 'organization', 'roles', 'seats'],
-    shortcut: '@ac',
-  },
-  {
-    id: 'rocks',
-    name: 'Rocks',
-    type: 'rocks',
-    category: 'resource',
-    description: 'Check your quarterly rocks and priorities',
-    icon: <Mountain className="size-4" />,
-    color: 'teal',
-    aliases: ['priorities', 'quarterly'],
-  },
-  {
-    id: 'people',
-    name: 'People Analyzer',
-    type: 'people',
-    category: 'resource',
-    description: 'Access your people analyzer data',
-    icon: <Users className="size-4" />,
-    color: 'pink',
-  },
-  // People category
-  {
-    id: 'team',
-    name: 'Team Members',
-    type: 'team',
-    category: 'person',
-    description: 'Mention team members',
-    icon: <Users className="size-4" />,
-    color: 'teal',
-    aliases: ['people', 'members'],
-    shortcut: '@team',
-    isDynamic: true,
-  },
-  // Tool category
+  // Tools
   {
     id: 'search',
     name: 'Search',
     type: 'search',
     category: 'tool',
-    description: 'Search through all your content',
+    description: 'Search all content',
     icon: <Search className="size-4" />,
     color: 'gray',
     aliases: ['find', 'lookup'],
@@ -287,132 +249,23 @@ const DEFAULT_MENTION_RESOURCES: MentionResource[] = [
     name: 'Analyze',
     type: 'analyze',
     category: 'tool',
-    description: 'Analyze data and provide insights',
+    description: 'Data analysis & insights',
     icon: <TrendingUp className="size-4" />,
     color: 'red',
     aliases: ['analytics', 'insights'],
     shortcut: '@analyze',
   },
-  // Command category
-  {
-    id: 'help',
-    name: 'Help',
-    type: 'help',
-    category: 'command',
-    description: 'Get help with using the system',
-    icon: <HelpCircle className="size-4" />,
-    color: 'blue',
-    aliases: ['?', 'guide'],
-    shortcut: '@help',
-  },
-  // Template category
+  // Templates
   {
     id: 'agenda',
     name: 'Meeting Agenda',
     type: 'agenda',
     category: 'template',
-    description: 'Create a meeting agenda template',
+    description: 'L10 meeting agenda template',
     icon: <List className="size-4" />,
     color: 'purple',
-    aliases: ['meeting'],
+    aliases: ['meeting', 'l10'],
     shortcut: '@agenda',
-  },
-  // Composer category - AI-generated documents
-  {
-    id: 'composers',
-    name: 'All Composers',
-    type: 'composer',
-    category: 'composer',
-    description: 'Access all your AI-generated documents',
-    icon: <FileStack className="size-4" />,
-    color: 'blue',
-    aliases: ['composer', 'generated', 'ai-docs'],
-    shortcut: '@composer',
-    isDynamic: true,
-  },
-  {
-    id: 'text-composers',
-    name: 'Text Documents',
-    type: 'text-composer',
-    category: 'composer',
-    description: 'Text and markdown documents',
-    icon: <FileText className="size-4" />,
-    color: 'blue',
-    aliases: ['text', 'markdown', 'notes'],
-    shortcut: '@doc',
-    isDynamic: true,
-  },
-  {
-    id: 'code-composers',
-    name: 'Code Documents',
-    type: 'code-composer',
-    category: 'composer',
-    description: 'Code snippets and scripts',
-    icon: <Code className="size-4" />,
-    color: 'emerald',
-    aliases: ['code', 'script', 'programming'],
-    shortcut: '@code',
-    isDynamic: true,
-  },
-  {
-    id: 'sheet-composers',
-    name: 'Spreadsheets',
-    type: 'sheet-composer',
-    category: 'composer',
-    description: 'Spreadsheet and data tables',
-    icon: <Table className="size-4" />,
-    color: 'violet',
-    aliases: ['spreadsheet', 'table', 'data', 'csv', 'excel'],
-    shortcut: '@sheet',
-    isDynamic: true,
-  },
-  {
-    id: 'chart-composers',
-    name: 'Charts',
-    type: 'chart-composer',
-    category: 'composer',
-    description: 'Data visualizations and charts',
-    icon: <PieChart className="size-4" />,
-    color: 'pink',
-    aliases: ['chart', 'graph', 'visualization', 'viz'],
-    shortcut: '@chart',
-    isDynamic: true,
-  },
-  {
-    id: 'image-composers',
-    name: 'Images',
-    type: 'image-composer',
-    category: 'composer',
-    description: 'AI-generated images',
-    icon: <ImageIcon className="size-4" />,
-    color: 'amber',
-    aliases: ['image', 'picture', 'photo', 'dalle'],
-    shortcut: '@image',
-    isDynamic: true,
-  },
-  {
-    id: 'vto-composers',
-    name: 'V/TO Documents',
-    type: 'vto-composer',
-    category: 'composer',
-    description: 'Vision/Traction Organizer documents',
-    icon: <Target className="size-4" />,
-    color: 'red',
-    aliases: ['vto-doc', 'vision-doc'],
-    shortcut: '@vto-doc',
-    isDynamic: true,
-  },
-  {
-    id: 'accountability-composers',
-    name: 'Accountability Charts',
-    type: 'accountability-composer',
-    category: 'composer',
-    description: 'Organizational accountability charts',
-    icon: <Users className="size-4" />,
-    color: 'cyan',
-    aliases: ['ac-doc', 'org-chart-doc'],
-    shortcut: '@ac-doc',
-    isDynamic: true,
   },
 ];
 
@@ -554,10 +407,6 @@ function PureMultimodalInput({
   );
   const [mentionFilter, setMentionFilter] = useState('');
   const [mentionSelectionIndex, setMentionSelectionIndex] = useState(0);
-  const [cursorPosition, setCursorPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
   const [mentionQuery, setMentionQuery] = useState('');
   const mentionsRef = useRef<HTMLDivElement>(null);
 
@@ -779,69 +628,25 @@ function PureMultimodalInput({
 
   const mentionRegex = /@(\w+):([^\s]+)/g;
 
-  // Calculate absolute position for portal-rendered dropdown
-  const calculateCursorPosition = useCallback(() => {
-    if (!textareaRef.current || !inputWrapperRef.current) return null;
 
-    // Get current cursor position for horizontal alignment
-    const cursorPosition = textareaRef.current.selectionStart;
-    const textBeforeCursor = input.substring(0, cursorPosition);
-    const lineBeforeCursor = textBeforeCursor.split('\n').pop() || '';
-
-    // Calculate an approximate horizontal position based on cursor
-    const charWidth = 8.5; // Approximate character width in pixels
-    const padding = 12; // Approximate padding
-
-    // Get absolute position of the input wrapper on the page
-    const inputRect = inputWrapperRef.current.getBoundingClientRect();
-
-    // Calculate position relative to viewport
-    const xPos = Math.min(
-      inputRect.left + padding + lineBeforeCursor.length * charWidth,
-      window.innerWidth - 320 - 20, // Account for dropdown width and margin
-    );
-
-    // Position above the input with some spacing
-    const yPos = inputRect.top - 8; // Position above input with 8px gap
-
-    return { top: yPos, left: xPos };
-  }, [input]);
-
-  // Close mentions dropdown when clicking outside and handle scroll
+  // Close mentions dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         mentionsRef.current &&
-        !mentionsRef.current.contains(event.target as Node)
+        !mentionsRef.current.contains(event.target as Node) &&
+        inputWrapperRef.current &&
+        !inputWrapperRef.current.contains(event.target as Node)
       ) {
         setShowMentions(false);
       }
     };
 
-    const handleScroll = () => {
-      if (showMentions) {
-        // Recalculate position on scroll
-        setCursorPosition(calculateCursorPosition());
-      }
-    };
-
-    const handleResize = () => {
-      if (showMentions) {
-        // Recalculate position on resize
-        setCursorPosition(calculateCursorPosition());
-      }
-    };
-
     document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize, { passive: true });
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
     };
-  }, [showMentions, calculateCursorPosition]);
+  }, [showMentions]);
 
   // Enhanced filtering with alias support and scoring
   const filteredMentionResources = [
@@ -890,124 +695,91 @@ function PureMultimodalInput({
     .sort((a, b) => b.score - a.score)
     .map((item) => item.resource);
 
-  // Fetch dynamic suggestions for specific items when typing after @
+  // Fetch dynamic suggestions (composer documents, recordings) when the
+  // mention dropdown is open. Fires on empty filter too (shows recent docs).
   useEffect(() => {
     let cancelled = false;
+
+    // Map category keywords → composer kind for natural filtering
+    const kindKeywords: Record<string, string> = {
+      doc: 'text', docs: 'text', document: 'text', text: 'text',
+      code: 'code',
+      sheet: 'sheet', spreadsheet: 'sheet',
+      chart: 'chart',
+      image: 'image', img: 'image',
+      composer: 'all',
+    };
+
+    const getComposerIcon = (kind: string) => {
+      switch (kind) {
+        case 'text': return <FileText className="size-4" />;
+        case 'code': return <Code className="size-4" />;
+        case 'sheet': return <Table className="size-4" />;
+        case 'chart': return <PieChart className="size-4" />;
+        case 'image': return <ImageIcon className="size-4" />;
+        case 'vto': return <Target className="size-4" />;
+        case 'accountability': return <Users className="size-4" />;
+        default: return <FileStack className="size-4" />;
+      }
+    };
+
+    const getComposerType = (kind: string): MentionResource['type'] => {
+      const map: Record<string, MentionResource['type']> = {
+        text: 'text-composer', code: 'code-composer', sheet: 'sheet-composer',
+        chart: 'chart-composer', image: 'image-composer',
+        vto: 'vto-composer', accountability: 'accountability-composer',
+      };
+      return map[kind] || 'composer';
+    };
+
     async function fetchDynamic() {
       if (!showMentions) {
         setDynamicMentionResources([]);
         return;
       }
-      const q = mentionFilter.trim();
-      if (q.length === 0) {
-        setDynamicMentionResources([]);
-        return;
-      }
 
-      // Check for composer-specific shortcuts
-      const composerShortcuts: Record<string, string> = {
-        'doc:': 'text',
-        'code:': 'code',
-        'sheet:': 'sheet',
-        'chart:': 'chart',
-        'image:': 'image',
-        'vto:': 'vto',
-        'ac:': 'accountability',
-        'composer:': 'all',
-      };
+      const q = mentionFilter.trim().toLowerCase();
+
+      // Resolve kind + search from the query. Supports:
+      //   "@doc"         → kind=text, search=""
+      //   "@doc myfile"  → kind=text, search="myfile"
+      //   "@code:utils"  → kind=code, search="utils" (legacy colon syntax)
+      //   "@myfile"      → kind=undefined, search="myfile"
       let composerKind: string | undefined;
       let searchQuery = q;
-      for (const [shortcut, kind] of Object.entries(composerShortcuts)) {
-        if (q.toLowerCase().startsWith(shortcut)) {
-          composerKind = kind;
-          searchQuery = q.slice(shortcut.length).trim();
-          break;
+
+      // Legacy colon syntax (e.g. "doc:something")
+      const colonIdx = q.indexOf(':');
+      if (colonIdx > 0) {
+        const prefix = q.slice(0, colonIdx);
+        if (kindKeywords[prefix]) {
+          composerKind = kindKeywords[prefix];
+          searchQuery = q.slice(colonIdx + 1).trim();
+        }
+      }
+
+      // Space-separated: first word is a kind keyword
+      if (!composerKind) {
+        const parts = q.split(/\s+/);
+        if (parts.length >= 1 && kindKeywords[parts[0]]) {
+          composerKind = kindKeywords[parts[0]];
+          searchQuery = parts.slice(1).join(' ');
         }
       }
 
       try {
-        // Build query params for composer documents
-        const composerParams = new URLSearchParams({
-          search: searchQuery,
-          limit: '8',
-        });
+        const composerParams = new URLSearchParams({ limit: '8' });
+        if (searchQuery) composerParams.set('search', searchQuery);
         if (composerKind && composerKind !== 'all') {
           composerParams.set('kind', composerKind);
         }
 
-        // Fetch composer documents (by title) and recordings
         const [docsRes, recsRes] = await Promise.all([
           fetch(`/api/documents?${composerParams}`),
-          fetch(`/api/voice/recordings`),
+          fetch('/api/voice/recordings'),
         ]);
 
         const dyn: MentionResource[] = [];
-
-        // Helper to get icon for composer kind
-        const getComposerIcon = (kind: string) => {
-          switch (kind) {
-            case 'text':
-              return <FileText className="size-4" />;
-            case 'code':
-              return <Code className="size-4" />;
-            case 'sheet':
-              return <Table className="size-4" />;
-            case 'chart':
-              return <PieChart className="size-4" />;
-            case 'image':
-              return <ImageIcon className="size-4" />;
-            case 'vto':
-              return <Target className="size-4" />;
-            case 'accountability':
-              return <Users className="size-4" />;
-            default:
-              return <FileStack className="size-4" />;
-          }
-        };
-
-        // Helper to get color for composer kind
-        const getComposerColor = (kind: string) => {
-          switch (kind) {
-            case 'text':
-              return 'blue';
-            case 'code':
-              return 'emerald';
-            case 'sheet':
-              return 'violet';
-            case 'chart':
-              return 'pink';
-            case 'image':
-              return 'amber';
-            case 'vto':
-              return 'red';
-            case 'accountability':
-              return 'cyan';
-            default:
-              return 'blue';
-          }
-        };
-
-        // Helper to get type for composer kind
-        const getComposerType = (kind: string): MentionResource['type'] => {
-          switch (kind) {
-            case 'text':
-              return 'text-composer';
-            case 'code':
-              return 'code-composer';
-            case 'sheet':
-              return 'sheet-composer';
-            case 'chart':
-              return 'chart-composer';
-            case 'image':
-              return 'image-composer';
-            case 'vto':
-              return 'vto-composer';
-            case 'accountability':
-              return 'accountability-composer';
-            default:
-              return 'composer';
-          }
-        };
 
         if (docsRes.ok) {
           const data = await docsRes.json();
@@ -1019,9 +791,9 @@ function PureMultimodalInput({
               name: d.title || 'Untitled Document',
               type: getComposerType(kind),
               category: 'composer',
-              description: `${kind.charAt(0).toUpperCase() + kind.slice(1)} Composer${d.tags?.length ? ` • ${d.tags.slice(0, 2).join(', ')}` : ''}`,
+              description: `${kind.charAt(0).toUpperCase() + kind.slice(1)} document`,
               icon: getComposerIcon(kind),
-              color: getComposerColor(kind),
+              color: 'blue',
               isDynamic: true,
               preview: d.contentSummary || d.preview,
             } as MentionResource);
@@ -1034,18 +806,20 @@ function PureMultimodalInput({
           for (const r of recs) {
             const title: string = r?.recording?.title || 'Untitled Recording';
             const transcript: string = r?.transcript?.text || '';
-            const matches =
-              title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              transcript.toLowerCase().includes(searchQuery.toLowerCase());
-            if (!matches) continue;
+            if (searchQuery) {
+              const lq = searchQuery.toLowerCase();
+              if (!title.toLowerCase().includes(lq) && !transcript.toLowerCase().includes(lq)) {
+                continue;
+              }
+            }
             dyn.push({
               id: r?.recording?.id,
               name: title,
               type: 'recording',
               category: 'resource',
               description: transcript
-                ? `Transcript • ${transcript.slice(0, 60)}…`
-                : 'Transcript unavailable',
+                ? `Recording • ${transcript.slice(0, 60)}…`
+                : 'Voice recording',
               icon: <Mic className="size-4" />,
               color: 'pink',
               isDynamic: true,
@@ -1054,15 +828,13 @@ function PureMultimodalInput({
         }
 
         if (!cancelled) setDynamicMentionResources(dyn);
-      } catch (e) {
+      } catch {
         if (!cancelled) setDynamicMentionResources([]);
       }
     }
 
     fetchDynamic();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [showMentions, mentionFilter]);
 
   // Add state to track multi-line status
@@ -1156,19 +928,17 @@ function PureMultimodalInput({
       // Get cursor position
       const cursorPosition = event.target.selectionStart;
 
-      // Check if we're in a potential @ mention context
+      // Check if we're in a potential @ mention context.
+      // Matches bare "@" (empty filter) or "@keyword", "@doc myfile", "@doc:utils".
       const textUpToCursor = value.substring(0, cursorPosition);
-      const mentionMatch = textUpToCursor.match(/@(\w*)$/);
+      const mentionMatch = textUpToCursor.match(/@([\w:][\w:\s]*)?$/);
 
       if (mentionMatch) {
-        const matchText = mentionMatch[1];
+        const matchText = mentionMatch[1] || '';
         setMentionFilter(matchText);
         setMentionQuery(matchText);
         setShowMentions(true);
         setMentionSelectionIndex(0);
-
-        // Calculate position for the mention dropdown
-        setCursorPosition(calculateCursorPosition());
       } else {
         setShowMentions(false);
       }
@@ -1178,7 +948,6 @@ function PureMultimodalInput({
     },
     [
       setInput,
-      calculateCursorPosition,
       autocompleteEnabled,
       isNewChat,
       adjustHeight,
@@ -1192,27 +961,12 @@ function PureMultimodalInput({
 
       const cursorPosition = textareaRef.current.selectionStart;
 
-      // Prevent duplicate selection (for dynamic items use id+type, for static use type)
-      const isDuplicate = selectedMentions.some((mention) => {
-        const isStatic =
-          resource.id === 'calendar' ||
-          resource.id === 'availability' ||
-          resource.id === 'documents' ||
-          resource.id === 'recordings' ||
-          resource.id === 'scorecard' ||
-          resource.id === 'vto' ||
-          resource.id === 'accountability' ||
-          resource.id === 'rocks' ||
-          resource.id === 'people' ||
-          resource.id === 'team' ||
-          resource.id === 'search' ||
-          resource.id === 'analyze' ||
-          resource.id === 'help' ||
-          resource.id === 'agenda';
-        return isStatic
-          ? mention.type === resource.type
-          : mention.type === resource.type && mention.id === resource.id;
-      });
+      // Prevent duplicate selection: static resources match by type, dynamic by id+type
+      const isDuplicate = selectedMentions.some((mention) =>
+        resource.isDynamic
+          ? mention.type === resource.type && mention.id === resource.id
+          : mention.type === resource.type,
+      );
 
       if (isDuplicate) {
         // Show brief feedback for duplicate
@@ -1228,7 +982,7 @@ function PureMultimodalInput({
       // Get text before and after the @ symbol
       const textBeforeMention = input
         .substring(0, cursorPosition)
-        .replace(/@\w*$/, '');
+        .replace(/@[\w:\s]*$/, '');
       const textAfterMention = input.substring(cursorPosition);
 
       // Add to selected mentions with the icon and category
@@ -2777,7 +2531,7 @@ function PureMultimodalInput({
       role="region"
       aria-label="Message input with file drop zone"
     >
-      {/* Mentions dropdown + drag affordance (single motion budget: no bounce/pulse on drop) */}
+      {/* Drag affordance styles */}
       <style jsx global>{`
         .drag-active {
           outline: 2px solid hsl(var(--primary) / 0.14);
@@ -2785,243 +2539,7 @@ function PureMultimodalInput({
           border-radius: 1.25rem;
           transition: outline-color 0.2s ease;
         }
-        
-        .mention-dropdown {
-          animation: fadeIn 0.2s ease;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .mention-item {
-          transition: background-color 0.1s ease;
-        }
-        
-        .mention-item:hover, .mention-item.selected {
-          background-color: rgba(59, 130, 246, 0.1);
-        }
       `}</style>
-
-      {/* Enhanced @ Mention dropdown - rendered via Portal to escape stacking context */}
-      {showMentions &&
-        filteredMentionResources.length > 0 &&
-        cursorPosition &&
-        typeof window !== 'undefined' &&
-        createPortal(
-          <div
-            ref={mentionsRef}
-            className="mention-dropdown bg-popover shadow-xl rounded-lg border border-border w-[calc(100vw-2rem)] md:w-96 max-h-[60vh] md:max-h-96 overflow-y-auto"
-            style={{
-              position: 'fixed', // Fixed positioning relative to viewport
-              top: `${cursorPosition.top}px`,
-              left: `${cursorPosition.left}px`,
-              transform: 'translateY(-100%)', // Move up by its own height
-              boxShadow:
-                '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
-              zIndex: 'var(--z-toast)', // High z-index since it's in document body
-            }}
-          >
-            <div className="p-3 text-sm font-medium border-b border-border bg-muted rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  Searching:{' '}
-                  {mentionQuery ? (
-                    <span className="font-semibold text-blue-600 dark:text-blue-400">
-                      &quot;{mentionQuery}&quot;
-                    </span>
-                  ) : (
-                    'All Resources'
-                  )}
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {filteredMentionResources.length} results
-                </Badge>
-              </div>
-              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                Type to filter • Use shortcuts like @cal, @doc, @free • Click or
-                press Enter to select
-              </div>
-            </div>
-
-            {/* Group resources by category */}
-            {[
-              'composer',
-              'calendar',
-              'resource',
-              'person',
-              'tool',
-              'command',
-              'template',
-            ]
-              .filter((category) =>
-                filteredMentionResources.some((r) => r.category === category),
-              )
-              .map((category) => {
-                const categoryResources = filteredMentionResources.filter(
-                  (r) => r.category === category,
-                );
-                const categoryColors = {
-                  composer: 'blue',
-                  calendar: 'sky',
-                  resource: 'purple',
-                  person: 'teal',
-                  tool: 'orange',
-                  command: 'gray',
-                  template: 'indigo',
-                };
-                const color =
-                  categoryColors[category as keyof typeof categoryColors] ||
-                  'gray';
-
-                return (
-                  <div key={category}>
-                    <div
-                      className={`px-3 py-1.5 text-xs font-medium text-${color}-600 dark:text-${color}-400 bg-${color}-50 dark:bg-${color}-900/20`}
-                    >
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </div>
-                    {categoryResources.map((resource, index) => {
-                      const globalIndex =
-                        filteredMentionResources.indexOf(resource);
-                      return (
-                        <button
-                          key={resource.id}
-                          type="button"
-                          className={`text-left w-full mention-item p-3 cursor-pointer flex items-start gap-3 hover:bg-${color}-50 dark:hover:bg-${color}-900/20 transition-colors ${
-                            globalIndex === mentionSelectionIndex
-                              ? `selected bg-${color}-50 dark:bg-${color}-900/20 border-l-2 border-${color}-500`
-                              : 'border-l-2 border-transparent'
-                          }`}
-                          onClick={() => handleSelectMention(resource)}
-                          onMouseEnter={() =>
-                            setMentionSelectionIndex(globalIndex)
-                          }
-                        >
-                          <div
-                            className={cn(
-                              'p-2 rounded-md',
-                              `bg-${resource.color || color}-100 dark:bg-${resource.color || color}-900/30`,
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                'size-4',
-                                `text-${resource.color || color}-600 dark:text-${resource.color || color}-400`,
-                              )}
-                            >
-                              {resource.icon}
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {resource.name}
-                              </span>
-                              {resource.shortcut && (
-                                <code className="text-xs px-1 py-0.5 rounded bg-muted">
-                                  {resource.shortcut}
-                                </code>
-                              )}
-                              {resource.isDynamic && (
-                                <Sparkles className="h-3 w-3 text-yellow-500" />
-                              )}
-                            </div>
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                              {resource.description}
-                            </span>
-                            {resource.preview && (
-                              <p className="text-xs text-muted-foreground mt-1 truncate">
-                                {resource.preview}
-                              </p>
-                            )}
-                          </div>
-                          {globalIndex === mentionSelectionIndex && (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-
-            {/* No grouped resources fallback */}
-            {![
-              'composer',
-              'calendar',
-              'resource',
-              'person',
-              'tool',
-              'command',
-              'template',
-            ].some((category) =>
-              filteredMentionResources.some((r) => r.category === category),
-            ) &&
-              filteredMentionResources.map((resource, index) => (
-                <button
-                  key={resource.id}
-                  type="button"
-                  className={`text-left w-full mention-item p-3 cursor-pointer flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
-                    index === mentionSelectionIndex
-                      ? 'selected bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
-                      : 'border-l-2 border-transparent'
-                  }`}
-                  onClick={() => handleSelectMention(resource)}
-                  onMouseEnter={() => setMentionSelectionIndex(index)}
-                >
-                  <div className="text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md">
-                    {resource.icon}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{resource.name}</span>
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {resource.description}
-                    </span>
-                  </div>
-                </button>
-              ))}
-
-            <div className="p-2 text-xs text-muted-foreground border-t border-border bg-muted rounded-b-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <kbd className="px-2 py-1 bg-background rounded border border-border mr-1">
-                    ↑↓
-                  </kbd>
-                  Navigate
-                  <kbd className="px-2 py-1 bg-background rounded border border-border mx-1">
-                    Enter
-                  </kbd>
-                  Select
-                  <kbd className="px-2 py-1 bg-background rounded border border-border mx-1">
-                    Esc
-                  </kbd>
-                  Close
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleSelectMention({
-                      id: 'help',
-                      name: 'Help',
-                      type: 'help',
-                      description: 'Learn more about mentions',
-                      icon: <HelpCircle className="size-4" />,
-                    });
-                  }}
-                >
-                  <HelpCircle className="h-3 w-3 mr-1" />
-                  Help
-                </Button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
 
       {isDragging && (
         <div
@@ -3420,52 +2938,151 @@ function PureMultimodalInput({
         )}
       </AnimatePresence>
 
-      <div className="relative mt-4" ref={inputWrapperRef}>
-        {/* Show selected mentions above the input with helpful context */}
-        <AnimatePresence>
-          {selectedMentions.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginBottom: 12 }}
-              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-              transition={{
-                duration: 0.25,
-                ease: [0.4, 0, 0.2, 1],
-              }}
-              className="pt-1"
-            >
-              <div className="flex items-center gap-2 mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <Sparkles className="size-3" />
-                <span>
-                  Selected resources - these will be included in your message:
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
+      {/* Mention context chips — unified strip above the input */}
+      <AnimatePresence initial={false}>
+        {selectedMentions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-wrap items-center gap-1.5 mt-3 px-1">
+              <AnimatePresence initial={false}>
                 {selectedMentions.map((mention) => (
-                  <div
+                  <motion.span
                     key={mention.id}
-                    className="group inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50/90 dark:bg-blue-950/60 text-blue-700 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800/70 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
+                    layout
+                    initial={{ opacity: 0, scale: 0.85, y: 6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.85, y: 6 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    className="group inline-flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/15 backdrop-blur-sm"
                   >
-                    <span className="flex items-center gap-2.5">
-                      <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-800/50 text-blue-600 dark:text-blue-300 rounded-md p-1.5">
-                        {mention.icon}
-                      </span>
-                      <span className="font-medium">{mention.name}</span>
+                    <span className="flex items-center justify-center size-4 opacity-60">
+                      {mention.icon}
                     </span>
+                    <span className="truncate max-w-[160px]">{mention.name}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveMention(mention.id)}
-                      className="ml-1 text-blue-400 dark:text-blue-500 hover:text-red-500 dark:hover:text-red-400 focus:outline-none transition-colors p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 group-hover:opacity-100 opacity-60"
-                      aria-label={`Remove ${mention.name} mention`}
-                      title="Remove this mention"
+                      className="flex items-center justify-center size-4 rounded-full opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
+                      aria-label={`Remove ${mention.name}`}
                     >
-                      <X className="size-3.5" />
+                      <X className="size-3" />
                     </button>
-                  </div>
+                  </motion.span>
                 ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={cn('relative', selectedMentions.length > 0 ? 'mt-2' : 'mt-4')} ref={inputWrapperRef}>
+        {/* @ Mention dropdown — absolute-positioned above the input wrapper */}
+        <AnimatePresence>
+          {showMentions && filteredMentionResources.length > 0 && (
+          <motion.div
+            ref={mentionsRef}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-popover rounded-lg border border-border shadow-lg max-h-[min(60vh,384px)] overflow-y-auto"
+          >
+            <div className="sticky top-0 z-10 px-3 py-2 text-sm font-medium border-b border-border bg-muted/95 backdrop-blur-sm rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  {mentionQuery ? (
+                    <>Filtering: <span className="font-semibold text-foreground">{mentionQuery}</span></>
+                  ) : (
+                    'Mention a resource'
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {filteredMentionResources.length}
+                </span>
               </div>
-            </motion.div>
-          )}
+            </div>
+
+            {['composer', 'calendar', 'resource', 'person', 'tool', 'command', 'template']
+              .filter((category) =>
+                filteredMentionResources.some((r) => r.category === category),
+              )
+              .map((category) => {
+                const categoryResources = filteredMentionResources.filter(
+                  (r) => r.category === category,
+                );
+                const categoryLabels: Record<string, string> = {
+                  composer: 'Documents',
+                  calendar: 'Calendar',
+                  resource: 'EOS Resources',
+                  person: 'People',
+                  tool: 'Tools',
+                  command: 'Commands',
+                  template: 'Templates',
+                };
+
+                return (
+                  <div key={category}>
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 bg-muted/40">
+                      {categoryLabels[category] || category}
+                    </div>
+                    {categoryResources.map((resource) => {
+                      const globalIndex = filteredMentionResources.indexOf(resource);
+                      const isSelected = globalIndex === mentionSelectionIndex;
+                      return (
+                        <button
+                          key={resource.id}
+                          type="button"
+                          className={cn(
+                            'text-left w-full px-3 py-2 cursor-pointer flex items-center gap-3 transition-colors',
+                            isSelected
+                              ? 'bg-accent text-accent-foreground'
+                              : 'hover:bg-accent/50',
+                          )}
+                          onClick={() => handleSelectMention(resource)}
+                          onMouseEnter={() => setMentionSelectionIndex(globalIndex)}
+                        >
+                          <div className="flex items-center justify-center size-7 rounded-md bg-muted text-muted-foreground shrink-0">
+                            {resource.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm truncate">
+                                {resource.name}
+                              </span>
+                              {resource.shortcut && (
+                                <code className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                                  {resource.shortcut}
+                                </code>
+                              )}
+                            </div>
+                            {resource.description && (
+                              <span className="text-xs text-muted-foreground line-clamp-1">
+                                {resource.description}
+                              </span>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+            <div className="sticky bottom-0 px-3 py-1.5 text-[11px] text-muted-foreground border-t border-border bg-muted/95 backdrop-blur-sm rounded-b-lg flex items-center gap-3">
+              <span><kbd className="px-1 py-0.5 bg-background rounded border text-[10px]">↑↓</kbd> navigate</span>
+              <span><kbd className="px-1 py-0.5 bg-background rounded border text-[10px]">↵</kbd> select</span>
+              <span><kbd className="px-1 py-0.5 bg-background rounded border text-[10px]">esc</kbd> close</span>
+            </div>
+          </motion.div>
+        )}
         </AnimatePresence>
 
         {/* Predictive suggestions list - positioned ABOVE the textarea */}
@@ -3640,6 +3257,7 @@ function PureMultimodalInput({
                     rows={1}
                     autoFocus
                   />
+
                 </div>
 
                 {/* Leading Area: Attach Button + Settings Menu */}

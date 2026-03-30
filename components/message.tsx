@@ -30,6 +30,16 @@ import {
   MessageSquare,
   Lightbulb,
   ChevronDown,
+  BarChart,
+  Target,
+  Mountain,
+  Search,
+  TrendingUp,
+  Code,
+  Table,
+  PieChart,
+  ImageIcon,
+  AtSign,
 } from 'lucide-react';
 import type { SearchProgress } from '@/hooks/use-web-search-progress';
 import { ErrorBoundary } from './error-boundary';
@@ -113,8 +123,30 @@ const IMAGE_ANALYSIS_REGEX =
 const AUDIO_TRANSCRIPT_REGEX =
   /===\s+Audio\s+Transcript\s+from\s+([^\n]+)\s+===\n([\s\S]*?)(?:===\s+End\s+of\s+Audio\s+Transcript\s+===)/gi;
 
-// Add regex for mention detection (supports types like document/recording)
-const MENTION_REGEX = /@(\w+):([^\s]+)/g;
+// Mention detection in rendered messages (supports hyphenated types like text-composer)
+const MENTION_REGEX = /@([\w-]+):([^\s]+)/g;
+
+function MentionTypeIcon({ type }: { type: string }) {
+  const cls = 'size-3.5';
+  switch (type) {
+    case 'calendar': case 'event': case 'meeting': return <Calendar className={cls} />;
+    case 'availability': return <Clock className={cls} />;
+    case 'scorecard': return <BarChart className={cls} />;
+    case 'vto': case 'vto-composer': return <Target className={cls} />;
+    case 'rocks': return <Mountain className={cls} />;
+    case 'accountability': case 'accountability-composer': return <Users className={cls} />;
+    case 'people': case 'team': case 'user': return <Users className={cls} />;
+    case 'text-composer': case 'document': return <FileText className={cls} />;
+    case 'code-composer': return <Code className={cls} />;
+    case 'sheet-composer': return <Table className={cls} />;
+    case 'chart-composer': return <PieChart className={cls} />;
+    case 'image-composer': return <ImageIcon className={cls} />;
+    case 'recording': return <Mic className={cls} />;
+    case 'search': return <Search className={cls} />;
+    case 'analyze': return <TrendingUp className={cls} />;
+    default: return <AtSign className={cls} />;
+  }
+}
 
 // Function to extract PDF content markers from text and return both PDFs and cleaned text
 function extractPDFContent(text: string): {
@@ -349,6 +381,7 @@ const PurePreviewMessage = ({
     embeddedContents: EmbeddedContent[];
     hasMentions: boolean;
     replyContext: { content: string; role: 'user' | 'assistant' } | null;
+    mentionMeta: Array<{ type: string; name: string; id: string; category?: string }>;
   } => {
     // If message.parts is not defined, but message.content is, convert it to parts
     // This handles streaming messages that haven't been persisted to DB yet
@@ -365,6 +398,7 @@ const PurePreviewMessage = ({
         embeddedContents: [],
         hasMentions: false,
         replyContext: null,
+        mentionMeta: [],
       };
     }
 
@@ -375,6 +409,7 @@ const PurePreviewMessage = ({
     let hasMentions = false;
     let replyContext: { content: string; role: 'user' | 'assistant' } | null =
       null;
+    let mentionMeta: Array<{ type: string; name: string; id: string; category?: string }> = [];
 
     // Process each text part to extract structured content
     const parts = workingParts.map((part) => {
@@ -389,10 +424,23 @@ const PurePreviewMessage = ({
           }
         }
 
+        // Extract and strip [MENTIONS_META_BEGIN]...[MENTIONS_META_END] block
+        const metaRegex = /\[MENTIONS_META_BEGIN\]([\s\S]*?)\[MENTIONS_META_END\]/;
+        const metaMatch = currentText.match(metaRegex);
+        if (metaMatch) {
+          currentText = currentText.replace(metaRegex, '').trim();
+          try {
+            const parsed = JSON.parse(metaMatch[1]);
+            const items = Array.isArray(parsed?.mentions) ? parsed.mentions : [];
+            mentionMeta = items.filter((m: any) => m?.type && m?.name);
+          } catch {
+            // Malformed JSON — just strip the block
+          }
+        }
+
         // Check for mentions
         if (MENTION_REGEX.test(currentText)) {
           hasMentions = true;
-          // Reset regex state
           MENTION_REGEX.lastIndex = 0;
         }
 
@@ -489,6 +537,7 @@ const PurePreviewMessage = ({
       embeddedContents,
       hasMentions,
       replyContext,
+      mentionMeta,
     };
   }, [message.parts, message.id]);
 
@@ -500,6 +549,7 @@ const PurePreviewMessage = ({
     embeddedContents,
     hasMentions,
     replyContext,
+    mentionMeta,
   } = processedParts;
 
   // Debug logging
@@ -602,6 +652,24 @@ const PurePreviewMessage = ({
                 contents={embeddedContents}
                 align={message.role === 'user' ? 'end' : 'start'}
               />
+            )}
+
+            {/* Render mention context chips extracted from MENTIONS_META */}
+            {mentionMeta.length > 0 && (
+              <div className={cn(
+                'flex flex-wrap gap-1.5',
+                message.role === 'user' ? 'justify-end' : 'justify-start',
+              )}>
+                {mentionMeta.map((m) => (
+                  <span
+                    key={m.id}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-medium"
+                  >
+                    <MentionTypeIcon type={m.type} />
+                    <span className="truncate max-w-[180px]">{m.name}</span>
+                  </span>
+                ))}
+              </div>
             )}
 
             {/* Render Claude extended thinking (reasoning) if present */}

@@ -62,7 +62,7 @@ import {
 import { triggerBackgroundSummary } from '@/lib/ai/background-summary';
 import { searchWeb } from '@/lib/ai/tools/search-web';
 import { z } from 'zod/v3';
-import { MentionProcessor } from '@/lib/ai/mention-processor';
+import { MentionProcessor, type ProcessedMention } from '@/lib/ai/mention-processor';
 import { SmartMentionDetector } from '@/lib/ai/smart-mention-detector';
 import { convertV4MessageToV5 } from '@/lib/ai/convert-messages';
 import {
@@ -690,7 +690,7 @@ export async function POST(request: Request) {
 
     // Extract user text for RAG context retrieval
     const firstPart = message.parts?.[0];
-    const queryText = extractPrimaryMessageText(message);
+    let queryText = extractPrimaryMessageText(message);
     console.log('RAG: Processing chat request with query:', queryText);
     console.log('RAG: Message structure:', {
       messageId: message.id,
@@ -762,25 +762,53 @@ export async function POST(request: Request) {
       );
     }
 
+    // Parse structured mentions from UI chip selections and strip the meta block
+    const { mentions: structuredMentions, cleanedText: queryTextClean } =
+      MentionProcessor.parseStructuredMentions(queryText);
+    if (structuredMentions.length > 0) {
+      queryText = queryTextClean;
+    }
+
     // Enhanced mention processing with smart detection
     const extractedMentions = MentionProcessor.extractMentions(queryText);
     const implicitMentions =
       SmartMentionDetector.detectImplicitMentions(queryText);
 
-    // Combine explicit and implicit mentions
-    const allMentions = [
-      ...extractedMentions,
-      ...implicitMentions.map((im) => ({
-        type: im.type,
-        id: im.type,
-        name: im.trigger,
-        metadata: {
-          confidence: im.confidence,
-          implicit: true,
-          context: im.context,
-        },
-      })),
-    ];
+    // Combine structured (UI chip), explicit (@regex), and implicit mentions.
+    // Deduplicate by type+id so a mention isn't processed twice.
+    const seenKeys = new Set<string>();
+    const allMentions: ProcessedMention[] = [];
+
+    for (const m of structuredMentions) {
+      const key = `${m.type}::${m.id}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        allMentions.push(m);
+      }
+    }
+    for (const m of extractedMentions) {
+      const key = `${m.type}::${m.id}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        allMentions.push(m);
+      }
+    }
+    for (const im of implicitMentions) {
+      const key = `${im.type}::${im.type}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        allMentions.push({
+          type: im.type as ProcessedMention['type'],
+          id: im.type,
+          name: im.trigger,
+          metadata: {
+            confidence: im.confidence,
+            implicit: true,
+            context: im.context,
+          },
+        });
+      }
+    }
 
     const mentionResult = MentionProcessor.processMentions(
       allMentions,
@@ -809,8 +837,8 @@ export async function POST(request: Request) {
     }
 
     console.log(
-      `Detected ${extractedMentions.length} explicit @ mentions and ${implicitMentions.length} implicit mentions:`,
-      { explicit: extractedMentions, implicit: implicitMentions },
+      `Detected ${structuredMentions.length} UI-selected, ${extractedMentions.length} explicit @, and ${implicitMentions.length} implicit mentions (${allMentions.length} total):`,
+      { structured: structuredMentions, explicit: extractedMentions, implicit: implicitMentions },
     );
 
     if (mentionResult.toolsToActivate.length > 0) {
