@@ -84,23 +84,6 @@ export async function proxy(request: NextRequest) {
     return new Response('pong', { status: 200 });
   }
 
-  // Check if this is a Meticulous recording session
-  // Configure this header in Meticulous project settings > Custom Request Headers
-  const meticulousHeader = request.headers.get('x-meticulous-recording');
-  const meticulousSecret = process.env.METICULOUS_AUTH_BYPASS_SECRET;
-
-  const isMeticulousSession =
-    (process.env.NODE_ENV === 'development' ||
-      process.env.VERCEL_ENV === 'preview') &&
-    meticulousHeader === (meticulousSecret || 'true');
-
-  // If it's a Meticulous session, bypass all auth checks
-  if (isMeticulousSession) {
-    // Skip auth checks and allow access to all routes
-    // Meticulous will automatically stub network responses
-    return NextResponse.next();
-  }
-
   // CSRF protection: validate origin for state-changing requests
   if (!validateOrigin(request)) {
     return new NextResponse(
