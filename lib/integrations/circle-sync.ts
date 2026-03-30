@@ -77,6 +77,7 @@ type ParsedCirclePaymentPayload = {
   tierPurchased: string;
   mappedPlan: PlanType;
   isOnTrial?: boolean;
+  forceUpgradeEmail?: boolean;
   amount: number | null;
   currency: string | null;
   occurredAt: Date;
@@ -534,6 +535,12 @@ const parseCircleNativePayload = async (
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Tag name that forces the upgrade email to be sent even when the user's plan
+// hasn't changed. Configurable via env var so it can be adjusted without a deploy.
+const UPGRADE_EMAIL_TAG = (
+  process.env.CIRCLE_UPGRADE_EMAIL_TAG || 'send-upgrade-email'
+).toLowerCase();
+
 // Circle tag events send only a numeric member_tag_id with no tag name.
 // Resolve the member's tier by looking up their access groups instead.
 // Retries up to 3 times with 2-second delays to handle the race condition
@@ -548,7 +555,13 @@ const parseCircleTagEventPayload = async (
   const memberId = toNumberValue(data.community_member_id);
   if (!memberId) return null;
 
-  console.log(`[circle-sync] Detected tag event (${eventType}), looking up member ${memberId} via access groups`);
+  // Check if the tag name matches the upgrade-email trigger tag.
+  const tagName = toStringValue(
+    data.tag_name ?? data.tagName ?? (isRecord(data.tag) ? data.tag.name : data.tag),
+  );
+  const isUpgradeEmailTag = tagName?.toLowerCase() === UPGRADE_EMAIL_TAG;
+
+  console.log(`[circle-sync] Detected tag event (${eventType}), looking up member ${memberId} via access groups${isUpgradeEmailTag ? ' [force-upgrade-email]' : ''}`);
 
   const memberInfo = await fetchCircleMemberById(memberId);
   const { getMemberByEmail } = await import('@/lib/integrations/circle');
@@ -581,6 +594,7 @@ const parseCircleTagEventPayload = async (
     tierPurchased: circleData.tierName,
     mappedPlan: circleData.mappedPlan,
     isOnTrial: circleData.isOnTrial,
+    forceUpgradeEmail: isUpgradeEmailTag,
     amount: null,
     currency: null,
     occurredAt: new Date(),
@@ -966,6 +980,7 @@ type ApplyCirclePlanAssignmentInput = {
   tierPurchased: string;
   mappedPlan: PlanType;
   isOnTrial?: boolean;
+  forceUpgradeEmail?: boolean;
   amount: number | null;
   currency: string | null;
   occurredAt: Date;
@@ -1007,6 +1022,22 @@ const applyCirclePlanAssignment = async (
     );
 
     if (currentRank >= incomingRank) {
+      // If the tag specifically requested the upgrade email, send it even
+      // though the plan didn't change (e.g. the plan was already updated
+      // by a prior payment webhook but the email hadn't been sent yet).
+      let upgradeEmailError: string | null = null;
+      if (input.forceUpgradeEmail) {
+        console.log(
+          `[circle-sync] Force-sending upgrade email to ${input.email ?? existingUser.email} (plan already ${existingUser.plan})`,
+        );
+        const emailResult = await sendCircleUpgradeEmail({
+          toEmail: input.email ?? existingUser.email,
+          memberName: input.name,
+          tierName: input.tierPurchased,
+        });
+        upgradeEmailError = emailResult.errorMessage;
+      }
+
       await writeCircleSyncLog({
         eventId: input.eventId,
         circleMemberId: input.circleMemberId,
@@ -1016,6 +1047,7 @@ const applyCirclePlanAssignment = async (
         action: 'no_change',
         userId: existingUser.id,
         payload: payloadWithContext,
+        errorMessage: upgradeEmailError,
       });
 
       return {
@@ -1024,7 +1056,7 @@ const applyCirclePlanAssignment = async (
         userId: existingUser.id,
         tierPurchased: input.tierPurchased,
         mappedPlan: input.mappedPlan,
-        errorMessage: null,
+        errorMessage: upgradeEmailError,
       };
     }
 
