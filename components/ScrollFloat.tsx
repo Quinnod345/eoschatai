@@ -46,7 +46,6 @@ const ScrollFloat: React.FC<ScrollFloatProps> = ({
 
     if (splitBy === 'words') {
       return text.split(' ').map((word, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: Word position is stable
         <span className="inline-block word" key={index}>
           {word}
           {index < text.split(' ').length - 1 ? '\u00A0' : ''}
@@ -55,7 +54,6 @@ const ScrollFloat: React.FC<ScrollFloatProps> = ({
     }
 
     return text.split('').map((char, index) => (
-      // biome-ignore lint/suspicious/noArrayIndexKey: Character position is stable
       <span className="inline-block word" key={index}>
         {char === ' ' ? '\u00A0' : char}
       </span>

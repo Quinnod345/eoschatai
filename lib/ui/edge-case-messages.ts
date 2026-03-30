@@ -263,6 +263,12 @@ export const mapEdgeCaseNotice = (input: unknown): EdgeCaseNotice | null => {
           'This organization has reached its seat limit. Ask the owner to add seats.',
         code,
       };
+    case 'CIRCLE_PLAN_UPDATED':
+      return {
+        level: 'success',
+        message: message ?? 'Your Circle plan has been synced successfully.',
+        code,
+      };
     case 'REDUNDANT_STRIPE_SUBSCRIPTION':
       return {
         level: 'warning',
@@ -356,6 +362,8 @@ export const runEdgeCaseAction = async (action?: EdgeCaseAction) => {
   }
 };
 
+const recentEdgeCaseToasts = new Set<string>();
+
 export const showEdgeCaseToast = async (
   toastApi: ToastLike,
   input: unknown,
@@ -371,6 +379,13 @@ export const showEdgeCaseToast = async (
     }
     return false;
   }
+
+  const dedupeKey = notice.code ?? notice.message;
+  if (recentEdgeCaseToasts.has(dedupeKey)) {
+    return true;
+  }
+  recentEdgeCaseToasts.add(dedupeKey);
+  setTimeout(() => recentEdgeCaseToasts.delete(dedupeKey), 10000);
 
   const mappedAction = notice.action;
   const toastAction = mappedAction

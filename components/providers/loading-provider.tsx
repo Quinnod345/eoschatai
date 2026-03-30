@@ -60,8 +60,13 @@ export function LoadingProvider() {
     };
   }, [isLoading]);
 
-  // Don't show loading overlay for chat navigation - the chat page itself will show loading
+  // Don't show loading overlay for chat navigation or marketing pages
   if (loadingType === 'chat') {
+    return null;
+  }
+
+  const isMarketingPage = pathname === '/' || pathname.startsWith('/features') || pathname.startsWith('/solutions') || pathname.startsWith('/privacy') || pathname.startsWith('/terms') || pathname.startsWith('/docs');
+  if (isMarketingPage) {
     return null;
   }
 

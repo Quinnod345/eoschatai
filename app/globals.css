@@ -6,6 +6,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Custom easing utilities to avoid Tailwind arbitrary value warnings */
 .ease-out-expo {
   transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -13,6 +17,47 @@
 
 .ease-out-quart {
   transition-timing-function: cubic-bezier(0, 0, 0, 1);
+}
+
+/* Marquee animation for infinite scroll */
+@keyframes marqueeScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Demo input: mention chip entrance */
+@keyframes demoMentionIn {
+  0% { opacity: 0; transform: scale(0.9) translateX(-8px); }
+  100% { opacity: 1; transform: scale(1) translateX(0); }
+}
+
+/* Demo input: persona icon breathing pulse (matches real component) */
+@keyframes demoPersonaPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+/* Demo composer: sheet cell fill animation */
+@keyframes demoSheetCellIn {
+  0% { opacity: 0; transform: scale(0.95); background-color: rgba(255,255,255,0.1); }
+  50% { opacity: 1; transform: scale(1); background-color: rgba(255,255,255,0.05); }
+  100% { opacity: 1; transform: scale(1); background-color: transparent; }
+}
+
+/* Organization diagram: floating member nodes */
+@keyframes orgFloat {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-6px); }
+}
+
+/* Organization diagram: pulsing connection lines */
+@keyframes orgPulse {
+  0%, 100% { opacity: 0.04; }
+  50% { opacity: 0.12; }
 }
 
 /* Custom animations for homepage */
@@ -2923,51 +2968,6 @@ body:has([data-radix-alert-dialog-overlay]) {
   filter: brightness(0.35);
 }
 
-/* ─── Sidebar history item — hover spark ─────────────────────────────────── */
-
-@property --sidebar-trace-angle {
-  syntax: '<angle>';
-  initial-value: 180deg;
-  inherits: false;
-}
-
-@keyframes sidebar-trace-once {
-  0%   { --sidebar-trace-angle: 180deg; opacity: 0; }
-  10%  { opacity: 1; }
-  100% { --sidebar-trace-angle: 540deg; opacity: 0; }
-}
-
-.sidebar-item-trace {
-  position: relative;
-  isolation: isolate;
-}
-
-.sidebar-item-trace::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 8px;
-  padding: 1.5px;
-  background: conic-gradient(
-    from var(--sidebar-trace-angle),
-    transparent 0%, transparent 78%,
-    rgba(249, 115, 22, 0.08) 86%,
-    rgba(255, 210, 140, 0.70) 89%,
-    rgba(249, 115, 22, 0.08) 93%,
-    transparent 100%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: sidebar-trace-once 0.45s ease-out forwards;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dark .sidebar-item-trace::before {
-  filter: brightness(0.4);
-}
-
 /* ─── ThinkingMessage avatar — orb pulse ─────────────────────────────────── */
 
 @keyframes thinking-orb-pulse {
@@ -3390,7 +3390,6 @@ body:has([data-radix-alert-dialog-overlay]) {
   .nexus-pill-trace::before,
   .chat-energy-orb,
   .chat-energy-orb-nexus,
-  .sidebar-item-trace::before,
   .upload-done-flash::after,
   .avatar-active-ring::before,
   .cursor-sweep,

@@ -1,326 +1,207 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Link from 'next/link';
+import {
+  PenTool,
+  Users,
+  Search,
+  FileText,
+  BarChart,
+  Calendar,
+  Share2,
+  Shield,
+  CheckCircle2,
+  ExternalLink,
+  ArrowRight,
+  Telescope,
+  Clock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import LandingNavbar from '@/components/marketing/landing-navbar';
 import LandingFooter from '@/components/marketing/landing-footer';
-import Dither from '@/components/Dither';
-import DotGrid from '@/components/DotGrid';
-import ScrollFloat from '@/components/ScrollFloat';
-import RotatingText from '@/components/RotatingText';
-import Aurora from '@/components/Aurora';
+import type { LucideIcon } from 'lucide-react';
 
-// Register GSAP plugins
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
 
-// Solution features data
-const solutionFeatures = [
+interface SolutionStep {
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+interface Solution {
+  id: string;
+  label: string;
+  heading: string;
+  scenario: string;
+  description: string;
+  steps: SolutionStep[];
+  result: string;
+  accent: string;
+  accentBorder: string;
+}
+
+const solutions: Solution[] = [
   {
     id: 'nexus',
-    title: 'Nexus Deep Research Engine',
-    subtitle: 'Real-Time Intelligence',
+    label: 'Deep Research',
+    heading: 'Nexus Research Engine',
+    scenario:
+      'Your quarterly planning session is in two weeks. The leadership team needs competitive intelligence, market sizing data, and industry benchmarks — but manually researching across dozens of sources would take days.',
     description:
-      'Access 40+ real-time sources per query. Get market analysis, competitor insights, and industry trends with automatic citation tracking and synthesis. Nexus combines web search, academic databases, and proprietary sources into comprehensive research reports.',
-    longDescription:
-      'Our Nexus engine revolutionizes how you gather intelligence. Whether you\'re analyzing competitors, researching market trends, or preparing for strategic planning sessions, Nexus delivers comprehensive, citation-backed research in minutes instead of hours.',
-    highlights: [
-      '40+ sources per query',
-      'Automatic citation tracking',
-      'Competitive analysis',
-      'Industry trend synthesis',
-      'Academic database access',
-      'Real-time market data',
+      'Nexus scans 40+ real-time sources per query, synthesizes findings, and delivers citation-backed reports in minutes. Every claim links to its source so your team can verify and trust the data.',
+    steps: [
+      { label: 'Ask', description: 'Type your research question in Nexus mode', icon: Telescope },
+      { label: 'Scan', description: 'Nexus searches 40+ sources simultaneously', icon: Search },
+      { label: 'Synthesize', description: 'Results are analyzed and cross-referenced', icon: BarChart },
+      { label: 'Report', description: 'Citation-backed report delivered with source links', icon: ExternalLink },
     ],
-    useCases: [
-      'Quarterly planning research',
-      'Competitor SWOT analysis',
-      'Market opportunity identification',
-      'Industry benchmark reports',
-    ],
-    icon: (
-      <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.5}
-          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-        />
-      </svg>
-    ),
-    gradient: 'from-violet-500 via-purple-500 to-fuchsia-500',
-    bgGradient: 'rgba(139, 92, 246, 0.15)',
-    accentColor: '#8B5CF6',
+    result: 'Your team walks into quarterly planning with comprehensive, verified market intelligence prepared in under 10 minutes.',
+    accent: 'rgba(147, 51, 234, 0.10)',
+    accentBorder: 'rgba(147, 51, 234, 0.20)',
   },
   {
     id: 'composer',
-    title: 'Interactive Composer Studio',
-    subtitle: 'Content Creation Powerhouse',
+    label: 'Content Creation',
+    heading: 'Composer Studio',
+    scenario:
+      'Your Integrator needs an updated V/TO for the board meeting on Friday, a new scorecard spreadsheet for Q2 measurables, and an accountability chart reflecting recent hires. Three different document types, one deadline.',
     description:
-      'Create charts, diagrams, code, and documents in real-time. Export to PDF, DOCX, or generate EOS-specific templates like V/TOs and Scorecards. The composer integrates directly with AI for guided content creation.',
-    longDescription:
-      'The Composer Studio is your creative command center. From generating professional V/TO documents to creating data-driven charts and diagrams, every piece of content is AI-assisted and export-ready.',
-    highlights: [
-      'Real-time content generation',
-      'Multiple export formats',
-      'EOS template library',
-      'Collaborative editing',
-      'Version history',
-      'Brand customization',
+      'Composer Studio handles all seven artifact types in one workspace. Ask the AI to generate each document, edit inline, track version history, and export to PDF or DOCX when ready.',
+    steps: [
+      { label: 'Request', description: 'Ask AI to create any document type', icon: PenTool },
+      { label: 'Generate', description: 'AI builds the artifact in real time', icon: Clock },
+      { label: 'Refine', description: 'Edit inline with AI suggestions and version history', icon: FileText },
+      { label: 'Export', description: 'Download as PDF, DOCX, or share directly', icon: ArrowRight },
     ],
-    useCases: [
-      'V/TO document creation',
-      'Scorecard generation',
-      'Meeting agenda preparation',
-      'Strategic planning documents',
-    ],
-    icon: (
-      <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.5}
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-        />
-      </svg>
-    ),
-    gradient: 'from-rose-500 via-pink-500 to-red-500',
-    bgGradient: 'rgba(244, 63, 94, 0.15)',
-    accentColor: '#F43F5E',
+    result: 'Three professional EOS documents — V/TO, scorecard, and accountability chart — generated, refined, and exported in a single session.',
+    accent: 'rgba(244, 63, 94, 0.10)',
+    accentBorder: 'rgba(244, 63, 94, 0.20)',
   },
   {
     id: 'collaboration',
-    title: 'Team Collaboration Hub',
-    subtitle: 'Enterprise Workspace',
+    label: 'Enterprise',
+    heading: 'Team Collaboration',
+    scenario:
+      'Your leadership team is spread across three offices. The Visionary, Integrator, and department heads all need access to the same AI workspace, but with different permission levels and personalized personas.',
     description:
-      'Unified workspace for your entire organization. Share personas, documents, and conversations with role-based access. Google Calendar integration keeps everyone aligned on meetings and deadlines.',
-    longDescription:
-      'Break down silos and empower your entire leadership team with a shared AI workspace. From Integrators to department heads, everyone has access to the tools they need with appropriate permissions.',
-    highlights: [
-      'Role-based access control',
-      'Shared persona library',
-      'Google Calendar sync',
-      'Team analytics dashboard',
-      'Org-wide document sharing',
-      'Activity audit logs',
+      'A shared workspace where the entire team collaborates with role-based access. Share personas, documents, and knowledge. Google Calendar sync keeps everyone prepared for meetings.',
+    steps: [
+      { label: 'Invite', description: 'Add team members via email or shareable invite codes', icon: Users },
+      { label: 'Configure', description: 'Set Owner, Admin, and Member roles per person', icon: Shield },
+      { label: 'Share', description: 'Distribute personas, documents, and knowledge org-wide', icon: Share2 },
+      { label: 'Align', description: 'Calendar sync and shared context keeps everyone prepared', icon: Calendar },
     ],
-    useCases: [
-      'Leadership team alignment',
-      'Cross-department collaboration',
-      'Meeting preparation',
-      'Knowledge sharing',
-    ],
-    icon: (
-      <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.5}
-          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-        />
-      </svg>
-    ),
-    gradient: 'from-sky-500 via-blue-500 to-indigo-500',
-    bgGradient: 'rgba(14, 165, 233, 0.15)',
-    accentColor: '#0EA5E9',
+    result: 'Your entire leadership team operates from one AI workspace with consistent EOS guidance, shared context, and appropriate access controls.',
+    accent: 'rgba(14, 165, 233, 0.10)',
+    accentBorder: 'rgba(14, 165, 233, 0.20)',
   },
 ];
 
-// Solution Card Component - Full width showcase
-function SolutionShowcase({
-  solution,
-  index,
-}: {
-  solution: (typeof solutionFeatures)[0];
-  index: number;
-}) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const isReversed = index % 2 === 1;
+function SectionDivider() {
+  return (
+    <div className="relative py-1">
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+    </div>
+  );
+}
 
-  useEffect(() => {
-    if (!cardRef.current) return;
-
-    const card = cardRef.current;
-    const elements = card.querySelectorAll('.animate-in');
-
-    gsap.fromTo(
-      elements,
-      {
-        opacity: 0,
-        y: 40,
-        filter: 'blur(8px)',
-      },
-      {
-        opacity: 1,
-        y: 0,
-        filter: 'blur(0px)',
-        duration: 0.8,
-        stagger: 0.1,
-        ease: 'power3.out',
-        scrollTrigger: {
-          trigger: card,
-          start: 'top 75%',
-          toggleActions: 'play none none reverse',
-        },
-      }
-    );
-  }, []);
+function SolutionSection({ solution, index }: { solution: Solution; index: number }) {
+  const reversed = index % 2 === 1;
+  const bg = index % 2 === 0 ? 'bg-black' : 'bg-[#050505]';
 
   return (
     <section
-      ref={cardRef}
       id={solution.id}
-      className="relative min-h-screen py-24 overflow-hidden"
+      className={`solution-section relative z-20 py-20 md:py-28 ${bg} scroll-mt-24`}
     >
-      {/* Background */}
-      <div className="absolute inset-0 z-0">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            background: `radial-gradient(ellipse at ${isReversed ? '80%' : '20%'} 50%, ${solution.bgGradient}, transparent 60%)`,
-          }}
-        />
-        <DotGrid
-          dotSize={2}
-          gap={30}
-          baseColor="rgba(255,255,255,0.05)"
-          activeColor={solution.accentColor}
-          proximity={120}
-          shockRadius={250}
-          shockStrength={6}
-          resistance={700}
-          returnDuration={1.6}
-          speedTrigger={70}
-          className="w-full h-full"
-        />
-      </div>
-
-      <div className="container mx-auto px-6 lg:px-12 relative z-10">
-        <div
-          className={`grid grid-cols-1 lg:grid-cols-2 gap-16 items-center ${
-            isReversed ? 'lg:flex-row-reverse' : ''
-          }`}
-        >
-          {/* Content Side */}
-          <div className={`${isReversed ? 'lg:order-2' : 'lg:order-1'}`}>
-            {/* Badge */}
-            <div className="animate-in inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 mb-8">
-              <span className={`text-transparent bg-clip-text bg-gradient-to-r ${solution.gradient}`}>
-                {solution.icon && <span className="w-5 h-5 block">{solution.icon}</span>}
-              </span>
-              <span className="font-montserrat text-sm font-semibold text-white/90">{solution.subtitle}</span>
-            </div>
-
-            {/* Title */}
-            <h2 className="animate-in font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
-              {solution.title}
+      <div className="container mx-auto px-6 lg:px-8">
+        <div className={`max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start ${reversed ? 'lg:[direction:rtl]' : ''}`}>
+          {/* Text side */}
+          <div className={`solution-text ${reversed ? 'lg:[direction:ltr]' : ''}`}>
+            <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
+              {solution.label}
+            </p>
+            <h2 className="font-montserrat text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight mb-6">
+              {solution.heading}
             </h2>
 
-            {/* Description */}
-            <p className="animate-in font-montserrat text-lg text-white/70 leading-relaxed mb-6">
+            {/* Scenario callout */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 mb-8">
+              <p className="font-mono text-[10px] tracking-widest text-white/25 uppercase mb-2">Scenario</p>
+              <p className="font-montserrat text-sm text-white/50 leading-relaxed italic">
+                {solution.scenario}
+              </p>
+            </div>
+
+            <p className="font-montserrat text-base text-white/55 leading-relaxed mb-8 max-w-lg">
               {solution.description}
             </p>
-            <p className="animate-in font-montserrat text-base text-white/60 leading-relaxed mb-10">
-              {solution.longDescription}
-            </p>
 
-            {/* Highlights Grid */}
-            <div className="animate-in grid grid-cols-2 gap-4 mb-10">
-              {solution.highlights.map((highlight) => (
-                <div key={highlight} className="flex items-center gap-3">
-                  <div
-                    className={`w-5 h-5 rounded-full bg-gradient-to-r ${solution.gradient} flex items-center justify-center flex-shrink-0`}
-                  >
-                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <span className="font-montserrat text-sm text-white/80">{highlight}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* CTA */}
-            <div className="animate-in">
-              <Link href="/register">
-                <Button
-                  size="lg"
-                  className={`font-montserrat bg-gradient-to-r ${solution.gradient} hover:opacity-90 text-white px-8 py-6 rounded-full shadow-lg`}
-                >
-                  Get Started with {solution.title.split(' ')[0]}
-                </Button>
-              </Link>
-            </div>
+            <Link href="/register">
+              <Button
+                size="lg"
+                className="font-montserrat font-semibold bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white px-8 py-5 rounded-full shadow-[0_8px_24px_rgba(255,121,0,0.25)] transition-all duration-300"
+              >
+                Try It Free
+              </Button>
+            </Link>
           </div>
 
-          {/* Visual Side */}
-          <div className={`${isReversed ? 'lg:order-1' : 'lg:order-2'}`}>
-            <div className="animate-in relative">
-              {/* Main Visual Card */}
-              <div
-                className="relative aspect-square max-w-[550px] mx-auto rounded-3xl overflow-hidden border border-white/10"
-                style={{ background: `linear-gradient(135deg, ${solution.bgGradient}, rgba(0,0,0,0.8))` }}
-              >
-                {/* Central Icon */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div
-                    className={`w-40 h-40 rounded-3xl bg-gradient-to-br ${solution.gradient} flex items-center justify-center shadow-2xl`}
-                  >
-                    <span className="text-white">{solution.icon}</span>
-                  </div>
-                </div>
+          {/* Visual side: stepped flow */}
+          <div className={`solution-visual ${reversed ? 'lg:[direction:ltr]' : ''}`}>
+            <div
+              className="relative rounded-2xl border border-white/[0.06] overflow-hidden p-6 md:p-8"
+              style={{ background: `linear-gradient(160deg, ${solution.accent}, rgba(0,0,0,0.6))` }}
+            >
+              <div className="pointer-events-none absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%20400%20400%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.9%22%20numOctaves%3D%224%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url(%23n)%22%2F%3E%3C%2Fsvg%3E')]" />
 
-                {/* Use Cases Cards */}
-                <div className="absolute bottom-6 left-6 right-6 space-y-3">
-                  {solution.useCases.slice(0, 3).map((useCase, i) => (
-                    <motion.div
-                      key={useCase}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.2 + i * 0.1 }}
-                      className="px-4 py-3 rounded-xl bg-black/40 backdrop-blur-sm border border-white/10"
-                    >
-                      <span className="font-montserrat text-sm text-white/80">{useCase}</span>
-                    </motion.div>
-                  ))}
-                </div>
+              <p className="font-mono text-[10px] tracking-widest text-white/20 uppercase mb-6 relative z-10">How it works</p>
 
-                {/* Floating Elements */}
-                <motion.div
-                  className="absolute top-8 right-8 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20"
-                  animate={{
-                    y: [0, -15, 0],
-                    rotate: [0, 8, 0],
-                  }}
-                  transition={{
-                    duration: 5,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: 'easeInOut',
-                  }}
-                />
-                <motion.div
-                  className="absolute top-24 left-8 w-14 h-14 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20"
-                  animate={{
-                    y: [0, 12, 0],
-                    rotate: [0, -6, 0],
-                  }}
-                  transition={{
-                    duration: 4,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: 'easeInOut',
-                  }}
-                />
+              <div className="relative z-10 space-y-0">
+                {solution.steps.map((step, i) => {
+                  const Icon = step.icon;
+                  return (
+                    <div key={step.label} className="flex gap-4">
+                      {/* Timeline */}
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/[0.1] flex items-center justify-center flex-shrink-0">
+                          <Icon className="w-3.5 h-3.5 text-white/50" strokeWidth={1.5} />
+                        </div>
+                        {i < solution.steps.length - 1 && (
+                          <div className="w-px flex-1 min-h-[32px] bg-gradient-to-b from-white/[0.08] to-transparent" />
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="pb-6">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-[10px] text-white/25">{String(i + 1).padStart(2, '0')}</span>
+                          <span className="font-montserrat text-sm font-semibold text-white/80">{step.label}</span>
+                        </div>
+                        <p className="font-montserrat text-xs text-white/40 leading-relaxed">{step.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Result */}
+              <div className="relative z-10 mt-2 pt-4 border-t border-white/[0.06]">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500/60 flex-shrink-0 mt-0.5" />
+                  <p className="font-montserrat text-xs text-emerald-400/60 leading-relaxed">
+                    {solution.result}
+                  </p>
+                </div>
+              </div>
+
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at ${reversed ? '30%' : '70%'} 80%, ${solution.accentBorder}, transparent 60%)`, opacity: 0.2 }} />
             </div>
           </div>
         </div>
@@ -330,284 +211,138 @@ function SolutionShowcase({
 }
 
 export default function SolutionsClient() {
-  const [mounted, setMounted] = useState(false);
-  const { scrollY } = useScroll();
-  const backgroundY = useTransform(scrollY, [0, 1000], ['0%', '20%']);
+  const gsapInit = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (gsapInit.current) return;
+    gsapInit.current = true;
 
-  if (!mounted) {
-    return null;
-  }
+    const ctx = gsap.context(() => {
+      gsap.from('.solutions-hero-content', {
+        opacity: 0, y: 30, filter: 'blur(8px)', duration: 0.8, ease: 'power2.out',
+      });
+
+      document.querySelectorAll('.solution-section').forEach((section) => {
+        const text = section.querySelector('.solution-text');
+        const visual = section.querySelector('.solution-visual');
+        if (text) {
+          gsap.from(text, {
+            opacity: 0, x: -30, filter: 'blur(6px)', duration: 0.7, ease: 'power2.out',
+            scrollTrigger: { trigger: section, start: 'top 75%', once: true },
+          });
+        }
+        if (visual) {
+          gsap.from(visual, {
+            opacity: 0, x: 30, filter: 'blur(6px)', duration: 0.7, delay: 0.15, ease: 'power2.out',
+            scrollTrigger: { trigger: section, start: 'top 75%', once: true },
+          });
+        }
+      });
+
+      gsap.from('.solutions-cta-content', {
+        opacity: 0, y: 24, filter: 'blur(6px)', duration: 0.7, ease: 'power2.out',
+        scrollTrigger: { trigger: '.solutions-cta', start: 'top 80%', once: true },
+      });
+    });
+
+    return () => ctx.revert();
+  }, []);
 
   return (
     <div className="relative w-full bg-black overflow-x-hidden">
-      {/* Navbar */}
       <LandingNavbar />
 
-      {/* Hero Section with Plasma Background */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Aurora Background */}
-        <div className="absolute inset-0 z-0 opacity-70">
-          <Aurora
-            colorStops={['#8B5CF6', '#6366F1', '#0EA5E9']}
-            amplitude={1.4}
-            blend={0.5}
-            speed={0.6}
-          />
-        </div>
-
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black z-10" />
-
-        {/* Content */}
-        <div className="relative z-20 text-center px-6 pt-32">
-          <motion.div
-            initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          >
-            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 border border-white/20 mb-8">
-              <svg className="w-4 h-4 text-eos-orange" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-              </svg>
-              <span className="font-montserrat text-sm font-medium text-white">Enterprise Solutions</span>
-            </div>
-          </motion.div>
-
-          <motion.h1
-            className="font-montserrat text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1, ease: 'easeOut' }}
-          >
-            Advanced Solutions for
-            <br />
-            <RotatingText
-              texts={['Deep Research', 'Content Creation', 'Team Collaboration', 'Enterprise Scale']}
-              staggerFrom="last"
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '-120%' }}
-              staggerDuration={0.025}
-              splitLevelClassName="overflow-hidden pb-1"
-              mainClassName="text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 [-webkit-background-clip:text]"
-              elementLevelClassName="text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 [-webkit-background-clip:text]"
-              transition={{
-                type: 'spring',
-                damping: 30,
-                stiffness: 400,
-              }}
-              rotationInterval={3000}
-            />
-          </motion.h1>
-
-          <motion.p
-            className="font-montserrat text-lg md:text-xl text-white/70 max-w-3xl mx-auto mb-12"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
-          >
-            Enterprise-grade tools designed to scale with your business. From AI-powered research to
-            seamless team collaboration, transform how your organization implements EOS.
-          </motion.p>
-
-          <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
-          >
-            <Link href="/register">
-              <Button
-                size="lg"
-                className="font-montserrat bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-500/90 hover:to-purple-600/90 text-white px-8 py-6 rounded-full shadow-[0_8px_32px_rgba(139,92,246,0.3)]"
-              >
-                Explore Solutions
-              </Button>
-            </Link>
-            <Link href="/features">
-              <Button
-                size="lg"
-                variant="outline"
-                className="font-montserrat border-2 border-white/50 text-white hover:bg-white/20 hover:border-white/70 px-8 py-6 rounded-full backdrop-blur-md bg-white/10 shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:shadow-[0_8px_24px_rgba(255,255,255,0.15)] transition-all duration-300"
-              >
-                View All Features
-              </Button>
-            </Link>
-          </motion.div>
-
-          {/* Scroll indicator */}
-          <motion.div
-            className="absolute bottom-12 left-1/2 -translate-x-1/2"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-          >
-            <svg className="w-6 h-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Solutions Overview */}
-      <section className="relative z-30 bg-gradient-to-b from-black via-zinc-950 to-zinc-900 py-24">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <ScrollFloat
-              animationDuration={1.2}
-              ease="power3.inOut"
-              scrollStart="top bottom-=10%"
-              scrollEnd="center top+=5%"
-              stagger={0.02}
-              containerClassName="mb-4"
-              textClassName="font-montserrat text-3xl md:text-4xl lg:text-5xl font-bold text-white"
-            >
-              Three Pillars of Success
-            </ScrollFloat>
-            <p className="font-montserrat text-lg text-white/60 max-w-2xl mx-auto">
-              Each solution is designed to address a critical aspect of EOS implementation
+      {/* Hero */}
+      <section className="relative pt-36 pb-20 bg-gradient-to-b from-[#1a0a2e]/30 via-black to-black">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_20%,rgba(147,51,234,0.06),transparent_50%)] pointer-events-none" />
+        <div className="solutions-hero-content container mx-auto px-6 relative z-10">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-6">Solutions</p>
+            <h1 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-6">
+              How Teams Use EOSAI
+            </h1>
+            <p className="font-montserrat text-lg text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed">
+              Real scenarios showing how leadership teams use deep research, AI-powered
+              content creation, and shared workspaces to run better on EOS.
             </p>
-          </div>
-
-          {/* Solution Cards Preview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {solutionFeatures.map((solution, index) => (
-              <motion.a
-                key={solution.id}
-                href={`#${solution.id}`}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.15 }}
-                className="group relative p-8 rounded-3xl bg-white/5 border border-white/10 hover:border-white/20 transition-all duration-500 overflow-hidden"
-              >
-                {/* Hover gradient */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                  style={{ background: `linear-gradient(135deg, ${solution.bgGradient}, transparent)` }}
-                />
-
-                <div className="relative z-10">
-                  <div
-                    className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${solution.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}
-                  >
-                    <span className="text-white w-8 h-8">{solution.icon}</span>
-                  </div>
-
-                  <h3 className="font-montserrat text-xl font-bold text-white mb-3">{solution.title}</h3>
-                  <p className="font-montserrat text-sm text-white/60 mb-6">{solution.description}</p>
-
-                  <div className="flex items-center gap-2 text-white/50 group-hover:text-white transition-colors">
-                    <span className="font-montserrat text-sm font-medium">Learn more</span>
-                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </div>
-                </div>
-              </motion.a>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Individual Solution Showcases */}
-      <div className="bg-gradient-to-b from-zinc-900 via-zinc-950 to-black">
-        {solutionFeatures.map((solution, index) => (
-          <SolutionShowcase key={solution.id} solution={solution} index={index} />
-        ))}
-      </div>
-
-      {/* CTA Section */}
-      <section className="relative z-30 py-32 overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0">
-          <Dither
-            waveColor={[0.55, 0.36, 0.98]}
-            disableAnimation={false}
-            enableMouseInteraction={true}
-            mouseRadius={0.4}
-            colorNum={5}
-            waveAmplitude={0.4}
-            waveFrequency={2.5}
-            waveSpeed={0.03}
-          />
-        </div>
-        <div className="absolute inset-0 bg-black/60" />
-
-        <div className="relative z-10 container mx-auto px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-          >
-            <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
-              Ready to Scale Your EOS Implementation?
-            </h2>
-            <p className="font-montserrat text-lg md:text-xl text-white/70 max-w-3xl mx-auto mb-12">
-              Get access to all three enterprise solutions and transform how your team works together.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/register">
-                <Button
-                  size="lg"
-                  className="font-montserrat bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-500/90 hover:to-purple-600/90 text-white px-10 py-6 rounded-full shadow-[0_8px_32px_rgba(139,92,246,0.3)] font-semibold"
-                >
-                  Start Free Trial
+                <Button size="lg" className="font-montserrat font-semibold bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white px-10 py-6 rounded-full shadow-[0_10px_32px_rgba(255,121,0,0.35)] transition-all duration-300">
+                  Get Started Free
                 </Button>
               </Link>
               <Link href="/features">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="font-montserrat border-2 border-white/50 text-white hover:bg-white/20 hover:border-white/70 px-10 py-6 rounded-full backdrop-blur-md bg-white/10 font-semibold shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:shadow-[0_8px_24px_rgba(255,255,255,0.15)] transition-all duration-300"
-                >
-                  Explore Features
+                <Button size="lg" variant="outline" className="font-montserrat border-white/20 text-white/80 hover:text-white hover:bg-white/10 hover:border-white/40 bg-white/[0.04] px-10 py-6 rounded-full transition-all duration-300">
+                  Try Interactive Demos
                 </Button>
               </Link>
             </div>
-
-            <div className="flex flex-wrap justify-center gap-6 text-white/60 text-sm">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-violet-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="font-montserrat">Enterprise-grade security</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-violet-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="font-montserrat">Unlimited team members</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-violet-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="font-montserrat">Priority support</span>
-              </div>
-            </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Quick nav */}
+      <div className="relative z-20 bg-black py-6">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-wrap justify-center gap-2">
+            {solutions.map((s) => (
+              <a key={s.id} href={`#${s.id}`} className="px-4 py-2 rounded-full bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.15] hover:bg-white/[0.06] transition-all duration-200">
+                <span className="font-montserrat text-xs text-white/45 hover:text-white/70">{s.heading}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <SectionDivider />
+
+      {solutions.map((solution, i) => (
+        <div key={solution.id}>
+          <SolutionSection solution={solution} index={i} />
+          {i < solutions.length - 1 && <SectionDivider />}
+        </div>
+      ))}
+
+      <SectionDivider />
+
+      {/* CTA */}
+      <section className="solutions-cta relative z-20 py-28 bg-gradient-to-b from-black via-[#050505] to-black">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(147,51,234,0.05),transparent_50%)]" />
+        </div>
+        <div className="solutions-cta-content container mx-auto px-6 relative z-10">
+          <div className="max-w-3xl mx-auto text-center">
+            <p className="font-mono text-xs tracking-[0.2em] text-white/30 uppercase mb-6">Ready?</p>
+            <h2 className="font-montserrat text-4xl md:text-5xl font-bold text-white tracking-tight mb-5">
+              Your Team Deserves Better Tools
+            </h2>
+            <p className="font-montserrat text-lg text-white/50 max-w-xl mx-auto mb-10">
+              Every solution above is available today. Start free and see the difference.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+              <Link href="/register">
+                <Button size="lg" className="font-montserrat font-semibold bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white px-10 py-6 rounded-full shadow-[0_10px_32px_rgba(255,121,0,0.35)] transition-all duration-300">
+                  Get Started Free
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button size="lg" variant="outline" className="font-montserrat border-white/20 text-white/80 hover:text-white hover:bg-white/10 hover:border-white/40 bg-white/[0.04] px-10 py-6 rounded-full transition-all duration-300">
+                  Sign In
+                </Button>
+              </Link>
+            </div>
+            <div className="flex flex-wrap justify-center gap-4">
+              {['No credit card required', 'Setup in minutes', 'Free tier available'].map((t) => (
+                <div key={t} className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/[0.06] bg-white/[0.02]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-eos-orange/60" />
+                  <span className="font-montserrat text-sm text-white/40">{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

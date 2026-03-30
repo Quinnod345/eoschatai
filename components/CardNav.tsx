@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ArrowTopRightIcon } from '@radix-ui/react-icons';
+import Link from 'next/link';
 
 type CardNavLink = {
   label: string;
@@ -10,6 +11,7 @@ type CardNavLink = {
 
 export type CardNavItem = {
   label: string;
+  href?: string;
   bgColor?: string;
   bgImage?: string;
   textColor: string;
@@ -215,23 +217,30 @@ const CardNav: React.FC<CardNavProps> = ({
               color: item.textColor,
             }}
           >
-            <div className="nav-card-label font-montserrat font-normal tracking-[-0.5px] text-[18px] md:text-[22px]">
-              {item.label}
-            </div>
+            {item.href ? (
+              <Link href={item.href} className="nav-card-label font-montserrat font-normal tracking-[-0.5px] text-[18px] md:text-[22px] hover:opacity-80 transition-opacity">
+                {item.label}
+              </Link>
+            ) : (
+              <div className="nav-card-label font-montserrat font-normal tracking-[-0.5px] text-[18px] md:text-[22px]">
+                {item.label}
+              </div>
+            )}
             <div className="nav-card-links mt-auto flex flex-col gap-[2px]">
               {item.links?.map((lnk, i) => (
-                <a
+                <Link
                   key={`${lnk.label}-${i}`}
                   className="nav-card-link inline-flex items-center gap-[6px] no-underline cursor-pointer transition-opacity duration-300 hover:opacity-75 text-[15px] md:text-[16px] font-montserrat"
                   href={lnk.href}
                   aria-label={lnk.ariaLabel}
+                  prefetch
                 >
                   <ArrowTopRightIcon
                     className="nav-card-link-icon shrink-0 w-4 h-4"
                     aria-hidden="true"
                   />
                   {lnk.label}
-                </a>
+                </Link>
               ))}
             </div>
           </div>

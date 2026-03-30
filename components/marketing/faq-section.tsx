@@ -1,80 +1,125 @@
 'use client';
 
+import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDown, Mail } from 'lucide-react';
 
 const faqItems = [
   {
     question: 'What is EOS AI?',
     answer:
-      'EOS AI is an intelligent assistant built for EOS implementation. It helps your team work through core tools like the V/TO, Scorecard, and meeting workflows with practical guidance.',
+      'EOS AI is an intelligent workspace built for teams running on EOS. It helps you work through core tools like the V/TO, Scorecard, Accountability Chart, and meeting workflows with AI-powered guidance grounded in the methodology.',
   },
   {
-    question: 'How can EOS AI help my business?',
+    question: 'How does it understand my company?',
     answer:
-      'EOS AI keeps your team aligned by turning your context and documents into actionable support for execution, planning, and decision-making.',
+      'Upload your existing EOS documents, configure company context, and EOS AI uses retrieval-augmented generation (RAG) to ground every response in your actual business data. It also builds memory over time to give increasingly personalized support.',
   },
   {
-    question: 'What EOS tools does EOS AI support?',
+    question: 'What EOS tools does it support?',
     answer:
-      'EOS AI supports core EOS workflows including V/TO development, accountability planning, Scorecard review, Rock tracking, and meeting support.',
+      'V/TO development, accountability charts, scorecard tracking, Rock planning, Level 10 meeting support, IDS methodology, and to-do management. The Composer Studio can generate and export all of these as professional documents.',
   },
   {
-    question: 'Can I upload my existing EOS documents?',
+    question: 'Does it replace an EOS Implementer?',
     answer:
-      'Yes. Upload existing EOS docs and EOS AI will use them as context so responses are personalized to your company and your operating rhythm.',
+      'No. EOS AI complements your implementer by keeping your team focused, prepared, and aligned between sessions. Think of it as always-on support that amplifies what your implementer delivers in person.',
   },
   {
-    question: 'Does EOS AI replace an EOS Implementer?',
+    question: 'How does the EOS Academy integration work?',
     answer:
-      'No. EOS AI is designed to complement your implementer by helping your team stay focused and prepared between sessions.',
+      'If you have a Circle membership through the EOS Academy, your plan syncs automatically: Discover maps to Free, Strengthen to Pro, and Mastery to Business. Each enrolled course also activates a dedicated AI assistant trained on that course material.',
+  },
+  {
+    question: 'Can my whole team use it?',
+    answer:
+      'Yes. Business-tier organizations support up to 50 members with role-based access (Owner, Admin, Member). Mastery members from the EOS Academy get unlimited seats for resource sharing. Invite teammates via email or shareable invite codes.',
+  },
+  {
+    question: 'What AI models power it?',
+    answer:
+      'EOS AI uses state-of-the-art models from Anthropic (Claude) and OpenAI. You get streaming responses, tool calling, and multi-step reasoning with the model best suited to each task.',
+  },
+  {
+    question: 'Is my data secure?',
+    answer:
+      'All data is encrypted in transit and at rest. Authentication uses OAuth 2.0 with Google. Payments are PCI-compliant via Stripe. You can delete your data at any time.',
   },
 ];
 
+function FAQItem({ faq }: { faq: (typeof faqItems)[number] }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div
+      className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-colors duration-200 hover:border-white/[0.1]"
+    >
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+        aria-expanded={isOpen}
+      >
+        <span className="font-montserrat text-base md:text-lg font-semibold text-white">
+          {faq.question}
+        </span>
+        <motion.div
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.25, ease: 'easeInOut' }}
+          className="flex-shrink-0"
+        >
+          <ChevronDown className="w-5 h-5 text-white/30" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-6 pb-5">
+              <p className="font-montserrat text-sm md:text-base text-white/50 leading-relaxed">
+                {faq.answer}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function FAQSection() {
   return (
-    <section className="faq-section relative z-20 py-24 bg-gradient-to-b from-zinc-950 via-black to-black">
+    <section className="faq-section relative z-20 py-24 md:py-32 bg-zinc-950">
       <div className="container mx-auto px-6">
-        <div className="faq-container max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-montserrat text-4xl md:text-5xl font-bold text-white mb-4">
+        <div className="faq-container max-w-3xl mx-auto">
+          <div className="text-center mb-14">
+            <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
+              FAQ
+            </p>
+            <h2 className="font-montserrat text-4xl md:text-5xl font-bold text-white tracking-tight">
               Questions, Answered
             </h2>
-            <p className="font-montserrat text-base md:text-lg text-white/80 max-w-2xl mx-auto">
-              Everything you need to know before rolling EOS AI into your team.
-            </p>
           </div>
 
-          <div className="space-y-4 mb-10" role="list" aria-label="FAQ items">
+          <div className="space-y-3 mb-12" role="list" aria-label="FAQ items">
             {faqItems.map((faq) => (
-              <details
-                key={faq.question}
-                className="group rounded-2xl border border-white/20 bg-white/[0.08] backdrop-blur-md px-5 py-4 md:px-6 md:py-5"
-              >
-                <summary className="list-none cursor-pointer flex items-center justify-between gap-4">
-                  <span className="font-montserrat text-base md:text-lg font-semibold text-white">
-                    {faq.question}
-                  </span>
-                  <ChevronDown className="w-5 h-5 text-white/70 transition-transform duration-300 group-open:rotate-180 flex-shrink-0" />
-                </summary>
-
-                <div className="grid grid-rows-[0fr] transition-all duration-300 ease-out group-open:grid-rows-[1fr]">
-                  <div className="overflow-hidden">
-                    <p className="pt-4 font-montserrat text-sm md:text-base text-white/85 leading-relaxed">
-                      {faq.answer}
-                    </p>
-                  </div>
-                </div>
-              </details>
+              <FAQItem key={faq.question} faq={faq} />
             ))}
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-white/80">
-            <Mail className="w-4 h-4 text-eos-orange" />
-            <p className="font-montserrat text-sm md:text-base">
-              Need more detail? Contact us at{' '}
+          <div className="flex items-center justify-center gap-2 text-white/40">
+            <Mail className="w-4 h-4 text-eos-orange/60" />
+            <p className="font-montserrat text-sm">
+              More questions?{' '}
               <a
                 href="mailto:support@eosbot.ai"
-                className="text-eos-orange hover:text-orange-400 transition-colors"
+                className="text-eos-orange/70 hover:text-eos-orange transition-colors"
               >
                 support@eosbot.ai
               </a>

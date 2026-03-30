@@ -9,7 +9,7 @@ import {
 } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { UISettingsProvider } from '@/components/ui-settings-provider';
-import { LoadingProvider } from '@/components/providers/loading-provider';
+// import { LoadingProvider } from '@/components/providers/loading-provider';
 import { UserSettingsProvider } from '@/components/user-settings-provider';
 import { SettingsEffectsManager } from '@/components/settings-effects-manager';
 import { Analytics } from '@vercel/analytics/next';
@@ -17,7 +17,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import './globals.css';
 import { SessionProvider } from 'next-auth/react';
-import { AppSplash } from '@/components/app-splash';
+// import { AppSplash } from '@/components/app-splash';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://eosbot.ai'),
@@ -124,15 +124,18 @@ export default async function RootLayout({
             __html: THEME_COLOR_SCRIPT,
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body
-        className="antialiased bg-white dark:bg-zinc-950"
+        className="antialiased bg-black dark:bg-zinc-950"
         suppressHydrationWarning
       >
-        {/* Full-screen splash — renders immediately with first HTML bytes,
-            fades out once React hydrates. Covers the white flash during
-            server-side auth/DB resolution in child layouts. */}
-        <AppSplash />
+        {/* AppSplash temporarily disabled to isolate white flash source */}
+        {/* <AppSplash /> */}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -144,7 +147,8 @@ export default async function RootLayout({
             <UserSettingsProvider>
               <SettingsEffectsManager />
               <UISettingsProvider>
-                <LoadingProvider />
+                {/* LoadingProvider temporarily disabled to isolate white flash source */}
+                {/* <LoadingProvider /> */}
                 {children}
               </UISettingsProvider>
             </UserSettingsProvider>

@@ -32,6 +32,7 @@
     "rules": {
       "recommended": true,
       "a11y": {
+        "useButtonType": "off", // Too noisy across tests and mocks; buttons are intentional
         "useHtmlLang": "warn", // Not in recommended ruleset, turning on manually
         "noHeaderScope": "warn", // Not in recommended ruleset, turning on manually
         "useValidAriaRole": {
@@ -51,6 +52,7 @@
         "useKeyWithClickEvents": "off" // Disable keyboard event requirement with click events
       },
       "complexity": {
+        "noStaticOnlyClass": "off", // Namespace-style classes with static methods are used intentionally
         "noUselessStringConcat": "warn", // Not in recommended ruleset, turning on manually
         "noForEach": "off", // forEach is too familiar to ban
         "noUselessSwitchCase": "off", // Turned off due to developer preferences
@@ -58,6 +60,7 @@
         "noBannedTypes": "off"
       },
       "correctness": {
+        "noConstructorReturn": "off", // Test mocks use unconventional constructor patterns
         "noUnusedImports": "warn", // Not in recommended ruleset, turning on manually
         "useArrayLiterals": "warn", // Not in recommended ruleset, turning on manually
         "noNewSymbol": "warn", // Not in recommended ruleset, turning on manually
@@ -69,6 +72,8 @@
         "noDangerouslySetInnerHtml": "off" // Covered by Conformance
       },
       "style": {
+        "noNonNullAssertion": "off", // Prefer explicit checks in new code; legacy uses `!` heavily
+        "noParameterAssign": "off", // jsPDF helpers mutate cursor position intentionally
         "useFragmentSyntax": "warn", // Not in recommended ruleset, turning on manually
         "noYodaExpression": "warn", // Not in recommended ruleset, turning on manually
         "useDefaultParameterLast": "warn", // Not in recommended ruleset, turning on manually
@@ -77,10 +82,16 @@
         "noUselessElse": "off" // Stylistic opinion
       },
       "suspicious": {
-        "noExplicitAny": "off" // We trust Vercelians to use any only when necessary
+        "noAssignInExpressions": "off", // `while ((m = re.exec(s)) !== null)` is idiomatic
+        "noArrayIndexKey": "off", // Stable lists and skeletons use index keys intentionally
+        "noExplicitAny": "off", // We trust Vercelians to use any only when necessary
+        "noImplicitAnyLet": "off" // Relaxed alongside noExplicitAny
+      },
+      "performance": {
+        "noAccumulatingSpread": "off" // Small config merges; clarity over micro-optimization
       },
       "nursery": {
-        "noStaticElementInteractions": "warn",
+        "noStaticElementInteractions": "off", // Modals and hover regions use div+onClick intentionally
         "noHeadImportInDocument": "warn",
         "noDocumentImportInPage": "warn",
         "noDuplicateElseIf": "warn",

@@ -1,40 +1,70 @@
 'use client';
 
-const trustItems = [
-  { value: '24/7', label: 'Always-on EOS guidance' },
-  { value: 'Role-Based', label: 'Personalized AI personas' },
-  { value: 'Document-Aware', label: 'Answers from your EOS docs' },
+import type { LucideIcon } from 'lucide-react';
+import {
+  Brain,
+  FileText,
+  Mic,
+  Search,
+  PenTool,
+  Users,
+  Calendar,
+  Sparkles,
+  AtSign,
+  BarChart3,
+  Shield,
+  Zap,
+} from 'lucide-react';
+import InfiniteMarquee from '@/components/marketing/infinite-marquee';
+
+const topRow = [
+  { icon: Brain, label: 'EOS Intelligence' },
+  { icon: FileText, label: 'Document RAG' },
+  { icon: Users, label: 'AI Personas' },
+  { icon: Mic, label: 'Voice Capture' },
+  { icon: Search, label: 'Deep Research' },
+  { icon: PenTool, label: 'Composer Studio' },
+  { icon: Calendar, label: 'Calendar Sync' },
+  { icon: Sparkles, label: 'Smart Memory' },
 ];
+
+const bottomRow = [
+  { icon: AtSign, label: 'Mentions' },
+  { icon: BarChart3, label: 'Scorecards' },
+  { icon: Shield, label: 'V/TO Builder' },
+  { icon: Zap, label: 'Accountability' },
+  { icon: Users, label: 'Team Sharing' },
+  { icon: Search, label: 'Semantic Search' },
+  { icon: FileText, label: 'Rocks Tracking' },
+  { icon: Brain, label: 'L10 Meetings' },
+];
+
+function MarqueeBadge({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <div className="flex items-center gap-2.5 px-5 py-2.5 mx-2 rounded-full border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm shrink-0">
+      <Icon className="w-3.5 h-3.5 text-eos-orange/80" strokeWidth={1.5} />
+      <span className="font-mono text-xs tracking-wide text-white/50 whitespace-nowrap">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 export default function SocialProof() {
   return (
-    <section className="social-proof-section relative z-20 bg-black pb-8">
-      <div className="container mx-auto px-6">
-        <div className="social-proof-card max-w-5xl mx-auto rounded-2xl border border-white/20 bg-white/[0.08] backdrop-blur-md px-6 py-6 md:px-8 md:py-7">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-montserrat text-xs md:text-sm uppercase tracking-[0.14em] text-white/70 mb-2">
-                Trusted workflow
-              </p>
-              <p className="font-montserrat text-lg md:text-2xl font-semibold text-white">
-                Built for teams running on EOS
-              </p>
-            </div>
+    <section className="social-proof-section relative z-20 bg-black py-6 overflow-hidden">
+      <div className="space-y-3">
+        <InfiniteMarquee speed={50} direction="left" pauseOnHover>
+          {topRow.map((item) => (
+            <MarqueeBadge key={item.label} icon={item.icon} label={item.label} />
+          ))}
+        </InfiniteMarquee>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
-              {trustItems.map((item) => (
-                <div key={item.label}>
-                  <p className="font-montserrat text-base md:text-lg font-semibold text-eos-orange">
-                    {item.value}
-                  </p>
-                  <p className="font-montserrat text-xs md:text-sm text-white/80">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <InfiniteMarquee speed={45} direction="right" pauseOnHover>
+          {bottomRow.map((item) => (
+            <MarqueeBadge key={item.label} icon={item.icon} label={item.label} />
+          ))}
+        </InfiniteMarquee>
       </div>
     </section>
   );

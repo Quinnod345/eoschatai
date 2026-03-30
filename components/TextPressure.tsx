@@ -220,7 +220,6 @@ const TextPressure: React.FC<TextPressureProps> = ({
       >
         {chars.map((char, i) => (
           <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: Static text characters that won't reorder
             key={i}
             ref={(el) => {
               spansRef.current[i] = el;

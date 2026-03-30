@@ -1,32 +1,36 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 /**
- * Graceful full-screen splash.
- *
- * Aesthetic: the logo is the hero. Everything else is supporting light.
- *
- * Sequence:
- *   0ms   — soft warm glow pools in behind the logo
- *   120ms — logo fades up gently (minimal blur → sharp)
- *   500ms — shimmer line appears below
- *   ~700ms— React hydrates → everything fades out in a single breath
+ * Graceful full-screen splash — only shown on /chat routes.
  */
 export function AppSplash() {
-  const [phase, setPhase] = useState<'enter' | 'exit' | 'gone'>('enter');
+  const pathname = usePathname();
+  const isChatRoute = pathname.startsWith('/chat');
+
+  const [phase, setPhase] = useState<'enter' | 'exit' | 'gone'>(() => {
+    if (!isChatRoute) return 'gone';
+    if (typeof window !== 'undefined' && sessionStorage.getItem('eos-app-loaded')) return 'gone';
+    return 'enter';
+  });
 
   useEffect(() => {
+    if (!isChatRoute) {
+      setPhase('gone');
+      return;
+    }
+
     if (sessionStorage.getItem('eos-app-loaded')) {
       setPhase('gone');
       return;
     }
     sessionStorage.setItem('eos-app-loaded', '1');
 
-    // Hold long enough for the logo entrance, then exhale
     const t = setTimeout(() => setPhase('exit'), 800);
     return () => clearTimeout(t);
-  }, []);
+  }, [isChatRoute]);
 
   useEffect(() => {
     if (phase === 'exit') {
@@ -43,10 +47,8 @@ export function AppSplash() {
       className="eos-splash-root"
       data-phase={phase}
     >
-      {/* Warm ambient light — pools up from below like a sunrise */}
       <div className="eos-splash-glow" />
 
-      {/* Logo */}
       <div className="eos-splash-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -67,7 +69,6 @@ export function AppSplash() {
           style={{ height: 'auto', objectFit: 'contain' }}
         />
 
-        {/* Shimmer line — a single delicate progress sweep */}
         <div className="eos-splash-track" role="status" aria-label="Loading">
           <div className="eos-splash-shimmer" />
         </div>
@@ -87,7 +88,6 @@ export function AppSplash() {
           --splash-sweep:  rgba(251, 146, 60,  0.85);
         }
 
-        /* ── Root ── */
         .eos-splash-root {
           position: fixed;
           inset: 0;
@@ -98,17 +98,11 @@ export function AppSplash() {
           align-items: center;
           justify-content: center;
           pointer-events: none;
-          /* Exit: single smooth exhale */
           transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
         }
         .eos-splash-root[data-phase="exit"] { opacity: 0; }
         .eos-splash-root[data-phase="enter"] { opacity: 1; }
 
-        /* ── Warm glow ──
-           A soft radial pool of orange warmth that breathes slowly —
-           like candlelight or sunrise light on a surface.
-           Positioned slightly below center so it looks like the logo
-           is sitting in front of a warm light source. */
         .eos-splash-glow {
           position: absolute;
           bottom: 30%;
@@ -130,7 +124,6 @@ export function AppSplash() {
           to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1); }
         }
 
-        /* ── Center content ── */
         .eos-splash-center {
           position: relative;
           display: flex;
@@ -139,9 +132,6 @@ export function AppSplash() {
           gap: 28px;
         }
 
-        /* ── Logo ──
-           Fades up cleanly — barely any blur, no overshoot.
-           The warmth in the background does the heavy lifting. */
         .eos-splash-logo {
           animation: eos-logo-rise 0.7s 0.12s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
@@ -158,8 +148,6 @@ export function AppSplash() {
           }
         }
 
-        /* ── Shimmer track ──
-           A hairline that sweeps repeatedly — refined, not playful. */
         .eos-splash-track {
           width: 72px;
           height: 1.5px;
@@ -191,7 +179,6 @@ export function AppSplash() {
           to   { transform: translateX(108px); }
         }
 
-        /* ── Reduced motion ── */
         @media (prefers-reduced-motion: reduce) {
           .eos-splash-glow    { animation: none; opacity: 1; transform: translateX(-50%); }
           .eos-splash-logo    { animation: none; opacity: 1; filter: none; transform: none; }

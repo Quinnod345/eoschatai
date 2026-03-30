@@ -1,7 +1,7 @@
 import type { Chat } from '@/lib/db/schema';
 import { SidebarMenuButton, SidebarMenuItem } from './ui/sidebar';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,7 +66,6 @@ const PureChatItem = ({
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [isRenameLoading, setIsRenameLoading] = useState(false);
-  const [isTracing, setIsTracing] = useState(false);
   const { preloadChat } = useChatPreloader();
   const preloadTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -210,12 +209,8 @@ const PureChatItem = ({
     <>
       <SidebarMenuItem className="py-1 px-1 group/item relative">
         <motion.div
-          className={cn('w-full rounded-md relative', isTracing && 'sidebar-item-trace')}
+          className="w-full rounded-md relative"
           whileHover={{ y: -1 }}
-          onHoverStart={() => {
-            setIsTracing(true);
-            setTimeout(() => setIsTracing(false), 450);
-          }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
           <SidebarMenuButton
@@ -279,9 +274,6 @@ const PureChatItem = ({
               >
                 <span className="truncate block min-w-0 text-[14px] font-normal">
                   {getDisplayTitle(chat.title)}
-                </span>
-                <span className="text-[10px] text-muted-foreground/40 truncate block opacity-0 group-hover/item:opacity-100 transition-opacity duration-150 leading-tight">
-                  {formatDistanceToNow(new Date(chat.createdAt), { addSuffix: true })}
                 </span>
               </div>
 

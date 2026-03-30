@@ -101,8 +101,8 @@ export default function HeroSection() {
 
       <div className="container mx-auto px-6 relative z-10">
         <div className="max-w-5xl mx-auto text-center">
-          <p className="hero-line-1 font-montserrat text-sm md:text-base text-white/80 tracking-[0.14em] uppercase mb-6">
-            Built for EOS teams
+          <p className="hero-line-1 font-mono text-xs md:text-sm text-white/60 tracking-[0.2em] uppercase mb-8">
+            The AI workspace for EOS
           </p>
 
           <h1 className="hero-line-1 font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight leading-tight mb-5">
@@ -161,30 +161,30 @@ export default function HeroSection() {
             </LayoutGroup>
           </div>
 
-          <p className="hero-subtitle font-montserrat text-base md:text-xl lg:text-2xl font-light text-white max-w-3xl mx-auto leading-relaxed">
+          <p className="hero-subtitle font-montserrat text-base md:text-xl lg:text-2xl font-light text-white/90 max-w-3xl mx-auto leading-relaxed">
             Master the Six Key Components and achieve Traction faster with one
             intelligent workspace for your team.
           </p>
 
-          <div className="hero-cta mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="hero-cta mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="font-montserrat bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white px-9 py-6 rounded-full shadow-[0_10px_32px_rgba(255,121,0,0.35)] w-full sm:w-auto"
+                className="font-montserrat font-semibold bg-gradient-to-r from-eos-orange to-orange-600 hover:from-eos-orange/90 hover:to-orange-600/90 text-white px-10 py-6 rounded-full shadow-[0_10px_32px_rgba(255,121,0,0.35)] hover:shadow-[0_14px_40px_rgba(255,121,0,0.45)] transition-all duration-300 w-full sm:w-auto"
               >
-                Get Started
+                Get Started Free
               </Button>
             </Link>
 
-            <Link href="#showcase" className="w-full sm:w-auto">
+            <a href="#showcase" className="w-full sm:w-auto">
               <Button
                 size="lg"
                 variant="outline"
-                className="font-montserrat border-white/30 text-white hover:text-white hover:bg-white/10 hover:border-white/50 bg-transparent backdrop-blur-sm px-9 py-6 rounded-full w-full sm:w-auto transition-colors"
+                className="font-montserrat border-white/20 text-white/90 hover:text-white hover:bg-white/10 hover:border-white/40 bg-white/[0.04] backdrop-blur-sm px-10 py-6 rounded-full w-full sm:w-auto transition-all duration-300"
               >
-                Watch Demo
+                See It in Action
               </Button>
-            </Link>
+            </a>
           </div>
         </div>
       </div>
