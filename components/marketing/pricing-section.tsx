@@ -175,7 +175,7 @@ function PricingCard({ plan }: { plan: (typeof plans)[number] }) {
 
 export default function PricingSection() {
   return (
-    <section className="pricing-section relative z-20 py-24 md:py-32 bg-black overflow-hidden">
+    <section className="pricing-section relative z-20 py-16 md:py-24 lg:py-32 bg-black overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_center,rgba(255,121,0,0.04),transparent_50%)]" />
       </div>
@@ -187,7 +187,7 @@ export default function PricingSection() {
             <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
               Pricing
             </p>
-            <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
+            <h2 className="font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
               Choose Your Plan
             </h2>
             <p className="font-montserrat text-lg text-white/50 max-w-xl mx-auto">

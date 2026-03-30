@@ -10,7 +10,7 @@ import {
 
 export default function HeroSection() {
   return (
-    <section className="relative isolate min-h-screen overflow-hidden flex items-center justify-center pt-32 pb-20">
+    <section className="relative isolate min-h-screen overflow-hidden flex items-center justify-center pt-24 md:pt-32 pb-20">
       <div className="absolute inset-0 z-0">
         <GradientBlinds
           gradientColors={[
@@ -109,7 +109,7 @@ export default function HeroSection() {
             Your AI Assistant for
           </h1>
 
-          <div className="hero-line-2 mb-10 flex justify-center">
+          <div className="hero-line-2 mb-6 md:mb-10 flex justify-center">
             <LayoutGroup>
               <motion.div
                 layout
@@ -166,7 +166,7 @@ export default function HeroSection() {
             intelligent workspace for your team.
           </p>
 
-          <div className="hero-cta mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="hero-cta mt-8 md:mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register" className="w-full sm:w-auto">
               <Button
                 size="lg"

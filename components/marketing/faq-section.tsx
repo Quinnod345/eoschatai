@@ -95,14 +95,14 @@ function FAQItem({ faq }: { faq: (typeof faqItems)[number] }) {
 
 export default function FAQSection() {
   return (
-    <section className="faq-section relative z-20 py-24 md:py-32 bg-zinc-950">
+    <section className="faq-section relative z-20 py-16 md:py-24 lg:py-32 bg-zinc-950">
       <div className="container mx-auto px-6">
         <div className="faq-container max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
               FAQ
             </p>
-            <h2 className="font-montserrat text-4xl md:text-5xl font-bold text-white tracking-tight">
+            <h2 className="font-montserrat text-3xl md:text-5xl font-bold text-white tracking-tight">
               Questions, Answered
             </h2>
           </div>

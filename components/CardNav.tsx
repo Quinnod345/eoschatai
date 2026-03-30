@@ -245,6 +245,12 @@ const CardNav: React.FC<CardNavProps> = ({
             </div>
           </div>
         ))}
+
+        {ctaButton && (
+          <div className="flex md:hidden items-center justify-center gap-3 px-4 py-3">
+            {ctaButton}
+          </div>
+        )}
       </div>
     </nav>
   );

@@ -33,7 +33,7 @@ const steps = [
 
 export default function AcademySection() {
   return (
-    <section className="academy-section relative z-20 py-24 md:py-32 bg-gradient-to-b from-black via-zinc-950/50 to-black overflow-hidden">
+    <section className="academy-section relative z-20 py-16 md:py-24 lg:py-32 bg-gradient-to-b from-black via-zinc-950/50 to-black overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-[radial-gradient(ellipse_at_center,rgba(255,121,0,0.06),transparent_60%)]" />
       </div>
@@ -45,7 +45,7 @@ export default function AcademySection() {
             <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
               EOS Academy Integration
             </p>
-            <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
+            <h2 className="font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
               Powered by Circle
             </h2>
             <p className="font-montserrat text-lg text-white/50 max-w-2xl mx-auto">

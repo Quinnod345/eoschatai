@@ -150,14 +150,14 @@ function FeatureCard({
 
 export default function FeaturesSection() {
   return (
-    <section className="features-section relative z-20 py-24 md:py-32 bg-black">
+    <section className="features-section relative z-20 py-16 md:py-24 lg:py-32 bg-black">
       <div className="container mx-auto px-6 lg:px-8">
         <div className="features-content max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
               Capabilities
             </p>
-            <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight">
+            <h2 className="font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight">
               What EOS AI Does
             </h2>
           </div>

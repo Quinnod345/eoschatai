@@ -87,7 +87,7 @@ export default function ProductShowcase() {
     <section
       ref={sectionRef}
       id="showcase"
-      className="relative z-20 scroll-mt-28 bg-[#050505] py-24 md:py-32"
+      className="relative z-20 scroll-mt-28 bg-[#050505] py-16 md:py-24 lg:py-32"
       aria-label="Product showcase"
     >
       <div className="container mx-auto px-6 md:px-10">
@@ -97,7 +97,7 @@ export default function ProductShowcase() {
             <p className="font-mono text-xs tracking-[0.2em] text-eos-orange/70 uppercase mb-4">
               Product
             </p>
-            <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight">
+            <h2 className="font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight">
               See It in Action
             </h2>
           </div>
@@ -165,7 +165,7 @@ export default function ProductShowcase() {
             </div>
 
             {/* Visual side */}
-            <div className="lg:col-span-3 order-1 lg:order-2 relative" style={{ height: 560 }}>
+            <div className="lg:col-span-3 order-1 lg:order-2 relative h-[350px] sm:h-[420px] lg:h-[560px]">
               <div className={`absolute left-0 right-0 bottom-[48%] transition-opacity duration-300 ${activeTab === 0 ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}`}>
                 <DemoInput isActive={isRunning(0)} />
               </div>

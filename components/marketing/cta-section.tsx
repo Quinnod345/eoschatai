@@ -12,7 +12,7 @@ const highlights = [
 
 export default function CTASection() {
   return (
-    <section className="cta-section relative z-20 overflow-hidden py-32 md:py-40">
+    <section className="cta-section relative z-20 overflow-hidden py-20 md:py-32 lg:py-40">
       {/* Lightweight CSS gradient background instead of WebGL */}
       <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#0B3E60]/40 via-black to-[#FF7900]/10" />
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_20%_30%,rgba(255,121,0,0.12),transparent_50%)]" />
@@ -24,7 +24,7 @@ export default function CTASection() {
             Ready?
           </p>
 
-          <h2 className="font-montserrat text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
+          <h2 className="font-montserrat text-3xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-5">
             Start Running Better
             <br />
             on EOS Today

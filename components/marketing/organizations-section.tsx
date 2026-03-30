@@ -31,7 +31,7 @@ const orgFeatures = [
 
 export default function OrganizationsSection() {
   return (
-    <section className="org-section relative z-20 py-24 md:py-32 bg-gradient-to-b from-black to-[#001020]/30 overflow-hidden">
+    <section className="org-section relative z-20 py-16 md:py-24 lg:py-32 bg-gradient-to-b from-black to-[#001020]/30 overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(ellipse_at_bottom_right,rgba(0,46,93,0.15),transparent_60%)]" />
       </div>
@@ -41,7 +41,7 @@ export default function OrganizationsSection() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             {/* Left: visual */}
             <div className="org-visual relative">
-              <div className="relative aspect-square max-w-[480px] mx-auto">
+              <div className="relative aspect-square max-w-[320px] sm:max-w-[400px] lg:max-w-[480px] mx-auto">
                 {/* Central hub */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="relative w-28 h-28 rounded-3xl bg-gradient-to-br from-eos-orange/20 to-eos-orange/5 border border-eos-orange/20 flex items-center justify-center shadow-[0_0_60px_rgba(255,118,0,0.1)]">
