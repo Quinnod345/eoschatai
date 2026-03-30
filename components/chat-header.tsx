@@ -316,19 +316,9 @@ function PureChatHeader({
           <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
             {/* Mobile sidebar trigger - only show on mobile */}
             {isMobile && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="h-10 w-10 cursor-pointer rounded-lg hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors touch-target-sm flex items-center justify-center"
-                  >
-                    <SidebarTrigger className="h-10 w-10 p-0 border-0 bg-transparent hover:bg-transparent">
-                      <Menu className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />
-                    </SidebarTrigger>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Open menu</TooltipContent>
-              </Tooltip>
+              <SidebarTrigger className="h-10 w-10 cursor-pointer rounded-lg hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors touch-target-sm flex items-center justify-center p-0 border-0 bg-transparent">
+                <Menu className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />
+              </SidebarTrigger>
             )}
           </div>
 
