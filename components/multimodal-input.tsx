@@ -82,7 +82,6 @@ import type { Persona, PersonaProfile } from '@/lib/db/schema';
 import { PersonaSubmenu } from '@/components/persona-submenu';
 import Image from 'next/image';
 import { getProfileTheme } from '@/lib/constants/profile-themes';
-import { useDebounce } from '@/hooks/use-debounce';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { useUpgradeStore } from '@/lib/stores/upgrade-store';
@@ -415,9 +414,24 @@ function PureMultimodalInput({
     [],
   );
 
-  // Predictive suggestions
-  const [predictions, setPredictions] = useState<string[]>([]);
+  // Predictive suggestions — two-tier: instant local + async semantic
+  interface PredictionCandidate {
+    continuation: string;
+    fullPhrase: string;
+    source: string;
+    score: number;
+    position: number;
+  }
+  interface CorpusPhrase {
+    text: string;
+    score: number;
+  }
+  const [predictions, setPredictions] = useState<PredictionCandidate[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
+  const corpusRef = useRef<CorpusPhrase[]>([]);
+  const corpusLoadedRef = useRef(false);
+  const semanticAbortRef = useRef<AbortController | null>(null);
+  const semanticRequestIdRef = useRef(0);
 
   // Plus dropdown state (for persona submenu coordination)
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
@@ -488,7 +502,6 @@ function PureMultimodalInput({
   }, [selectedProfileId, selectedPersonaId]);
   const { settings: userSettings } = useUserSettings();
   const autocompleteEnabled = userSettings.autocompleteEnabled ?? true;
-  const debouncedInput = useDebounce(input, 120);
   const isNewChat = messages.length === 0;
 
   // Dynamic specific-item suggestions (composer documents, recordings, etc.)
@@ -1120,103 +1133,145 @@ function PureMultimodalInput({
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
 
-  // Fetch predictive suggestions when input changes (debounced)
+  // Preload phrase corpus once for instant client-side matching
   useEffect(() => {
-    const run = async () => {
-      try {
-        const prefix = (debouncedInput || '').trim();
+    if (corpusLoadedRef.current || !autocompleteEnabled) return;
+    corpusLoadedRef.current = true;
+    fetch('/api/predictions/corpus')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.corpus) corpusRef.current = data.corpus;
+      })
+      .catch(() => {});
+  }, [autocompleteEnabled]);
 
-        // Better edge case detection
-        const hasMultipleLines = /\n/.test(prefix);
-        const hasPunctuation = /[\?\!\.]$/.test(prefix);
-        const hasMultipleSentences = (prefix.match(/[.!?]/g) || []).length > 1;
-        const looksLikeCompleteQuestion =
-          /^(what|where|when|why|who|how|can|could|would|should|is|are|do|does)\s/i.test(
-            prefix,
-          ) &&
-          (prefix.length > 30 || hasPunctuation);
+  // Instant client-side prefix match on every keystroke (zero debounce)
+  useEffect(() => {
+    const prefix = (input || '').trim();
 
-        // Hide suggestions in these cases
-        const shouldHide =
-          !showPredictions ||
-          showMentions ||
-          prefix.length < 3 || // Require at least 3 characters
-          prefix.length > 120 ||
-          hasMultipleLines ||
-          hasPunctuation ||
-          hasMultipleSentences ||
-          looksLikeCompleteQuestion ||
-          !isNewChat ||
-          !autocompleteEnabled;
+    const hasMultipleLines = /\n/.test(prefix);
+    const hasPunctuation = /[?!.]$/.test(prefix);
 
-        if (shouldHide) {
-          setPredictions([]);
-          if (hasPunctuation || !isNewChat || hasMultipleLines) {
-            setShowPredictions(false);
-          }
-          return;
-        }
+    const shouldHide =
+      !showPredictions ||
+      showMentions ||
+      prefix.length < 2 ||
+      prefix.length > 120 ||
+      hasMultipleLines ||
+      hasPunctuation ||
+      !isNewChat ||
+      !autocompleteEnabled;
 
-        // Build context for smarter predictions
-        const context = {
-          chatId,
-          personaId: selectedPersonaId || undefined,
-          personaName: selectedPersona?.name,
-          isNewChat,
-          selectedModelId: selectedModelId || undefined,
-        };
-
-        const res = await fetch('/api/predictions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prefix, context }),
-        });
-
-        if (!res.ok) {
-          setPredictions([]);
-          return;
-        }
-
-        const data = await res.json();
-        const items: string[] = Array.isArray(data?.predictions)
-          ? data.predictions
-          : [];
-
-        // Additional client-side filtering
-        const filtered = items.filter((item) => {
-          const trimmed = item.trim();
-          // Skip empty or very short suggestions
-          if (trimmed.length < 2) return false;
-          // Skip if it looks like a full sentence/answer
-          if (/^[A-Z].*[.!?]$/.test(trimmed)) return false;
-          // Skip if it's asking a question back
-          if (trimmed.endsWith('?')) return false;
-          // Skip if it repeats words from the prefix
-          const prefixWords = prefix.toLowerCase().split(/\s+/).slice(-3);
-          const itemWords = trimmed.toLowerCase().split(/\s+/);
-          const hasRepeatedWord = prefixWords.some(
-            (pw) => pw.length > 3 && itemWords.includes(pw),
-          );
-          if (hasRepeatedWord) return false;
-          return true;
-        });
-
-        setPredictions(filtered.slice(0, 3));
-      } catch {
-        setPredictions([]);
+    if (shouldHide) {
+      setPredictions([]);
+      if (hasPunctuation || !isNewChat || hasMultipleLines) {
+        setShowPredictions(false);
       }
-    };
-    run();
+      return;
+    }
+
+    const prefixLower = prefix.toLowerCase();
+    const endsOnWordBoundary = prefix.endsWith(' ') || prefix.length === 0;
+
+    const localMatches = corpusRef.current
+      .filter((p) => {
+        const textLower = p.text.toLowerCase();
+        if (!textLower.startsWith(prefixLower)) return false;
+        if (endsOnWordBoundary) return true;
+        const nextChar = textLower[prefixLower.length];
+        return nextChar === undefined || nextChar === ' ' || nextChar === '?';
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    const localCandidates: PredictionCandidate[] = localMatches
+      .map((m, idx) => {
+        const continuation = m.text.slice(prefix.length).replace(/^\s+/, '');
+        return {
+          continuation,
+          fullPhrase: m.text,
+          source: 'local',
+          score: m.score,
+          position: idx,
+        };
+      })
+      .filter((c) => c.continuation.length >= 2);
+
+    setPredictions(localCandidates.slice(0, 3));
+
+    // Fire async semantic search if local results are sparse (< 3).
+    // Only keep vector results that are actual prefix continuations.
+    if (prefix.length >= 3 && localCandidates.length < 3) {
+      semanticAbortRef.current?.abort();
+      const abortController = new AbortController();
+      semanticAbortRef.current = abortController;
+      const reqId = ++semanticRequestIdRef.current;
+
+      fetch('/api/predictions/semantic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix }),
+        signal: abortController.signal,
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (reqId !== semanticRequestIdRef.current || !data?.predictions)
+            return;
+          const semanticPhrases: Array<{
+            text: string;
+            score: number;
+          }> = data.predictions;
+          const existingTexts = new Set(
+            localCandidates.map((c) => c.fullPhrase.toLowerCase()),
+          );
+
+          const semanticCandidates: PredictionCandidate[] = semanticPhrases
+            .filter((sp) => {
+              if (existingTexts.has(sp.text.toLowerCase())) return false;
+              const textLower = sp.text.toLowerCase();
+              if (!textLower.startsWith(prefixLower)) return false;
+              if (endsOnWordBoundary) return true;
+              const nextChar = textLower[prefixLower.length];
+              return nextChar === undefined || nextChar === ' ' || nextChar === '?';
+            })
+            .map((sp, idx) => {
+              const continuation = sp.text
+                .slice(prefix.length)
+                .replace(/^\s+/, '');
+              return {
+                continuation,
+                fullPhrase: sp.text,
+                source: 'vector',
+                score: sp.score * 100,
+                position: localCandidates.length + idx,
+              };
+            })
+            .filter((c) => c.continuation.length >= 2)
+            .sort((a, b) => b.score - a.score);
+
+          setPredictions((prev) => {
+            const merged = [...prev];
+            const seenTexts = new Set(
+              merged.map((c) => c.fullPhrase.toLowerCase()),
+            );
+            for (const sc of semanticCandidates) {
+              if (merged.length >= 3) break;
+              if (!seenTexts.has(sc.fullPhrase.toLowerCase())) {
+                merged.push(sc);
+                seenTexts.add(sc.fullPhrase.toLowerCase());
+              }
+            }
+            return merged.slice(0, 3);
+          });
+        })
+        .catch(() => {});
+    }
   }, [
-    debouncedInput,
+    input,
     showPredictions,
     showMentions,
     isNewChat,
     autocompleteEnabled,
-    chatId,
-    selectedPersonaId,
-    selectedPersona?.name,
-    selectedModelId,
   ]);
 
   const { visibilityType, setVisibilityType } = useChatVisibility({
@@ -3650,9 +3705,9 @@ function PureMultimodalInput({
         {showPredictions && predictions.length > 0 && !showMentions && (
           <div className="absolute top-full left-0 right-0 mt-2 z-10">
             <div className="flex flex-wrap gap-2 justify-start px-2">
-              {predictions.slice(0, 3).map((p, index) => (
+              {predictions.slice(0, 3).map((candidate, index) => (
                 <motion.button
-                  key={p}
+                  key={`${candidate.continuation}-${index}`}
                   initial={{ opacity: 0, filter: 'blur(4px)' }}
                   animate={{ opacity: 1, filter: 'blur(0px)' }}
                   exit={{ opacity: 0, filter: 'blur(4px)' }}
@@ -3664,14 +3719,11 @@ function PureMultimodalInput({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={async () => {
-                    // Smart fill behavior for prediction completion
                     const current = (input || '').trimEnd();
-                    const remainder = p.trim();
+                    const remainder = candidate.continuation;
 
-                    // Determine the best way to join the current input with the prediction
                     let finalText = current;
 
-                    // Check if current input ends with a partial word (no space at end)
                     const lastSpaceIndex = current.lastIndexOf(' ');
                     const lastWord =
                       lastSpaceIndex === -1
@@ -3679,8 +3731,6 @@ function PureMultimodalInput({
                         : current.slice(lastSpaceIndex + 1);
                     const remainderFirstWord = remainder.split(/\s+/)[0] || '';
 
-                    // Check if the remainder starts with the partial word (case-insensitive)
-                    // If so, replace the partial word with the full completion
                     const partialMatch =
                       lastWord.length > 0 &&
                       lastWord.length < 4 &&
@@ -3689,19 +3739,17 @@ function PureMultimodalInput({
                         .startsWith(lastWord.toLowerCase());
 
                     if (partialMatch) {
-                      // Replace partial word with completion
                       const baseText =
                         lastSpaceIndex === -1
                           ? ''
                           : current.slice(0, lastSpaceIndex + 1);
                       finalText = baseText + remainder;
                     } else {
-                      // Normal append with smart spacing
                       const needsSpace =
                         current.length > 0 &&
                         !current.endsWith(' ') &&
                         !remainder.startsWith(' ') &&
-                        !/^[.,!?;:]/.test(remainder); // Don't add space before punctuation
+                        !/^[.,!?;:]/.test(remainder);
 
                       finalText = current + (needsSpace ? ' ' : '') + remainder;
                     }
@@ -3711,19 +3759,24 @@ function PureMultimodalInput({
                     setPredictions([]);
                     textareaRef.current?.focus();
 
-                    // Track prediction usage for ranking
                     try {
                       await fetch('/api/predictions/rank', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phrase: p }),
+                        body: JSON.stringify({
+                          phrase: candidate.fullPhrase,
+                          prefix: current.trim(),
+                          continuation: candidate.continuation,
+                          source: candidate.source,
+                          position: candidate.position,
+                        }),
                       });
                     } catch {}
                   }}
                   className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 bg-white/50 dark:bg-zinc-800/50 hover:bg-white/80 dark:hover:bg-zinc-800/80 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-700/50 rounded-full transition-all shadow-sm"
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    <span>{p}</span>
+                    <span>{candidate.continuation}</span>
                     <span className="text-zinc-400 dark:text-zinc-500 text-xs">
                       →
                     </span>
