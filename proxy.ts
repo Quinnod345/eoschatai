@@ -24,7 +24,8 @@ function validateOrigin(request: NextRequest): boolean {
     request.nextUrl.pathname.startsWith('/api/webhooks') ||
     request.nextUrl.pathname.startsWith('/api/billing/webhook') ||
     request.nextUrl.pathname.startsWith('/api/admin/circle/provision') ||
-    request.nextUrl.pathname.startsWith('/api/admin/circle/resend-welcome')
+    request.nextUrl.pathname.startsWith('/api/admin/circle/resend-welcome') ||
+    request.nextUrl.pathname.startsWith('/api/admin/circle/send-upgrade')
   ) {
     return true;
   }
