@@ -897,7 +897,7 @@ const sendCircleProvisioningEmail = async ({
   return { success: true, errorMessage: null };
 };
 
-const sendCircleUpgradeEmail = async ({
+export const sendCircleUpgradeEmail = async ({
   toEmail,
   memberName,
   tierName,
