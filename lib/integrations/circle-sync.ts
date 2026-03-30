@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import CircleUpgradeEmail from '@/emails/CircleUpgradeEmail';
 import CircleWelcomeEmail from '@/emails/CircleWelcomeEmail';
 import { db } from '@/lib/db';
 import {
@@ -896,6 +897,46 @@ const sendCircleProvisioningEmail = async ({
   return { success: true, errorMessage: null };
 };
 
+const sendCircleUpgradeEmail = async ({
+  toEmail,
+  memberName,
+  tierName,
+}: {
+  toEmail: string;
+  memberName: string | null;
+  tierName: string;
+}): Promise<{ success: boolean; errorMessage: string | null }> => {
+  const resend = getResendClient();
+  if (!resend) {
+    return { success: false, errorMessage: 'Resend client not configured' };
+  }
+
+  const from = getFromAddress();
+  const appLink = buildAppUrl('/');
+  const { error } = await resend.emails.send({
+    from,
+    to: toEmail,
+    subject: 'Your EOS AI plan has been upgraded',
+    react: CircleUpgradeEmail({
+      toEmail,
+      memberName,
+      tierName,
+      appLink,
+    }),
+    tags: [
+      { name: 'source', value: 'circle_sync' },
+      { name: 'type', value: 'upgrade' },
+      { name: 'tier', value: tierName.toLowerCase() },
+    ],
+  });
+
+  if (error) {
+    return { success: false, errorMessage: error.message };
+  }
+
+  return { success: true, errorMessage: null };
+};
+
 /**
  * Resends a Circle welcome / password-setup email to an existing EOS AI user.
  * Invalidates any prior token and generates a fresh 30-day link.
@@ -991,6 +1032,12 @@ const applyCirclePlanAssignment = async (
     await handlePlanChange(existingUser.id);
     await resetUserDailyUsageCounters(existingUser.id);
 
+    const upgradeEmailResult = await sendCircleUpgradeEmail({
+      toEmail: input.email ?? existingUser.email,
+      memberName: input.name,
+      tierName: input.tierPurchased,
+    });
+
     await writeCircleSyncLog({
       eventId: input.eventId,
       circleMemberId: input.circleMemberId,
@@ -1000,6 +1047,7 @@ const applyCirclePlanAssignment = async (
       action: 'updated_plan',
       userId: existingUser.id,
       payload: payloadWithContext,
+      errorMessage: upgradeEmailResult.errorMessage,
     });
 
     return {
@@ -1008,7 +1056,7 @@ const applyCirclePlanAssignment = async (
       userId: existingUser.id,
       tierPurchased: input.tierPurchased,
       mappedPlan: input.mappedPlan,
-      errorMessage: null,
+      errorMessage: upgradeEmailResult.errorMessage,
     };
   }
 
