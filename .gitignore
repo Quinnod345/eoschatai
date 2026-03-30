@@ -54,3 +54,6 @@ knowledge-base/**/*.md
 knowledge-base/**/*.pdf
 !knowledge-base/**/README.md
 !knowledge-base/**/.gitkeep
+
+# Sentry Config File
+.env.sentry-build-plugin
