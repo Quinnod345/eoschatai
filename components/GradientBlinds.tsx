@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
+import { canCreateWebGLContext } from '@/lib/utils/webgl';
 
 export interface GradientBlindsProps {
   className?: string;
@@ -72,14 +73,20 @@ const GradientBlinds: React.FC<GradientBlindsProps> = ({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    if (!canCreateWebGLContext()) return;
 
-    const renderer = new Renderer({
-      dpr:
-        dpr ??
-        (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1),
-      alpha: true,
-      antialias: true,
-    });
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        dpr:
+          dpr ??
+          (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1),
+        alpha: true,
+        antialias: true,
+      });
+    } catch {
+      return;
+    }
     rendererRef.current = renderer;
     const gl = renderer.gl;
     const canvas = gl.canvas as HTMLCanvasElement;

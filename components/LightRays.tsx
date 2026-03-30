@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { Renderer, Program, Triangle, Mesh } from 'ogl';
+import { canCreateWebGLContext } from '@/lib/utils/webgl';
 
 export type RaysOrigin =
   | 'top-center'
@@ -117,15 +118,21 @@ const LightRays: React.FC<LightRaysProps> = ({
 
     const initializeWebGL = async () => {
       if (!containerRef.current) return;
+      if (!canCreateWebGLContext()) return;
 
       await new Promise(resolve => setTimeout(resolve, 10));
 
       if (!containerRef.current) return;
 
-      const renderer = new Renderer({
-        dpr: Math.min(window.devicePixelRatio, 2),
-        alpha: true
-      });
+      let renderer: Renderer;
+      try {
+        renderer = new Renderer({
+          dpr: Math.min(window.devicePixelRatio, 2),
+          alpha: true
+        });
+      } catch {
+        return;
+      }
       rendererRef.current = renderer;
 
       const gl = renderer.gl;

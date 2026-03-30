@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle, Texture } from 'ogl';
+import { canCreateWebGLContext } from '@/lib/utils/webgl';
 
 type Offset = { x?: number | string; y?: number | string };
 type AnimationType = 'rotate' | 'rotate3d' | 'hover';
@@ -249,9 +250,15 @@ const PrismaticBurst = ({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    if (!canCreateWebGLContext(true)) return;
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const renderer = new Renderer({ dpr, alpha: false, antialias: false });
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({ dpr, alpha: false, antialias: false });
+    } catch {
+      return;
+    }
     rendererRef.current = renderer;
 
     const gl = renderer.gl;
