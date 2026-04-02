@@ -975,10 +975,21 @@ export function DocumentContextModal({
             Document Context
           </DialogTitle>
           <DialogDescription>
-            Upload your EOS documents to provide context for AI responses.
+            Document context lets the AI "know" your company's documents — so
+            when you ask questions, it draws on your actual data instead of
+            giving generic answers.
             <span className="block mt-2 text-sm font-medium text-foreground">
-              Primary Accountability, V/TO, and Scorecard composers are
-              automatically used as context. You can customize below.
+              This is personal to your account. What you enable here only affects
+              your chats — no other user sees or is influenced by your context.
+            </span>
+            <span className="block mt-2 text-sm text-muted-foreground">
+              Example: if you enable your V/TO as context, you can ask "What are
+              our core values?" or "Who owns the sales rock?" and the AI will
+              answer from your actual V/TO — not a generic template.
+            </span>
+            <span className="block mt-2 text-sm text-muted-foreground">
+              Context persists across every new chat you start until you turn it
+              off here.
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -991,7 +1002,13 @@ export function DocumentContextModal({
                 onChange={(e) => setUsePrimaryDocs(e.target.checked)}
                 className="w-4 h-4"
               />
-              Use primary composers automatically
+              <span>
+                Auto-include primary composers
+                <span className="block text-xs text-muted-foreground font-normal">
+                  Your main V/TO, Scorecard, and Accountability Chart are always
+                  sent as context when this is on.
+                </span>
+              </span>
             </label>
             <Button variant="outline" size="sm" onClick={saveComposerSettings}>
               Save Context Settings
@@ -1003,7 +1020,9 @@ export function DocumentContextModal({
             <div className="mb-4">
               <div className="text-base font-semibold">Upload Documents</div>
               <div className="text-sm text-muted-foreground mt-1">
-                Upload EOS documents to provide context for AI responses.
+                Upload PDFs, spreadsheets, or text files from outside the app
+                (e.g. an exported Scorecard or a process doc). Once uploaded and
+                enabled, the AI will reference them in your chats.
               </div>
             </div>
 
@@ -1116,8 +1135,9 @@ export function DocumentContextModal({
               <div>
                 <div className="text-base font-semibold">Recordings</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  Use voice transcripts as context. Newly uploaded audio will
-                  transcribe in the background.
+                  Select voice recordings to include their transcripts as AI
+                  context — useful for meeting notes or Level 10 recordings.
+                  Audio is transcribed in the background after upload.
                 </div>
               </div>
             </div>
@@ -1179,7 +1199,11 @@ export function DocumentContextModal({
                   Composer Documents
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  Choose which of your composers should be used as AI context.
+                  Composers are documents you've built inside the app — V/TOs,
+                  Scorecards, Accountability Charts, text docs, code, and more.
+                  Select specific ones here to include them as AI context.
+                  When enabled, the AI reads that composer's content every time
+                  you chat.
                 </div>
               </div>
               <Button
@@ -1197,7 +1221,7 @@ export function DocumentContextModal({
               ).length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground mb-2">
-                    Selected composers for AI context:
+                    The AI will reference these composers in your chats:
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {Object.entries(composerContext)
@@ -1303,7 +1327,9 @@ export function DocumentContextModal({
               Choose Composers
             </DialogTitle>
             <DialogDescription>
-              Select composers to use as context. Click to toggle.
+              Toggle which of your in-app composers the AI should reference when
+              you chat. Enabled composers are read every time you start a new
+              conversation — only for your account.
             </DialogDescription>
           </DialogHeader>
             <Tabs

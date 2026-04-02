@@ -472,7 +472,7 @@ export function PersonaSubmenu({
                 className="w-full"
                 onClick={handleOpenUpgrade}
               >
-                Upgrade to Pro
+                Upgrade your Circle tier
               </Button>
             </div>
           ) : isLoading ? (

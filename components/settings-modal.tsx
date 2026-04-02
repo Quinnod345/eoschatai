@@ -40,7 +40,6 @@ import {
   AlertTriangle,
   Building2,
   BarChart,
-  Key,
 } from 'lucide-react';
 import Image from 'next/image';
 import { ImageCropper } from '@/components/image-cropper';
@@ -49,7 +48,6 @@ import { useUISettings } from '@/components/ui-settings-provider';
 import { useUserSettings } from '@/components/user-settings-provider';
 import { useTheme } from 'next-themes';
 import { OrganizationSettings } from '@/components/organization-settings';
-import { ApiKeysManager } from '@/components/api-keys-manager';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { CoursePersonasAdmin } from '@/components/course-personas-admin';
 
@@ -364,9 +362,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
     { id: 'personalization', label: 'Personalization', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'integrations', label: 'Integrations', icon: Zap },
-    { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'organization', label: 'Organization', icon: Building2 },
-    { id: 'billing', label: 'Billing', icon: Database },
     { id: 'usage', label: 'Usage', icon: BarChart },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'memories', label: 'Memories', icon: Database },
@@ -1531,227 +1527,7 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                     </div>
                   )}
 
-                  {/* API Keys Section */}
-                  {activeSection === 'api-keys' && (
-                    <div>
-                      <ApiKeysManager />
-                    </div>
-                  )}
 
-                  {/* Billing Section */}
-                  {activeSection === 'billing' && (
-                    <div>
-                      <h3 className="text-xl font-semibold mb-6">
-                        Billing & Subscription
-                      </h3>
-                      <div className="space-y-6">
-                        {/* Personal Subscription */}
-                        {session?.user && !org && (
-                          <div className="rounded-lg border border-border/30 bg-card p-6">
-                            <div className="flex items-start gap-4">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold mb-2">
-                                  Personal Subscription
-                                </h4>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                  Manage your personal subscription, payment
-                                  method, or cancel.
-                                </p>
-                                <div className="mb-4 p-3 rounded-lg bg-muted">
-                                  <p className="text-sm font-medium">
-                                    Current Plan
-                                  </p>
-                                  <p className="text-lg font-bold capitalize">
-                                    {accountUser?.plan || 'Free'}
-                                  </p>
-                                </div>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await fetch(
-                                        '/api/billing/portal',
-                                        {
-                                          method: 'POST',
-                                        },
-                                      );
-                                      const data = await res
-                                        .json()
-                                        .catch(() => ({}));
-                                      if (!res.ok || !data.url) {
-                                        throw new Error(
-                                          data?.error || 'Portal unavailable',
-                                        );
-                                      }
-                                      window.location.href = data.url as string;
-                                    } catch (e) {
-                                      toast.error(
-                                        'Unable to open billing portal',
-                                      );
-                                    }
-                                  }}
-                                  className="w-full sm:w-auto"
-                                >
-                                  Open Billing Portal
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Organization Subscription Notice */}
-                        {org && (
-                          <div className="rounded-lg border border-border/30 bg-card p-6">
-                            <div className="flex items-start gap-4">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold mb-2">
-                                  Organization Subscription
-                                </h4>
-                                <p className="text-sm text-muted-foreground mb-4">
-                                  Your subscription is managed through your
-                                  organization.
-                                </p>
-                                <div className="mb-4 p-3 rounded-lg bg-muted">
-                                  <p className="text-sm font-medium">
-                                    Organization
-                                  </p>
-                                  <p className="text-lg font-bold">
-                                    Organization
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {org?.plan.charAt(0).toUpperCase() +
-                                      org?.plan.slice(1)}{' '}
-                                    Plan
-                                  </p>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  To manage billing, go to the Organization
-                                  section or contact your organization owner.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="rounded-lg border border-border/30 bg-muted/30 p-6">
-                          <h4 className="font-semibold mb-2">
-                            Testing Controls (local/dev)
-                          </h4>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            For manual testing, you can set your plan locally.
-                            This only works in non‑production.
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(
-                                    '/api/billing/admin',
-                                    {
-                                      method: 'POST',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                      body: JSON.stringify({
-                                        action: 'set_plan',
-                                        plan: 'free',
-                                      }),
-                                    },
-                                  );
-                                  if (!res.ok) throw new Error();
-                                  toast.success('Plan set to Free');
-                                  // Trigger account refresh instead of reload
-                                  setTimeout(() => {
-                                    const refreshEvent = new Event(
-                                      'account-refresh',
-                                    );
-                                    window.dispatchEvent(refreshEvent);
-                                  }, 400);
-                                } catch {
-                                  toast.error('Failed to set plan');
-                                }
-                              }}
-                            >
-                              Set Free
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(
-                                    '/api/billing/admin',
-                                    {
-                                      method: 'POST',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                      body: JSON.stringify({
-                                        action: 'set_plan',
-                                        plan: 'pro',
-                                      }),
-                                    },
-                                  );
-                                  if (!res.ok) throw new Error();
-                                  toast.success('Plan set to Pro');
-                                  // Trigger account refresh instead of reload
-                                  setTimeout(() => {
-                                    const refreshEvent = new Event(
-                                      'account-refresh',
-                                    );
-                                    window.dispatchEvent(refreshEvent);
-                                  }, 400);
-                                } catch {
-                                  toast.error('Failed to set plan');
-                                }
-                              }}
-                            >
-                              Set Pro
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(
-                                    '/api/billing/admin',
-                                    {
-                                      method: 'POST',
-                                      headers: {
-                                        'Content-Type': 'application/json',
-                                      },
-                                      body: JSON.stringify({
-                                        action: 'set_plan',
-                                        plan: 'business',
-                                      }),
-                                    },
-                                  );
-                                  if (!res.ok) throw new Error();
-                                  toast.success('Plan set to Business');
-                                  // Trigger account refresh instead of reload
-                                  setTimeout(() => {
-                                    const refreshEvent = new Event(
-                                      'account-refresh',
-                                    );
-                                    window.dispatchEvent(refreshEvent);
-                                  }, 400);
-                                } catch {
-                                  toast.error('Failed to set plan');
-                                }
-                              }}
-                            >
-                              Set Business
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-3">
-                            Note: In production, use the Manage Subscription
-                            button above.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Organization Section */}
                   {activeSection === 'organization' && (
@@ -2283,13 +2059,18 @@ export function SettingsModal({ isOpen, onClose, initialSection }: SettingsModal
                         <div className="rounded-lg border border-border/30 bg-muted/30">
                           <div className="p-6">
                             <h4 className="font-semibold mb-2">Your Plan</h4>
-                            <p className="text-lg font-bold capitalize mb-2">
-                              {accountUser?.plan || 'Free'}
+                            <p className="text-lg font-bold mb-2">
+                              {accountUser?.plan === 'pro'
+                                ? 'Strengthen'
+                                : accountUser?.plan === 'business'
+                                  ? 'Mastery'
+                                  : 'Discovery'}
                             </p>
                             {accountUser?.plan === 'free' && (
                               <p className="text-sm text-muted-foreground">
-                                Upgrade to Pro or Business for unlimited usage
-                                and advanced features.
+                                Upgrade your Circle tier to Strengthen or
+                                Mastery for unlimited usage and advanced
+                                features.
                               </p>
                             )}
                           </div>

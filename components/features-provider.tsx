@@ -3,8 +3,6 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useFeatures } from '@/hooks/use-features';
 import { WhatsNewModal } from '@/components/whats-new-modal';
-import { WhatsNewBanner } from '@/components/whats-new-banner';
-import { RecordingSuiteBanner } from '@/components/recording-suite-banner';
 import RecordingModal from '@/components/recording-modal';
 import type { User } from 'next-auth';
 
@@ -68,13 +66,6 @@ export function FeaturesProvider({ user, children }: FeaturesProviderProps) {
   return (
     <>
       {children}
-      <WhatsNewBanner
-        hasNewFeatures={hasNewFeatures}
-        newFeaturesCount={newFeaturesCount}
-        lastSeenVersion={lastSeenVersion}
-        onExplore={showModal}
-      />
-      <RecordingSuiteBanner onOpenRecording={handleOpenRecording} />
       <WhatsNewModal
         isOpen={isModalOpen}
         onClose={hideModal}

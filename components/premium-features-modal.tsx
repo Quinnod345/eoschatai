@@ -12,82 +12,94 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   Check,
+  X,
   Sparkles,
   Crown,
   Users,
   FileText,
   Calendar,
-  Mic,
   Search,
   Link2,
+  ExternalLink,
+  ArrowRight,
+  GraduationCap,
+  Shield,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAccountStore } from '@/lib/stores/account-store';
 import { trackClientEvent } from '@/lib/analytics/client';
 import { Badge } from '@/components/ui/badge';
-import { toast } from '@/lib/toast-system';
-import { showEdgeCaseToast } from '@/lib/ui/edge-case-messages';
 
-interface PremiumFeaturesModalProps {
-  open: boolean;
-  onClose: () => void;
-}
+const EOS_ACADEMY_URL = 'https://academy.eosworldwide.com/c/the-eos-bot/';
+
+const TIER_DISPLAY_NAME: Record<string, string> = {
+  free: 'Discovery',
+  pro: 'Strengthen',
+  business: 'Mastery',
+};
 
 const PLAN_FEATURES = {
   free: {
-    name: 'Free',
-    price: '$0',
+    displayName: 'Discovery',
+    description: 'Explore the EOS AI Bot and get started.',
+    icon: Zap,
+    gradient: 'from-zinc-500/20 to-zinc-600/5',
+    borderColor: 'border-zinc-500/20',
+    accentColor: 'text-zinc-400',
     features: [
       { name: 'Basic EOS AI assistance', included: true },
       { name: '20 chats per day', included: true },
       { name: '5 document uploads', included: true },
-      { name: 'System personas only', included: true },
-      { name: 'Text composer only', included: true },
+      { name: 'System personas', included: true },
+      { name: 'Text composer', included: true },
       { name: 'Custom AI Personas', included: false },
-      { name: 'Advanced composers (code, chart, VTO)', included: false },
+      { name: 'Advanced composers', included: false },
       { name: 'Export to PDF/DOCX', included: false },
       { name: 'Calendar integration', included: false },
-      { name: 'Voice transcription', included: false },
       { name: 'Long-term memory', included: false },
-      { name: 'Message pinning & bookmarking', included: false },
-      { name: 'Deep research mode', included: false },
+      { name: 'Deep research', included: false },
     ],
   },
   pro: {
-    name: 'Pro',
-    price: '$49',
-    priceInterval: 'per month',
+    displayName: 'Strengthen',
+    description: 'Full-featured EOS AI for serious implementers.',
     badge: 'Most Popular',
+    icon: Sparkles,
+    gradient: 'from-primary/20 to-primary/5',
+    borderColor: 'border-primary/30',
+    accentColor: 'text-primary',
     features: [
-      { name: 'Everything in Free', included: true },
+      { name: 'Everything in Discovery', included: true },
       { name: '200 chats per day', included: true },
       { name: '100 document uploads', included: true },
       { name: '25 custom AI personas', included: true },
-      { name: 'Advanced composers (code, chart, sheet)', included: true },
+      { name: 'Advanced composers (chart, sheet)', included: true },
       { name: 'Export to PDF/DOCX', included: true },
       { name: 'Google Calendar sync', included: true },
-      { name: 'Voice transcription (600 min/month)', included: true },
       { name: 'Long-term memory (100 memories)', included: true },
-      { name: 'Message pinning & bookmarking', included: true },
+      { name: 'Pinning & bookmarking', included: true },
       { name: 'Version history (50 versions)', included: true },
       { name: 'Advanced search & analytics', included: true },
       { name: 'Priority support', included: true },
-      { name: 'Deep research mode', included: false },
+      { name: 'Deep research', included: false },
       { name: 'Team features', included: false },
     ],
   },
   business: {
-    name: 'Business',
-    price: '$99',
-    priceInterval: 'per seat/month',
+    displayName: 'Mastery',
+    description: 'Full access for leadership teams running EOS at scale.',
     badge: 'Best for Teams',
+    icon: Shield,
+    gradient: 'from-amber-500/20 to-orange-500/5',
+    borderColor: 'border-amber-500/30',
+    accentColor: 'text-amber-500',
     features: [
-      { name: 'Everything in Pro', included: true },
-      { name: '1000 chats per day per seat', included: true },
+      { name: 'Everything in Strengthen', included: true },
+      { name: '1,000 chats per day per seat', included: true },
       { name: 'Unlimited personas & memories', included: true },
       { name: 'All composers (VTO, A/C Chart)', included: true },
       { name: 'Deep research with 40 lookups', included: true },
-      { name: 'Voice transcription (3000 min/month)', included: true },
       { name: 'Team collaboration & sharing', included: true },
       { name: 'Shared personas across org', included: true },
       { name: 'L10 meeting management', included: true },
@@ -100,14 +112,18 @@ const PLAN_FEATURES = {
   },
 };
 
+type PlanKey = keyof typeof PLAN_FEATURES;
+
+interface PremiumFeaturesModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
 export function PremiumFeaturesModal({
   open,
   onClose,
 }: PremiumFeaturesModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'business'>('pro');
-  const [loading, setLoading] = useState(false);
-  const [justSelected, setJustSelected] = useState<'pro' | 'business' | null>(null);
-  const prices = useAccountStore((state) => state.prices);
   const userPlan = useAccountStore((state) => state.user?.plan ?? 'free');
   const userSubscriptionSource = useAccountStore(
     (state) => state.user?.subscriptionSource,
@@ -118,29 +134,11 @@ export function PremiumFeaturesModal({
     org?.subscriptionSource === 'circle' ? userPlan : (org?.plan ?? userPlan);
   const isCircleLinked = userSubscriptionSource === 'circle';
 
-  // Debug org loading
-  useEffect(() => {
-    console.log('[PremiumModal] Organization state:', {
-      org,
-      hasOrg: !!org,
-      orgId: org?.id,
-      orgName: org?.name,
-    });
-  }, [org]);
-
-  // Debug modal state
-  useEffect(() => {
-    console.log('[PremiumModal] Modal states:', {
-      open,
-      selectedPlan,
-    });
-  }, [open, selectedPlan]);
-
-  // Automatically select business plan if user is coming from Nexus feature
-  // and is currently on Pro plan
   useEffect(() => {
     if (open && currentPlan === 'pro') {
       setSelectedPlan('business');
+    } else if (open) {
+      setSelectedPlan('pro');
     }
   }, [open, currentPlan]);
 
@@ -164,389 +162,236 @@ export function PremiumFeaturesModal({
     }, 100);
   }, [onClose]);
 
-  const handleCheckout = useCallback(async () => {
-    console.log('[PremiumModal] Checkout clicked:', {
-      selectedPlan,
-      hasOrg: !!org,
-      orgId: org?.id,
-      orgName: org?.name,
-    });
-
-    // For business plan, use the dedicated flow
-    if (selectedPlan === 'business') {
-      console.log('[PremiumModal] Opening business flow via event');
-      // Close the premium modal first
-      onClose();
-      // Dispatch event to open business flow
-      setTimeout(() => {
-        const event = new Event('open-business-flow');
-        window.dispatchEvent(event);
-      }, 100);
-      return;
-    }
-
-    // For Pro plan, proceed directly to checkout
-    setLoading(true);
-    try {
-      trackClientEvent({
-        event: 'premium_checkout_initiated',
-        properties: {
-          plan: selectedPlan,
-          billing_cycle: 'monthly',
-          source: 'premium_modal',
-        },
-      }).catch(() => {});
-
-      const response = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: selectedPlan,
-          billing: 'monthly',
-        }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as unknown;
-        await showEdgeCaseToast(toast, data, {
-          fallback: 'Failed to start checkout. Please try again.',
-        });
-        return;
-      }
-
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
-      }
-    } catch (error: any) {
-      console.error('Checkout error:', error);
-      await showEdgeCaseToast(
-        toast,
-        error,
-        { fallback: 'Failed to start checkout. Please try again.' },
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPlan, org, onClose]);
+  const currentDisplayName = TIER_DISPLAY_NAME[currentPlan] ?? currentPlan;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent size="2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl">
-              <Crown className="w-6 h-6 text-yellow-500" />
-              {currentPlan === 'free'
-                ? 'Unlock EOSAI Premium'
-                : 'Upgrade Your Plan'}
-            </DialogTitle>
-            <DialogDescription className="text-base mt-2">
-              {currentPlan === 'free'
-                ? 'Choose the plan that best fits your EOS journey'
-                : currentPlan === 'pro'
-                  ? 'Upgrade to Business for advanced features like Deep Research'
-                  : 'Manage your Business subscription'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Show organization subscription status */}
-          {org && org.plan !== 'free' && org.subscriptionSource !== 'circle' && (
-            <div className="mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-              <p className="text-sm text-green-900 dark:text-green-100">
-                <strong>Organization Subscription Active:</strong> Your
-                organization &quot;{org.name}&quot; has a {org.plan} subscription. All
-                members have access to {org.plan} features.
-              </p>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent size="2xl" className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="flex items-center gap-3 text-2xl font-bold">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-500/20">
+              <Crown className="w-5 h-5 text-white" />
             </div>
-          )}
+            {currentPlan === 'free'
+              ? 'Unlock More with EOS Academy'
+              : `You\u2019re on ${currentDisplayName}`}
+          </DialogTitle>
+          <DialogDescription className="text-base mt-3 leading-relaxed">
+            {currentPlan === 'business'
+              ? 'You have full access to all EOS AI Bot features.'
+              : 'Your EOS AI Bot tier is linked to your EOS Academy subscription. Upgrade at the Academy to unlock more features.'}
+          </DialogDescription>
+        </DialogHeader>
 
-          {isCircleLinked && (
-            <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-900 dark:text-blue-100 flex items-center gap-2">
-                <Link2 className="w-4 h-4 shrink-0" />
-                <span>
-                  Your plan is synced from Circle. Manage paid tier changes in
-                  Circle, then reconnect only if you need to re-sync.
-                </span>
-              </p>
+        {/* Academy linked status */}
+        {isCircleLinked && (
+          <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200/60 dark:border-blue-800/40">
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/10 shrink-0 mt-0.5">
+                <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Synced with EOS Academy ({currentDisplayName})
+                </p>
+                <p className="text-xs text-blue-700/70 dark:text-blue-300/60 mt-0.5">
+                  Upgrade your Academy subscription, then re-sync to unlock new features.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2.5 text-xs font-medium border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                  onClick={openCircleConnect}
+                >
+                  Re-sync subscription
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Organization subscription note */}
+        {org && org.plan !== 'free' && org.subscriptionSource !== 'circle' && (
+          <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border border-emerald-200/60 dark:border-emerald-800/40">
+            <p className="text-sm text-emerald-900 dark:text-emerald-100">
+              <strong>Organization tier active:</strong> Your organization
+              &quot;{org.name}&quot; is on{' '}
+              {TIER_DISPLAY_NAME[org.plan] ?? org.plan}. All members have
+              access to those features.
+            </p>
+          </div>
+        )}
+
+        {/* Tier cards */}
+        <div className="grid gap-4 py-2 md:grid-cols-3">
+          {(['free', 'pro', 'business'] as PlanKey[]).map((planKey) => {
+            const plan = PLAN_FEATURES[planKey];
+            const isCurrent = currentPlan === planKey;
+            const isSelected = planKey !== 'free' && selectedPlan === planKey;
+            const IconComponent = plan.icon;
+
+            return (
+              <div
+                key={planKey}
+                className={cn(
+                  'relative rounded-2xl border-2 p-5 transition-all duration-200',
+                  planKey === 'free'
+                    ? 'border-border/50 bg-muted/20'
+                    : 'cursor-pointer',
+                  planKey !== 'free' && isSelected
+                    ? `${plan.borderColor} bg-gradient-to-b ${plan.gradient} shadow-lg`
+                    : planKey !== 'free' &&
+                        'border-border/50 hover:border-border hover:shadow-sm',
+                  isCurrent && 'ring-2 ring-primary/20',
+                )}
+                onClick={
+                  planKey !== 'free'
+                    ? () => setSelectedPlan(planKey as 'pro' | 'business')
+                    : undefined
+                }
+                role={planKey !== 'free' ? 'button' : undefined}
+                tabIndex={planKey !== 'free' ? 0 : undefined}
+                onKeyDown={
+                  planKey !== 'free'
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedPlan(planKey as 'pro' | 'business');
+                        }
+                      }
+                    : undefined
+                }
+              >
+                {/* Badge */}
+                {isCurrent ? (
+                  <Badge className="absolute -top-2.5 right-4 shadow-sm" variant="secondary">
+                    Current
+                  </Badge>
+                ) : 'badge' in plan && plan.badge ? (
+                  <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 shadow-sm">
+                    {plan.badge}
+                  </Badge>
+                ) : null}
+
+                {/* Header */}
+                <div className="mb-5">
+                  <div className={cn('flex items-center gap-2 mb-2', plan.accentColor)}>
+                    <IconComponent className="w-4.5 h-4.5" />
+                    <h3 className="text-lg font-bold tracking-tight">
+                      {plan.displayName}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {plan.description}
+                  </p>
+                </div>
+
+                {/* Features */}
+                <ul className="space-y-2.5">
+                  {plan.features.map((feature) => (
+                    <li key={feature.name} className="flex items-start gap-2.5">
+                      {feature.included ? (
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500/10 mt-0.5 shrink-0">
+                          <Check className="w-2.5 h-2.5 text-emerald-500" strokeWidth={3} />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-muted mt-0.5 shrink-0">
+                          <X className="w-2.5 h-2.5 text-muted-foreground/40" strokeWidth={3} />
+                        </div>
+                      )}
+                      <span
+                        className={cn(
+                          'text-[13px] leading-snug',
+                          feature.included
+                            ? 'text-foreground/80'
+                            : 'text-muted-foreground/50',
+                        )}
+                      >
+                        {feature.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Connect EOS Academy button — prominent CTA for manual sync */}
+        {!isCircleLinked && (
+          <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/[0.03] p-5">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 shrink-0">
+                <GraduationCap className="w-6 h-6 text-primary" />
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <p className="text-sm font-semibold text-foreground">
+                  Already subscribed to EOS Academy?
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Connect your account to automatically sync your tier and unlock features.
+                </p>
+              </div>
               <Button
-                variant="link"
-                className="h-auto p-0 mt-2 text-xs text-blue-900 dark:text-blue-100"
+                size="lg"
+                variant="default"
+                className="shrink-0 font-semibold gap-2 px-6 shadow-md"
                 onClick={openCircleConnect}
               >
-                Re-sync Circle membership
+                Connect EOS Academy
+                <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
-          )}
-
-          {/* Show a helpful message for Pro users trying to access Business features */}
-          {currentPlan === 'pro' && !org && (
-            <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-900 dark:text-blue-100">
-                <strong>You&apos;re on the Pro plan.</strong> Upgrade to Business to
-                unlock Deep Research and advanced team features.
-              </p>
-            </div>
-          )}
-
-          <div className="grid gap-6 py-6 md:grid-cols-3">
-            {/* Free Plan */}
-            <div className="relative rounded-xl border p-6 bg-muted/30">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">
-                  {PLAN_FEATURES.free.name}
-                </h3>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold">
-                    {PLAN_FEATURES.free.price}
-                  </span>
-                </div>
-              </div>
-              <ul className="space-y-3">
-                {PLAN_FEATURES.free.features.map((feature) => (
-                  <li key={feature.name} className="flex items-start gap-2">
-                    {feature.included ? (
-                      <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                    ) : (
-                      <div className="w-4 h-4 mt-0.5" />
-                    )}
-                    <span
-                      className={cn(
-                        'text-sm',
-                        !feature.included &&
-                          'text-muted-foreground line-through',
-                      )}
-                    >
-                      {feature.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {currentPlan === 'free' && (
-                <Badge className="absolute top-4 right-4" variant="secondary">
-                  Current Plan
-                </Badge>
-              )}
-            </div>
-
-            {/* Pro Plan */}
-            <div
-              className={cn(
-                'relative rounded-xl border-2 p-6 cursor-pointer transition-all',
-                selectedPlan === 'pro'
-                  ? 'border-primary bg-primary/5 shadow-lg scale-105'
-                  : 'border-border hover:border-primary/50',
-                currentPlan === 'pro' && 'ring-2 ring-primary/20',
-                justSelected === 'pro' && 'card-select-trace',
-              )}
-              onClick={() => { setSelectedPlan('pro'); setJustSelected('pro'); setTimeout(() => setJustSelected(null), 550); }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSelectedPlan('pro'); setJustSelected('pro'); setTimeout(() => setJustSelected(null), 550);
-                }
-              }}
-            >
-              {currentPlan === 'pro' ? (
-                <Badge className="absolute top-4 right-4" variant="secondary">
-                  Current Plan
-                </Badge>
-              ) : PLAN_FEATURES.pro.badge ? (
-                <Badge
-                  className="absolute -top-3 left-1/2 -translate-x-1/2"
-                  variant="default"
-                >
-                  {PLAN_FEATURES.pro.badge}
-                </Badge>
-              ) : null}
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  {PLAN_FEATURES.pro.name}
-                  <Sparkles className="w-4 h-4 text-primary" />
-                </h3>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold">
-                    {PLAN_FEATURES.pro.price}
-                  </span>
-                  <span className="text-sm text-muted-foreground ml-1">
-                    {PLAN_FEATURES.pro.priceInterval}
-                  </span>
-                </div>
-                {!isCircleLinked && (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 mt-2 text-xs"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openCircleConnect();
-                    }}
-                  >
-                    Already have Circle? Connect membership
-                  </Button>
-                )}
-              </div>
-              <ul className="space-y-3">
-                {PLAN_FEATURES.pro.features.map((feature) => (
-                  <li key={feature.name} className="flex items-start gap-2">
-                    {feature.included ? (
-                      <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                    ) : (
-                      <div className="w-4 h-4 mt-0.5" />
-                    )}
-                    <span
-                      className={cn(
-                        'text-sm',
-                        !feature.included &&
-                          'text-muted-foreground line-through',
-                      )}
-                    >
-                      {feature.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Business Plan */}
-            <div
-              className={cn(
-                'relative rounded-xl border-2 p-6 cursor-pointer transition-all',
-                selectedPlan === 'business'
-                  ? 'border-primary bg-primary/5 shadow-lg scale-105'
-                  : 'border-border hover:border-primary/50',
-                currentPlan === 'business' && 'ring-2 ring-primary/20',
-                justSelected === 'business' && 'card-select-trace',
-              )}
-              onClick={() => { setSelectedPlan('business'); setJustSelected('business'); setTimeout(() => setJustSelected(null), 550); }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSelectedPlan('business'); setJustSelected('business'); setTimeout(() => setJustSelected(null), 550);
-                }
-              }}
-            >
-              {currentPlan === 'business' ? (
-                <Badge className="absolute top-4 right-4" variant="secondary">
-                  Current Plan
-                </Badge>
-              ) : PLAN_FEATURES.business.badge ? (
-                <Badge
-                  className="absolute -top-3 left-1/2 -translate-x-1/2"
-                  variant="default"
-                >
-                  {PLAN_FEATURES.business.badge}
-                </Badge>
-              ) : null}
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  {PLAN_FEATURES.business.name}
-                  <Users className="w-4 h-4 text-primary" />
-                </h3>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold">
-                    {PLAN_FEATURES.business.price}
-                  </span>
-                  <span className="text-sm text-muted-foreground ml-1">
-                    {PLAN_FEATURES.business.priceInterval}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Minimum 2 seats • Requires organization
-                </p>
-                {!isCircleLinked && (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 mt-2 text-xs"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openCircleConnect();
-                    }}
-                  >
-                    Already have Circle? Connect membership
-                  </Button>
-                )}
-              </div>
-              <ul className="space-y-3">
-                {PLAN_FEATURES.business.features.map((feature) => (
-                  <li key={feature.name} className="flex items-start gap-2">
-                    {feature.included ? (
-                      <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                    ) : (
-                      <div className="w-4 h-4 mt-0.5" />
-                    )}
-                    <span
-                      className={cn(
-                        'text-sm',
-                        !feature.included &&
-                          'text-muted-foreground line-through',
-                      )}
-                    >
-                      {feature.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
+        )}
 
-          {/* Feature Icons */}
-          <div className="flex items-center justify-center gap-8 py-4 border-t">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <FileText className="w-4 h-4" />
-              <span>Export</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="w-4 h-4" />
-              <span>Calendar</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Mic className="w-4 h-4" />
-              <span>Voice</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Search className="w-4 h-4" />
-              <span>Research</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Users className="w-4 h-4" />
-              <span>Personas</span>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCheckout}
-              disabled={
-                loading ||
-                currentPlan === 'business' ||
-                (currentPlan === 'pro' && selectedPlan === 'pro') ||
-                Boolean(org && org.plan !== 'free')
-              }
-              className="min-w-[120px]"
+        {/* Feature highlights row */}
+        <div className="flex items-center justify-center gap-6 sm:gap-8 py-3">
+          {[
+            { icon: FileText, label: 'Export' },
+            { icon: Calendar, label: 'Calendar' },
+            { icon: Search, label: 'Research' },
+            { icon: Users, label: 'Personas' },
+          ].map(({ icon: Icon, label }) => (
+            <div
+              key={label}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground/70"
             >
-              {loading
-                ? 'Processing...'
-                : org && org.plan !== 'free'
-                  ? `Organization has ${org.plan}`
-                  : currentPlan === 'business'
-                    ? 'Already on Business'
-                    : currentPlan === 'pro' && selectedPlan === 'pro'
-                      ? 'Current Plan'
-                      : currentPlan === 'pro' && selectedPlan === 'business'
-                        ? 'Upgrade to Business'
-                        : `Upgrade to ${selectedPlan === 'pro' ? 'Pro' : 'Business'}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+              <Icon className="w-3.5 h-3.5" />
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground/60 px-4">
+          Tiers are managed through your EOS Academy subscription.{' '}
+          <a
+            href={EOS_ACADEMY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground transition-colors"
+          >
+            Learn more at EOS Academy
+          </a>
+        </p>
+
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
+            Close
+          </Button>
+          <Button asChild size="lg" className="gap-2 font-semibold shadow-md">
+            <a
+              href={EOS_ACADEMY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <GraduationCap className="w-4 h-4" />
+              Visit EOS Academy
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

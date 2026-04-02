@@ -4,7 +4,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import {
   Brain,
   FileText,
-  Mic,
   PenTool,
   Search,
   Sparkles,
@@ -36,15 +35,6 @@ const features = [
       'Upload your EOS materials. Every response draws from your actual company context.',
     accent: 'rgba(59, 130, 246, 0.12)',
     accentBorder: 'rgba(59, 130, 246, 0.22)',
-    large: false,
-  },
-  {
-    icon: Mic,
-    title: 'Voice & Meetings',
-    description:
-      'Record meetings. Get transcripts, action items, and AI summaries automatically.',
-    accent: 'rgba(139, 92, 246, 0.12)',
-    accentBorder: 'rgba(139, 92, 246, 0.22)',
     large: false,
   },
   {

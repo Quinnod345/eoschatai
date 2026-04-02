@@ -28,7 +28,7 @@ const faqItems = [
   {
     question: 'How does the EOS Academy integration work?',
     answer:
-      'If you have a Circle membership through the EOS Academy, your plan syncs automatically: Discover maps to Free, Strengthen to Pro, and Mastery to Business. Each enrolled course also activates a dedicated AI assistant trained on that course material.',
+      'If you have a Circle membership through the EOS Academy, your tier syncs automatically: Discovery maps to the free tier, Strengthen maps to the Strengthen tier, and Mastery maps to the Mastery tier. Each enrolled course also activates a dedicated AI assistant trained on that course material.',
   },
   {
     question: 'Can my whole team use it?',

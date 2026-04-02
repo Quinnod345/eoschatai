@@ -196,16 +196,16 @@ export function BusinessUpgradeFlow({
             </Alert>
 
             <div className="rounded-lg border p-4">
-              <h4 className="font-semibold mb-2">Business Plan Features</h4>
+              <h4 className="font-semibold mb-2">Mastery Tier Features</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Everything in Pro plan</li>
+                <li>• Everything in Strengthen</li>
                 <li>• Deep research with 40 web lookups</li>
                 <li>• Team collaboration features</li>
                 <li>• Priority support</li>
-                <li>• Starting at 2 seats (expandable)</li>
+                <li>• Unlimited team seats</li>
               </ul>
-              <p className="text-sm font-semibold mt-3">
-                $99/month for 2 seats
+              <p className="text-sm text-muted-foreground mt-3">
+                Managed through your Circle membership
               </p>
             </div>
           </div>
@@ -262,12 +262,12 @@ export function BusinessUpgradeFlow({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />
-              Upgrade to Business
+              Upgrade to Mastery
             </DialogTitle>
             <DialogDescription>
-              {step === 'checking' && 'Preparing your Business upgrade...'}
+              {step === 'checking' && 'Preparing your Mastery upgrade...'}
               {step === 'needs-org' && 'Organization setup required'}
-              {step === 'ready' && 'Complete your Business subscription'}
+              {step === 'ready' && 'Complete your Mastery tier upgrade'}
               {step === 'processing' && 'Processing your upgrade...'}
               {step === 'success' && 'Upgrade successful!'}
               {step === 'error' && 'Something went wrong'}

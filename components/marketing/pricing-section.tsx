@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 
 const plans = [
   {
-    name: 'Free',
+    name: 'Discovery',
     tagline: 'Explore EOS AI',
     highlight: false,
     features: [
@@ -17,13 +17,12 @@ const plans = [
       { label: '100 MB storage', included: true },
       { label: '1 session at a time', included: true },
       { label: 'AI Personas', included: false },
-      { label: 'Voice & Recordings', included: false },
       { label: 'Deep Research', included: false },
       { label: 'Team features', included: false },
     ],
   },
   {
-    name: 'Pro',
+    name: 'Strengthen',
     tagline: 'For serious implementers',
     highlight: true,
     features: [
@@ -33,13 +32,12 @@ const plans = [
       { label: '1 GB storage', included: true },
       { label: '3 concurrent sessions', included: true },
       { label: '25 custom personas', included: true },
-      { label: '600 min/mo recordings', included: true },
       { label: 'Memory & semantic search', included: true },
       { label: 'Calendar integration', included: true },
     ],
   },
   {
-    name: 'Business',
+    name: 'Mastery',
     tagline: 'For leadership teams',
     highlight: false,
     features: [
@@ -49,7 +47,6 @@ const plans = [
       { label: '10 GB storage', included: true },
       { label: '10 concurrent sessions', included: true },
       { label: 'Unlimited personas + sharing', included: true },
-      { label: '3,000 min/mo recordings', included: true },
       { label: 'Nexus Deep Research', included: true },
       { label: 'Org up to 50 members + API', included: true },
     ],

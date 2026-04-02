@@ -32,7 +32,7 @@ type UserSettings = {
   contextDocumentIds?: string[] | null;
 };
 
-type Row = { id: string; title: string; kind: ComposerKind; createdAt: string };
+type Row = { id: string; title: string; kind: ComposerKind; createdAt: string; preview?: string };
 
 export function ComposerDashboard() {
   const params = useSearchParams();
@@ -396,7 +396,7 @@ export function ComposerDashboard() {
           <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-4">
             <p className="font-medium text-red-900 dark:text-red-200 mb-2">
               {(error as any)?.info?.code === 'FEATURE_LOCKED'
-                ? `${displayPlural} require ${(error as any)?.info?.requiredPlan || 'Pro'} plan`
+                ? `${displayPlural} require the ${(error as any)?.info?.requiredPlan === 'pro' ? 'Strengthen' : (error as any)?.info?.requiredPlan === 'business' ? 'Mastery' : 'Strengthen'} Circle tier`
                 : `Error loading ${displayPlural.toLowerCase()}`}
             </p>
             <p className="text-red-700 dark:text-red-300 text-xs">
@@ -583,7 +583,7 @@ export function ComposerDashboard() {
                       </div>
                     </div>
                   ) : (
-                    <PreviewBlock kind={row.kind} id={row.id} />
+                    <PreviewBlock kind={row.kind} id={row.id} preview={row.preview} />
                   )}
                   {/* Top left badges */}
                   {isPrimary && (
@@ -749,9 +749,8 @@ function getTotalPeople(node: any): number {
   return count;
 }
 
-function PreviewBlock({ kind, id }: { kind: ComposerKind; id: string }) {
-  const { data } = useSWR<any[]>(`/api/document?id=${id}`, fetcher);
-  const content: string = data?.[data.length - 1]?.content || '';
+function PreviewBlock({ kind, id, preview }: { kind: ComposerKind; id: string; preview?: string }) {
+  const content: string = preview || '';
   const [markdownHtml, setMarkdownHtml] = useState<string>('');
 
   // Render markdown for text previews

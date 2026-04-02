@@ -76,7 +76,7 @@ export function ChatFeatureLockedMessage({
                   )}
                 >
                   <Crown className="w-3 h-3" />
-                  {isPro ? 'Pro' : 'Business'}
+                  {isPro ? 'Strengthen' : 'Mastery'}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
@@ -89,7 +89,10 @@ export function ChatFeatureLockedMessage({
         {/* Feature Highlights */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
           <Sparkles className="w-4 h-4 text-primary" />
-          <span>Available with {isPro ? 'Pro' : 'Business'} subscription</span>
+          <span>
+            Available with Circle{' '}
+            {isPro ? 'Strengthen' : 'Mastery'} tier
+          </span>
         </div>
 
         {/* CTA Button */}
@@ -103,7 +106,7 @@ export function ChatFeatureLockedMessage({
           )}
         >
           <Crown className="w-4 h-4 mr-2" />
-          Upgrade to {isPro ? 'Pro' : 'Business'}
+          Upgrade your Circle tier
         </Button>
       </div>
     </div>

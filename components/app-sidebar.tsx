@@ -16,11 +16,9 @@ import { springSnappy } from '@/lib/motion/presets';
 import {
   PlusIcon,
   FileTextIcon,
-  ImageIcon,
-  CodeIcon,
   TargetIcon,
 } from '@/components/icons';
-import { FileSpreadsheet, Users2, Mic } from 'lucide-react';
+import { FileSpreadsheet, Users2 } from 'lucide-react';
 import { SidebarHistory } from '@/components/sidebar-history';
 import { SidebarToggle } from './sidebar-toggle';
 import { Button } from '@/components/ui/button';
@@ -50,18 +48,6 @@ const composerItems = [
     tooltip: 'Create spreadsheets',
   },
   {
-    kind: 'image',
-    label: 'Images',
-    icon: ImageIcon,
-    tooltip: 'Generate images',
-  },
-  {
-    kind: 'code',
-    label: 'Code',
-    icon: CodeIcon,
-    tooltip: 'Write and run code',
-  },
-  {
     kind: 'vto',
     label: "VTO's",
     icon: TargetIcon,
@@ -72,12 +58,6 @@ const composerItems = [
     label: 'A/C',
     icon: Users2,
     tooltip: 'Accountability Charts',
-  },
-  {
-    kind: 'recordings',
-    label: 'Recordings',
-    icon: Mic,
-    tooltip: 'Manage voice recordings',
   },
 ] as const;
 

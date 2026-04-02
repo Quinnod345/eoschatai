@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 const tiers = [
-  { circle: 'Discover', plan: 'Free', color: 'text-white/60' },
-  { circle: 'Strengthen', plan: 'Pro', color: 'text-eos-orange' },
-  { circle: 'Mastery', plan: 'Business', color: 'text-orange-400' },
+  { circle: 'Discovery', plan: 'Discovery', color: 'text-white/60' },
+  { circle: 'Strengthen', plan: 'Strengthen', color: 'text-eos-orange' },
+  { circle: 'Mastery', plan: 'Mastery', color: 'text-orange-400' },
 ];
 
 const steps = [

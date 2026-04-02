@@ -256,8 +256,8 @@ export function OrganizationModal({
           </DialogTitle>
           <DialogDescription className="text-base mt-2">
             {existingOrg
-              ? "You're ready to upgrade to Business with your organization"
-              : 'Business subscriptions require an organization for team collaboration'}
+              ? "You're ready to upgrade to Mastery with your organization"
+              : 'Mastery tier requires an organization for team collaboration'}
           </DialogDescription>
         </DialogHeader>
 
@@ -274,7 +274,13 @@ export function OrganizationModal({
               <div className="rounded-lg border bg-muted/30 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-semibold">Organization Details</h4>
-                  <Badge variant="secondary">{existingOrg.plan} Plan</Badge>
+                  <Badge variant="secondary">
+                    {existingOrg.plan === 'pro'
+                      ? 'Strengthen'
+                      : existingOrg.plan === 'business'
+                        ? 'Mastery'
+                        : 'Discovery'}
+                  </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mb-1">
                   <span className="font-medium">Name:</span> {existingOrg.name}
@@ -288,8 +294,8 @@ export function OrganizationModal({
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  You&apos;re ready to upgrade to Business! Your organization will be
-                  billed for the Business subscription.
+                  You&apos;re ready to upgrade to Mastery! Your organization will be
+                  set up for the Mastery tier.
                 </AlertDescription>
               </Alert>
             </div>
@@ -384,7 +390,7 @@ export function OrganizationModal({
               onClick={() => onContinue(existingOrg.id)}
               disabled={loading}
             >
-              Continue to Business Upgrade
+              Continue to Mastery Upgrade
             </Button>
           ) : (
             <Button

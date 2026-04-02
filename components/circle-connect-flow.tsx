@@ -76,8 +76,8 @@ export function CircleConnectFlow({
 
   const defaultOrgName = useMemo(() => {
     const accountEmail = accountUser?.email?.trim() ?? '';
-    if (!accountEmail.includes('@')) return 'Circle Team';
-    return `${accountEmail.split('@')[0]}'s Circle Team`;
+    if (!accountEmail.includes('@')) return 'My Team';
+    return `${accountEmail.split('@')[0]}'s Team`;
   }, [accountUser?.email]);
 
   useEffect(() => {
@@ -129,20 +129,20 @@ export function CircleConnectFlow({
         }
 
         await showEdgeCaseToast(toast, data, {
-          fallback: 'Failed to connect Circle membership',
+          fallback: 'Failed to connect EOS Academy subscription',
         });
 
         const message =
           isRecord(data) && typeof data.error === 'string'
             ? data.error
-            : 'Failed to connect Circle membership';
+            : 'Failed to connect EOS Academy subscription';
         throw new Error(message);
       }
 
       const connectData = data as ConnectResponse;
       setResult(connectData);
       setNotFoundEmail(null);
-      toast.success('Circle membership connected');
+      toast.success('EOS Academy subscription connected');
       if (connectData.warning) {
         await showEdgeCaseToast(toast, connectData);
       } else if (connectData.notice) {
@@ -153,7 +153,7 @@ export function CircleConnectFlow({
       setError(
         requestError instanceof Error
           ? requestError.message
-          : 'Failed to connect Circle membership',
+          : 'Failed to connect EOS Academy subscription',
       );
     } finally {
       setLoading(false);
@@ -225,11 +225,11 @@ export function CircleConnectFlow({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="w-5 h-5" />
-            Connect Circle Membership
+            Connect EOS Academy
           </DialogTitle>
           <DialogDescription>
-            Link your Circle account to sync your EOS AI plan from your Circle
-            tier.
+            Link your EOS Academy account to sync your EOS AI plan from your
+            Academy subscription.
           </DialogDescription>
         </DialogHeader>
 
@@ -290,18 +290,18 @@ export function CircleConnectFlow({
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Circle connected. Your plan is now synced to{' '}
+                  EOS Academy connected. Your plan is now synced to{' '}
                   <strong>{result.member.mappedPlan}</strong>.
                 </AlertDescription>
               </Alert>
 
               <div className="rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">Detected Circle tier</span>
+                  <span className="text-sm font-medium">Detected Academy tier</span>
                   <Badge variant="secondary">{result.member.tierName}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Membership email: {result.member.email || accountUser?.email}
+                  Academy email: {result.member.email || accountUser?.email}
                 </p>
               </div>
 
@@ -314,7 +314,7 @@ export function CircleConnectFlow({
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Mastery includes a Circle-linked org for sharing personas and
+                    Mastery includes an Academy-linked org for sharing personas and
                     resources. It does not share subscription access.
                   </p>
                   <div className="space-y-2">
@@ -339,7 +339,7 @@ export function CircleConnectFlow({
                         Creating organization...
                       </>
                     ) : (
-                      'Create Circle Organization'
+                      'Create Organization'
                     )}
                   </Button>
                 </div>
@@ -364,17 +364,17 @@ export function CircleConnectFlow({
           {notFoundEmail && (
             <div className="rounded-lg border p-4 space-y-2 bg-muted/30">
               <p className="text-sm font-medium">
-                We could not find your Circle membership
+                We could not find your EOS Academy subscription
               </p>
               <p className="text-xs text-muted-foreground">
                 Searched email: <strong>{notFoundEmail}</strong>
               </p>
               <p className="text-xs text-muted-foreground">
-                Make sure your EOS AI account email matches your Circle
-                membership email.
+                Make sure your EOS AI account email matches your EOS Academy
+                email.
               </p>
               <p className="text-xs text-muted-foreground">
-                If your Circle account uses a different email, update your EOS AI
+                If your Academy account uses a different email, update your EOS AI
                 account email in Settings to match, then try again.
               </p>
               <Button variant="outline" size="sm" onClick={openProfileSettings}>
@@ -432,7 +432,7 @@ export function CircleConnectFlow({
                   Connecting...
                 </>
               ) : (
-                'Connect Circle'
+                'Connect EOS Academy'
               )}
             </Button>
           )}

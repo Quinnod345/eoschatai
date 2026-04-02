@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Globe, Sparkles, Code } from 'lucide-react';
+import { User, Globe, Sparkles } from 'lucide-react';
 import type { User as NextAuthUser } from 'next-auth';
 import { useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
@@ -34,7 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Keyboard, LogOut, Settings, Mic, Home } from 'lucide-react';
+import { Keyboard, LogOut, Settings } from 'lucide-react';
 import { clientLogout } from '@/lib/auth-utils';
 import RecordingModal from '@/components/recording-modal';
 import {
@@ -296,10 +296,6 @@ export function SidebarUserNav({
                   )}
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setShowRecordingModal(true)}>
-                <Mic className="mr-2 h-4 w-4" />
-                <span>Voice Recording Suite</span>
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setShowDocumentContextModal(true)}
               >
@@ -318,20 +314,6 @@ export function SidebarUserNav({
                   </Tooltip>
                 </TooltipProvider>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
-                  window.open('/docs', '_blank')
-                }
-              >
-                <Code className="mr-2 h-4 w-4" />
-                <span>API Documentation</span>
-              </DropdownMenuItem>
-              {!isGuest && (
-                <DropdownMenuItem onSelect={() => router.push('/?from=chat')}>
-                  <Home className="mr-2 h-4 w-4" />
-                  <span>Explore Homepage</span>
-                </DropdownMenuItem>
-              )}
               <DropdownMenuItem
                 onSelect={() =>
                   window.open('https://eosworldwide.com', '_blank')

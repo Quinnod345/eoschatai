@@ -330,7 +330,11 @@ export function OrganizationSettings() {
             >
               {org.subscriptionSource === 'circle'
                 ? 'Circle Resource Org'
-                : `${org.plan.charAt(0).toUpperCase() + org.plan.slice(1)} Plan`}
+                : org.plan === 'pro'
+                  ? 'Strengthen'
+                  : org.plan === 'business'
+                    ? 'Mastery'
+                    : 'Discovery'}
             </Badge>
           </div>
         </CardHeader>

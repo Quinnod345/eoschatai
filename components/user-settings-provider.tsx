@@ -193,9 +193,21 @@ export function UserSettingsProvider({
   );
 }
 
+const fallbackContext: UserSettingsContextType = {
+  settings: defaultSettings,
+  loading: true,
+  updateSettings: async () => {},
+  refreshSettings: async () => {},
+};
+
 export function useUserSettings() {
   const context = useContext(UserSettingsContext);
   if (context === undefined) {
+    // Return safe defaults instead of throwing during SSR edge cases
+    // (e.g. error boundaries, partial hydration)
+    if (typeof window === 'undefined') {
+      return fallbackContext;
+    }
     throw new Error(
       'useUserSettings must be used within a UserSettingsProvider',
     );

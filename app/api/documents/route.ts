@@ -166,6 +166,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           kind: d.kind,
           createdAt: d.createdAt,
           isContext: d.isContext ?? false, // Include isContext field for composers
+          preview: (d.content || '').slice(0, 1000), // Truncated content for dashboard previews
         })),
       });
     }

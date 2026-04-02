@@ -109,8 +109,9 @@ export function DailyLimitModal({
                         Upgrade for more
                       </p>
                       <p className="text-sm">
-                        <span className="font-medium">Pro:</span> 200/day •{' '}
-                        <span className="font-medium">Business:</span> 1,000/day
+                        <span className="font-medium">Strengthen:</span>{' '}
+                        200/day •{' '}
+                        <span className="font-medium">Mastery:</span> 1,000/day
                       </p>
                     </div>
                   )}

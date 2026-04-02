@@ -21,7 +21,7 @@ type UpgradePromptProps = {
 export function UpgradePrompt({
   feature,
   onAutoRetry,
-  cta = 'Unlock with Pro',
+  cta = 'Upgrade your Circle tier',
   children,
   className,
   placement = 'unspecified',

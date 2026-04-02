@@ -283,7 +283,7 @@ export function PersonasDropdown({
               onClick={() => {
                 void showEdgeCaseToast(toast, {
                   code: 'FEATURE_LOCKED',
-                  message: 'AI Personas are available on Pro and Business plans.',
+                  message: 'AI Personas are available on Strengthen and Mastery Circle tiers.',
                   requiredPlan: 'pro',
                 });
               }}
