@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Globe, Sparkles } from 'lucide-react';
+import { User, Globe } from 'lucide-react';
 import type { User as NextAuthUser } from 'next-auth';
 import { useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
@@ -11,15 +11,7 @@ import { guestRegex } from '@/lib/constants';
 import { SettingsModal } from './settings-modal';
 import { DocumentContextModal } from './document-context-modal';
 import { KeyboardShortcutsModal } from './keyboard-shortcuts-modal';
-import { useFeatures } from '@/hooks/use-features';
-import { WhatsNewModal } from './whats-new-modal';
 import { useUserSettings } from '@/components/user-settings-provider';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -36,7 +28,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Keyboard, LogOut, Settings } from 'lucide-react';
 import { clientLogout } from '@/lib/auth-utils';
-import RecordingModal from '@/components/recording-modal';
 import {
   OrganizationSwitcher,
   OrganizationSwitcherTrigger,
@@ -59,22 +50,7 @@ export function SidebarUserNav({
   const [showKeyboardShortcutsModal, setShowKeyboardShortcutsModal] =
     useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
-  const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
-
-  // Features hook
-  const {
-    hasNewFeatures,
-    newFeaturesCount,
-    lastSeenVersion,
-    markAsSeen,
-    showModal: showFeaturesModal,
-    hideModal: hideFeaturesModal,
-    isModalOpen: isFeaturesModalOpen,
-  } = useFeatures({
-    userId: user?.id,
-    autoShow: false, // Don't auto-show in sidebar, only manual
-  });
 
   const { settings: userSettings } = useUserSettings();
   const profilePicture = userSettings.profilePicture || null;
@@ -283,36 +259,11 @@ export function SidebarUserNav({
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={showFeaturesModal}>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center">
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    <span>What&apos;s New</span>
-                  </div>
-                  {hasNewFeatures && newFeaturesCount > 0 && (
-                    <div className="flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-primary rounded-full">
-                      {newFeaturesCount}
-                    </div>
-                  )}
-                </div>
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setShowDocumentContextModal(true)}
               >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center">
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        <span>Document Context</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      Upload company documents like Core Process, Scorecard, or
-                      V/TO to provide context for AI responses
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                <span>Document Context</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() =>
@@ -363,21 +314,7 @@ export function SidebarUserNav({
         onClose={() => setShowKeyboardShortcutsModal(false)}
       />
 
-      {/* What's New Modal */}
-      <WhatsNewModal
-        isOpen={isFeaturesModalOpen}
-        onClose={hideFeaturesModal}
-        lastSeenVersion={lastSeenVersion}
-        onMarkAsSeen={markAsSeen}
-      />
 
-      {/* Recording Modal */}
-      {showRecordingModal && (
-        <RecordingModal
-          isOpen={showRecordingModal}
-          onClose={() => setShowRecordingModal(false)}
-        />
-      )}
 
       {/* Organization Switcher */}
       {showOrgSwitcher && (
