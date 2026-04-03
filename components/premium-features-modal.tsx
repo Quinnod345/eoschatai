@@ -264,11 +264,11 @@ export function PremiumFeaturesModal({
               >
                 {/* Badge */}
                 {isCurrent ? (
-                  <Badge className="absolute -top-2.5 right-4 shadow-sm" variant="secondary">
+                  <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 shadow-sm" variant="secondary">
                     Current
                   </Badge>
                 ) : 'badge' in plan && plan.badge ? (
-                  <Badge className="absolute -top-2.5 right-4 shadow-sm">
+                  <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 shadow-sm">
                     {plan.badge}
                   </Badge>
                 ) : null}
